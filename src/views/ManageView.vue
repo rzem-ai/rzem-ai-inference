@@ -7,7 +7,7 @@ const healthStatus = ref<string>('');
 async function checkHealth() {
   try {
     const result = await invoke<string>('health_check');
-    healthStatus.value = `Status: ${result}`;
+    healthStatus.value = result;
   } catch (error) {
     healthStatus.value = `Error: ${error}`;
   }
@@ -24,7 +24,7 @@ async function checkHealth() {
       <div class="section">
         <h2>System Status</h2>
         <button @click="checkHealth" class="btn-primary">Check Backend Health</button>
-        <p v-if="healthStatus" class="status-message">{{ healthStatus }}</p>
+        <p v-if="healthStatus" class="status-message">Status: {{ healthStatus }}</p>
       </div>
     </div>
   </div>
