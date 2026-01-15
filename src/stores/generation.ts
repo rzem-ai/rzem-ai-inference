@@ -18,7 +18,7 @@ export const useGenerationStore = defineStore('generation', () => {
     batchSize: 1
   })
 
-  const activeProgress = ref<Map<string, GenerationProgress>>(new Map())
+  const activeProgress = ref<Record<string, GenerationProgress>>({})
 
   // Getters
   const queuedJobs = computed(() =>
@@ -37,7 +37,7 @@ export const useGenerationStore = defineStore('generation', () => {
   const isGenerating = computed(() => runningJobs.value.length > 0)
 
   // Getter for progress of specific job
-  const getProgress = (jobId: string) => activeProgress.value.get(jobId)
+  const getProgress = (jobId: string) => activeProgress.value[jobId]
 
   // Actions
   function addJob(job: GenerationJob) {
@@ -58,11 +58,11 @@ export const useGenerationStore = defineStore('generation', () => {
   }
 
   function updateProgress(jobId: string, progress: GenerationProgress) {
-    activeProgress.value.set(jobId, progress)
+    activeProgress.value[jobId] = progress
   }
 
   function clearProgress(jobId: string) {
-    activeProgress.value.delete(jobId)
+    delete activeProgress.value[jobId]
   }
 
   return {
