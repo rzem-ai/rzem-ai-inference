@@ -33,3 +33,8 @@ Cargo.lock
 
 # Tauri
 src-tauri/target/
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
