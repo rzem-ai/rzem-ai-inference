@@ -13,7 +13,7 @@
     "noFallthroughCasesInSwitch": true,
     "allowImportingTsExtensions": true,
     "isolatedModules": true,
-    "noEmit": true
+    "composite": true
   },
   "include": ["vite.config.ts", "tailwind.config.js"]
 }
