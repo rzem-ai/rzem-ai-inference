@@ -1,6 +1,6 @@
 <template>
   <div class="app-container">
-    <!-- WorkspaceNav will be added in Task 4 -->
+    <WorkspaceNav />
     <main class="main-content">
       <RouterView />
     </main>
@@ -9,6 +9,7 @@
 
 <script setup lang="ts">
 import { RouterView } from 'vue-router'
+import WorkspaceNav from '@/components/shared/WorkspaceNav.vue'
 </script>
 
 <style scoped>
