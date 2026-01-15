@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import PromptInput from '@/components/generation/PromptInput.vue'
+import ParameterControls from '@/components/generation/ParameterControls.vue'
 </script>
 
 <template>
@@ -12,6 +13,8 @@ import PromptInput from '@/components/generation/PromptInput.vue'
       <div class="panel left-panel">
         <h2>Generate</h2>
         <PromptInput />
+        <div class="divider"></div>
+        <ParameterControls />
       </div>
       <div class="panel center-panel">
         <h2>Queue</h2>
@@ -82,5 +85,11 @@ import PromptInput from '@/components/generation/PromptInput.vue'
   margin: 0 0 1rem 0;
   font-size: 1rem;
   font-weight: 600;
+}
+
+.divider {
+  height: 1px;
+  background: #e5e7eb;
+  margin: 1.5rem 0;
 }
 </style>
