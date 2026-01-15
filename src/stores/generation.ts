@@ -6,6 +6,7 @@ export const useGenerationStore = defineStore('generation', () => {
   // State
   const jobs = ref<GenerationJob[]>([])
   const currentParams = ref<GenerationParams>({
+    mode: 'txt2img',
     prompt: '',
     negativePrompt: '',
     steps: 20,
