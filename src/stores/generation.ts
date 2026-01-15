@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { GenerationJob, GenerationParams } from '@/types'
+import type { GenerationJob, GenerationParams, GenerationProgress } from '@/types'
 
 export const useGenerationStore = defineStore('generation', () => {
   // State
@@ -9,13 +9,16 @@ export const useGenerationStore = defineStore('generation', () => {
     mode: 'txt2img',
     prompt: '',
     negativePrompt: '',
-    steps: 20,
-    cfgScale: 7.5,
+    steps: 4,  // Flux Schnell default
+    cfgScale: 1.0,  // Flux uses CFG=1 typically
     width: 1024,
     height: 1024,
     seed: -1,
-    model: 'flux-schnell'
+    model: 'flux-schnell',
+    batchSize: 1
   })
+
+  const activeProgress = ref<Map<string, GenerationProgress>>(new Map())
 
   // Getters
   const queuedJobs = computed(() =>
@@ -29,6 +32,12 @@ export const useGenerationStore = defineStore('generation', () => {
   const completedJobs = computed(() =>
     jobs.value.filter(job => job.status === 'Completed')
   )
+
+  // Getter for active generation
+  const isGenerating = computed(() => runningJobs.value.length > 0)
+
+  // Getter for progress of specific job
+  const getProgress = (jobId: string) => activeProgress.value.get(jobId)
 
   // Actions
   function addJob(job: GenerationJob) {
@@ -48,17 +57,30 @@ export const useGenerationStore = defineStore('generation', () => {
     jobs.value = jobs.value.filter(job => job.status !== 'Completed')
   }
 
+  function updateProgress(jobId: string, progress: GenerationProgress) {
+    activeProgress.value.set(jobId, progress)
+  }
+
+  function clearProgress(jobId: string) {
+    activeProgress.value.delete(jobId)
+  }
+
   return {
     // State
     jobs,
     currentParams,
+    activeProgress,
     // Getters
     queuedJobs,
     runningJobs,
     completedJobs,
+    isGenerating,
+    getProgress,
     // Actions
     addJob,
     updateJobStatus,
-    clearCompleted
+    clearCompleted,
+    updateProgress,
+    clearProgress
   }
 })
