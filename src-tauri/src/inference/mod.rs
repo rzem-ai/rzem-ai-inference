@@ -1,19 +1,15 @@
 //! Inference engine for running Flux models with Candle
 
-pub struct InferenceEngine;
+mod engine;
 
-impl InferenceEngine {
-    pub fn new() -> Self {
-        Self
-    }
-}
+pub use engine::InferenceEngine;
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn test_inference_engine_creation() {
-        let _engine = InferenceEngine::new();
+    fn test_inference_module() {
+        let _engine = InferenceEngine::new().unwrap();
     }
 }
