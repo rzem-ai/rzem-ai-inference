@@ -25,6 +25,18 @@ export const useSettingsStore = defineStore('settings', () => {
     apiToken.value = token
   }
 
+  function setServerPort(port: number) {
+    serverPort.value = port
+  }
+
+  function setOutputPath(path: string) {
+    outputPath.value = path
+  }
+
+  function setModelCachePath(path: string) {
+    modelCachePath.value = path
+  }
+
   return {
     // State
     connectionMode,
@@ -36,6 +48,9 @@ export const useSettingsStore = defineStore('settings', () => {
     // Actions
     setConnectionMode,
     setServerUrl,
-    setApiToken
+    setServerPort,
+    setApiToken,
+    setOutputPath,
+    setModelCachePath
   }
 })

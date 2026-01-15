@@ -34,11 +34,13 @@ export const useGenerationStore = defineStore('generation', () => {
     jobs.value.push(job)
   }
 
-  function updateJobStatus(id: string, status: GenerationJob['status']) {
+  function updateJobStatus(id: string, status: GenerationJob['status']): boolean {
     const job = jobs.value.find(j => j.id === id)
     if (job) {
       job.status = status
+      return true
     }
+    return false
   }
 
   function clearCompleted() {
