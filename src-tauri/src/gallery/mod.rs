@@ -30,13 +30,13 @@ impl GalleryDb {
                 file_path TEXT NOT NULL UNIQUE,
                 thumbnail_path TEXT,
                 created_at INTEGER NOT NULL,
-                width INTEGER,
-                height INTEGER,
-                file_size INTEGER,
+                width INTEGER NOT NULL,
+                height INTEGER NOT NULL,
+                file_size INTEGER NOT NULL,
                 is_favorite INTEGER DEFAULT 0,
-                prompt TEXT,
+                prompt TEXT NOT NULL,
                 negative_prompt TEXT,
-                model_name TEXT,
+                model_name TEXT NOT NULL,
                 steps INTEGER,
                 cfg_scale REAL,
                 seed INTEGER,
@@ -51,7 +51,7 @@ impl GalleryDb {
         self.conn.execute(
             "CREATE TABLE IF NOT EXISTS tags (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL UNIQUE
+                name TEXT UNIQUE NOT NULL
             )",
             [],
         )?;
@@ -84,18 +84,9 @@ impl GalleryDb {
     pub fn insert_image(&self, metadata: &ImageMetadata) -> Result<()> {
         // Insert into images table with hardcoded defaults
         self.conn.execute(
-            "INSERT INTO images (id, file_path, created_at, width, height, file_size, prompt, model_name)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-            params![
-                metadata.id,
-                metadata.file_path,
-                metadata.created_at,
-                1024,
-                1024,
-                0,
-                metadata.prompt,
-                "flux-schnell"
-            ],
+            "INSERT INTO images (id, file_path, prompt, created_at, width, height, file_size, model_name)
+             VALUES (?1, ?2, ?3, ?4, 1024, 1024, 0, 'flux-schnell')",
+            params![metadata.id, metadata.file_path, metadata.prompt, metadata.created_at],
         )?;
 
         // Insert into FTS table
