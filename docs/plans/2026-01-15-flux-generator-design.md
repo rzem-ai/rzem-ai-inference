@@ -44,22 +44,26 @@ A desktop application for local AI image generation using Flux models via Candle
 ## Core Features
 
 ### 1. Image Generation Modes
+
 - **Text-to-Image**: Generate from text prompts
 - **Image-to-Image**: Transform existing images
 - **Inpainting**: Edit specific regions with advanced mask editor
 
 ### 2. Model Support
+
 - **Flux Schnell**: Fast 4-step model (12GB, Apache 2.0)
 - **Flux Dev**: High-quality model (24GB, non-commercial)
 - **Flux Pro**: Remote API integration for best quality
 - **LoRA Support**: Apply multiple LoRAs with individual weights
 
 ### 3. Operating Modes
+
 - **Local Mode**: All inference on local GPU/CPU
 - **Server Mode**: Share GPU with remote clients via REST/WebSocket API
 - **Client Mode**: Connect to remote server, full UI with delegated inference
 
 ### 4. Advanced Features
+
 - Live preview during generation (progressive updates)
 - Smart queue with batch support for similar prompts
 - Multi-LoRA mixing with weight control
@@ -73,6 +77,7 @@ A desktop application for local AI image generation using Flux models via Candle
 ### Generate Workspace (Primary creation mode)
 
 **Left Panel (35%)**:
+
 - Mode selector: txt2img / img2img / inpainting
 - Prompt/negative prompt textareas
 - Parameter controls: steps, CFG, dimensions, seed, batch
@@ -80,11 +85,13 @@ A desktop application for local AI image generation using Flux models via Candle
 - Generate button with queue count
 
 **Center Panel (25%)**:
+
 - Generation queue with live progress
 - Recent history thumbnails
 - Quick actions: favorite, compare, gallery
 
 **Right Canvas (40%)**:
+
 - Large preview/editing area
 - Live progressive preview during generation
 - For img2img: upload + strength slider
@@ -94,12 +101,14 @@ A desktop application for local AI image generation using Flux models via Candle
 ### Refine Workspace (Models & LoRAs)
 
 **Model Hub**:
+
 - Tabs: "My Models" / "Browse HuggingFace" / "Browse Civitai"
 - Card-based layout with thumbnails, sizes, licenses
 - Download manager with pause/resume
 - Storage overview and cleanup tools
 
 **LoRA Library**:
+
 - Grid view with preview images
 - Metadata: trigger words, weights, tags
 - Search and filter functionality
@@ -109,12 +118,14 @@ A desktop application for local AI image generation using Flux models via Candle
 ### Compare Workspace (History & Gallery)
 
 **Smart Gallery**:
+
 - Masonry/grid view of generated images
 - Full-text search on prompts (SQLite FTS5)
 - Filters: date, model, favorites, tags, dimensions
 - Bulk operations: tag, favorite, export, delete
 
 **Compare Mode**:
+
 - Side-by-side view (up to 4 images)
 - Synchronized zoom/pan
 - Metadata diff showing parameter differences
@@ -123,22 +134,26 @@ A desktop application for local AI image generation using Flux models via Candle
 ### Manage Workspace (Settings & System)
 
 **Performance Tab**:
+
 - Real-time GPU/CPU/RAM monitoring
 - Device selection (CUDA/Metal/CPU)
 - Memory limits and precision settings (f32/f16/bf16)
 - Benchmark tool for different configs
 
 **Connection Tab** (Server Mode):
+
 - Mode selector: Local / Server / Client
 - Server settings: port, auth token, active connections
 - Client settings: server discovery, manual entry, connection status
 - Fallback options
 
 **Storage & Paths**:
+
 - Output directory, model cache, gallery database
 - Cleanup tools for unused models and temp files
 
 **Presets**:
+
 - Named preset library (Quick Draft, Final Quality, etc.)
 - Import/export as JSON
 
@@ -217,6 +232,7 @@ src/
 ### Key Technologies
 
 **Rust Dependencies**:
+
 ```toml
 candle-core = { version = "0.8", features = ["cuda"] }
 candle-nn = "0.8"
@@ -230,24 +246,28 @@ tokio-tungstenite = "0.21"  # WebSocket
 ```
 
 **Vue Dependencies**:
+
 - Already present from template: PrimeVue, TailwindCSS, Pinia, VueUse
 - Additional: (TBD if needed)
 
 ### Threading & Performance
 
 **Inference Threading**:
+
 - Tauri main thread receives commands, returns immediately
 - Queue manager spawns tokio tasks for each job
 - Candle inference runs in `spawn_blocking` to avoid blocking async runtime
 - Progress callbacks emit Tauri events to frontend (~2 updates/sec)
 
 **Memory Management**:
+
 - Model weights cached with LRU eviction
 - Configurable precision (f32/f16/bf16)
 - Auto-recovery: OOM → reduce precision → reduce batch → offload to CPU
 - Real-time monitoring with warnings
 
 **Smart Queueing**:
+
 - Batch jobs with same model + similar dimensions
 - Different seeds batched together efficiently
 - Memory-aware batch sizing
@@ -255,6 +275,7 @@ tokio-tungstenite = "0.21"  # WebSocket
 ### Database Schema
 
 **SQLite Tables**:
+
 - `images`: Main table with generation metadata
 - `tags`, `image_tags`: Many-to-many tagging
 - `image_loras`: Track which LoRAs were used
@@ -263,6 +284,7 @@ tokio-tungstenite = "0.21"  # WebSocket
 - `images_fts`: Full-text search (FTS5) on prompts
 
 **Metadata in Images**:
+
 - PNG tEXt chunks / JPEG EXIF
 - Complete generation parameters embedded
 - Allows external tools to read settings
@@ -270,6 +292,7 @@ tokio-tungstenite = "0.21"  # WebSocket
 ### Server Mode Protocol
 
 **REST API**:
+
 ```
 POST   /api/generate          # Submit job
 GET    /api/queue             # Queue status
@@ -280,6 +303,7 @@ GET    /api/result/{job_id}   # Download image
 ```
 
 **WebSocket**:
+
 ```
 ws://server:port/ws
 - Auth: Bearer token
@@ -288,6 +312,7 @@ ws://server:port/ws
 ```
 
 **Discovery**:
+
 - mDNS/Bonjour for automatic server discovery on LAN
 - Manual entry for remote servers
 - Connection status with latency monitoring
@@ -295,6 +320,7 @@ ws://server:port/ws
 ## Storage & Paths
 
 **Default Locations**:
+
 ```
 ~/.flux-generator/
 ├── models/              # Model weights
@@ -317,6 +343,7 @@ ws://server:port/ws
 ## Implementation Phases
 
 ### Phase 1: Core Infrastructure
+
 1. Set up Tauri + Vue project structure
 2. Implement basic Candle integration
 3. Create modular Rust backend structure
@@ -324,6 +351,7 @@ ws://server:port/ws
 5. Implement basic UI with workspace navigation
 
 ### Phase 2: Generation Features
+
 1. Text-to-image with Flux Schnell
 2. Progressive preview system
 3. Queue management
@@ -331,6 +359,7 @@ ws://server:port/ws
 5. Inpainting with mask editor
 
 ### Phase 3: Model & LoRA Management
+
 1. Model manager with download system
 2. LoRA loader and mixing
 3. Model hub UI
@@ -338,6 +367,7 @@ ws://server:port/ws
 5. Preset system
 
 ### Phase 4: Gallery & Compare
+
 1. Smart gallery with search
 2. Tagging system
 3. Compare workspace
@@ -345,6 +375,7 @@ ws://server:port/ws
 5. Metadata embedding
 
 ### Phase 5: Advanced Features
+
 1. Flux Dev support
 2. Multi-LoRA combinations
 3. Performance monitoring
@@ -352,6 +383,7 @@ ws://server:port/ws
 5. Batch generation optimization
 
 ### Phase 6: Server Mode
+
 1. REST API with axum
 2. WebSocket for real-time updates
 3. Server/Client mode switching
@@ -359,6 +391,7 @@ ws://server:port/ws
 5. mDNS discovery
 
 ### Phase 7: Polish & Optimization
+
 1. UI/UX refinements
 2. Performance optimization
 3. Error handling

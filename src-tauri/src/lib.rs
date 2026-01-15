@@ -19,6 +19,12 @@ fn health_check() -> String {
 
 #[command]
 fn init_database(app_state: State<AppState>, db_path: String) -> Result<String, String> {
+    // Create parent directory if it doesn't exist
+    if let Some(parent) = std::path::Path::new(&db_path).parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create database directory: {}", e))?;
+    }
+
     let db = gallery::GalleryDb::new(&db_path)
         .map_err(|e| format!("Failed to open database: {}", e))?;
 
