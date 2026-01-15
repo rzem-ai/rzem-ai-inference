@@ -1,3 +1,7 @@
+<script setup lang="ts">
+import PromptInput from '@/components/generation/PromptInput.vue'
+</script>
+
 <template>
   <div class="workspace">
     <div class="workspace-header">
@@ -6,8 +10,8 @@
     </div>
     <div class="workspace-content">
       <div class="panel left-panel">
-        <h2>Controls</h2>
-        <p>Prompt and generation parameters will go here</p>
+        <h2>Generate</h2>
+        <PromptInput />
       </div>
       <div class="panel center-panel">
         <h2>Queue</h2>
