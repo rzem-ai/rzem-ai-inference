@@ -3,16 +3,30 @@
 use anyhow::Result;
 use candle_core::Device;
 
+/// Flux diffusion model pipeline for image generation
 pub struct FluxPipeline {
+    /// Candle device for model inference (CPU or CUDA)
+    #[allow(dead_code)] // Will be used when real model is integrated
     device: Device,
 }
 
 impl FluxPipeline {
+    /// Creates a new Flux pipeline instance
+    ///
+    /// # Arguments
+    /// * `device` - Candle device to run inference on
     pub fn new(device: Device) -> Result<Self> {
         Ok(Self { device })
     }
 
-    /// Generate image from text prompt (stub for now)
+    /// Generate image from text prompt (stub implementation)
+    ///
+    /// # Arguments
+    /// * `prompt` - Text description of image to generate
+    /// * `steps` - Number of diffusion steps (unused in stub)
+    ///
+    /// # Returns
+    /// RGB image data as Vec<u8> (1024x1024x3 bytes)
     pub fn generate_stub(&self, prompt: &str, _steps: usize) -> Result<Vec<u8>> {
         // For now, return a simple test pattern
         // This will be replaced with actual Flux model inference
