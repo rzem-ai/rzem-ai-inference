@@ -4,7 +4,7 @@ mod queue;
 mod gallery;
 mod utils;
 
-use tauri::command;
+use tauri::{command, Manager};
 use std::sync::Arc;
 use tauri::State;
 use tokio::sync::Mutex;
@@ -246,30 +246,35 @@ pub fn run() {
     let gallery_db = Arc::new(Mutex::new(None));
     let queue_manager = Arc::new(queue::QueueManager::new(1)); // Max 1 concurrent for now
 
-    // Create processor
-    let queue_processor = Arc::new(
-        QueueProcessor::new(
-            queue_manager.clone(),
-            gallery_db.clone(),
-        ).expect("Failed to create queue processor")
-    );
-
-    let app_state = AppState {
-        gallery_db: gallery_db.clone(),
-        queue_manager,
-        queue_processor: queue_processor.clone(),
-    };
-
     tauri::Builder::default()
-        .manage(app_state)
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .setup(move |_app| {
-            // Start processor on app startup
+        .setup(move |app| {
+            // Get app handle
+            let app_handle = app.handle().clone();
+
+            // Create processor with app handle
+            let queue_processor = Arc::new(
+                QueueProcessor::new(
+                    queue_manager.clone(),
+                    gallery_db.clone(),
+                    app_handle,
+                ).expect("Failed to create queue processor")
+            );
+
+            // Store in managed state
+            app.manage(AppState {
+                gallery_db: gallery_db.clone(),
+                queue_manager: queue_manager.clone(),
+                queue_processor: queue_processor.clone(),
+            });
+
+            // Start processor
             tauri::async_runtime::spawn(async move {
                 queue_processor.start().await;
             });
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

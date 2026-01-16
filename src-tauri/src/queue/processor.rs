@@ -8,6 +8,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::time::{sleep, Duration, timeout};
 use tokio::task::JoinHandle;
 use anyhow::Result;
+use tauri::{AppHandle, Emitter};
 
 pub struct QueueProcessor {
     queue_manager: Arc<QueueManager>,
@@ -15,12 +16,14 @@ pub struct QueueProcessor {
     inference_engine: Arc<InferenceEngine>,
     running: Arc<AtomicBool>,
     task_handle: Arc<tokio::sync::Mutex<Option<JoinHandle<()>>>>,
+    app_handle: AppHandle,
 }
 
 impl QueueProcessor {
     pub fn new(
         queue_manager: Arc<QueueManager>,
         gallery_db: Arc<tokio::sync::Mutex<Option<GalleryDb>>>,
+        app_handle: AppHandle,
     ) -> Result<Self> {
         let inference_engine = Arc::new(InferenceEngine::new()?);
 
@@ -30,6 +33,7 @@ impl QueueProcessor {
             inference_engine,
             running: Arc::new(AtomicBool::new(false)),
             task_handle: Arc::new(tokio::sync::Mutex::new(None)),
+            app_handle,
         })
     }
 
@@ -50,6 +54,7 @@ impl QueueProcessor {
         let gallery_db = self.gallery_db.clone();
         let inference_engine = self.inference_engine.clone();
         let running = self.running.clone();
+        let app_handle = self.app_handle.clone();
 
         // Fix Issue 1: Store the JoinHandle so we can await it later
         let handle = tokio::spawn(async move {
@@ -64,6 +69,7 @@ impl QueueProcessor {
                     &queue_manager,
                     &gallery_db,
                     &inference_engine,
+                    &app_handle,
                 ).await {
                     eprintln!("Error processing job: {}", e);
                 }
@@ -134,6 +140,7 @@ async fn process_next_job(
     queue_manager: &Arc<QueueManager>,
     gallery_db: &Arc<tokio::sync::Mutex<Option<GalleryDb>>>,
     inference_engine: &Arc<InferenceEngine>,
+    app_handle: &AppHandle,
 ) -> Result<()> {
     // Check if we can start a new job
     if !queue_manager.can_start_job().await {
@@ -151,9 +158,14 @@ async fn process_next_job(
     let job_id = job.id.clone();
     let params = job.params.clone();
 
-    // Mark as running
+    // Mark as running and emit event
     queue_manager.update_job_status(&job_id, JobStatus::Running).await
         .map_err(|e| anyhow::anyhow!(e))?;
+    let _ = app_handle.emit("job-update", serde_json::json!({
+        "job_id": job_id,
+        "status": "running",
+        "progress": 0.0,
+    }));
 
     // Create guard that increments counter and will decrement it even on panic
     // This eliminates the race window between increment and guard creation
@@ -167,7 +179,7 @@ async fn process_next_job(
         inference_engine,
     ).await;
 
-    // Handle result
+    // Handle result and emit completion/failure event
     match result {
         Ok(image_path) => {
             // Save to gallery
@@ -176,13 +188,25 @@ async fn process_next_job(
             }
 
             // Mark as completed
-            queue_manager.complete_job(&job_id, image_path).await
+            queue_manager.complete_job(&job_id, image_path.clone()).await
                 .map_err(|e| anyhow::anyhow!(e))?;
+            let _ = app_handle.emit("job-update", serde_json::json!({
+                "job_id": job_id,
+                "status": "completed",
+                "progress": 1.0,
+                "result_path": image_path,
+            }));
         }
         Err(e) => {
+            let error_msg = e.to_string();
             // Mark as failed
-            queue_manager.fail_job(&job_id, e.to_string()).await
+            queue_manager.fail_job(&job_id, error_msg.clone()).await
                 .map_err(|e| anyhow::anyhow!(e))?;
+            let _ = app_handle.emit("job-update", serde_json::json!({
+                "job_id": job_id,
+                "status": "failed",
+                "error": error_msg,
+            }));
         }
     }
 
