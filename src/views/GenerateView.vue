@@ -1,8 +1,17 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import PromptInput from '@/components/generation/PromptInput.vue'
 import ParameterControls from '@/components/generation/ParameterControls.vue'
 import GenerateButton from '@/components/generation/GenerateButton.vue'
 import QueueList from '@/components/generation/QueueList.vue'
+import ImageCanvas from '@/components/generation/ImageCanvas.vue'
+
+const canvasRef = ref<InstanceType<typeof ImageCanvas> | null>(null)
+
+// Expose canvas ref for GenerateButton to access
+defineExpose({
+  canvasRef
+})
 </script>
 
 <template>
@@ -18,7 +27,7 @@ import QueueList from '@/components/generation/QueueList.vue'
         <div class="divider"></div>
         <ParameterControls />
         <div class="divider"></div>
-        <GenerateButton />
+        <GenerateButton :canvas-ref="canvasRef" />
       </div>
       <div class="panel center-panel">
         <h2>Queue</h2>
@@ -26,7 +35,7 @@ import QueueList from '@/components/generation/QueueList.vue'
       </div>
       <div class="panel right-panel">
         <h2>Canvas</h2>
-        <p>Image preview and editing will go here</p>
+        <ImageCanvas ref="canvasRef" />
       </div>
     </div>
   </div>

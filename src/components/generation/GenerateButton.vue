@@ -4,6 +4,12 @@ import { invoke } from '@tauri-apps/api/core'
 import { useGenerationStore } from '@/stores/generation'
 import type { GenerationJob } from '@/types'
 import Button from 'primevue/button'
+import type ImageCanvas from './ImageCanvas.vue'
+
+// Accept canvas ref from parent
+const props = defineProps<{
+  canvasRef: InstanceType<typeof ImageCanvas> | null
+}>()
 
 const store = useGenerationStore()
 
@@ -41,8 +47,8 @@ const handleGenerate = async () => {
   store.updateJobStatus(job.id, 'Running')
 
   try {
-    // Call backend
-    const result = await invoke<string>('generate_image', {
+    // Call backend - now returns file path
+    const filePath = await invoke<string>('generate_image', {
       prompt: params.prompt,
       steps: params.steps,
       width: params.width,
@@ -50,7 +56,13 @@ const handleGenerate = async () => {
       seed: params.seed === -1 ? Math.floor(Math.random() * 2147483647) : params.seed
     })
 
-    console.log('Generation result:', result)
+    console.log('Generated image saved to:', filePath)
+
+    // Display image in canvas
+    if (props.canvasRef) {
+      props.canvasRef.setImage(filePath)
+    }
+
     store.updateJobStatus(job.id, 'Completed')
   } catch (error) {
     console.error('Generation failed:', error)
