@@ -108,18 +108,25 @@ struct RunningGuard {
 }
 
 impl RunningGuard {
-    fn new(queue_manager: Arc<QueueManager>) -> Self {
+    /// Create guard and increment running counter atomically
+    async fn new(queue_manager: Arc<QueueManager>) -> Self {
+        queue_manager.increment_running().await;
         Self { queue_manager }
     }
 }
 
 impl Drop for RunningGuard {
     fn drop(&mut self) {
-        // Spawn a task to decrement the counter since Drop can't be async
-        let queue_manager = self.queue_manager.clone();
-        tokio::spawn(async move {
-            queue_manager.decrement_running().await;
-        });
+        // Use Handle::try_current() to spawn with proper error handling
+        // This ensures we can still spawn even during runtime shutdown
+        if let Ok(handle) = tokio::runtime::Handle::try_current() {
+            let queue_manager = self.queue_manager.clone();
+            handle.spawn(async move {
+                queue_manager.decrement_running().await;
+            });
+        } else {
+            eprintln!("Warning: Could not decrement running jobs - runtime not available");
+        }
     }
 }
 
@@ -144,13 +151,13 @@ async fn process_next_job(
     let job_id = job.id.clone();
     let params = job.params.clone();
 
-    // Mark as running and increment counter
+    // Mark as running
     queue_manager.update_job_status(&job_id, JobStatus::Running).await
         .map_err(|e| anyhow::anyhow!(e))?;
-    queue_manager.increment_running().await;
 
-    // Create guard that will decrement counter even on panic
-    let _guard = RunningGuard::new(queue_manager.clone());
+    // Create guard that increments counter and will decrement it even on panic
+    // This eliminates the race window between increment and guard creation
+    let _guard = RunningGuard::new(queue_manager.clone()).await;
 
     // Execute generation
     let result = execute_generation(
