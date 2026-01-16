@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import PromptInput from '@/components/generation/PromptInput.vue'
 import ModelSelector from '@/components/generation/ModelSelector.vue'
+import PresetSelector from '@/components/generation/PresetSelector.vue'
 import ParameterControls from '@/components/generation/ParameterControls.vue'
 import GenerateButton from '@/components/generation/GenerateButton.vue'
 import QueueList from '@/components/generation/QueueList.vue'
@@ -26,6 +27,7 @@ defineExpose({
         <PromptInput />
         <div class="divider"></div>
         <ModelSelector />
+        <PresetSelector />
         <div class="divider"></div>
         <ParameterControls />
         <div class="divider"></div>
