@@ -50,11 +50,20 @@ export const useQueueStore = defineStore('queue', () => {
     progress?: number
     result_path?: string
     error?: string
-  }>('job-update', (event) => {
+  }>('job-update', async (event) => {
     const { job_id, status, progress, result_path, error: jobError } = event.payload
 
     // Find and update job in local state
-    const jobIndex = jobs.value.findIndex((j) => j.id === job_id)
+    let jobIndex = jobs.value.findIndex((j) => j.id === job_id)
+    if (jobIndex === -1) {
+      // Job not found in local state
+      if (status === 'pending') {
+        // This is likely a new job - refresh to get it
+        await refreshJobs()
+      }
+      return
+    }
+
     if (jobIndex !== -1) {
       jobs.value[jobIndex].status = status
       if (progress !== undefined) {
@@ -71,7 +80,7 @@ export const useQueueStore = defineStore('queue', () => {
         jobs.value[jobIndex].started_at = Math.floor(Date.now() / 1000)
       }
       // Update completed_at when job finishes
-      if (status === 'completed' || status === 'failed') {
+      if (status === 'completed' || status === 'failed' || status === 'cancelled') {
         jobs.value[jobIndex].completed_at = Math.floor(Date.now() / 1000)
       }
     }
