@@ -298,7 +298,8 @@ impl GalleryDb {
              FROM images i
              JOIN images_fts fts ON i.id = fts.image_id
              WHERE images_fts MATCH ?1
-             ORDER BY i.created_at DESC"
+             ORDER BY i.created_at DESC
+             LIMIT 100"
         )?;
 
         let images = stmt.query_map(params![query], |row| {
