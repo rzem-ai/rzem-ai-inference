@@ -34,7 +34,38 @@
       "csp": null,
       "assetProtocol": {
         "enable": true,
-        "scope": ["*/**"]
+        "scope": ["**"]
+      },
+      "capabilities": [
+        {
+          "identifier": "main-capability",
+          "description": "Main application capabilities",
+          "windows": ["main"],
+          "permissions": [
+            "core:default",
+            "core:path:default",
+            "core:path:allow-resolve-directory",
+            "core:path:allow-home-dir",
+            "fs:default",
+            "fs:allow-read",
+            "fs:allow-read-dir",
+            "fs:allow-exists",
+            {
+              "identifier": "fs:scope",
+              "allow": [
+                { "path": "$HOME/.flux-generator/**" }
+              ]
+            },
+            "dialog:default",
+            "dialog:allow-open",
+            "dialog:allow-save"
+          ]
+        }
+      ],
+      "allowlist": {
+        "fs": {
+          "scope": ["$HOME/.flux-generator/**"]
+        }
       }
     }
   }
