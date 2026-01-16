@@ -73,6 +73,10 @@ impl ClipTextEncoder {
             )?
         };
 
+        // FLUX CLIP model has "text_model." prefix on all tensors
+        // Push prefix to match the actual tensor names in the safetensors file
+        let vb = vb.pp("text_model");
+
         // Create CLIP text model
         // FLUX Schnell uses CLIP with 768-dim embeddings (ViT-L configuration)
         let config = clip::text_model::ClipTextConfig {
