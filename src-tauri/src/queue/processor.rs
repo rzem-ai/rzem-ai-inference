@@ -106,6 +106,14 @@ impl QueueProcessor {
             }
         }
     }
+
+    fn emit_job_update(&self, job_id: &str, status: &JobStatus, progress: f32) {
+        let _ = self.app_handle.emit("job-update", serde_json::json!({
+            "job_id": job_id,
+            "status": status,
+            "progress": progress,
+        }));
+    }
 }
 
 /// Fix Issue 3: RAII guard that ensures decrement_running() is called even on panic
