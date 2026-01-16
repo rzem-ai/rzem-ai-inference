@@ -36,6 +36,33 @@ fn init_database(app_state: State<AppState>, db_path: String) -> Result<String, 
     Ok("Database initialized".to_string())
 }
 
+#[command]
+fn generate_image(
+    app_state: State<AppState>,
+    prompt: String,
+    steps: u32,
+    width: u32,
+    height: u32,
+    seed: i64,
+) -> Result<String, String> {
+    use crate::inference::{InferenceEngine, FluxPipeline};
+
+    // Get or create inference engine
+    let engine = InferenceEngine::new()
+        .map_err(|e| format!("Failed to initialize inference engine: {}", e))?;
+
+    let device = engine.get_device().clone();
+    let pipeline = FluxPipeline::new(device)
+        .map_err(|e| format!("Failed to create pipeline: {}", e))?;
+
+    // Generate stub image (will be real model later)
+    let image_data = pipeline.generate_stub(&prompt, steps as usize)
+        .map_err(|e| format!("Generation failed: {}", e))?;
+
+    // For now, just return success with data size
+    Ok(format!("Generated {} bytes", image_data.len()))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app_state = AppState {
@@ -50,6 +77,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             health_check,
             init_database,
+            generate_image,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
