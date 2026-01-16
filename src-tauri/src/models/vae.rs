@@ -36,9 +36,13 @@ impl VaeDecoder {
         // - in_channels: 3 (RGB)
         // - out_channels: 3 (RGB)
         // - block_out_channels: [128, 256, 512, 512]
+        // - use_quant_conv: false (FLUX doesn't use quantization convs)
+        // - use_post_quant_conv: false
         let mut config = stable_diffusion::vae::AutoEncoderKLConfig::default();
         config.block_out_channels = vec![128, 256, 512, 512];
         config.latent_channels = 16;
+        config.use_quant_conv = false;
+        config.use_post_quant_conv = false;
 
         // Parameters: in_channels=3 (RGB input), out_channels=3 (RGB output)
         let vae = stable_diffusion::vae::AutoEncoderKL::new(vb, 3, 3, config)?;
