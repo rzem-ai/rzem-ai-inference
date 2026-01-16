@@ -78,13 +78,14 @@ export const usePresetsStore = defineStore('presets', () => {
     presets.value.push(preset)
   }
 
-  function loadPreset(id: string) {
+  function loadPreset(id: string): boolean {
     const preset = presets.value.find((p) => p.id === id)
-    if (!preset) return
+    if (!preset) return false
 
     const generationStore = useGenerationStore()
     const modelsStore = useModelsStore()
 
+    // Load generation parameters
     generationStore.currentParams.mode = preset.mode
     generationStore.currentParams.prompt = preset.prompt || ''
     generationStore.currentParams.negativePrompt = preset.negativePrompt || ''
@@ -94,16 +95,48 @@ export const usePresetsStore = defineStore('presets', () => {
     generationStore.currentParams.height = preset.height
     generationStore.currentParams.seed = preset.seed || -1
 
+    // Load model selection
     if (preset.modelId) {
       modelsStore.selectModel(preset.modelId)
     }
+
+    // Load LoRA configuration
+    if (preset.loraIds) {
+      try {
+        const loraRefs = JSON.parse(preset.loraIds) as Array<{ id: string; strength: number }>
+
+        // Deactivate all LoRAs first
+        modelsStore.loras.forEach(lora => {
+          if (lora.isActive) {
+            modelsStore.toggleLora(lora.id)
+          }
+        })
+
+        // Activate and set strength for each saved LoRA
+        loraRefs.forEach(ref => {
+          const lora = modelsStore.loras.find(l => l.id === ref.id)
+          if (lora) {
+            if (!lora.isActive) {
+              modelsStore.toggleLora(ref.id)
+            }
+            modelsStore.updateLoraStrength(ref.id, ref.strength)
+          }
+        })
+      } catch (error) {
+        console.warn('Failed to restore LoRA configuration from preset:', error)
+      }
+    }
+
+    return true
   }
 
-  function deletePreset(id: string) {
+  function deletePreset(id: string): boolean {
     const index = presets.value.findIndex((p) => p.id === id)
     if (index !== -1) {
       presets.value.splice(index, 1)
+      return true
     }
+    return false
   }
 
   return {
