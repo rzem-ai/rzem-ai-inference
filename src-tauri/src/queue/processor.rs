@@ -4,14 +4,17 @@ use super::{QueueManager, JobStatus};
 use crate::inference::{InferenceEngine, FluxPipeline};
 use crate::gallery::{GalleryDb, ImageMetadata};
 use std::sync::Arc;
-use tokio::time::{sleep, Duration};
+use std::sync::atomic::{AtomicBool, Ordering};
+use tokio::time::{sleep, Duration, timeout};
+use tokio::task::JoinHandle;
 use anyhow::Result;
 
 pub struct QueueProcessor {
     queue_manager: Arc<QueueManager>,
     gallery_db: Arc<tokio::sync::Mutex<Option<GalleryDb>>>,
     inference_engine: Arc<InferenceEngine>,
-    running: Arc<tokio::sync::Mutex<bool>>,
+    running: Arc<AtomicBool>,
+    task_handle: Arc<tokio::sync::Mutex<Option<JoinHandle<()>>>>,
 }
 
 impl QueueProcessor {
@@ -25,28 +28,34 @@ impl QueueProcessor {
             queue_manager,
             gallery_db,
             inference_engine,
-            running: Arc::new(tokio::sync::Mutex::new(false)),
+            running: Arc::new(AtomicBool::new(false)),
+            task_handle: Arc::new(tokio::sync::Mutex::new(None)),
         })
     }
 
     /// Start the processor loop
     pub async fn start(&self) {
-        let mut running = self.running.lock().await;
-        if *running {
+        // Fix Issue 2: Use AtomicBool to prevent race condition
+        // Use compare_exchange to atomically check and set the running flag
+        if self.running.compare_exchange(
+            false,
+            true,
+            Ordering::SeqCst,
+            Ordering::SeqCst,
+        ).is_err() {
             return; // Already running
         }
-        *running = true;
-        drop(running); // Release lock
 
         let queue_manager = self.queue_manager.clone();
         let gallery_db = self.gallery_db.clone();
         let inference_engine = self.inference_engine.clone();
         let running = self.running.clone();
 
-        tokio::spawn(async move {
+        // Fix Issue 1: Store the JoinHandle so we can await it later
+        let handle = tokio::spawn(async move {
             loop {
                 // Check if we should stop
-                if !*running.lock().await {
+                if !running.load(Ordering::SeqCst) {
                     break;
                 }
 
@@ -63,12 +72,54 @@ impl QueueProcessor {
                 sleep(Duration::from_millis(100)).await;
             }
         });
+
+        // Store the handle
+        let mut task_handle = self.task_handle.lock().await;
+        *task_handle = Some(handle);
     }
 
     /// Stop the processor loop
     pub async fn stop(&self) {
-        let mut running = self.running.lock().await;
-        *running = false;
+        // Set running flag to false
+        self.running.store(false, Ordering::SeqCst);
+
+        // Fix Issue 4: Await the join handle with timeout to detect dead task
+        let mut task_handle = self.task_handle.lock().await;
+        if let Some(handle) = task_handle.take() {
+            // Wait up to 5 seconds for the task to finish
+            match timeout(Duration::from_secs(5), handle).await {
+                Ok(Ok(())) => {
+                    // Task finished successfully
+                }
+                Ok(Err(e)) => {
+                    eprintln!("Processor task panicked: {:?}", e);
+                }
+                Err(_) => {
+                    eprintln!("Processor task did not stop within timeout");
+                }
+            }
+        }
+    }
+}
+
+/// Fix Issue 3: RAII guard that ensures decrement_running() is called even on panic
+struct RunningGuard {
+    queue_manager: Arc<QueueManager>,
+}
+
+impl RunningGuard {
+    fn new(queue_manager: Arc<QueueManager>) -> Self {
+        Self { queue_manager }
+    }
+}
+
+impl Drop for RunningGuard {
+    fn drop(&mut self) {
+        // Spawn a task to decrement the counter since Drop can't be async
+        let queue_manager = self.queue_manager.clone();
+        tokio::spawn(async move {
+            queue_manager.decrement_running().await;
+        });
     }
 }
 
@@ -98,6 +149,9 @@ async fn process_next_job(
         .map_err(|e| anyhow::anyhow!(e))?;
     queue_manager.increment_running().await;
 
+    // Create guard that will decrement counter even on panic
+    let _guard = RunningGuard::new(queue_manager.clone());
+
     // Execute generation
     let result = execute_generation(
         &job_id,
@@ -105,9 +159,6 @@ async fn process_next_job(
         queue_manager,
         inference_engine,
     ).await;
-
-    // Decrement counter
-    queue_manager.decrement_running().await;
 
     // Handle result
     match result {
@@ -128,6 +179,7 @@ async fn process_next_job(
         }
     }
 
+    // Guard will automatically decrement counter when dropped here
     Ok(())
 }
 
