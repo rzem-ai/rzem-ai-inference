@@ -43,6 +43,7 @@ export const useQueueStore = defineStore('queue', () => {
   const error = ref<string | null>(null)
 
   // Listen for job updates from backend
+  // This is the primary source of truth for job state updates
   const unlistenPromise = listen<{
     job_id: string
     status: JobStatus
@@ -65,6 +66,11 @@ export const useQueueStore = defineStore('queue', () => {
       if (jobError) {
         jobs.value[jobIndex].error = jobError
       }
+      // Update started_at when job begins running
+      if (status === 'running' && !jobs.value[jobIndex].started_at) {
+        jobs.value[jobIndex].started_at = Math.floor(Date.now() / 1000)
+      }
+      // Update completed_at when job finishes
       if (status === 'completed' || status === 'failed') {
         jobs.value[jobIndex].completed_at = Math.floor(Date.now() / 1000)
       }
@@ -102,7 +108,8 @@ export const useQueueStore = defineStore('queue', () => {
   async function addToQueue(params: GenerationParams): Promise<string> {
     try {
       const jobId = await invoke<string>('add_to_queue', { params })
-      await refreshJobs()
+      // Note: No refreshJobs() call here - backend emits job-update events
+      // which the event listener handles as the single source of truth
       error.value = null
       return jobId
     } catch (err) {
@@ -143,9 +150,8 @@ export const useQueueStore = defineStore('queue', () => {
   async function cancelJob(jobId: string): Promise<boolean> {
     try {
       const cancelled = await invoke<boolean>('cancel_queue_job', { jobId })
-      if (cancelled) {
-        await refreshJobs()
-      }
+      // Note: No refreshJobs() call here - backend emits job-update events
+      // which the event listener handles as the single source of truth
       error.value = null
       return cancelled
     } catch (err) {
