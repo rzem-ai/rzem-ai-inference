@@ -4,7 +4,7 @@ mod queue;
 mod gallery;
 mod utils;
 
-use tauri::{command, Manager};
+use tauri::{command, Manager, Emitter};
 use std::sync::Arc;
 use tauri::State;
 use tokio::sync::Mutex;
@@ -14,6 +14,7 @@ struct AppState {
     gallery_db: Arc<Mutex<Option<gallery::GalleryDb>>>,
     queue_manager: Arc<queue::QueueManager>,
     queue_processor: Arc<QueueProcessor>,
+    app_handle: tauri::AppHandle,
 }
 
 #[command]
@@ -204,6 +205,14 @@ async fn add_to_queue(
     params: queue::GenerationParams,
 ) -> Result<String, String> {
     let job_id = app_state.queue_manager.add_job(params).await;
+
+    // Emit event for new job
+    app_state.app_handle.emit("job-update", serde_json::json!({
+        "job_id": job_id,
+        "status": "pending",
+        "progress": 0.0,
+    })).map_err(|e| e.to_string())?;
+
     Ok(job_id)
 }
 
@@ -230,6 +239,15 @@ async fn cancel_queue_job(
     job_id: String,
 ) -> Result<bool, String> {
     let cancelled = app_state.queue_manager.cancel_job(&job_id).await;
+
+    if cancelled {
+        // Emit event for cancelled job
+        app_state.app_handle.emit("job-update", serde_json::json!({
+            "job_id": job_id,
+            "status": "cancelled",
+        })).map_err(|e| e.to_string())?;
+    }
+
     Ok(cancelled)
 }
 
@@ -254,12 +272,12 @@ pub fn run() {
             // Get app handle
             let app_handle = app.handle().clone();
 
-            // Create processor with app handle
+            // Create processor with app handle (needs its own clone)
             let queue_processor = Arc::new(
                 QueueProcessor::new(
                     queue_manager.clone(),
                     gallery_db.clone(),
-                    app_handle,
+                    app_handle.clone(),
                 ).expect("Failed to create queue processor")
             );
 
@@ -268,6 +286,7 @@ pub fn run() {
                 gallery_db: gallery_db.clone(),
                 queue_manager: queue_manager.clone(),
                 queue_processor: queue_processor.clone(),
+                app_handle,
             });
 
             // Start processor
