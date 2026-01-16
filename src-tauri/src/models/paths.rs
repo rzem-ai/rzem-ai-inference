@@ -49,9 +49,19 @@ impl ModelPaths {
     /// Check if all required files exist
     pub fn all_files_exist(&self) -> bool {
         // Check for key model files, not just directories
-        self.clip_path().join("model.safetensors").exists()
-            && self.vae_path().join("diffusion_pytorch_model.safetensors").exists()
-            && self.transformer_path().join("diffusion_pytorch_model.safetensors").exists()
+        let has_clip = self.clip_path().join("model.safetensors").exists();
+        let has_vae = self.vae_path().join("diffusion_pytorch_model.safetensors").exists();
+
+        // Transformer model is split into 3 parts - check for first part and index
+        let transformer_dir = self.transformer_path();
+        let has_transformer = transformer_dir
+            .join("diffusion_pytorch_model-00001-of-00003.safetensors")
+            .exists()
+            && transformer_dir
+                .join("diffusion_pytorch_model.safetensors.index.json")
+                .exists();
+
+        has_clip && has_vae && has_transformer
     }
 }
 
