@@ -1,11 +1,23 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400..700;1,400..700&display=swap');
+
+@import 'tailwindcss';
+
+@theme inline {
+  --default-font-family: 'Instrument Sans', sans-serif;
+
+  --font-body: 'Instrument Sans', sans-serif;
+  --font-sans: 'Instrument Sans', sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+}
+
+html {
+  font-size: 14px;
+}
 
 body {
   margin: 0;
   padding: 0;
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--default-font-family)
 }
 
 #app {
