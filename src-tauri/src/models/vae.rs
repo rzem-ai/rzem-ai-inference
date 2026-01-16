@@ -29,12 +29,19 @@ impl VaeDecoder {
             )?
         };
 
-        // Load VAE configuration
-        // Note: Assumes FLUX VAE is compatible with Stable Diffusion AutoEncoderKL
-        // Parameters: in_channels=4 (latent), out_channels=4 (before final conv)
-        // These values may need adjustment based on actual FLUX model behavior
-        let config = stable_diffusion::vae::AutoEncoderKLConfig::default();
-        let vae = stable_diffusion::vae::AutoEncoderKL::new(vb, 4, 4, config)?;
+        // Load VAE configuration for FLUX
+        // FLUX uses 16-channel latents (vs 4 for Stable Diffusion)
+        // Configuration from vae/config.json:
+        // - latent_channels: 16
+        // - in_channels: 3 (RGB)
+        // - out_channels: 3 (RGB)
+        // - block_out_channels: [128, 256, 512, 512]
+        let mut config = stable_diffusion::vae::AutoEncoderKLConfig::default();
+        config.block_out_channels = vec![128, 256, 512, 512];
+        config.latent_channels = 16;
+
+        // Parameters: in_channels=3 (RGB input), out_channels=3 (RGB output)
+        let vae = stable_diffusion::vae::AutoEncoderKL::new(vb, 3, 3, config)?;
 
         Ok(Self { vae, device })
     }
@@ -42,7 +49,7 @@ impl VaeDecoder {
     /// Decode latent tensor to RGB image
     ///
     /// # Arguments
-    /// * `latents` - Latent tensor [1, 4, H/8, W/8]
+    /// * `latents` - Latent tensor [1, 16, H/8, W/8] (FLUX uses 16-channel latents)
     ///
     /// # Returns
     /// RGB tensor [1, 3, H, W] with values in range [0, 1]

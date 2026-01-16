@@ -29,12 +29,12 @@ impl FluxTransformer {
     /// Denoise latents for N steps (simplified for MVP)
     ///
     /// # Arguments
-    /// * `noise` - Initial random noise [1, 4, H/8, W/8]
+    /// * `noise` - Initial random noise [1, 16, H/8, W/8] (FLUX uses 16-channel latents)
     /// * `embeddings` - Text embeddings [1, 77, 768]
     /// * `steps` - Number of denoising steps (4 for Schnell)
     ///
     /// # Returns
-    /// Denoised latents [1, 4, H/8, W/8]
+    /// Denoised latents [1, 16, H/8, W/8]
     pub fn denoise(
         &self,
         noise: &Tensor,
@@ -55,15 +55,15 @@ impl FluxTransformer {
 
     /// Create random latent noise
     pub fn create_noise(&self, height: usize, width: usize) -> Result<Tensor> {
-        // Latent space is 1/8 resolution, 4 channels
+        // Latent space is 1/8 resolution, 16 channels (FLUX uses 16-channel latents)
         let latent_h = height / 8;
         let latent_w = width / 8;
 
-        // Random normal noise [1, 4, H/8, W/8]
+        // Random normal noise [1, 16, H/8, W/8]
         let noise = Tensor::randn(
             0f32,
             1.0f32,
-            (1, 4, latent_h, latent_w),
+            (1, 16, latent_h, latent_w),
             &self.device,
         )?;
 
@@ -89,6 +89,6 @@ mod tests {
         let noise = flux.create_noise(1024, 1024).unwrap();
         let shape = noise.dims();
 
-        assert_eq!(shape, &[1, 4, 128, 128]); // 1024/8 = 128
+        assert_eq!(shape, &[1, 16, 128, 128]); // FLUX uses 16 channels, 1024/8 = 128
     }
 }
