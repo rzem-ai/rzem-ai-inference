@@ -20,7 +20,7 @@ const router = createRouter({
     {
       path: '/gallery',
       name: 'gallery',
-      component: () => import('../views/GalleryView.vue'),
+      component: () => import('@/views/GalleryView.vue'),
     },
     {
       path: '/compare',
