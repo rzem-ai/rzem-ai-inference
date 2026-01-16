@@ -199,10 +199,23 @@ impl GalleryDb {
 
     pub fn save_preset(&self, preset: &GenerationPreset) -> Result<()> {
         self.conn.execute(
-            "INSERT OR REPLACE INTO presets
+            "INSERT INTO presets
              (id, name, mode, prompt, negative_prompt, steps, cfg_scale, width, height,
               seed, model_id, lora_ids, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
+             ON CONFLICT(id) DO UPDATE SET
+                name = excluded.name,
+                mode = excluded.mode,
+                prompt = excluded.prompt,
+                negative_prompt = excluded.negative_prompt,
+                steps = excluded.steps,
+                cfg_scale = excluded.cfg_scale,
+                width = excluded.width,
+                height = excluded.height,
+                seed = excluded.seed,
+                model_id = excluded.model_id,
+                lora_ids = excluded.lora_ids,
+                updated_at = excluded.updated_at",
             params![
                 preset.id,
                 preset.name,
