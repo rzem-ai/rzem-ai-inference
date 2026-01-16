@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import { useGalleryStore } from '@/stores/gallery'
+import { useCompareStore } from '@/stores/compare'
 import ImageGrid from '@/components/gallery/ImageGrid.vue'
 import InputText from 'primevue/inputtext'
 import Button from 'primevue/button'
 
 const galleryStore = useGalleryStore()
+const compareStore = useCompareStore()
 
 onMounted(async () => {
   await galleryStore.loadImages()
@@ -30,6 +32,13 @@ const handleSelectImage = (imageId: string) => {
 const handleOpenDetail = (image: any) => {
   console.log('Open detail for:', image)
   // TODO: Open image detail modal (Task 4)
+}
+
+const handleAddToCompare = (image: any) => {
+  const success = compareStore.addToCompare(image)
+  if (!success) {
+    console.warn('Cannot add more images to compare')
+  }
 }
 </script>
 
@@ -90,6 +99,7 @@ const handleOpenDetail = (image: any) => {
       @select="handleSelectImage"
       @open-detail="handleOpenDetail"
       @toggle-favorite="handleToggleFavorite"
+      @add-to-compare="handleAddToCompare"
     />
   </div>
 </template>

@@ -16,6 +16,7 @@ const emit = defineEmits<{
   select: [imageId: string]
   openDetail: [image: GalleryImage]
   toggleFavorite: [imageId: string]
+  addToCompare: [image: GalleryImage]
 }>()
 
 const getImageSrc = (filePath: string) => {
@@ -55,6 +56,14 @@ const getImageSrc = (filePath: string) => {
           rounded
           @click.stop="emit('toggleFavorite', image.id)"
           :title="image.isFavorite ? 'Remove from favorites' : 'Add to favorites'"
+        />
+        <Button
+          icon="pi pi-clone"
+          severity="secondary"
+          text
+          rounded
+          @click.stop="emit('addToCompare', image)"
+          title="Add to compare"
         />
         <span class="image-date">
           {{ new Date(image.createdAt).toLocaleDateString() }}
