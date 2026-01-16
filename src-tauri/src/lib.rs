@@ -46,7 +46,7 @@ fn init_database(app_state: State<AppState>, db_path: String) -> Result<String, 
 /// * `seed` - Random seed for generation (-1 for random)
 ///
 /// # Returns
-/// Success message with generated data size
+/// File path to the generated image
 ///
 /// # Note
 /// Currently uses stub implementation. Real Flux model integration pending.
@@ -57,9 +57,10 @@ fn generate_image(
     steps: u32,
     _width: u32,
     _height: u32,
-    _seed: i64,
+    seed: i64,
 ) -> Result<String, String> {
     use crate::inference::{InferenceEngine, FluxPipeline};
+    use std::fs;
 
     // Get or create inference engine
     let engine = InferenceEngine::new()
@@ -69,12 +70,32 @@ fn generate_image(
     let pipeline = FluxPipeline::new(device)
         .map_err(|e| format!("Failed to create pipeline: {}", e))?;
 
-    // Generate stub image (will be real model later)
+    // Generate stub image
     let image_data = pipeline.generate_stub(&prompt, steps as usize)
         .map_err(|e| format!("Generation failed: {}", e))?;
 
-    // For now, just return success with data size
-    Ok(format!("Generated {} bytes", image_data.len()))
+    // Determine output path
+    let home = dirs::home_dir()
+        .ok_or_else(|| "Could not determine home directory".to_string())?;
+    let output_dir = home.join(".flux-generator").join("outputs");
+
+    // Create output directory
+    fs::create_dir_all(&output_dir)
+        .map_err(|e| format!("Failed to create output directory: {}", e))?;
+
+    // Generate filename with timestamp
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let filename = format!("flux_{}_{}.raw", timestamp, seed);
+    let output_path = output_dir.join(&filename);
+
+    // Save raw image data (will be PNG later)
+    fs::write(&output_path, &image_data)
+        .map_err(|e| format!("Failed to write image: {}", e))?;
+
+    Ok(output_path.to_string_lossy().to_string())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

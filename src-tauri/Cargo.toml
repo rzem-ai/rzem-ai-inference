@@ -23,6 +23,7 @@ tokio = { version = "1", features = ["full"] }
 anyhow = "1.0"
 uuid = { version = "1.0", features = ["v4", "serde"] }
 rusqlite = { version = "0.32", features = ["bundled"] }
+dirs = "5.0"
 
 # Candle dependencies (CPU only for now, GPU features added later)
 candle-core = "0.8"
