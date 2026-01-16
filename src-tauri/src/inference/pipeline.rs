@@ -42,9 +42,10 @@ impl FluxPipeline {
         println!("Loading FLUX Schnell models...");
 
         // Load CLIP text encoder
+        // Note: tokenizer_path is a directory containing vocab.json and merges.txt
         self.clip = Some(ClipTextEncoder::load(
             paths.clip_path().join("model.safetensors"),
-            paths.tokenizer_path().join("tokenizer.json"),
+            paths.tokenizer_path(),
             self.device.clone(),
         )?);
 

@@ -4,7 +4,7 @@ use anyhow::Result;
 use candle_core::{Device, Module, Tensor};
 use candle_nn::VarBuilder;
 use candle_transformers::models::clip;
-use tokenizers::Tokenizer;
+use tokenizers::{Tokenizer, models::bpe::BPE};
 use std::path::Path;
 
 /// CLIP text encoder wrapper for FLUX
@@ -21,9 +21,45 @@ impl ClipTextEncoder {
         tokenizer_path: P,
         device: Device,
     ) -> Result<Self> {
-        // Load tokenizer
-        let tokenizer = Tokenizer::from_file(tokenizer_path.as_ref())
-            .map_err(|e| anyhow::anyhow!("Failed to load tokenizer: {}", e))?;
+        // Load tokenizer from directory containing vocab.json and merges.txt
+        // CLIP uses BPE tokenizer, not a unified tokenizer.json
+        let tokenizer_dir = tokenizer_path.as_ref();
+        let tokenizer = if tokenizer_dir.join("tokenizer.json").exists() {
+            // Unified tokenizer format
+            Tokenizer::from_file(tokenizer_dir.join("tokenizer.json"))
+                .map_err(|e| anyhow::anyhow!("Failed to load tokenizer: {}", e))?
+        } else if tokenizer_dir.join("vocab.json").exists() && tokenizer_dir.join("merges.txt").exists() {
+            // Separate BPE files format (CLIP default)
+            // Build BPE tokenizer from local vocab and merges files
+            let vocab_path = tokenizer_dir.join("vocab.json");
+            let merges_path = tokenizer_dir.join("merges.txt");
+
+            let bpe = BPE::from_file(&vocab_path.to_string_lossy(), &merges_path.to_string_lossy())
+                .build()
+                .map_err(|e| anyhow::anyhow!("Failed to build BPE tokenizer: {}", e))?;
+
+            let mut tokenizer = Tokenizer::new(bpe);
+
+            // CLIP uses specific pre/post processing:
+            // - Lowercase and strip accents
+            // - Add [CLS] and [SEP] tokens
+            // - Pad to max length of 77 tokens
+            tokenizer.with_padding(Some(tokenizers::PaddingParams {
+                strategy: tokenizers::PaddingStrategy::Fixed(77),
+                pad_id: 49407,  // <|endoftext|>
+                pad_token: "<|endoftext|>".to_string(),
+                ..Default::default()
+            }));
+
+            tokenizer.with_truncation(Some(tokenizers::TruncationParams {
+                max_length: 77,
+                ..Default::default()
+            })).map_err(|e| anyhow::anyhow!("Failed to set truncation: {}", e))?;
+
+            tokenizer
+        } else {
+            anyhow::bail!("Could not find tokenizer files in {}", tokenizer_dir.display());
+        };
 
         // Load model weights
         // SAFETY: from_mmaped_safetensors uses memory-mapped IO which is safe
@@ -95,7 +131,7 @@ mod tests {
 
         let encoder = ClipTextEncoder::load(
             paths.clip_path().join("model.safetensors"),
-            paths.clip_path().join("tokenizer.json"),
+            paths.tokenizer_path(),
             device,
         ).unwrap();
 
