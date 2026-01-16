@@ -2,11 +2,13 @@
 
 mod clip;
 mod downloader;
+mod flux;
 mod paths;
 mod vae;
 
 pub use clip::ClipTextEncoder;
 pub use downloader::ModelDownloader;
+pub use flux::FluxTransformer;
 pub use paths::ModelPaths;
 pub use vae::VaeDecoder;
 
