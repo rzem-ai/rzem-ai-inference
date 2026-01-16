@@ -1,32 +1,27 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
 import { useGenerationStore } from '@/stores/generation'
-import type { GenerationJob } from '@/types'
+import { useQueueStore } from '@/stores/queue'
+import type { GenerationParams } from '@/stores/queue'
 import Button from 'primevue/button'
 import type ImageCanvas from './ImageCanvas.vue'
 
-// Accept canvas ref from parent
-const props = defineProps<{
-  canvasRef: InstanceType<typeof ImageCanvas> | null
+// Accept queue count from parent
+defineProps<{
+  canvasRef?: InstanceType<typeof ImageCanvas> | null
+  queueCount?: number
 }>()
 
 const store = useGenerationStore()
+const queueStore = useQueueStore()
 
 const canGenerate = computed(() => {
-  return store.currentParams.prompt.trim().length > 0 && !store.isGenerating
-})
-
-const queueCount = computed(() => {
-  return store.queuedJobs.length + store.runningJobs.length
+  return store.currentParams.prompt.trim().length > 0
 })
 
 const buttonLabel = computed(() => {
-  if (store.isGenerating) {
+  if (queueStore.hasRunningJobs) {
     return 'Generating...'
-  }
-  if (queueCount.value > 0) {
-    return `Generate (${queueCount.value} in queue)`
   }
   return 'Generate'
 })
@@ -36,53 +31,45 @@ const handleGenerate = async () => {
 
   const params = store.currentParams
 
-  // Create job
-  const job: GenerationJob = {
-    id: crypto.randomUUID(),
+  // Build queue params from current generation params
+  const queueParams: GenerationParams = {
     prompt: params.prompt,
-    status: 'Queued'
+    negative_prompt: params.negativePrompt || undefined,
+    steps: params.steps,
+    cfg_scale: params.cfgScale,
+    width: params.width,
+    height: params.height,
+    seed: params.seed === -1 ? Math.floor(Math.random() * 2147483647) : params.seed,
+    model: params.model
   }
 
-  store.addJob(job)
-  store.updateJobStatus(job.id, 'Running')
-
   try {
-    // Call backend - now returns file path
-    const filePath = await invoke<string>('generate_image', {
-      prompt: params.prompt,
-      steps: params.steps,
-      width: params.width,
-      height: params.height,
-      seed: params.seed === -1 ? Math.floor(Math.random() * 2147483647) : params.seed
-    })
-
-    console.log('Generated image saved to:', filePath)
-
-    // Display image in canvas
-    if (props.canvasRef) {
-      props.canvasRef.setImage(filePath)
-    }
-
-    store.updateJobStatus(job.id, 'Completed')
+    // Add to queue - backend will handle processing
+    const jobId = await queueStore.addToQueue(queueParams)
+    console.log('Job added to queue:', jobId)
   } catch (error) {
-    console.error('Generation failed:', error)
-    store.updateJobStatus(job.id, 'Failed')
+    console.error('Failed to add to queue:', error)
   }
 }
 </script>
 
 <template>
   <div class="generate-button-container">
-    <Button
-      :label="buttonLabel"
-      @click="handleGenerate"
-      :disabled="!canGenerate"
-      severity="success"
-      size="large"
-      class="w-full"
-    />
+    <div class="button-wrapper">
+      <Button
+        :label="buttonLabel"
+        @click="handleGenerate"
+        :disabled="!canGenerate"
+        severity="success"
+        size="large"
+        class="w-full"
+      />
+      <span v-if="queueCount && queueCount > 0" class="queue-badge">
+        {{ queueCount }}
+      </span>
+    </div>
 
-    <div v-if="queueCount > 0" class="queue-info">
+    <div v-if="queueCount && queueCount > 0" class="queue-info">
       {{ queueCount }} job{{ queueCount !== 1 ? 's' : '' }} in queue
     </div>
   </div>
@@ -93,6 +80,29 @@ const handleGenerate = async () => {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+}
+
+.button-wrapper {
+  position: relative;
+  display: flex;
+}
+
+.queue-badge {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background: var(--red-500);
+  color: white;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  z-index: 1;
 }
 
 .queue-info {

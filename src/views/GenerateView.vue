@@ -5,10 +5,12 @@ import ModelSelector from '@/components/generation/ModelSelector.vue'
 import PresetSelector from '@/components/generation/PresetSelector.vue'
 import ParameterControls from '@/components/generation/ParameterControls.vue'
 import GenerateButton from '@/components/generation/GenerateButton.vue'
-import QueueList from '@/components/generation/QueueList.vue'
+import QueuePanel from '@/components/queue/QueuePanel.vue'
 import ImageCanvas from '@/components/generation/ImageCanvas.vue'
+import { useQueueStore } from '@/stores/queue'
 
 const canvasRef = ref<InstanceType<typeof ImageCanvas> | null>(null)
+const queueStore = useQueueStore()
 
 defineExpose({
   canvasRef
@@ -31,11 +33,10 @@ defineExpose({
         <div class="divider"></div>
         <ParameterControls />
         <div class="divider"></div>
-        <GenerateButton :canvas-ref="canvasRef" />
+        <GenerateButton :canvas-ref="canvasRef" :queue-count="queueStore.queueLength" />
       </div>
       <div class="panel center-panel">
-        <h2>Queue</h2>
-        <QueueList />
+        <QueuePanel />
       </div>
       <div class="panel right-panel">
         <h2>Canvas</h2>
