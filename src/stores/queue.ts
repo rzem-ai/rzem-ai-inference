@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed, onScopeDispose } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
 
 export interface GenerationParams {
   prompt: string
@@ -41,6 +42,35 @@ export const useQueueStore = defineStore('queue', () => {
   const pollingInterval = ref<number | null>(null)
   const error = ref<string | null>(null)
 
+  // Listen for job updates from backend
+  const unlistenPromise = listen<{
+    job_id: string
+    status: JobStatus
+    progress?: number
+    result_path?: string
+    error?: string
+  }>('job-update', (event) => {
+    const { job_id, status, progress, result_path, error: jobError } = event.payload
+
+    // Find and update job in local state
+    const jobIndex = jobs.value.findIndex((j) => j.id === job_id)
+    if (jobIndex !== -1) {
+      jobs.value[jobIndex].status = status
+      if (progress !== undefined) {
+        jobs.value[jobIndex].progress = progress
+      }
+      if (result_path) {
+        jobs.value[jobIndex].result_path = result_path
+      }
+      if (jobError) {
+        jobs.value[jobIndex].error = jobError
+      }
+      if (status === 'completed' || status === 'failed') {
+        jobs.value[jobIndex].completed_at = Math.floor(Date.now() / 1000)
+      }
+    }
+  })
+
   // Computed
   const pendingJobs = computed(() =>
     jobs.value.filter((j) => j.status === 'pending')
@@ -61,9 +91,11 @@ export const useQueueStore = defineStore('queue', () => {
   const queueLength = computed(() => pendingJobs.value.length)
   const hasRunningJobs = computed(() => runningJobs.value.length > 0)
 
-  // Cleanup polling on store disposal
-  onScopeDispose(() => {
+  // Cleanup polling and event listener on store disposal
+  onScopeDispose(async () => {
     stopPolling()
+    const unlisten = await unlistenPromise
+    unlisten()
   })
 
   // Actions
