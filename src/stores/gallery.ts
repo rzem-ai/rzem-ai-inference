@@ -169,6 +169,7 @@ export const useGalleryStore = defineStore('gallery', () => {
       await invoke('delete_gallery_image', { imageId })
       images.value = images.value.filter((img) => img.id !== imageId)
       selectedImages.value.delete(imageId)
+      selectedImages.value = new Set(selectedImages.value)
       return true
     } catch (error) {
       console.error('Failed to delete image:', error)
@@ -182,14 +183,17 @@ export const useGalleryStore = defineStore('gallery', () => {
     } else {
       selectedImages.value.add(imageId)
     }
+    selectedImages.value = new Set(selectedImages.value)
   }
 
   function clearSelection(): void {
     selectedImages.value.clear()
+    selectedImages.value = new Set(selectedImages.value)
   }
 
   function selectAll(): void {
     filteredImages.value.forEach((img) => selectedImages.value.add(img.id))
+    selectedImages.value = new Set(selectedImages.value)
   }
 
   function setFilter(newFilters: Partial<GalleryFilters>): void {
