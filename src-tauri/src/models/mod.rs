@@ -1,8 +1,10 @@
 //! Model management and downloading
 
+mod clip;
 mod downloader;
 mod paths;
 
+pub use clip::ClipTextEncoder;
 pub use downloader::ModelDownloader;
 pub use paths::ModelPaths;
 
