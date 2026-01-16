@@ -3,10 +3,12 @@
 mod clip;
 mod downloader;
 mod paths;
+mod vae;
 
 pub use clip::ClipTextEncoder;
 pub use downloader::ModelDownloader;
 pub use paths::ModelPaths;
+pub use vae::VaeDecoder;
 
 #[cfg(test)]
 mod tests {
