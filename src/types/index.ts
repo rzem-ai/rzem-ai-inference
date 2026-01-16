@@ -40,3 +40,46 @@ export interface GeneratedImage {
   params: GenerationParams
   createdAt: number
 }
+
+export interface Model {
+  id: string
+  name: string
+  type: 'flux-schnell' | 'flux-dev' | 'flux-pro' | 'sdxl' | 'sd15'
+  path?: string
+  sizeBytes?: number
+  isDownloaded: boolean
+  isActive: boolean
+  createdAt: number
+  lastUsedAt?: number
+  metadata?: Record<string, any>
+}
+
+export interface LoRA {
+  id: string
+  name: string
+  path: string
+  triggerWords?: string
+  baseModel?: string
+  sizeBytes?: number
+  strength: number
+  isActive: boolean
+  createdAt: number
+  metadata?: Record<string, any>
+}
+
+export interface GenerationPreset {
+  id: string
+  name: string
+  mode: GenerationMode
+  prompt?: string
+  negativePrompt?: string
+  steps: number
+  cfgScale: number
+  width: number
+  height: number
+  seed?: number
+  modelId?: string
+  loraIds?: string // JSON array of LoRA IDs with strengths
+  createdAt: number
+  updatedAt: number
+}
