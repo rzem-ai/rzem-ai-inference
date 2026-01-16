@@ -17,7 +17,7 @@
 
 <script setup lang="ts">
 import { useRoute } from 'vue-router'
-import { Sparkles, Layers, Images, Settings } from 'lucide-vue-next'
+import { Sparkles, Layers, Images, Settings, Download } from 'lucide-vue-next'
 
 const route = useRoute()
 
@@ -25,6 +25,7 @@ const workspaces = [
   { label: 'Generate', path: '/generate', icon: Sparkles },
   { label: 'Refine', path: '/refine', icon: Layers },
   { label: 'Compare', path: '/compare', icon: Images },
+  { label: 'Models', path: '/models', icon: Download },
   { label: 'Manage', path: '/manage', icon: Settings }
 ]
 

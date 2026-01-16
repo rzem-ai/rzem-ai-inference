@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import ModelsView from '@/views/ModelsView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -26,6 +27,11 @@ const router = createRouter({
       path: '/compare',
       name: 'compare',
       component: () => import('@/views/CompareView.vue')
+    },
+    {
+      path: '/models',
+      name: 'models',
+      component: ModelsView,
     },
     {
       path: '/manage',
