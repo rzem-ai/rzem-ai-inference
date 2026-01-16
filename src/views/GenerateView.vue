@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import PromptInput from '@/components/generation/PromptInput.vue'
 import ParameterControls from '@/components/generation/ParameterControls.vue'
+import GenerateButton from '@/components/generation/GenerateButton.vue'
 </script>
 
 <template>
@@ -15,6 +16,8 @@ import ParameterControls from '@/components/generation/ParameterControls.vue'
         <PromptInput />
         <div class="divider"></div>
         <ParameterControls />
+        <div class="divider"></div>
+        <GenerateButton />
       </div>
       <div class="panel center-panel">
         <h2>Queue</h2>
