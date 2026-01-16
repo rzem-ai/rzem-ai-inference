@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useCompareStore } from '@/stores/compare'
+import type { GalleryImage } from '@/stores/gallery'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import Button from 'primevue/button'
 import Image from 'primevue/image'
@@ -14,14 +15,23 @@ const handleRemove = (imageId: string) => {
   compareStore.removeFromCompare(imageId)
 }
 
-const getParameterDiff = (image: any, compareToImage: any, param: string) => {
+const getParameterDiff = (image: GalleryImage, compareToImage: GalleryImage, param: string) => {
   if (!compareToImage) return null
-  const value = image[param]
-  const compareValue = compareToImage[param]
+  const value = image[param as keyof GalleryImage]
+  const compareValue = compareToImage[param as keyof GalleryImage]
   if (value !== compareValue) {
     return 'different'
   }
   return 'same'
+}
+
+const getSizeDiff = (image: GalleryImage): string => {
+  if (compareStore.compareCount < 2) return ''
+
+  const first = compareStore.compareImages[0]
+  return (image.width !== first.width || image.height !== first.height)
+    ? 'different'
+    : 'same'
 }
 </script>
 
@@ -111,7 +121,7 @@ const getParameterDiff = (image: any, compareToImage: any, param: string) => {
             <span class="metadata-label">Size:</span>
             <span
               class="metadata-value"
-              :class="getParameterDiff(image, compareStore.compareImages[0], 'width')"
+              :class="getSizeDiff(image)"
             >
               {{ image.width }}×{{ image.height }}
             </span>
