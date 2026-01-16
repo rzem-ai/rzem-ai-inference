@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, onScopeDispose } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 
 export interface GenerationParams {
@@ -13,12 +13,19 @@ export interface GenerationParams {
   model: string
 }
 
+/**
+ * Job status matches backend Rust enum JobStatus with serde lowercase serialization
+ * Backend: JobStatus::Pending -> "pending", JobStatus::Running -> "running", etc.
+ */
 export type JobStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
 
 export interface GenerationJob {
   id: string
   params: GenerationParams
   status: JobStatus
+  /**
+   * Progress value from backend (f32: 0.0-1.0)
+   */
   progress: number
   created_at: number
   started_at?: number
@@ -32,6 +39,7 @@ export const useQueueStore = defineStore('queue', () => {
   const jobs = ref<GenerationJob[]>([])
   const isPolling = ref(false)
   const pollingInterval = ref<number | null>(null)
+  const error = ref<string | null>(null)
 
   // Computed
   const pendingJobs = computed(() =>
@@ -53,15 +61,23 @@ export const useQueueStore = defineStore('queue', () => {
   const queueLength = computed(() => pendingJobs.value.length)
   const hasRunningJobs = computed(() => runningJobs.value.length > 0)
 
+  // Cleanup polling on store disposal
+  onScopeDispose(() => {
+    stopPolling()
+  })
+
   // Actions
   async function addToQueue(params: GenerationParams): Promise<string> {
     try {
       const jobId = await invoke<string>('add_to_queue', { params })
       await refreshJobs()
+      error.value = null
       return jobId
-    } catch (error) {
-      console.error('Failed to add to queue:', error)
-      throw error
+    } catch (err) {
+      const message = 'Failed to add to queue'
+      error.value = message
+      console.error(message, err)
+      throw err
     }
   }
 
@@ -69,8 +85,11 @@ export const useQueueStore = defineStore('queue', () => {
     try {
       const result = await invoke<GenerationJob[]>('get_queue_jobs')
       jobs.value = result
-    } catch (error) {
-      console.error('Failed to refresh jobs:', error)
+      error.value = null
+    } catch (err) {
+      const message = 'Failed to refresh jobs'
+      error.value = message
+      console.error(message, err)
     }
   }
 
@@ -79,9 +98,12 @@ export const useQueueStore = defineStore('queue', () => {
       const result = await invoke<GenerationJob | null>('get_queue_job', {
         jobId,
       })
+      error.value = null
       return result
-    } catch (error) {
-      console.error('Failed to get job:', error)
+    } catch (err) {
+      const message = 'Failed to get job'
+      error.value = message
+      console.error(message, err)
       return null
     }
   }
@@ -92,9 +114,12 @@ export const useQueueStore = defineStore('queue', () => {
       if (cancelled) {
         await refreshJobs()
       }
+      error.value = null
       return cancelled
-    } catch (error) {
-      console.error('Failed to cancel job:', error)
+    } catch (err) {
+      const message = 'Failed to cancel job'
+      error.value = message
+      console.error(message, err)
       return false
     }
   }
@@ -103,8 +128,11 @@ export const useQueueStore = defineStore('queue', () => {
     try {
       await invoke('clear_completed_jobs')
       await refreshJobs()
-    } catch (error) {
-      console.error('Failed to clear completed jobs:', error)
+      error.value = null
+    } catch (err) {
+      const message = 'Failed to clear completed jobs'
+      error.value = message
+      console.error(message, err)
     }
   }
 
@@ -131,6 +159,7 @@ export const useQueueStore = defineStore('queue', () => {
     // State
     jobs,
     isPolling,
+    error,
 
     // Computed
     pendingJobs,
