@@ -90,8 +90,20 @@ impl FluxPipeline {
         let latents = flux.denoise(&noise, &embeddings, steps)?;
 
         println!("Decoding to image...");
+        println!("Latent shape: {:?}", latents.dims());
+        println!("Device: {:?}", self.device);
+
         // 4. Decode latents to RGB
-        let image = vae.decode(&latents)?;
+        let image = match vae.decode(&latents) {
+            Ok(img) => {
+                println!("Decode successful! Image shape: {:?}", img.dims());
+                img
+            }
+            Err(e) => {
+                eprintln!("VAE decode failed: {}", e);
+                return Err(e);
+            }
+        };
 
         println!("Converting to PNG...");
         // 5. Convert to PNG
