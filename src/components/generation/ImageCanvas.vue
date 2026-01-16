@@ -1,13 +1,6 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useGenerationStore } from '@/stores/generation'
+import { ref } from 'vue'
 import { convertFileSrc } from '@tauri-apps/api/core'
-
-const store = useGenerationStore()
-
-const latestCompleted = computed(() => {
-  return store.completedJobs[0] // Most recent completed
-})
 
 // For now, we'll store the image path in the job
 // In a future task, this will come from gallery
