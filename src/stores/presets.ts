@@ -105,11 +105,13 @@ export const usePresetsStore = defineStore('presets', () => {
       try {
         const loraRefs = JSON.parse(preset.loraIds) as Array<{ id: string; strength: number }>
 
-        // Deactivate all LoRAs first
-        modelsStore.loras.forEach(lora => {
-          if (lora.isActive) {
-            modelsStore.toggleLora(lora.id)
-          }
+        // Deactivate all LoRAs first (collect IDs to avoid mutation during iteration)
+        const activeLoraIds = modelsStore.loras
+          .filter(lora => lora.isActive)
+          .map(lora => lora.id)
+
+        activeLoraIds.forEach(id => {
+          modelsStore.toggleLora(id)
         })
 
         // Activate and set strength for each saved LoRA
