@@ -15,6 +15,7 @@ struct AppState {
     queue_manager: Arc<queue::QueueManager>,
     queue_processor: Arc<QueueProcessor>,
     app_handle: tauri::AppHandle,
+    download_in_progress: Arc<Mutex<bool>>,
 }
 
 #[command]
@@ -260,21 +261,38 @@ async fn clear_completed_jobs(
 }
 
 #[command]
-async fn download_flux_schnell() -> Result<String, String> {
+async fn download_flux_schnell(app_state: State<'_, AppState>) -> Result<String, String> {
     use crate::models::ModelDownloader;
 
-    let downloader = ModelDownloader::new()
-        .map_err(|e| e.to_string())?;
-
-    if downloader.is_schnell_downloaded() {
-        return Ok("FLUX Schnell is already downloaded".to_string());
+    // Check if download is already in progress
+    {
+        let mut in_progress = app_state.download_in_progress.lock().await;
+        if *in_progress {
+            return Err("Download already in progress".to_string());
+        }
+        *in_progress = true;
     }
 
-    downloader.download_schnell()
-        .await
-        .map_err(|e| e.to_string())?;
+    // Ensure we reset the flag even on error
+    let result = async {
+        let downloader = ModelDownloader::new()
+            .map_err(|e| e.to_string())?;
 
-    Ok("FLUX Schnell downloaded successfully".to_string())
+        if downloader.is_schnell_downloaded() {
+            return Ok("FLUX Schnell is already downloaded".to_string());
+        }
+
+        downloader.download_schnell()
+            .await
+            .map_err(|e| e.to_string())?;
+
+        Ok("FLUX Schnell downloaded successfully".to_string())
+    }.await;
+
+    // Reset the flag
+    *app_state.download_in_progress.lock().await = false;
+
+    result
 }
 
 #[command]
@@ -315,6 +333,7 @@ pub fn run() {
                 queue_manager: queue_manager.clone(),
                 queue_processor: queue_processor.clone(),
                 app_handle,
+                download_in_progress: Arc::new(Mutex::new(false)),
             });
 
             // Start processor
