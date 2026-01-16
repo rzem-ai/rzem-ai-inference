@@ -356,7 +356,35 @@ impl GalleryDb {
         Ok(())
     }
 
+    pub fn get_image_by_id(&self, image_id: &str) -> Result<Option<ImageMetadata>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, file_path, prompt, created_at
+             FROM images
+             WHERE id = ?1"
+        )?;
+
+        let mut rows = stmt.query(params![image_id])?;
+
+        if let Some(row) = rows.next()? {
+            Ok(Some(ImageMetadata {
+                id: row.get(0)?,
+                file_path: row.get(1)?,
+                prompt: row.get(2)?,
+                created_at: row.get(3)?,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
     pub fn delete_gallery_image(&self, image_id: &str) -> Result<()> {
+        // Delete from FTS first
+        self.conn.execute(
+            "DELETE FROM images_fts WHERE image_id = ?1",
+            params![image_id],
+        )?;
+
+        // Then delete from main table (cascades to image_tags)
         self.conn.execute(
             "DELETE FROM images WHERE id = ?1",
             params![image_id],

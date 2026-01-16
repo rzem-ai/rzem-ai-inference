@@ -171,18 +171,23 @@ fn delete_gallery_image(
     app_state: State<AppState>,
     image_id: String,
 ) -> Result<String, String> {
-    let db = app_state.gallery_db.lock().unwrap();
+    let db = app_state
+        .gallery_db
+        .lock()
+        .unwrap();
+
     let db = db.as_ref().ok_or("Database not initialized")?;
 
-    // Get file path before deleting
-    let images = db.get_gallery_images(1000)
-        .map_err(|e| format!("Failed to get images: {}", e))?;
-    if let Some(image) = images.iter().find(|img| img.id == image_id) {
-        std::fs::remove_file(&image.file_path)
-            .map_err(|e| format!("Failed to delete file: {}", e))?;
-    }
+    // Get image metadata
+    let image = db.get_image_by_id(&image_id)
+        .map_err(|e| format!("Failed to get image: {}", e))?
+        .ok_or_else(|| "Image not found".to_string())?;
 
-    // Then delete from database
+    // Delete file from filesystem
+    std::fs::remove_file(&image.file_path)
+        .map_err(|e| format!("Failed to delete file: {}", e))?;
+
+    // Delete from database (this will cascade to image_tags)
     db.delete_gallery_image(&image_id)
         .map_err(|e| format!("Failed to delete from database: {}", e))?;
 
