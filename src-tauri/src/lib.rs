@@ -36,14 +36,28 @@ fn init_database(app_state: State<AppState>, db_path: String) -> Result<String, 
     Ok("Database initialized".to_string())
 }
 
+/// Generate an image from a text prompt using Flux model
+///
+/// # Arguments
+/// * `prompt` - Text description of image to generate
+/// * `steps` - Number of diffusion steps
+/// * `width` - Image width in pixels
+/// * `height` - Image height in pixels
+/// * `seed` - Random seed for generation (-1 for random)
+///
+/// # Returns
+/// Success message with generated data size
+///
+/// # Note
+/// Currently uses stub implementation. Real Flux model integration pending.
 #[command]
 fn generate_image(
-    app_state: State<AppState>,
+    _app_state: State<AppState>,
     prompt: String,
     steps: u32,
-    width: u32,
-    height: u32,
-    seed: i64,
+    _width: u32,
+    _height: u32,
+    _seed: i64,
 ) -> Result<String, String> {
     use crate::inference::{InferenceEngine, FluxPipeline};
 
