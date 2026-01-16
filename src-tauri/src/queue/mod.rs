@@ -1,12 +1,12 @@
 //! Generation queue management with async execution
 
-use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum JobStatus {
     Pending,
@@ -58,7 +58,8 @@ impl GenerationJob {
 }
 
 pub struct QueueManager {
-    jobs: Arc<RwLock<Vec<GenerationJob>>>,
+    jobs: Arc<RwLock<HashMap<String, GenerationJob>>>,
+    job_order: Arc<RwLock<Vec<String>>>,
     running: Arc<Mutex<usize>>,
     max_concurrent: usize,
 }
@@ -66,7 +67,8 @@ pub struct QueueManager {
 impl QueueManager {
     pub fn new(max_concurrent: usize) -> Self {
         Self {
-            jobs: Arc::new(RwLock::new(Vec::new())),
+            jobs: Arc::new(RwLock::new(HashMap::new())),
+            job_order: Arc::new(RwLock::new(Vec::new())),
             running: Arc::new(Mutex::new(0)),
             max_concurrent,
         }
@@ -77,69 +79,98 @@ impl QueueManager {
         let job_id = job.id.clone();
 
         let mut jobs = self.jobs.write().await;
-        jobs.push(job);
+        let mut order = self.job_order.write().await;
+
+        jobs.insert(job_id.clone(), job);
+        order.push(job_id.clone());
 
         job_id
     }
 
     pub async fn get_jobs(&self) -> Vec<GenerationJob> {
-        self.jobs.read().await.clone()
+        let jobs = self.jobs.read().await;
+        let order = self.job_order.read().await;
+
+        order
+            .iter()
+            .filter_map(|id| jobs.get(id).cloned())
+            .collect()
     }
 
     pub async fn get_job(&self, job_id: &str) -> Option<GenerationJob> {
-        self.jobs
-            .read()
-            .await
-            .iter()
-            .find(|j| j.id == job_id)
-            .cloned()
+        self.jobs.read().await.get(job_id).cloned()
     }
 
-    pub async fn update_job_status(&self, job_id: &str, status: JobStatus) {
+    pub async fn update_job_status(&self, job_id: &str, status: JobStatus) -> Result<(), String> {
         let mut jobs = self.jobs.write().await;
-        if let Some(job) = jobs.iter_mut().find(|j| j.id == job_id) {
-            job.status = status.clone();
-            match status {
-                JobStatus::Running => {
-                    job.started_at = Some(chrono::Utc::now().timestamp());
-                }
-                JobStatus::Completed | JobStatus::Failed | JobStatus::Cancelled => {
-                    job.completed_at = Some(chrono::Utc::now().timestamp());
-                }
-                _ => {}
+
+        let job = jobs
+            .get_mut(job_id)
+            .ok_or_else(|| format!("Job not found: {}", job_id))?;
+
+        job.status = status;
+
+        match status {
+            JobStatus::Running => {
+                job.started_at = Some(chrono::Utc::now().timestamp());
             }
+            JobStatus::Completed => {
+                job.progress = 1.0;
+                job.completed_at = Some(chrono::Utc::now().timestamp());
+            }
+            JobStatus::Failed | JobStatus::Cancelled => {
+                job.completed_at = Some(chrono::Utc::now().timestamp());
+            }
+            _ => {}
         }
+
+        Ok(())
     }
 
-    pub async fn update_job_progress(&self, job_id: &str, progress: f32) {
+    pub async fn update_job_progress(&self, job_id: &str, progress: f32) -> Result<(), String> {
         let mut jobs = self.jobs.write().await;
-        if let Some(job) = jobs.iter_mut().find(|j| j.id == job_id) {
-            job.progress = progress;
-        }
+
+        let job = jobs
+            .get_mut(job_id)
+            .ok_or_else(|| format!("Job not found: {}", job_id))?;
+
+        job.progress = progress;
+        Ok(())
     }
 
-    pub async fn complete_job(&self, job_id: &str, result_path: String) {
+    pub async fn complete_job(&self, job_id: &str, result_path: String) -> Result<(), String> {
         let mut jobs = self.jobs.write().await;
-        if let Some(job) = jobs.iter_mut().find(|j| j.id == job_id) {
-            job.status = JobStatus::Completed;
-            job.progress = 1.0;
-            job.result_path = Some(result_path);
-            job.completed_at = Some(chrono::Utc::now().timestamp());
-        }
+
+        let job = jobs
+            .get_mut(job_id)
+            .ok_or_else(|| format!("Job not found: {}", job_id))?;
+
+        job.status = JobStatus::Completed;
+        job.progress = 1.0;
+        job.result_path = Some(result_path);
+        job.completed_at = Some(chrono::Utc::now().timestamp());
+
+        Ok(())
     }
 
-    pub async fn fail_job(&self, job_id: &str, error: String) {
+    pub async fn fail_job(&self, job_id: &str, error: String) -> Result<(), String> {
         let mut jobs = self.jobs.write().await;
-        if let Some(job) = jobs.iter_mut().find(|j| j.id == job_id) {
-            job.status = JobStatus::Failed;
-            job.error = Some(error);
-            job.completed_at = Some(chrono::Utc::now().timestamp());
-        }
+
+        let job = jobs
+            .get_mut(job_id)
+            .ok_or_else(|| format!("Job not found: {}", job_id))?;
+
+        job.status = JobStatus::Failed;
+        job.error = Some(error);
+        job.completed_at = Some(chrono::Utc::now().timestamp());
+
+        Ok(())
     }
 
     pub async fn cancel_job(&self, job_id: &str) -> bool {
         let mut jobs = self.jobs.write().await;
-        if let Some(job) = jobs.iter_mut().find(|j| j.id == job_id) {
+
+        if let Some(job) = jobs.get_mut(job_id) {
             if job.status == JobStatus::Pending {
                 job.status = JobStatus::Cancelled;
                 job.completed_at = Some(chrono::Utc::now().timestamp());
@@ -168,11 +199,264 @@ impl QueueManager {
 
     pub async fn clear_completed(&self) {
         let mut jobs = self.jobs.write().await;
-        jobs.retain(|j| {
+        let mut order = self.job_order.write().await;
+
+        order.retain(|id| {
+            if let Some(job) = jobs.get(id) {
+                !matches!(
+                    job.status,
+                    JobStatus::Completed | JobStatus::Failed | JobStatus::Cancelled
+                )
+            } else {
+                false
+            }
+        });
+
+        jobs.retain(|_id, job| {
             !matches!(
-                j.status,
+                job.status,
                 JobStatus::Completed | JobStatus::Failed | JobStatus::Cancelled
             )
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn create_test_params() -> GenerationParams {
+        GenerationParams {
+            prompt: "test prompt".to_string(),
+            negative_prompt: Some("negative".to_string()),
+            steps: 20,
+            cfg_scale: 7.5,
+            width: 512,
+            height: 512,
+            seed: 42,
+            model: "test-model".to_string(),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_job_creation() {
+        let manager = QueueManager::new(2);
+        let params = create_test_params();
+
+        let job_id = manager.add_job(params.clone()).await;
+
+        assert!(!job_id.is_empty());
+
+        let job = manager.get_job(&job_id).await;
+        assert!(job.is_some());
+
+        let job = job.unwrap();
+        assert_eq!(job.id, job_id);
+        assert_eq!(job.status, JobStatus::Pending);
+        assert_eq!(job.progress, 0.0);
+        assert_eq!(job.params.prompt, "test prompt");
+        assert!(job.started_at.is_none());
+        assert!(job.completed_at.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_job_status_updates() {
+        let manager = QueueManager::new(2);
+        let params = create_test_params();
+        let job_id = manager.add_job(params).await;
+
+        // Update to Running
+        let result = manager.update_job_status(&job_id, JobStatus::Running).await;
+        assert!(result.is_ok());
+
+        let job = manager.get_job(&job_id).await.unwrap();
+        assert_eq!(job.status, JobStatus::Running);
+        assert!(job.started_at.is_some());
+
+        // Update to Completed
+        let result = manager.update_job_status(&job_id, JobStatus::Completed).await;
+        assert!(result.is_ok());
+
+        let job = manager.get_job(&job_id).await.unwrap();
+        assert_eq!(job.status, JobStatus::Completed);
+        assert_eq!(job.progress, 1.0);
+        assert!(job.completed_at.is_some());
+
+        // Try updating non-existent job
+        let result = manager.update_job_status("nonexistent", JobStatus::Running).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Job not found"));
+    }
+
+    #[tokio::test]
+    async fn test_job_progress_updates() {
+        let manager = QueueManager::new(2);
+        let params = create_test_params();
+        let job_id = manager.add_job(params).await;
+
+        // Update progress
+        let result = manager.update_job_progress(&job_id, 0.5).await;
+        assert!(result.is_ok());
+
+        let job = manager.get_job(&job_id).await.unwrap();
+        assert_eq!(job.progress, 0.5);
+
+        // Try updating non-existent job
+        let result = manager.update_job_progress("nonexistent", 0.75).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Job not found"));
+    }
+
+    #[tokio::test]
+    async fn test_complete_job() {
+        let manager = QueueManager::new(2);
+        let params = create_test_params();
+        let job_id = manager.add_job(params).await;
+
+        let result = manager.complete_job(&job_id, "/path/to/result.png".to_string()).await;
+        assert!(result.is_ok());
+
+        let job = manager.get_job(&job_id).await.unwrap();
+        assert_eq!(job.status, JobStatus::Completed);
+        assert_eq!(job.progress, 1.0);
+        assert_eq!(job.result_path, Some("/path/to/result.png".to_string()));
+        assert!(job.completed_at.is_some());
+
+        // Try completing non-existent job
+        let result = manager.complete_job("nonexistent", "/path/to/result.png".to_string()).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_fail_job() {
+        let manager = QueueManager::new(2);
+        let params = create_test_params();
+        let job_id = manager.add_job(params).await;
+
+        let result = manager.fail_job(&job_id, "Test error".to_string()).await;
+        assert!(result.is_ok());
+
+        let job = manager.get_job(&job_id).await.unwrap();
+        assert_eq!(job.status, JobStatus::Failed);
+        assert_eq!(job.error, Some("Test error".to_string()));
+        assert!(job.completed_at.is_some());
+
+        // Try failing non-existent job
+        let result = manager.fail_job("nonexistent", "error".to_string()).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_cancel_job() {
+        let manager = QueueManager::new(2);
+        let params = create_test_params();
+        let job_id = manager.add_job(params).await;
+
+        // Can cancel pending job
+        let result = manager.cancel_job(&job_id).await;
+        assert!(result);
+
+        let job = manager.get_job(&job_id).await.unwrap();
+        assert_eq!(job.status, JobStatus::Cancelled);
+        assert!(job.completed_at.is_some());
+
+        // Cannot cancel already cancelled job
+        let result = manager.cancel_job(&job_id).await;
+        assert!(!result);
+
+        // Cannot cancel running job
+        let params2 = create_test_params();
+        let job_id2 = manager.add_job(params2).await;
+        manager.update_job_status(&job_id2, JobStatus::Running).await.unwrap();
+
+        let result = manager.cancel_job(&job_id2).await;
+        assert!(!result);
+    }
+
+    #[tokio::test]
+    async fn test_concurrent_job_tracking() {
+        let manager = QueueManager::new(2);
+
+        // Initially can start jobs
+        assert!(manager.can_start_job().await);
+
+        // Increment running count
+        manager.increment_running().await;
+        assert!(manager.can_start_job().await);
+
+        manager.increment_running().await;
+        assert!(!manager.can_start_job().await);
+
+        // Decrement running count
+        manager.decrement_running().await;
+        assert!(manager.can_start_job().await);
+
+        manager.decrement_running().await;
+        assert!(manager.can_start_job().await);
+
+        // Decrement below zero should be safe
+        manager.decrement_running().await;
+        assert!(manager.can_start_job().await);
+    }
+
+    #[tokio::test]
+    async fn test_get_jobs_ordering() {
+        let manager = QueueManager::new(2);
+
+        let job_id1 = manager.add_job(create_test_params()).await;
+        let job_id2 = manager.add_job(create_test_params()).await;
+        let job_id3 = manager.add_job(create_test_params()).await;
+
+        let jobs = manager.get_jobs().await;
+        assert_eq!(jobs.len(), 3);
+        assert_eq!(jobs[0].id, job_id1);
+        assert_eq!(jobs[1].id, job_id2);
+        assert_eq!(jobs[2].id, job_id3);
+    }
+
+    #[tokio::test]
+    async fn test_clear_completed() {
+        let manager = QueueManager::new(2);
+
+        let job_id1 = manager.add_job(create_test_params()).await;
+        let job_id2 = manager.add_job(create_test_params()).await;
+        let job_id3 = manager.add_job(create_test_params()).await;
+
+        manager.complete_job(&job_id1, "/path/1.png".to_string()).await.unwrap();
+        manager.fail_job(&job_id2, "error".to_string()).await.unwrap();
+        // job_id3 remains pending
+
+        manager.clear_completed().await;
+
+        let jobs = manager.get_jobs().await;
+        assert_eq!(jobs.len(), 1);
+        assert_eq!(jobs[0].id, job_id3);
+
+        // Verify removed jobs are really gone
+        assert!(manager.get_job(&job_id1).await.is_none());
+        assert!(manager.get_job(&job_id2).await.is_none());
+        assert!(manager.get_job(&job_id3).await.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_hashmap_performance() {
+        let manager = QueueManager::new(2);
+
+        // Add many jobs
+        let mut job_ids = Vec::new();
+        for _ in 0..100 {
+            let job_id = manager.add_job(create_test_params()).await;
+            job_ids.push(job_id);
+        }
+
+        // Direct lookup should be O(1) with HashMap
+        for job_id in &job_ids {
+            let job = manager.get_job(job_id).await;
+            assert!(job.is_some());
+        }
+
+        // Verify all jobs exist
+        let all_jobs = manager.get_jobs().await;
+        assert_eq!(all_jobs.len(), 100);
     }
 }
