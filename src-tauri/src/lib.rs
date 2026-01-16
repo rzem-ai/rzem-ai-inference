@@ -5,12 +5,15 @@ mod gallery;
 mod utils;
 
 use tauri::command;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use tauri::State;
+use tokio::sync::Mutex;
+use queue::QueueProcessor;
 
 struct AppState {
-    gallery_db: Mutex<Option<gallery::GalleryDb>>,
+    gallery_db: Arc<Mutex<Option<gallery::GalleryDb>>>,
     queue_manager: Arc<queue::QueueManager>,
+    queue_processor: Arc<QueueProcessor>,
 }
 
 #[command]
@@ -19,7 +22,7 @@ fn health_check() -> String {
 }
 
 #[command]
-fn init_database(app_state: State<AppState>, db_path: String) -> Result<String, String> {
+async fn init_database(app_state: State<'_, AppState>, db_path: String) -> Result<String, String> {
     // Create parent directory if it doesn't exist
     if let Some(parent) = std::path::Path::new(&db_path).parent() {
         std::fs::create_dir_all(parent)
@@ -32,7 +35,7 @@ fn init_database(app_state: State<AppState>, db_path: String) -> Result<String, 
     db.init_schema()
         .map_err(|e| format!("Failed to initialize schema: {}", e))?;
 
-    *app_state.gallery_db.lock().unwrap() = Some(db);
+    *app_state.gallery_db.lock().await = Some(db);
 
     Ok("Database initialized".to_string())
 }
@@ -100,11 +103,11 @@ fn generate_image(
 }
 
 #[command]
-fn get_gallery_images(
-    app_state: State<AppState>,
+async fn get_gallery_images(
+    app_state: State<'_, AppState>,
     limit: usize,
 ) -> Result<Vec<gallery::ImageMetadata>, String> {
-    let db = app_state.gallery_db.lock().unwrap();
+    let db = app_state.gallery_db.lock().await;
     let db = db.as_ref().ok_or("Database not initialized")?;
 
     db.get_gallery_images(limit)
@@ -112,11 +115,11 @@ fn get_gallery_images(
 }
 
 #[command]
-fn search_gallery_images(
-    app_state: State<AppState>,
+async fn search_gallery_images(
+    app_state: State<'_, AppState>,
     query: String,
 ) -> Result<Vec<gallery::ImageMetadata>, String> {
-    let db = app_state.gallery_db.lock().unwrap();
+    let db = app_state.gallery_db.lock().await;
     let db = db.as_ref().ok_or("Database not initialized")?;
 
     db.search_gallery_images(&query)
@@ -124,11 +127,11 @@ fn search_gallery_images(
 }
 
 #[command]
-fn toggle_favorite(
-    app_state: State<AppState>,
+async fn toggle_favorite(
+    app_state: State<'_, AppState>,
     image_id: String,
 ) -> Result<String, String> {
-    let db = app_state.gallery_db.lock().unwrap();
+    let db = app_state.gallery_db.lock().await;
     let db = db.as_ref().ok_or("Database not initialized")?;
 
     db.toggle_favorite(&image_id)
@@ -138,12 +141,12 @@ fn toggle_favorite(
 }
 
 #[command]
-fn add_image_tag(
-    app_state: State<AppState>,
+async fn add_image_tag(
+    app_state: State<'_, AppState>,
     image_id: String,
     tag: String,
 ) -> Result<String, String> {
-    let db = app_state.gallery_db.lock().unwrap();
+    let db = app_state.gallery_db.lock().await;
     let db = db.as_ref().ok_or("Database not initialized")?;
 
     db.add_image_tag(&image_id, &tag)
@@ -153,12 +156,12 @@ fn add_image_tag(
 }
 
 #[command]
-fn remove_image_tag(
-    app_state: State<AppState>,
+async fn remove_image_tag(
+    app_state: State<'_, AppState>,
     image_id: String,
     tag: String,
 ) -> Result<String, String> {
-    let db = app_state.gallery_db.lock().unwrap();
+    let db = app_state.gallery_db.lock().await;
     let db = db.as_ref().ok_or("Database not initialized")?;
 
     db.remove_image_tag(&image_id, &tag)
@@ -168,14 +171,14 @@ fn remove_image_tag(
 }
 
 #[command]
-fn delete_gallery_image(
-    app_state: State<AppState>,
+async fn delete_gallery_image(
+    app_state: State<'_, AppState>,
     image_id: String,
 ) -> Result<String, String> {
     let db = app_state
         .gallery_db
         .lock()
-        .unwrap();
+        .await;
 
     let db = db.as_ref().ok_or("Database not initialized")?;
 
@@ -240,11 +243,21 @@ async fn clear_completed_jobs(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let gallery_db = Arc::new(Mutex::new(None));
     let queue_manager = Arc::new(queue::QueueManager::new(1)); // Max 1 concurrent for now
 
+    // Create processor
+    let queue_processor = Arc::new(
+        QueueProcessor::new(
+            queue_manager.clone(),
+            gallery_db.clone(),
+        ).expect("Failed to create queue processor")
+    );
+
     let app_state = AppState {
-        gallery_db: Mutex::new(None),
+        gallery_db: gallery_db.clone(),
         queue_manager,
+        queue_processor: queue_processor.clone(),
     };
 
     tauri::Builder::default()
@@ -252,6 +265,13 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .setup(move |_app| {
+            // Start processor on app startup
+            tauri::async_runtime::spawn(async move {
+                queue_processor.start().await;
+            });
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             health_check,
             init_database,
