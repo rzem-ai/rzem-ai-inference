@@ -2,6 +2,7 @@
 import PromptInput from '@/components/generation/PromptInput.vue'
 import ParameterControls from '@/components/generation/ParameterControls.vue'
 import GenerateButton from '@/components/generation/GenerateButton.vue'
+import QueueList from '@/components/generation/QueueList.vue'
 </script>
 
 <template>
@@ -21,7 +22,7 @@ import GenerateButton from '@/components/generation/GenerateButton.vue'
       </div>
       <div class="panel center-panel">
         <h2>Queue</h2>
-        <p>Generation queue and history will go here</p>
+        <QueueList />
       </div>
       <div class="panel right-panel">
         <h2>Canvas</h2>
