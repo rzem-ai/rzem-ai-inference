@@ -29,4 +29,8 @@ chrono = "0.4"
 # Candle dependencies (CPU only for now, GPU features added later)
 candle-core = "0.8"
 candle-nn = "0.8"
+candle-transformers = "0.8"
+hf-hub = "0.3"
+tokenizers = "0.15"
+safetensors = "0.4"
 image = "0.25"
