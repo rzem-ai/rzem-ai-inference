@@ -34,6 +34,24 @@ function getStatusIcon(status: string): string {
   }
 }
 
+// @ts-expect-error - Function reserved for future use with Badge/Tag components
+function getStatusColor(status: string): string {
+  switch (status) {
+    case 'pending':
+      return 'info'
+    case 'running':
+      return 'primary'
+    case 'completed':
+      return 'success'
+    case 'failed':
+      return 'danger'
+    case 'cancelled':
+      return 'warning'
+    default:
+      return 'secondary'
+  }
+}
+
 function formatDuration(startedAt?: number, completedAt?: number): string {
   if (!startedAt) return '-'
   const end = completedAt || Date.now() / 1000
