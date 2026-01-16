@@ -64,10 +64,6 @@
             {
               "identifier": "fs:scope",
               "allow": [{ "path": "$HOME/.flux-generator/**" }]
-            },
-            {
-              "identifier": "fs:scope-asset",
-              "allow": [{ "path": "$HOME/.flux-generator/**" }]
             }
           ]
         }
