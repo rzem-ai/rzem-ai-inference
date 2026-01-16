@@ -5,11 +5,12 @@ mod gallery;
 mod utils;
 
 use tauri::command;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tauri::State;
 
 struct AppState {
     gallery_db: Mutex<Option<gallery::GalleryDb>>,
+    queue_manager: Arc<queue::QueueManager>,
 }
 
 #[command]
@@ -194,10 +195,56 @@ fn delete_gallery_image(
     Ok("Image deleted".to_string())
 }
 
+#[command]
+async fn add_to_queue(
+    app_state: State<'_, AppState>,
+    params: queue::GenerationParams,
+) -> Result<String, String> {
+    let job_id = app_state.queue_manager.add_job(params).await;
+    Ok(job_id)
+}
+
+#[command]
+async fn get_queue_jobs(
+    app_state: State<'_, AppState>,
+) -> Result<Vec<queue::GenerationJob>, String> {
+    let jobs = app_state.queue_manager.get_jobs().await;
+    Ok(jobs)
+}
+
+#[command]
+async fn get_queue_job(
+    app_state: State<'_, AppState>,
+    job_id: String,
+) -> Result<Option<queue::GenerationJob>, String> {
+    let job = app_state.queue_manager.get_job(&job_id).await;
+    Ok(job)
+}
+
+#[command]
+async fn cancel_queue_job(
+    app_state: State<'_, AppState>,
+    job_id: String,
+) -> Result<bool, String> {
+    let cancelled = app_state.queue_manager.cancel_job(&job_id).await;
+    Ok(cancelled)
+}
+
+#[command]
+async fn clear_completed_jobs(
+    app_state: State<'_, AppState>,
+) -> Result<(), String> {
+    app_state.queue_manager.clear_completed().await;
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let queue_manager = Arc::new(queue::QueueManager::new(1)); // Max 1 concurrent for now
+
     let app_state = AppState {
         gallery_db: Mutex::new(None),
+        queue_manager,
     };
 
     tauri::Builder::default()
@@ -215,6 +262,11 @@ pub fn run() {
             add_image_tag,
             remove_image_tag,
             delete_gallery_image,
+            add_to_queue,
+            get_queue_jobs,
+            get_queue_job,
+            cancel_queue_job,
+            clear_completed_jobs,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
