@@ -270,6 +270,106 @@ impl GalleryDb {
         self.conn.execute("DELETE FROM presets WHERE id = ?1", params![id])?;
         Ok(())
     }
+
+    pub fn get_images(&self, limit: usize, offset: usize) -> Result<Vec<ImageMetadata>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, file_path, prompt, created_at
+             FROM images
+             ORDER BY created_at DESC
+             LIMIT ?1 OFFSET ?2"
+        )?;
+
+        let images = stmt.query_map(params![limit, offset], |row| {
+            Ok(ImageMetadata {
+                id: row.get(0)?,
+                file_path: row.get(1)?,
+                prompt: row.get(2)?,
+                created_at: row.get(3)?,
+            })
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(images)
+    }
+
+    pub fn search_images(&self, query: &str) -> Result<Vec<ImageMetadata>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT i.id, i.file_path, i.prompt, i.created_at
+             FROM images i
+             JOIN images_fts fts ON i.id = fts.image_id
+             WHERE images_fts MATCH ?1
+             ORDER BY i.created_at DESC"
+        )?;
+
+        let images = stmt.query_map(params![query], |row| {
+            Ok(ImageMetadata {
+                id: row.get(0)?,
+                file_path: row.get(1)?,
+                prompt: row.get(2)?,
+                created_at: row.get(3)?,
+            })
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(images)
+    }
+
+    pub fn toggle_favorite(&self, image_id: &str) -> Result<bool> {
+        let is_favorite: i32 = self.conn.query_row(
+            "SELECT is_favorite FROM images WHERE id = ?1",
+            params![image_id],
+            |row| row.get(0),
+        )?;
+
+        let new_state = if is_favorite == 1 { 0 } else { 1 };
+        self.conn.execute(
+            "UPDATE images SET is_favorite = ?1 WHERE id = ?2",
+            params![new_state, image_id],
+        )?;
+
+        Ok(new_state == 1)
+    }
+
+    pub fn add_tag_to_image(&self, image_id: &str, tag: &str) -> Result<()> {
+        // Get or create tag
+        self.conn.execute(
+            "INSERT OR IGNORE INTO tags (name) VALUES (?1)",
+            params![tag],
+        )?;
+
+        let tag_id: i64 = self.conn.query_row(
+            "SELECT id FROM tags WHERE name = ?1",
+            params![tag],
+            |row| row.get(0),
+        )?;
+
+        // Link tag to image
+        self.conn.execute(
+            "INSERT OR IGNORE INTO image_tags (image_id, tag_id) VALUES (?1, ?2)",
+            params![image_id, tag_id],
+        )?;
+
+        Ok(())
+    }
+
+    pub fn remove_tag_from_image(&self, image_id: &str, tag: &str) -> Result<()> {
+        self.conn.execute(
+            "DELETE FROM image_tags
+             WHERE image_id = ?1 AND tag_id = (SELECT id FROM tags WHERE name = ?2)",
+            params![image_id, tag],
+        )?;
+
+        Ok(())
+    }
+
+    pub fn delete_image(&self, image_id: &str) -> Result<()> {
+        self.conn.execute(
+            "DELETE FROM images WHERE id = ?1",
+            params![image_id],
+        )?;
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]

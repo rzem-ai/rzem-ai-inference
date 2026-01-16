@@ -98,6 +98,80 @@ fn generate_image(
     Ok(output_path.to_string_lossy().to_string())
 }
 
+#[command]
+fn get_gallery_images(
+    app_state: State<AppState>,
+    limit: usize,
+) -> Result<Vec<gallery::ImageMetadata>, String> {
+    let db = app_state.gallery_db.lock().unwrap();
+    let db = db.as_ref().ok_or("Database not initialized")?;
+
+    db.get_images(limit, 0)
+        .map_err(|e| format!("Failed to get images: {}", e))
+}
+
+#[command]
+fn search_gallery_images(
+    app_state: State<AppState>,
+    query: String,
+) -> Result<Vec<gallery::ImageMetadata>, String> {
+    let db = app_state.gallery_db.lock().unwrap();
+    let db = db.as_ref().ok_or("Database not initialized")?;
+
+    db.search_images(&query)
+        .map_err(|e| format!("Failed to search images: {}", e))
+}
+
+#[command]
+fn toggle_image_favorite(
+    app_state: State<AppState>,
+    image_id: String,
+) -> Result<bool, String> {
+    let db = app_state.gallery_db.lock().unwrap();
+    let db = db.as_ref().ok_or("Database not initialized")?;
+
+    db.toggle_favorite(&image_id)
+        .map_err(|e| format!("Failed to toggle favorite: {}", e))
+}
+
+#[command]
+fn add_image_tag(
+    app_state: State<AppState>,
+    image_id: String,
+    tag: String,
+) -> Result<(), String> {
+    let db = app_state.gallery_db.lock().unwrap();
+    let db = db.as_ref().ok_or("Database not initialized")?;
+
+    db.add_tag_to_image(&image_id, &tag)
+        .map_err(|e| format!("Failed to add tag: {}", e))
+}
+
+#[command]
+fn remove_image_tag(
+    app_state: State<AppState>,
+    image_id: String,
+    tag: String,
+) -> Result<(), String> {
+    let db = app_state.gallery_db.lock().unwrap();
+    let db = db.as_ref().ok_or("Database not initialized")?;
+
+    db.remove_tag_from_image(&image_id, &tag)
+        .map_err(|e| format!("Failed to remove tag: {}", e))
+}
+
+#[command]
+fn delete_gallery_image(
+    app_state: State<AppState>,
+    image_id: String,
+) -> Result<(), String> {
+    let db = app_state.gallery_db.lock().unwrap();
+    let db = db.as_ref().ok_or("Database not initialized")?;
+
+    db.delete_image(&image_id)
+        .map_err(|e| format!("Failed to delete image: {}", e))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app_state = AppState {
@@ -113,6 +187,12 @@ pub fn run() {
             health_check,
             init_database,
             generate_image,
+            get_gallery_images,
+            search_gallery_images,
+            toggle_image_favorite,
+            add_image_tag,
+            remove_image_tag,
+            delete_gallery_image,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
