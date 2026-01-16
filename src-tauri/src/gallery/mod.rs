@@ -271,15 +271,15 @@ impl GalleryDb {
         Ok(())
     }
 
-    pub fn get_images(&self, limit: usize, offset: usize) -> Result<Vec<ImageMetadata>> {
+    pub fn get_gallery_images(&self, limit: usize) -> Result<Vec<ImageMetadata>> {
         let mut stmt = self.conn.prepare(
             "SELECT id, file_path, prompt, created_at
              FROM images
              ORDER BY created_at DESC
-             LIMIT ?1 OFFSET ?2"
+             LIMIT ?1"
         )?;
 
-        let images = stmt.query_map(params![limit, offset], |row| {
+        let images = stmt.query_map(params![limit], |row| {
             Ok(ImageMetadata {
                 id: row.get(0)?,
                 file_path: row.get(1)?,
@@ -292,7 +292,7 @@ impl GalleryDb {
         Ok(images)
     }
 
-    pub fn search_images(&self, query: &str) -> Result<Vec<ImageMetadata>> {
+    pub fn search_gallery_images(&self, query: &str) -> Result<Vec<ImageMetadata>> {
         let mut stmt = self.conn.prepare(
             "SELECT i.id, i.file_path, i.prompt, i.created_at
              FROM images i
@@ -314,23 +314,16 @@ impl GalleryDb {
         Ok(images)
     }
 
-    pub fn toggle_favorite(&self, image_id: &str) -> Result<bool> {
-        let is_favorite: i32 = self.conn.query_row(
-            "SELECT is_favorite FROM images WHERE id = ?1",
-            params![image_id],
-            |row| row.get(0),
-        )?;
-
-        let new_state = if is_favorite == 1 { 0 } else { 1 };
+    pub fn toggle_favorite(&self, image_id: &str) -> Result<()> {
         self.conn.execute(
-            "UPDATE images SET is_favorite = ?1 WHERE id = ?2",
-            params![new_state, image_id],
+            "UPDATE images SET is_favorite = NOT is_favorite WHERE id = ?1",
+            params![image_id],
         )?;
 
-        Ok(new_state == 1)
+        Ok(())
     }
 
-    pub fn add_tag_to_image(&self, image_id: &str, tag: &str) -> Result<()> {
+    pub fn add_image_tag(&self, image_id: &str, tag: &str) -> Result<()> {
         // Get or create tag
         self.conn.execute(
             "INSERT OR IGNORE INTO tags (name) VALUES (?1)",
@@ -352,7 +345,7 @@ impl GalleryDb {
         Ok(())
     }
 
-    pub fn remove_tag_from_image(&self, image_id: &str, tag: &str) -> Result<()> {
+    pub fn remove_image_tag(&self, image_id: &str, tag: &str) -> Result<()> {
         self.conn.execute(
             "DELETE FROM image_tags
              WHERE image_id = ?1 AND tag_id = (SELECT id FROM tags WHERE name = ?2)",
@@ -362,7 +355,7 @@ impl GalleryDb {
         Ok(())
     }
 
-    pub fn delete_image(&self, image_id: &str) -> Result<()> {
+    pub fn delete_gallery_image(&self, image_id: &str) -> Result<()> {
         self.conn.execute(
             "DELETE FROM images WHERE id = ?1",
             params![image_id],

@@ -106,7 +106,7 @@ fn get_gallery_images(
     let db = app_state.gallery_db.lock().unwrap();
     let db = db.as_ref().ok_or("Database not initialized")?;
 
-    db.get_images(limit, 0)
+    db.get_gallery_images(limit)
         .map_err(|e| format!("Failed to get images: {}", e))
 }
 
@@ -118,20 +118,22 @@ fn search_gallery_images(
     let db = app_state.gallery_db.lock().unwrap();
     let db = db.as_ref().ok_or("Database not initialized")?;
 
-    db.search_images(&query)
+    db.search_gallery_images(&query)
         .map_err(|e| format!("Failed to search images: {}", e))
 }
 
 #[command]
-fn toggle_image_favorite(
+fn toggle_favorite(
     app_state: State<AppState>,
     image_id: String,
-) -> Result<bool, String> {
+) -> Result<String, String> {
     let db = app_state.gallery_db.lock().unwrap();
     let db = db.as_ref().ok_or("Database not initialized")?;
 
     db.toggle_favorite(&image_id)
-        .map_err(|e| format!("Failed to toggle favorite: {}", e))
+        .map_err(|e| format!("Failed to toggle favorite: {}", e))?;
+
+    Ok("Favorite toggled".to_string())
 }
 
 #[command]
@@ -139,12 +141,14 @@ fn add_image_tag(
     app_state: State<AppState>,
     image_id: String,
     tag: String,
-) -> Result<(), String> {
+) -> Result<String, String> {
     let db = app_state.gallery_db.lock().unwrap();
     let db = db.as_ref().ok_or("Database not initialized")?;
 
-    db.add_tag_to_image(&image_id, &tag)
-        .map_err(|e| format!("Failed to add tag: {}", e))
+    db.add_image_tag(&image_id, &tag)
+        .map_err(|e| format!("Failed to add tag: {}", e))?;
+
+    Ok("Tag added".to_string())
 }
 
 #[command]
@@ -152,24 +156,37 @@ fn remove_image_tag(
     app_state: State<AppState>,
     image_id: String,
     tag: String,
-) -> Result<(), String> {
+) -> Result<String, String> {
     let db = app_state.gallery_db.lock().unwrap();
     let db = db.as_ref().ok_or("Database not initialized")?;
 
-    db.remove_tag_from_image(&image_id, &tag)
-        .map_err(|e| format!("Failed to remove tag: {}", e))
+    db.remove_image_tag(&image_id, &tag)
+        .map_err(|e| format!("Failed to remove tag: {}", e))?;
+
+    Ok("Tag removed".to_string())
 }
 
 #[command]
 fn delete_gallery_image(
     app_state: State<AppState>,
     image_id: String,
-) -> Result<(), String> {
+) -> Result<String, String> {
     let db = app_state.gallery_db.lock().unwrap();
     let db = db.as_ref().ok_or("Database not initialized")?;
 
-    db.delete_image(&image_id)
-        .map_err(|e| format!("Failed to delete image: {}", e))
+    // Get file path before deleting
+    let images = db.get_gallery_images(1000)
+        .map_err(|e| format!("Failed to get images: {}", e))?;
+    if let Some(image) = images.iter().find(|img| img.id == image_id) {
+        std::fs::remove_file(&image.file_path)
+            .map_err(|e| format!("Failed to delete file: {}", e))?;
+    }
+
+    // Then delete from database
+    db.delete_gallery_image(&image_id)
+        .map_err(|e| format!("Failed to delete from database: {}", e))?;
+
+    Ok("Image deleted".to_string())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -189,7 +206,7 @@ pub fn run() {
             generate_image,
             get_gallery_images,
             search_gallery_images,
-            toggle_image_favorite,
+            toggle_favorite,
             add_image_tag,
             remove_image_tag,
             delete_gallery_image,
