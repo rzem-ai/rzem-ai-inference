@@ -86,7 +86,7 @@ fn generate_image(
     // Generate filename with timestamp
     let timestamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
+        .map_err(|e| format!("System time error: {}", e))?
         .as_secs();
     let filename = format!("flux_{}_{}.raw", timestamp, seed);
     let output_path = output_dir.join(&filename);
