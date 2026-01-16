@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useModelsStore } from '@/stores/models'
-import Dropdown from 'primevue/dropdown'
+import Select from 'primevue/select'
 
 const modelsStore = useModelsStore()
 </script>
@@ -9,7 +9,7 @@ const modelsStore = useModelsStore()
   <div class="model-selector">
     <div class="field">
       <label for="model">Model</label>
-      <Dropdown
+      <Select
         id="model"
         v-model="modelsStore.selectedModelId"
         :options="modelsStore.downloadedModels"

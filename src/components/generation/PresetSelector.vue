@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { usePresetsStore } from '@/stores/presets'
-import Dropdown from 'primevue/dropdown'
+import Select from 'primevue/select'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
 import Dialog from 'primevue/dialog'
@@ -32,7 +32,7 @@ const handleSavePreset = () => {
     <div class="field">
       <label for="preset">Preset</label>
       <div class="preset-controls">
-        <Dropdown
+        <Select
           id="preset"
           v-model="selectedPresetId"
           :options="presetsStore.presets"
