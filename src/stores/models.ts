@@ -35,40 +35,67 @@ export const useModelsStore = defineStore('models', () => {
     models.value.push(model)
   }
 
-  function removeModel(id: string) {
+  function removeModel(id: string): boolean {
     const index = models.value.findIndex((m) => m.id === id)
     if (index !== -1) {
       models.value.splice(index, 1)
+      return true
     }
+    return false
   }
 
-  function selectModel(id: string) {
-    selectedModelId.value = id
+  function selectModel(id: string): boolean {
+    const model = models.value.find((m) => m.id === id)
+    if (model && model.isDownloaded) {
+      // Deactivate all models
+      models.value = models.value.map((m) => ({
+        ...m,
+        isActive: m.id === id,
+      }))
+      selectedModelId.value = id
+      return true
+    }
+    return false
   }
 
   function addLora(lora: LoRA) {
     loras.value.push(lora)
   }
 
-  function removeLora(id: string) {
+  function removeLora(id: string): boolean {
     const index = loras.value.findIndex((l) => l.id === id)
     if (index !== -1) {
       loras.value.splice(index, 1)
+      return true
     }
+    return false
   }
 
-  function toggleLora(id: string) {
-    const lora = loras.value.find((l) => l.id === id)
-    if (lora) {
-      lora.isActive = !lora.isActive
+  function toggleLora(id: string): boolean {
+    const index = loras.value.findIndex((l) => l.id === id)
+    if (index !== -1) {
+      loras.value[index] = {
+        ...loras.value[index],
+        isActive: !loras.value[index].isActive,
+      }
+      return true
     }
+    return false
   }
 
-  function updateLoraStrength(id: string, strength: number) {
-    const lora = loras.value.find((l) => l.id === id)
-    if (lora) {
-      lora.strength = strength
+  function updateLoraStrength(id: string, strength: number): boolean {
+    // Clamp strength to valid range (0.0 to 2.0)
+    const clampedStrength = Math.max(0, Math.min(2, strength))
+
+    const index = loras.value.findIndex((l) => l.id === id)
+    if (index !== -1) {
+      loras.value[index] = {
+        ...loras.value[index],
+        strength: clampedStrength,
+      }
+      return true
     }
+    return false
   }
 
   return {
