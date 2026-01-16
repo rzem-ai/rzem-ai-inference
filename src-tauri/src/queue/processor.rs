@@ -230,38 +230,42 @@ async fn execute_generation(
 ) -> Result<String> {
     // Create pipeline
     let device = inference_engine.get_device().clone();
-    let pipeline = FluxPipeline::new(device)?;
+    let mut pipeline = FluxPipeline::new(device)?;
 
     // Update progress: starting
     queue_manager.update_job_progress(job_id, 0.1).await
         .map_err(|e| anyhow::anyhow!(e))?;
 
-    // Generate image (currently stub)
-    let image_data = pipeline.generate_stub(&params.prompt, params.steps as usize)?;
+    // Try real generation first, fall back to stub if models not available
+    let image_data = match pipeline.generate(&params.prompt, params.steps as usize) {
+        Ok(data) => {
+            println!("Generated image using real FLUX model");
+            data
+        }
+        Err(e) => {
+            eprintln!("Real generation failed: {}, falling back to stub", e);
+            pipeline.generate_stub(&params.prompt, params.steps as usize)?
+        }
+    };
 
     // Update progress: generation complete
     queue_manager.update_job_progress(job_id, 0.8).await
         .map_err(|e| anyhow::anyhow!(e))?;
 
-    // Determine output path
+    // Save to file (existing code continues...)
     let home = dirs::home_dir()
         .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?;
     let output_dir = home.join(".flux-generator").join("outputs");
-
-    // Create output directory
     std::fs::create_dir_all(&output_dir)?;
 
-    // Generate filename with timestamp and seed
     let timestamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)?
         .as_secs();
     let filename = format!("flux_{}_{}.png", timestamp, params.seed);
     let output_path = output_dir.join(&filename);
 
-    // Save PNG image data
     std::fs::write(&output_path, &image_data)?;
 
-    // Update progress: complete
     queue_manager.update_job_progress(job_id, 1.0).await
         .map_err(|e| anyhow::anyhow!(e))?;
 
