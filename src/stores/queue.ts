@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed, onScopeDispose } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
+import { useGalleryStore } from './gallery'
 
 export interface GenerationParams {
   prompt: string
@@ -41,6 +42,9 @@ export const useQueueStore = defineStore('queue', () => {
   const isPolling = ref(false)
   const pollingInterval = ref<number | null>(null)
   const error = ref<string | null>(null)
+
+  // Get gallery store for auto-refresh on job completion
+  const galleryStore = useGalleryStore()
 
   // Listen for job updates from backend
   // This is the primary source of truth for job state updates
@@ -82,6 +86,10 @@ export const useQueueStore = defineStore('queue', () => {
       // Update completed_at when job finishes
       if (status === 'completed' || status === 'failed' || status === 'cancelled') {
         jobs.value[jobIndex].completed_at = Math.floor(Date.now() / 1000)
+      }
+      // Refresh gallery when job completes successfully
+      if (status === 'completed') {
+        await galleryStore.loadImages()
       }
     }
   })
