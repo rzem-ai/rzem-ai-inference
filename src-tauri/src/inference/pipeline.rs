@@ -2,6 +2,7 @@
 
 use anyhow::Result;
 use candle_core::Device;
+use image::{ImageBuffer, Rgb};
 
 /// Flux diffusion model pipeline for image generation
 pub struct FluxPipeline {
@@ -26,20 +27,30 @@ impl FluxPipeline {
     /// * `steps` - Number of diffusion steps (unused in stub)
     ///
     /// # Returns
-    /// RGB image data as Vec<u8> (1024x1024x3 bytes)
+    /// PNG encoded image data as Vec<u8>
     pub fn generate_stub(&self, prompt: &str, _steps: usize) -> Result<Vec<u8>> {
         // For now, return a simple test pattern
         // This will be replaced with actual Flux model inference
-        let size = 1024 * 1024 * 3; // 1024x1024 RGB
-        let mut data = vec![0u8; size];
+        const WIDTH: u32 = 1024;
+        const HEIGHT: u32 = 1024;
 
-        // Create a simple gradient pattern based on prompt length
+        // Create RGB image buffer
+        let mut img = ImageBuffer::new(WIDTH, HEIGHT);
+
+        // Create a gradient pattern based on prompt length
         let intensity = (prompt.len() % 256) as u8;
-        for i in 0..size {
-            data[i] = ((i % 256) as u8).wrapping_add(intensity);
+        for (x, y, pixel) in img.enumerate_pixels_mut() {
+            let r = ((x + y) % 256) as u8;
+            let g = intensity;
+            let b = ((x * y) % 256) as u8;
+            *pixel = Rgb([r, g, b]);
         }
 
-        Ok(data)
+        // Encode as PNG
+        let mut png_data = Vec::new();
+        img.write_to(&mut std::io::Cursor::new(&mut png_data), image::ImageFormat::Png)?;
+
+        Ok(png_data)
     }
 }
 
@@ -64,9 +75,9 @@ mod tests {
 
         let result = pipeline.generate_stub("test prompt", 4).unwrap();
 
-        // Should return 1024x1024x3 bytes
-        assert_eq!(result.len(), 1024 * 1024 * 3);
-        // Should not be all zeros
-        assert!(result.iter().any(|&x| x != 0));
+        // Should return PNG data (compressed, so smaller than raw)
+        assert!(!result.is_empty());
+        // Check PNG magic bytes
+        assert_eq!(&result[0..8], &[137, 80, 78, 71, 13, 10, 26, 10]);
     }
 }

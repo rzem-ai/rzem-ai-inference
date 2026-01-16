@@ -88,10 +88,10 @@ fn generate_image(
         .duration_since(std::time::UNIX_EPOCH)
         .map_err(|e| format!("System time error: {}", e))?
         .as_secs();
-    let filename = format!("flux_{}_{}.raw", timestamp, seed);
+    let filename = format!("flux_{}_{}.png", timestamp, seed);
     let output_path = output_dir.join(&filename);
 
-    // Save raw image data (will be PNG later)
+    // Save PNG image data
     fs::write(&output_path, &image_data)
         .map_err(|e| format!("Failed to write image: {}", e))?;
 
