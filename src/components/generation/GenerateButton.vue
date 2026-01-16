@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { invoke } from '@tauri-apps/api/core'
 import { useGenerationStore } from '@/stores/generation'
 import type { GenerationJob } from '@/types'
 import Button from 'primevue/button'
@@ -24,20 +25,37 @@ const buttonLabel = computed(() => {
   return 'Generate'
 })
 
-const handleGenerate = () => {
+const handleGenerate = async () => {
   if (!canGenerate.value) return
+
+  const params = store.currentParams
 
   // Create job
   const job: GenerationJob = {
     id: crypto.randomUUID(),
-    prompt: store.currentParams.prompt,
+    prompt: params.prompt,
     status: 'Queued'
   }
 
   store.addJob(job)
+  store.updateJobStatus(job.id, 'Running')
 
-  // TODO: Dispatch to backend in next task
-  console.log('Job added to queue:', job)
+  try {
+    // Call backend
+    const result = await invoke<string>('generate_image', {
+      prompt: params.prompt,
+      steps: params.steps,
+      width: params.width,
+      height: params.height,
+      seed: params.seed === -1 ? Math.floor(Math.random() * 2147483647) : params.seed
+    })
+
+    console.log('Generation result:', result)
+    store.updateJobStatus(job.id, 'Completed')
+  } catch (error) {
+    console.error('Generation failed:', error)
+    store.updateJobStatus(job.id, 'Failed')
+  }
 }
 </script>
 
