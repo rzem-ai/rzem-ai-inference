@@ -1,8 +1,10 @@
 //! Inference engine for running Flux models with Candle
 
 mod engine;
+mod pipeline;
 
 pub use engine::InferenceEngine;
+pub use pipeline::FluxPipeline;
 
 #[cfg(test)]
 mod tests {
