@@ -45,7 +45,7 @@ impl ModelDownloader {
     }
 
     /// Fetch list of files in FLUX Schnell repository from HuggingFace API
-    async fn fetch_repo_files(repo_id: &str) -> Result<Vec<String>> {
+    async fn fetch_repo_files(repo_id: &str, token: &str) -> Result<Vec<String>> {
         let url = format!(
             "https://huggingface.co/api/models/{}/tree/main?recursive=true",
             repo_id
@@ -55,6 +55,7 @@ impl ModelDownloader {
         let response = client
             .get(&url)
             .header("User-Agent", "flux-generator/0.1.0")
+            .header("Authorization", format!("Bearer {}", token))
             .send()
             .await
             .context("Failed to query HuggingFace API")?;
@@ -112,6 +113,32 @@ impl ModelDownloader {
             .collect()
     }
 
+    /// Load HuggingFace token from .env file
+    fn load_hf_token() -> Result<String> {
+        // Try to load from .env file in project root
+        if let Ok(cwd) = std::env::current_dir() {
+            let env_path = cwd.join(".env");
+            if env_path.exists() {
+                let _ = dotenvy::from_path(&env_path);
+            }
+        }
+
+        // Also try parent directory (for tauri dev mode)
+        if let Ok(cwd) = std::env::current_dir() {
+            if let Some(parent) = cwd.parent() {
+                let env_path = parent.join(".env");
+                if env_path.exists() {
+                    let _ = dotenvy::from_path(&env_path);
+                }
+            }
+        }
+
+        // Try HF_API_KEY first (from .env), then HF_TOKEN (standard env var)
+        std::env::var("HF_API_KEY")
+            .or_else(|_| std::env::var("HF_TOKEN"))
+            .context("HuggingFace token not found. Please set HF_API_KEY in .env file or HF_TOKEN environment variable")
+    }
+
     /// Download FLUX Schnell model from HuggingFace Hub
     ///
     /// Downloads to ~/.cache/huggingface/hub/models--black-forest-labs--FLUX.1-schnell/
@@ -122,13 +149,20 @@ impl ModelDownloader {
             return Ok(());
         }
 
+        // Load HuggingFace token for gated model access
+        let hf_token = Self::load_hf_token()?;
+        println!("Loaded HuggingFace token from .env");
+
+        // Set HF_TOKEN env var so hf-hub uses it
+        std::env::set_var("HF_TOKEN", &hf_token);
+
         let repo_id = "black-forest-labs/FLUX.1-schnell";
 
         println!("Downloading FLUX Schnell from HuggingFace Hub...");
         println!("Fetching file list from repository...");
 
         // Fetch and filter file list dynamically from HuggingFace API
-        let all_files = Self::fetch_repo_files(repo_id).await?;
+        let all_files = Self::fetch_repo_files(repo_id, &hf_token).await?;
         let files = Self::filter_required_files(all_files);
 
         println!("Found {} files to download", files.len());

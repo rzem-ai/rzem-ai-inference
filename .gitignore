@@ -38,3 +38,8 @@ src-tauri/target/
 *.db
 *.db-shm
 *.db-wal
+
+# Environment variables (API keys)
+.env
+.env.local
+.env.*.local
