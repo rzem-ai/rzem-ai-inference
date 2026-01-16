@@ -3,17 +3,14 @@ import { computed } from 'vue'
 import { useGenerationStore } from '@/stores/generation'
 import { useQueueStore } from '@/stores/queue'
 import Button from 'primevue/button'
-import type ImageCanvas from './ImageCanvas.vue'
 
 interface Props {
-  canvasRef?: InstanceType<typeof ImageCanvas> | null
   queueCount?: number
 }
 
 // Add default value for queueCount
 const props = withDefaults(defineProps<Props>(), {
-  queueCount: 0,
-  canvasRef: null
+  queueCount: 0
 })
 
 const emit = defineEmits<{

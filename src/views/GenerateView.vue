@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useToast } from 'primevue/usetoast'
 import PromptInput from '@/components/generation/PromptInput.vue'
 import ModelSelector from '@/components/generation/ModelSelector.vue'
 import PresetSelector from '@/components/generation/PresetSelector.vue'
@@ -14,6 +15,7 @@ import type { GenerationParams } from '@/stores/queue'
 const canvasRef = ref<InstanceType<typeof ImageCanvas> | null>(null)
 const queueStore = useQueueStore()
 const generationStore = useGenerationStore()
+const toast = useToast()
 
 const handleGenerate = async () => {
   const params = generationStore.currentParams
@@ -32,10 +34,15 @@ const handleGenerate = async () => {
 
   try {
     // Add to queue - backend will handle processing
-    const jobId = await queueStore.addToQueue(queueParams)
-    console.log('Job added to queue:', jobId)
+    await queueStore.addToQueue(queueParams)
   } catch (error) {
     console.error('Failed to add to queue:', error)
+    toast.add({
+      severity: 'error',
+      summary: 'Generation Failed',
+      detail: queueStore.error || 'Failed to add generation to queue',
+      life: 5000
+    })
   }
 }
 
@@ -61,7 +68,6 @@ defineExpose({
         <ParameterControls />
         <div class="divider"></div>
         <GenerateButton
-          :canvas-ref="canvasRef"
           :queue-count="queueStore.queueLength"
           @generate="handleGenerate"
         />
