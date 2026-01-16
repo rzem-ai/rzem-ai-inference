@@ -1,92 +1,70 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { convertFileSrc } from '@tauri-apps/api/core'
+import type { GalleryImage } from '@/stores/gallery'
 import Image from 'primevue/image'
 import Checkbox from 'primevue/checkbox'
 import Button from 'primevue/button'
-import { convertFileSrc } from '@tauri-apps/api/core'
-import type { GalleryImage } from '@/stores/gallery'
 
 interface Props {
   images: GalleryImage[]
-  selectedImages: Set<string>
-  selectionMode?: boolean
+  selectedIds: Set<string>
 }
 
-interface Emits {
-  (e: 'toggle-select', imageId: string): void
-  (e: 'toggle-favorite', imageId: string): void
-  (e: 'view-details', imageId: string): void
-}
+defineProps<Props>()
 
-const props = withDefaults(defineProps<Props>(), {
-  selectionMode: false,
-})
+const emit = defineEmits<{
+  select: [imageId: string]
+  openDetail: [image: GalleryImage]
+  toggleFavorite: [imageId: string]
+}>()
 
-const emit = defineEmits<Emits>()
-
-const convertedImages = computed(() =>
-  props.images.map((img) => ({
-    ...img,
-    displayPath: convertFileSrc(img.filePath),
-  }))
-)
-
-function handleToggleSelect(imageId: string) {
-  emit('toggle-select', imageId)
-}
-
-function handleToggleFavorite(imageId: string, event: Event) {
-  event.stopPropagation()
-  emit('toggle-favorite', imageId)
-}
-
-function handleViewDetails(imageId: string) {
-  emit('view-details', imageId)
+const getImageSrc = (filePath: string) => {
+  return convertFileSrc(filePath)
 }
 </script>
 
 <template>
   <div class="image-grid">
     <div
-      v-for="image in convertedImages"
+      v-for="image in images"
       :key="image.id"
       class="image-card"
-      :class="{ selected: selectedImages.has(image.id) }"
+      :class="{ selected: selectedIds.has(image.id) }"
     >
-      <div class="image-container" @click="handleViewDetails(image.id)">
-        <Image
-          :src="image.displayPath"
-          :alt="image.prompt"
-          class="gallery-image"
-          preview
-        />
-
-        <!-- Favorite badge -->
-        <Button
-          v-if="image.isFavorite"
-          icon="pi pi-star-fill"
-          class="favorite-badge"
-          severity="warning"
-          rounded
-          text
-          @click="handleToggleFavorite(image.id, $event)"
-        />
-
-        <!-- Selection checkbox -->
+      <div class="image-checkbox">
         <Checkbox
-          v-if="selectionMode"
-          :model-value="selectedImages.has(image.id)"
-          class="selection-checkbox"
+          :model-value="selectedIds.has(image.id)"
+          @change="emit('select', image.id)"
           binary
-          @update:model-value="handleToggleSelect(image.id)"
-          @click.stop
         />
       </div>
 
+      <div class="image-container" @click="emit('openDetail', image)">
+        <Image
+          :src="getImageSrc(image.filePath)"
+          :alt="image.prompt"
+          preview
+        />
+      </div>
+
+      <div class="image-actions">
+        <Button
+          icon="pi pi-heart"
+          :severity="image.isFavorite ? 'danger' : 'secondary'"
+          text
+          rounded
+          @click.stop="emit('toggleFavorite', image.id)"
+          :title="image.isFavorite ? 'Remove from favorites' : 'Add to favorites'"
+        />
+        <span class="image-date">
+          {{ new Date(image.createdAt).toLocaleDateString() }}
+        </span>
+      </div>
+
       <div class="image-info">
-        <p class="image-prompt">{{ image.prompt }}</p>
+        <p class="image-prompt">{{ image.prompt.substring(0, 60) }}{{ image.prompt.length > 60 ? '...' : '' }}</p>
         <div class="image-meta">
-          <span>{{ new Date(image.createdAt).toLocaleDateString() }}</span>
+          <span>{{ image.width }}×{{ image.height }}</span>
           <span>{{ image.modelName }}</span>
         </div>
       </div>
@@ -98,69 +76,88 @@ function handleViewDetails(imageId: string) {
 .image-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 1.5rem;
+  gap: 1rem;
   padding: 1rem;
 }
 
 .image-card {
-  border: 1px solid var(--surface-border);
-  border-radius: var(--border-radius);
-  overflow: hidden;
+  position: relative;
+  border: 2px solid transparent;
+  border-radius: 0.5rem;
+  background: white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   transition: all 0.2s;
-  cursor: pointer;
+  overflow: hidden;
 }
 
 .image-card:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
   transform: translateY(-2px);
 }
 
 .image-card.selected {
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 2px var(--primary-color);
+  border-color: #3b82f6;
+  background: #eff6ff;
+}
+
+.image-checkbox {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 10;
+  background: white;
+  border-radius: 0.25rem;
+  padding: 0.25rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 .image-container {
-  position: relative;
+  cursor: pointer;
   aspect-ratio: 1;
-  background: var(--surface-ground);
+  overflow: hidden;
+  background: #f3f4f6;
 }
 
-.gallery-image {
+.image-container :deep(img) {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.favorite-badge {
-  position: absolute;
-  top: 0.5rem;
-  right: 0.5rem;
+.image-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem;
+  border-top: 1px solid #e5e7eb;
 }
 
-.selection-checkbox {
-  position: absolute;
-  top: 0.5rem;
-  left: 0.5rem;
+.image-date {
+  font-size: 0.75rem;
+  color: #6b7280;
 }
 
 .image-info {
-  padding: 1rem;
+  padding: 0.75rem;
+  background: #f9fafb;
 }
 
 .image-prompt {
-  font-size: 0.875rem;
   margin: 0 0 0.5rem 0;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: #374151;
 }
 
 .image-meta {
   display: flex;
-  justify-content: space-between;
+  gap: 0.75rem;
   font-size: 0.75rem;
-  color: var(--text-color-secondary);
+  color: #6b7280;
+}
+
+.image-meta span {
+  display: flex;
+  align-items: center;
 }
 </style>

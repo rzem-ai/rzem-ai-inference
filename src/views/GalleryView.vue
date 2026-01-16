@@ -1,144 +1,96 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { onMounted } from 'vue'
+import { useGalleryStore } from '@/stores/gallery'
+import ImageGrid from '@/components/gallery/ImageGrid.vue'
 import InputText from 'primevue/inputtext'
 import Button from 'primevue/button'
-import ImageGrid from '@/components/gallery/ImageGrid.vue'
-import { useGalleryStore } from '@/stores/gallery'
 
-const router = useRouter()
 const galleryStore = useGalleryStore()
-
-const searchQuery = ref('')
-const selectionMode = ref(false)
 
 onMounted(async () => {
   await galleryStore.loadImages()
 })
 
-async function handleSearch() {
-  if (searchQuery.value.trim()) {
-    await galleryStore.searchImages(searchQuery.value)
+const handleSearch = async () => {
+  if (galleryStore.filters.searchQuery.trim()) {
+    await galleryStore.searchImages(galleryStore.filters.searchQuery)
   } else {
     await galleryStore.loadImages()
   }
 }
 
-function handleToggleSelect(imageId: string) {
-  galleryStore.toggleSelectImage(imageId)
-}
-
-async function handleToggleFavorite(imageId: string) {
+const handleToggleFavorite = async (imageId: string) => {
   await galleryStore.toggleFavorite(imageId)
 }
 
-function handleViewDetails(imageId: string) {
-  // TODO: Navigate to image details view
-  console.log('View details:', imageId)
+const handleSelectImage = (imageId: string) => {
+  galleryStore.toggleSelectImage(imageId)
 }
 
-function handleSelectAll() {
-  galleryStore.selectAll()
-}
-
-function handleClearSelection() {
-  galleryStore.clearSelection()
-  selectionMode.value = false
-}
-
-async function handleDeleteSelected() {
-  const selected = galleryStore.selectedImagesList
-  for (const image of selected) {
-    await galleryStore.deleteImages(image.id)
-  }
-  galleryStore.clearSelection()
-  selectionMode.value = false
-}
-
-function handleCompareSelected() {
-  const selectedIds = Array.from(galleryStore.selectedImages)
-  router.push({
-    name: 'compare',
-    query: { images: selectedIds.join(',') },
-  })
+const handleOpenDetail = (image: any) => {
+  console.log('Open detail for:', image)
+  // TODO: Open image detail modal (Task 4)
 }
 </script>
 
 <template>
-  <div class="gallery-view">
+  <div class="workspace-content gallery-view">
     <div class="gallery-header">
       <h1>Gallery</h1>
 
-      <div class="gallery-controls">
-        <!-- Search -->
-        <div class="search-container">
-          <InputText
-            v-model="searchQuery"
-            placeholder="Search images..."
-            class="search-input"
-            @keyup.enter="handleSearch"
-          />
-          <Button
-            icon="pi pi-search"
-            @click="handleSearch"
-          />
-        </div>
+      <div class="search-bar">
+        <InputText
+          v-model="galleryStore.filters.searchQuery"
+          placeholder="Search prompts..."
+          class="search-input"
+          @keyup.enter="handleSearch"
+        />
+        <Button
+          icon="pi pi-search"
+          @click="handleSearch"
+          :loading="galleryStore.isLoading"
+        />
+      </div>
 
-        <!-- Action buttons -->
-        <div class="action-buttons">
-          <Button
-            :label="selectionMode ? 'Cancel' : 'Select'"
-            :icon="selectionMode ? 'pi pi-times' : 'pi pi-check-square'"
-            outlined
-            @click="selectionMode = !selectionMode"
-          />
-
-          <template v-if="selectionMode && galleryStore.selectedImages.size > 0">
-            <Button
-              label="Select All"
-              icon="pi pi-check-circle"
-              outlined
-              @click="handleSelectAll"
-            />
-            <Button
-              label="Clear"
-              icon="pi pi-times-circle"
-              outlined
-              @click="handleClearSelection"
-            />
-            <Button
-              label="Compare"
-              icon="pi pi-images"
-              severity="info"
-              :disabled="galleryStore.selectedImages.size < 2 || galleryStore.selectedImages.size > 4"
-              @click="handleCompareSelected"
-            />
-            <Button
-              label="Delete"
-              icon="pi pi-trash"
-              severity="danger"
-              @click="handleDeleteSelected"
-            />
-          </template>
-        </div>
+      <div class="gallery-actions">
+        <Button
+          label="Select All"
+          icon="pi pi-check-square"
+          severity="secondary"
+          @click="galleryStore.selectAll"
+        />
+        <Button
+          label="Clear Selection"
+          icon="pi pi-times"
+          severity="secondary"
+          @click="galleryStore.clearSelection"
+          :disabled="galleryStore.selectedImages.size === 0"
+        />
+        <span class="selection-count">
+          {{ galleryStore.selectedImages.size }} selected
+        </span>
       </div>
     </div>
 
-    <!-- Image grid -->
-    <ImageGrid
-      :images="galleryStore.filteredImages"
-      :selected-images="galleryStore.selectedImages"
-      :selection-mode="selectionMode"
-      @toggle-select="handleToggleSelect"
-      @toggle-favorite="handleToggleFavorite"
-      @view-details="handleViewDetails"
-    />
-
-    <!-- Empty state -->
-    <div v-if="galleryStore.filteredImages.length === 0" class="empty-state">
-      <i class="pi pi-image" style="font-size: 3rem"></i>
-      <p>No images found</p>
+    <div v-if="galleryStore.isLoading" class="loading-state">
+      <i class="pi pi-spin pi-spinner" style="font-size: 2rem"></i>
+      <p>Loading images...</p>
     </div>
+
+    <div v-else-if="galleryStore.filteredImages.length === 0" class="empty-state">
+      <i class="pi pi-images" style="font-size: 3rem; color: #9ca3af"></i>
+      <p>No images found</p>
+      <p class="empty-hint">Generate some images to see them here!</p>
+    </div>
+
+    <ImageGrid
+      v-else
+      :images="galleryStore.filteredImages"
+      :selected-ids="galleryStore.selectedImages"
+      @select="handleSelectImage"
+      @open-detail="handleOpenDetail"
+      @toggle-favorite="handleToggleFavorite"
+    />
   </div>
 </template>
 
@@ -147,47 +99,57 @@ function handleCompareSelected() {
   display: flex;
   flex-direction: column;
   height: 100%;
-  padding: 2rem;
+  overflow: hidden;
 }
 
 .gallery-header {
-  margin-bottom: 2rem;
+  padding: 1.5rem;
+  border-bottom: 1px solid #e5e7eb;
+  background: white;
 }
 
 .gallery-header h1 {
   margin: 0 0 1rem 0;
+  font-size: 1.5rem;
+  font-weight: 600;
 }
 
-.gallery-controls {
-  display: flex;
-  gap: 1rem;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.search-container {
+.search-bar {
   display: flex;
   gap: 0.5rem;
-  flex: 1;
-  max-width: 400px;
+  margin-bottom: 1rem;
 }
 
 .search-input {
   flex: 1;
+  max-width: 500px;
 }
 
-.action-buttons {
+.gallery-actions {
   display: flex;
   gap: 0.5rem;
-  flex-wrap: wrap;
+  align-items: center;
 }
 
+.selection-count {
+  margin-left: auto;
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.loading-state,
 .empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 4rem;
-  color: var(--text-color-secondary);
+  flex: 1;
+  gap: 1rem;
+  color: #6b7280;
+}
+
+.empty-hint {
+  font-size: 0.875rem;
+  color: #9ca3af;
 }
 </style>
