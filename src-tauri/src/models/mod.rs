@@ -1,19 +1,17 @@
-//! Model management, loading, and caching
+//! Model management and downloading
 
-pub struct ModelManager;
+mod downloader;
+mod paths;
 
-impl ModelManager {
-    pub fn new() -> Self {
-        Self
-    }
-}
+pub use downloader::ModelDownloader;
+pub use paths::ModelPaths;
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn test_model_manager_creation() {
-        let _manager = ModelManager::new();
+    fn test_model_module() {
+        let _paths = ModelPaths::new().unwrap();
     }
 }
