@@ -259,6 +259,34 @@ async fn clear_completed_jobs(
     Ok(())
 }
 
+#[command]
+async fn download_flux_schnell() -> Result<String, String> {
+    use crate::models::ModelDownloader;
+
+    let downloader = ModelDownloader::new()
+        .map_err(|e| e.to_string())?;
+
+    if downloader.is_schnell_downloaded() {
+        return Ok("FLUX Schnell is already downloaded".to_string());
+    }
+
+    downloader.download_schnell()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok("FLUX Schnell downloaded successfully".to_string())
+}
+
+#[command]
+fn check_models_downloaded() -> Result<bool, String> {
+    use crate::models::ModelDownloader;
+
+    let downloader = ModelDownloader::new()
+        .map_err(|e| e.to_string())?;
+
+    Ok(downloader.is_schnell_downloaded())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let gallery_db = Arc::new(Mutex::new(None));
@@ -311,6 +339,9 @@ pub fn run() {
             get_queue_job,
             cancel_queue_job,
             clear_completed_jobs,
+            // NEW: Model download commands
+            download_flux_schnell,
+            check_models_downloaded,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
