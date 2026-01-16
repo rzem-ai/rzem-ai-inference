@@ -43,9 +43,6 @@ export const useQueueStore = defineStore('queue', () => {
   const pollingInterval = ref<number | null>(null)
   const error = ref<string | null>(null)
 
-  // Get gallery store for auto-refresh on job completion
-  const galleryStore = useGalleryStore()
-
   // Listen for job updates from backend
   // This is the primary source of truth for job state updates
   const unlistenPromise = listen<{
@@ -89,6 +86,8 @@ export const useQueueStore = defineStore('queue', () => {
       }
       // Refresh gallery when job completes successfully
       if (status === 'completed') {
+        // Get gallery store inside the callback (after Pinia is initialized)
+        const galleryStore = useGalleryStore()
         await galleryStore.loadImages()
       }
     }
