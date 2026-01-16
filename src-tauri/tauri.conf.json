@@ -12,13 +12,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "icon": [
-      "icons/32x32.png",
-      "icons/128x128.png",
-      "icons/128x128@2x.png",
-      "icons/icon.icns",
-      "icons/icon.ico"
-    ]
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"]
   },
   "app": {
     "windows": [
@@ -34,7 +28,7 @@
       "csp": null,
       "assetProtocol": {
         "enable": true,
-        "scope": ["**"]
+        "scope": ["$HOME/.flux-generator/**", "**"]
       },
       "capabilities": [
         {
@@ -42,31 +36,42 @@
           "description": "Main application capabilities",
           "windows": ["main"],
           "permissions": [
+            "core:app:default",
             "core:default",
-            "core:path:default",
+            "core:event:default",
+            "core:path:allow-basename",
+            "core:path:allow-dirname",
+            "core:path:allow-extname",
+            "core:path:allow-is-absolute",
+            "core:path:allow-join",
+            "core:path:allow-normalize",
             "core:path:allow-resolve-directory",
-            "core:path:allow-home-dir",
-            "fs:default",
-            "fs:allow-read",
-            "fs:allow-read-dir",
+            "core:path:allow-resolve",
+            "core:path:default",
+            "core:webview:default",
+            "core:window:default",
+            "core:webview:allow-internal-toggle-devtools",
+            "dialog:allow-confirm",
+            "dialog:allow-message",
+            "dialog:allow-open",
+            "dialog:allow-save",
+            "dialog:default",
             "fs:allow-exists",
+            "fs:allow-read-dir",
+            "fs:allow-read-file",
+            "fs:allow-read",
+            "fs:default",
             {
               "identifier": "fs:scope",
-              "allow": [
-                { "path": "$HOME/.flux-generator/**" }
-              ]
+              "allow": [{ "path": "$HOME/.flux-generator/**" }]
             },
-            "dialog:default",
-            "dialog:allow-open",
-            "dialog:allow-save"
+            {
+              "identifier": "fs:scope-asset",
+              "allow": [{ "path": "$HOME/.flux-generator/**" }]
+            }
           ]
         }
-      ],
-      "allowlist": {
-        "fs": {
-          "scope": ["$HOME/.flux-generator/**"]
-        }
-      }
+      ]
     }
   }
 }
