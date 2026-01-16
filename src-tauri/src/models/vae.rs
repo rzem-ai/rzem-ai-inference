@@ -30,6 +30,9 @@ impl VaeDecoder {
         };
 
         // Load VAE configuration
+        // Note: Assumes FLUX VAE is compatible with Stable Diffusion AutoEncoderKL
+        // Parameters: in_channels=4 (latent), out_channels=4 (before final conv)
+        // These values may need adjustment based on actual FLUX model behavior
         let config = stable_diffusion::vae::AutoEncoderKLConfig::default();
         let vae = stable_diffusion::vae::AutoEncoderKL::new(vb, 4, 4, config)?;
 
