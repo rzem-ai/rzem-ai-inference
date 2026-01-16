@@ -26,12 +26,11 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 dirs = "5.0"
 chrono = "0.4"
 
-# Candle dependencies (CPU-only for now)
-# TODO: Enable CUDA support when Candle updates to cudarc 0.18+ with CUDA 13.1 support
-# Current Candle 0.8 uses cudarc 0.13.9 which only supports up to CUDA 12.x
-candle-core = "0.8"
-candle-nn = "0.8"
-candle-transformers = "0.8"
+# Candle 0.9 alpha (CPU-only first, then add CUDA after testing)
+# CUDA 13.1 has header conflicts with glibc, need to resolve separately
+candle-core = "0.9.2-alpha.2"
+candle-nn = "0.9.2-alpha.2"
+candle-transformers = "0.9.2-alpha.2"
 hf-hub = { version = "0.3", features = ["tokio"] }
 tokenizers = "0.15"
 safetensors = "0.4"
