@@ -26,6 +26,9 @@ impl ClipTextEncoder {
             .map_err(|e| anyhow::anyhow!("Failed to load tokenizer: {}", e))?;
 
         // Load model weights
+        // SAFETY: from_mmaped_safetensors uses memory-mapped IO which is safe
+        // because safetensors format is designed to be safely memory-mapped
+        // without requiring trust of the file contents.
         let vb = unsafe {
             VarBuilder::from_mmaped_safetensors(
                 &[model_path.as_ref()],
@@ -35,7 +38,18 @@ impl ClipTextEncoder {
         };
 
         // Create CLIP text model
-        let config = clip::text_model::ClipTextConfig::vit_base_patch32();
+        // FLUX Schnell uses CLIP with 768-dim embeddings (ViT-L configuration)
+        let config = clip::text_model::ClipTextConfig {
+            vocab_size: 49408,
+            embed_dim: 768,  // ViT-L size, required by FLUX
+            activation: clip::text_model::Activation::QuickGelu,
+            intermediate_size: 3072,
+            max_position_embeddings: 77,
+            pad_with: None,
+            num_hidden_layers: 12,
+            num_attention_heads: 12,
+            projection_dim: 768,
+        };
         let model = clip::text_model::ClipTextTransformer::new(vb, &config)?;
 
         Ok(Self {
@@ -50,6 +64,7 @@ impl ClipTextEncoder {
     /// Returns tensor of shape [1, 77, 768] (batch, seq_len, embed_dim)
     pub fn encode(&self, prompt: &str) -> Result<Tensor> {
         // Tokenize prompt
+        // Note: encode(prompt, true) enables padding/truncation to 77 tokens (CLIP max length)
         let tokens = self.tokenizer
             .encode(prompt, true)
             .map_err(|e| anyhow::anyhow!("Tokenization error: {}", e))?;
