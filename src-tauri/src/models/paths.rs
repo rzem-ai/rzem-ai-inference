@@ -41,6 +41,11 @@ impl ModelPaths {
         self.schnell_dir.join("snapshots").join("main").join("transformer")
     }
 
+    /// Get path to tokenizer
+    pub fn tokenizer_path(&self) -> PathBuf {
+        self.schnell_dir.join("snapshots").join("main").join("tokenizer")
+    }
+
     /// Check if all required files exist
     pub fn all_files_exist(&self) -> bool {
         // Check for key model files, not just directories

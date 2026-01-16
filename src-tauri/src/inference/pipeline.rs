@@ -26,7 +26,7 @@ impl FluxPipeline {
 
     /// Load models if not already loaded
     fn ensure_models_loaded(&mut self) -> Result<()> {
-        if self.clip.is_some() {
+        if self.clip.is_some() && self.vae.is_some() && self.flux.is_some() {
             return Ok(()); // Already loaded
         }
 
@@ -44,7 +44,7 @@ impl FluxPipeline {
         // Load CLIP text encoder
         self.clip = Some(ClipTextEncoder::load(
             paths.clip_path().join("model.safetensors"),
-            paths.clip_path().join("tokenizer.json"),
+            paths.tokenizer_path().join("tokenizer.json"),
             self.device.clone(),
         )?);
 
@@ -69,9 +69,12 @@ impl FluxPipeline {
         // Load models if needed
         self.ensure_models_loaded()?;
 
-        let clip = self.clip.as_ref().unwrap();
-        let vae = self.vae.as_ref().unwrap();
-        let flux = self.flux.as_ref().unwrap();
+        let clip = self.clip.as_ref()
+            .ok_or_else(|| anyhow::anyhow!("CLIP model not loaded"))?;
+        let vae = self.vae.as_ref()
+            .ok_or_else(|| anyhow::anyhow!("VAE model not loaded"))?;
+        let flux = self.flux.as_ref()
+            .ok_or_else(|| anyhow::anyhow!("FLUX model not loaded"))?;
 
         println!("Encoding prompt: {}", prompt);
         // 1. Encode text prompt
