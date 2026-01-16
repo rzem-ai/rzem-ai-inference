@@ -12,6 +12,24 @@ pub struct ImageMetadata {
     pub created_at: i64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GenerationPreset {
+    pub id: String,
+    pub name: String,
+    pub mode: String,
+    pub prompt: Option<String>,
+    pub negative_prompt: Option<String>,
+    pub steps: i32,
+    pub cfg_scale: f64,
+    pub width: i32,
+    pub height: i32,
+    pub seed: Option<i64>,
+    pub model_id: Option<String>,
+    pub lora_ids: Option<String>,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
 pub struct GalleryDb {
     conn: Connection,
 }
@@ -78,6 +96,61 @@ impl GalleryDb {
             [],
         )?;
 
+        // Create models table
+        self.conn.execute(
+            "CREATE TABLE IF NOT EXISTS models (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                type TEXT NOT NULL,
+                path TEXT,
+                size_bytes INTEGER,
+                is_downloaded INTEGER DEFAULT 0,
+                is_active INTEGER DEFAULT 0,
+                created_at INTEGER NOT NULL,
+                last_used_at INTEGER,
+                metadata TEXT
+            )",
+            [],
+        )?;
+
+        // Create loras table
+        self.conn.execute(
+            "CREATE TABLE IF NOT EXISTS loras (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                path TEXT NOT NULL,
+                trigger_words TEXT,
+                base_model TEXT,
+                size_bytes INTEGER,
+                strength REAL DEFAULT 1.0,
+                is_active INTEGER DEFAULT 0,
+                created_at INTEGER NOT NULL,
+                metadata TEXT
+            )",
+            [],
+        )?;
+
+        // Create presets table
+        self.conn.execute(
+            "CREATE TABLE IF NOT EXISTS presets (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL UNIQUE,
+                mode TEXT NOT NULL,
+                prompt TEXT,
+                negative_prompt TEXT,
+                steps INTEGER NOT NULL,
+                cfg_scale REAL NOT NULL,
+                width INTEGER NOT NULL,
+                height INTEGER NOT NULL,
+                seed INTEGER,
+                model_id TEXT,
+                lora_ids TEXT,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+            )",
+            [],
+        )?;
+
         Ok(())
     }
 
@@ -122,6 +195,67 @@ impl GalleryDb {
         .collect::<Result<Vec<_>, _>>()?;
 
         Ok(images)
+    }
+
+    pub fn save_preset(&self, preset: &GenerationPreset) -> Result<()> {
+        self.conn.execute(
+            "INSERT OR REPLACE INTO presets
+             (id, name, mode, prompt, negative_prompt, steps, cfg_scale, width, height,
+              seed, model_id, lora_ids, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+            params![
+                preset.id,
+                preset.name,
+                preset.mode,
+                preset.prompt,
+                preset.negative_prompt,
+                preset.steps,
+                preset.cfg_scale,
+                preset.width,
+                preset.height,
+                preset.seed,
+                preset.model_id,
+                preset.lora_ids,
+                preset.created_at,
+                preset.updated_at,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn load_presets(&self) -> Result<Vec<GenerationPreset>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, name, mode, prompt, negative_prompt, steps, cfg_scale,
+                    width, height, seed, model_id, lora_ids, created_at, updated_at
+             FROM presets ORDER BY updated_at DESC"
+        )?;
+
+        let presets = stmt.query_map([], |row| {
+            Ok(GenerationPreset {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                mode: row.get(2)?,
+                prompt: row.get(3)?,
+                negative_prompt: row.get(4)?,
+                steps: row.get(5)?,
+                cfg_scale: row.get(6)?,
+                width: row.get(7)?,
+                height: row.get(8)?,
+                seed: row.get(9)?,
+                model_id: row.get(10)?,
+                lora_ids: row.get(11)?,
+                created_at: row.get(12)?,
+                updated_at: row.get(13)?,
+            })
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(presets)
+    }
+
+    pub fn delete_preset(&self, id: &str) -> Result<()> {
+        self.conn.execute("DELETE FROM presets WHERE id = ?1", params![id])?;
+        Ok(())
     }
 }
 
