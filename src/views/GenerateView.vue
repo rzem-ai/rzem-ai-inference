@@ -8,9 +8,36 @@ import GenerateButton from '@/components/generation/GenerateButton.vue'
 import QueuePanel from '@/components/queue/QueuePanel.vue'
 import ImageCanvas from '@/components/generation/ImageCanvas.vue'
 import { useQueueStore } from '@/stores/queue'
+import { useGenerationStore } from '@/stores/generation'
+import type { GenerationParams } from '@/stores/queue'
 
 const canvasRef = ref<InstanceType<typeof ImageCanvas> | null>(null)
 const queueStore = useQueueStore()
+const generationStore = useGenerationStore()
+
+const handleGenerate = async () => {
+  const params = generationStore.currentParams
+
+  // Build queue params from current generation params
+  const queueParams: GenerationParams = {
+    prompt: params.prompt,
+    negative_prompt: params.negativePrompt || undefined,
+    steps: params.steps,
+    cfg_scale: params.cfgScale,
+    width: params.width,
+    height: params.height,
+    seed: params.seed === -1 ? Math.floor(Math.random() * 2147483647) : params.seed,
+    model: params.model
+  }
+
+  try {
+    // Add to queue - backend will handle processing
+    const jobId = await queueStore.addToQueue(queueParams)
+    console.log('Job added to queue:', jobId)
+  } catch (error) {
+    console.error('Failed to add to queue:', error)
+  }
+}
 
 defineExpose({
   canvasRef
@@ -33,7 +60,11 @@ defineExpose({
         <div class="divider"></div>
         <ParameterControls />
         <div class="divider"></div>
-        <GenerateButton :canvas-ref="canvasRef" :queue-count="queueStore.queueLength" />
+        <GenerateButton
+          :canvas-ref="canvasRef"
+          :queue-count="queueStore.queueLength"
+          @generate="handleGenerate"
+        />
       </div>
       <div class="panel center-panel">
         <QueuePanel />
@@ -72,7 +103,9 @@ defineExpose({
 }
 
 .workspace-content {
-  display: flex;
+  display: grid;
+  grid-template-columns: 350px 1fr 400px;
+  gap: 1rem;
   flex: 1;
   overflow: hidden;
 }
@@ -80,23 +113,6 @@ defineExpose({
 .panel {
   padding: 1rem;
   overflow-y: auto;
-  border-right: 1px solid #e9ecef;
-}
-
-.panel:last-child {
-  border-right: none;
-}
-
-.left-panel {
-  width: 35%;
-}
-
-.center-panel {
-  width: 25%;
-}
-
-.right-panel {
-  width: 40%;
 }
 
 .panel h2 {

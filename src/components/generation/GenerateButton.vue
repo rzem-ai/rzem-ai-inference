@@ -2,14 +2,22 @@
 import { computed } from 'vue'
 import { useGenerationStore } from '@/stores/generation'
 import { useQueueStore } from '@/stores/queue'
-import type { GenerationParams } from '@/stores/queue'
 import Button from 'primevue/button'
 import type ImageCanvas from './ImageCanvas.vue'
 
-// Accept queue count from parent
-defineProps<{
+interface Props {
   canvasRef?: InstanceType<typeof ImageCanvas> | null
   queueCount?: number
+}
+
+// Add default value for queueCount
+const props = withDefaults(defineProps<Props>(), {
+  queueCount: 0,
+  canvasRef: null
+})
+
+const emit = defineEmits<{
+  generate: []
 }>()
 
 const store = useGenerationStore()
@@ -26,30 +34,9 @@ const buttonLabel = computed(() => {
   return 'Generate'
 })
 
-const handleGenerate = async () => {
+const handleClick = () => {
   if (!canGenerate.value) return
-
-  const params = store.currentParams
-
-  // Build queue params from current generation params
-  const queueParams: GenerationParams = {
-    prompt: params.prompt,
-    negative_prompt: params.negativePrompt || undefined,
-    steps: params.steps,
-    cfg_scale: params.cfgScale,
-    width: params.width,
-    height: params.height,
-    seed: params.seed === -1 ? Math.floor(Math.random() * 2147483647) : params.seed,
-    model: params.model
-  }
-
-  try {
-    // Add to queue - backend will handle processing
-    const jobId = await queueStore.addToQueue(queueParams)
-    console.log('Job added to queue:', jobId)
-  } catch (error) {
-    console.error('Failed to add to queue:', error)
-  }
+  emit('generate')
 }
 </script>
 
@@ -58,19 +45,19 @@ const handleGenerate = async () => {
     <div class="button-wrapper">
       <Button
         :label="buttonLabel"
-        @click="handleGenerate"
+        @click="handleClick"
         :disabled="!canGenerate"
         severity="success"
         size="large"
         class="w-full"
       />
-      <span v-if="queueCount && queueCount > 0" class="queue-badge">
-        {{ queueCount }}
+      <span v-if="props.queueCount > 0" class="queue-badge">
+        {{ props.queueCount }}
       </span>
     </div>
 
-    <div v-if="queueCount && queueCount > 0" class="queue-info">
-      {{ queueCount }} job{{ queueCount !== 1 ? 's' : '' }} in queue
+    <div v-if="props.queueCount > 0" class="queue-info">
+      {{ props.queueCount }} job{{ props.queueCount !== 1 ? 's' : '' }} in queue
     </div>
   </div>
 </template>
