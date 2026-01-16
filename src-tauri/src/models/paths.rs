@@ -43,9 +43,10 @@ impl ModelPaths {
 
     /// Check if all required files exist
     pub fn all_files_exist(&self) -> bool {
-        self.clip_path().exists()
-            && self.vae_path().exists()
-            && self.transformer_path().exists()
+        // Check for key model files, not just directories
+        self.clip_path().join("model.safetensors").exists()
+            && self.vae_path().join("diffusion_pytorch_model.safetensors").exists()
+            && self.transformer_path().join("diffusion_pytorch_model.safetensors").exists()
     }
 }
 

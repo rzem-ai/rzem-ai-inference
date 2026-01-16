@@ -1,6 +1,6 @@
 //! Model downloading from HuggingFace Hub
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use hf_hub::api::tokio::Api;
 use super::ModelPaths;
 
@@ -34,6 +34,7 @@ impl ModelDownloader {
 
         println!("Downloading FLUX Schnell from HuggingFace Hub...");
         println!("This will download ~12GB of model files");
+        println!("NOTE: If download is interrupted, delete ~/.cache/huggingface/hub/models--black-forest-labs--FLUX.1-schnell and restart");
 
         let api = Api::new()?;
         let repo = api.model("black-forest-labs/FLUX.1-schnell".to_string());
@@ -55,7 +56,8 @@ impl ModelDownloader {
 
         for file in files {
             println!("Downloading {}", file);
-            repo.get(file).await?;
+            repo.get(file).await
+                .with_context(|| format!("Failed to download {}", file))?;
         }
 
         println!("FLUX Schnell download complete!");
