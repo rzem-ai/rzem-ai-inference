@@ -93,7 +93,7 @@ export const usePresetsStore = defineStore('presets', () => {
     generationStore.currentParams.cfgScale = preset.cfgScale
     generationStore.currentParams.width = preset.width
     generationStore.currentParams.height = preset.height
-    generationStore.currentParams.seed = preset.seed || -1
+    generationStore.currentParams.seed = preset.seed ?? -1
 
     // Load model selection
     if (preset.modelId) {
