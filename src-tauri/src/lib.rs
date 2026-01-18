@@ -1,5 +1,5 @@
-mod inference;
-mod models;
+pub mod inference;
+pub mod models;
 mod queue;
 mod gallery;
 mod settings;

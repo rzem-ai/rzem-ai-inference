@@ -36,6 +36,7 @@ safetensors = "0.4"
 image = "0.25"
 reqwest = { version = "0.12", features = ["json"] }
 dotenvy = "0.15"
+clap = { version = "4.4", features = ["derive"] }
 
 # =============================================================================
 # Platform-specific GPU acceleration
@@ -53,3 +54,11 @@ candle-transformers = { version = "0.8.4", features = ["cuda"] }
 candle-core = { version = "0.8.4", features = ["metal"] }
 candle-nn = { version = "0.8.4", features = ["metal"] }
 candle-transformers = { version = "0.8.4", features = ["metal"] }
+
+# =============================================================================
+# CLI Binary
+# =============================================================================
+
+[[bin]]
+name = "flux-cli"
+path = "src/bin/flux-cli.rs"
