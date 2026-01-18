@@ -1,12 +1,13 @@
 [package]
-name = "flux-generator"
+name = "rzem-ai-inference"
 version = "0.1.0"
-description = "AI Image Generation with Flux"
+description = "Local AI Image Generation"
 authors = ["you"]
 edition = "2021"
+default-run = "rzem-ai-inference"
 
 [lib]
-name = "flux_generator_lib"
+name = "rzem_ai_inference"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
@@ -60,5 +61,5 @@ candle-transformers = { version = "0.8.4", features = ["metal"] }
 # =============================================================================
 
 [[bin]]
-name = "flux-cli"
-path = "src/bin/flux-cli.rs"
+name = "rzem-cli"
+path = "src/bin/rzem-cli.rs"

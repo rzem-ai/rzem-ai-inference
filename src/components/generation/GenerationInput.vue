@@ -1,5 +1,5 @@
 <template>
-    <div class="pb-2 pl-2 pr-1 panel-scroll">
+    <div class="pb-2 pl-2 pr-1 panel-scroll bg-surface-100 dark:bg-surface-100">
         <Card>
             <template #title>Generate</template>
             <template #content>
@@ -29,12 +29,32 @@ import GenerateButton from '@/components/generation/GenerateButton.vue';
 import ImageCanvas from '@/components/generation/ImageCanvas.vue';
 import { useQueueStore } from '@/stores/queue';
 import { useGenerationStore } from '@/stores/generation';
+import { useModelsStore } from '@/stores/models';
 import type { GenerationParams } from '@/stores/queue';
 
 const canvasRef = ref<InstanceType<typeof ImageCanvas> | null>(null);
 const queueStore = useQueueStore();
 const generationStore = useGenerationStore();
+const modelsStore = useModelsStore();
 const toast = useToast();
+
+// Watch for model changes and update default parameters
+watch(
+  () => modelsStore.selectedModelId,
+  (newModelId) => {
+    const model = modelsStore.models.find((m) => m.id === newModelId);
+    if (model) {
+      // Update generation params with model defaults
+      generationStore.currentParams.model = newModelId;
+      if (model.defaultSteps) {
+        generationStore.currentParams.steps = model.defaultSteps;
+      }
+      if (model.defaultGuidance !== undefined) {
+        generationStore.currentParams.cfgScale = model.defaultGuidance;
+      }
+    }
+  },
+);
 
 // Track displayed job IDs to avoid re-displaying
 const displayedJobIds = ref<Set<string>>(new Set());

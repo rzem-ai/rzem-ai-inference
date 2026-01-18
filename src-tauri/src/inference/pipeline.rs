@@ -2,12 +2,13 @@
 
 use anyhow::Result;
 use candle_core::Device;
-use crate::models::{ClipTextEncoder, VaeDecoder, FluxTransformer, ModelPaths, T5TextEncoder};
+use crate::models::{ClipTextEncoder, VaeDecoder, FluxTransformer, ModelPaths, ModelType, T5TextEncoder};
 use super::stats::{GenerationStats, GenerationResult, Timer};
 
 /// Flux diffusion model pipeline for image generation
 pub struct FluxPipeline {
     device: Device,
+    model_type: ModelType,
     t5: Option<T5TextEncoder>,
     clip: Option<ClipTextEncoder>,
     vae: Option<VaeDecoder>,
@@ -17,16 +18,27 @@ pub struct FluxPipeline {
 }
 
 impl FluxPipeline {
-    /// Creates a new Flux pipeline instance
+    /// Creates a new Flux pipeline instance for Schnell model (default)
     pub fn new(device: Device) -> Result<Self> {
+        Self::with_model_type(device, ModelType::Schnell)
+    }
+
+    /// Creates a new Flux pipeline instance for a specific model type
+    pub fn with_model_type(device: Device, model_type: ModelType) -> Result<Self> {
         Ok(Self {
             device,
+            model_type,
             t5: None,
             clip: None,
             vae: None,
             flux: None,
             models_loaded_this_session: false,
         })
+    }
+
+    /// Get the model type this pipeline is configured for
+    pub fn model_type(&self) -> ModelType {
+        self.model_type
     }
 
     /// Load models if not already loaded, returning timing stats
@@ -37,17 +49,24 @@ impl FluxPipeline {
 
         let paths = ModelPaths::new()?;
 
-        // Check if models are downloaded
+        // Check if base models are downloaded (shared components)
         if !paths.all_files_exist() {
             return Err(anyhow::anyhow!(
-                "FLUX models not downloaded. Run model downloader first."
+                "FLUX base models not downloaded. Run model downloader first."
+            ));
+        }
+
+        // Check if the specific model (Dev) is downloaded if needed
+        if self.model_type == ModelType::Dev && !paths.is_dev_downloaded() {
+            return Err(anyhow::anyhow!(
+                "FLUX Dev model not downloaded. Download it from Settings or use 'rzem-cli models download dev'."
             ));
         }
 
         let total_load_timer = Timer::start();
-        println!("Loading FLUX Schnell models...");
+        println!("Loading {} models...", self.model_type);
 
-        // Load T5 text encoder (full precision)
+        // Load T5 text encoder (full precision) - shared between Schnell and Dev
         println!("  Loading T5 encoder...");
         let t5_timer = Timer::start();
         self.t5 = Some(T5TextEncoder::load(
@@ -57,7 +76,7 @@ impl FluxPipeline {
         )?);
         stats.t5_load_ms = Some(t5_timer.stop());
 
-        // Load CLIP text encoder (pooled embedding for vec)
+        // Load CLIP text encoder (pooled embedding for vec) - shared between Schnell and Dev
         println!("  Loading CLIP encoder...");
         let clip_timer = Timer::start();
         self.clip = Some(ClipTextEncoder::load(
@@ -67,7 +86,7 @@ impl FluxPipeline {
         )?);
         stats.clip_load_ms = Some(clip_timer.stop());
 
-        // Load VAE decoder
+        // Load VAE decoder - shared between Schnell and Dev
         println!("  Loading VAE decoder...");
         let vae_timer = Timer::start();
         self.vae = Some(VaeDecoder::load(
@@ -76,18 +95,18 @@ impl FluxPipeline {
         )?);
         stats.vae_load_ms = Some(vae_timer.stop());
 
-        // Load FLUX transformer - prefer quantized model if available (saves ~11GB VRAM)
+        // Load FLUX transformer - model-specific, prefer quantized if available
         let flux_timer = Timer::start();
-        if paths.has_quantized_transformer() {
-            println!("  Loading FLUX transformer (quantized GGUF - memory optimized)...");
+        if paths.has_quantized_for(self.model_type) {
+            println!("  Loading {} transformer (quantized GGUF - memory optimized)...", self.model_type);
             self.flux = Some(FluxTransformer::load_quantized(
-                paths.quantized_transformer_path(),
+                paths.quantized_transformer_path_for(self.model_type),
                 self.device.clone(),
             )?);
         } else {
-            println!("  Loading FLUX transformer (full precision)...");
+            println!("  Loading {} transformer (full precision)...", self.model_type);
             self.flux = Some(FluxTransformer::load(
-                paths.transformer_path(),
+                paths.transformer_path_for(self.model_type),
                 self.device.clone(),
             )?);
         }
@@ -96,7 +115,7 @@ impl FluxPipeline {
         stats.model_load_ms = Some(total_load_timer.stop());
         self.models_loaded_this_session = true;
 
-        println!("Models loaded successfully!");
+        println!("{} models loaded successfully!", self.model_type);
         Ok(())
     }
 
@@ -211,6 +230,120 @@ impl FluxPipeline {
     /// Simplified generate with defaults
     pub fn generate_simple(&mut self, prompt: &str, steps: usize) -> Result<GenerationResult> {
         self.generate(prompt, steps, 1024, 1024, 4.0)
+    }
+
+    /// Generate image with progress callbacks
+    ///
+    /// This method provides real-time progress updates during generation,
+    /// useful for UI feedback and progress bars.
+    pub fn generate_with_progress<F>(
+        &mut self,
+        prompt: &str,
+        steps: usize,
+        width: usize,
+        height: usize,
+        guidance: f64,
+        on_progress: F,
+    ) -> Result<GenerationResult>
+    where
+        F: Fn(super::GenerationProgress),
+    {
+        use super::{GenerationProgress, PipelineStage};
+
+        let total_timer = Timer::start();
+        let mut stats = GenerationStats::default();
+        stats.steps = steps;
+
+        // Loading stage
+        on_progress(GenerationProgress::new(PipelineStage::LoadingModels, 0.0));
+        self.ensure_models_loaded(&mut stats)?;
+        on_progress(GenerationProgress::new(PipelineStage::LoadingModels, 1.0));
+
+        // T5 encoding
+        on_progress(GenerationProgress::new(PipelineStage::EncodingT5, 0.0));
+        let t5 = self.t5.as_mut()
+            .ok_or_else(|| anyhow::anyhow!("T5 model not loaded"))?;
+
+        let t5_timer = Timer::start();
+        let t5_emb = t5.encode(prompt)?;
+        stats.t5_encode_ms = t5_timer.stop();
+        stats.t5_embedding_shape = t5_emb.dims().to_vec();
+        on_progress(GenerationProgress::new(PipelineStage::EncodingT5, 1.0));
+
+        // CLIP encoding
+        on_progress(GenerationProgress::new(PipelineStage::EncodingClip, 0.0));
+        let clip = self.clip.as_ref()
+            .ok_or_else(|| anyhow::anyhow!("CLIP model not loaded"))?;
+
+        let clip_timer = Timer::start();
+        let clip_emb = clip.encode(prompt)?;
+        stats.clip_encode_ms = clip_timer.stop();
+        stats.clip_embedding_shape = clip_emb.dims().to_vec();
+        on_progress(GenerationProgress::new(PipelineStage::EncodingClip, 1.0));
+
+        // Unload T5 to free memory
+        self.t5 = None;
+
+        // Denoising
+        let flux = self.flux.as_ref()
+            .ok_or_else(|| anyhow::anyhow!("FLUX model not loaded"))?;
+
+        stats.model_type = if flux.is_quantized() {
+            "quantized".to_string()
+        } else {
+            "full_precision".to_string()
+        };
+
+        // Progress for denoising start
+        on_progress(GenerationProgress::denoising_step(0, steps));
+
+        let denoise_timer = Timer::start();
+        let latents = flux.denoise(&t5_emb, &clip_emb, height, width, steps, guidance)?;
+        stats.denoise_ms = denoise_timer.stop();
+        stats.latent_shape = latents.dims().to_vec();
+
+        // Progress for denoising complete
+        on_progress(GenerationProgress::denoising_step(steps, steps));
+
+        // Unload FLUX and CLIP to free memory
+        drop(t5_emb);
+        drop(clip_emb);
+        self.flux = None;
+        self.clip = None;
+
+        // VAE decoding
+        on_progress(GenerationProgress::new(PipelineStage::DecodingVae, 0.0));
+        let vae = self.vae.as_ref()
+            .ok_or_else(|| anyhow::anyhow!("VAE model not loaded"))?;
+
+        let vae_timer = Timer::start();
+        let image = vae.decode(&latents)?;
+        stats.vae_decode_ms = vae_timer.stop();
+        stats.image_shape = image.dims().to_vec();
+        on_progress(GenerationProgress::new(PipelineStage::DecodingVae, 1.0));
+
+        // PNG encoding
+        on_progress(GenerationProgress::new(PipelineStage::EncodingPng, 0.0));
+        let png_timer = Timer::start();
+        let rgb_data = vae.tensor_to_rgb(&image)?;
+
+        let img = image::RgbImage::from_raw(width as u32, height as u32, rgb_data)
+            .ok_or_else(|| anyhow::anyhow!("Failed to create image from raw data"))?;
+
+        let mut png_data = Vec::new();
+        img.write_to(
+            &mut std::io::Cursor::new(&mut png_data),
+            image::ImageFormat::Png
+        )?;
+        stats.png_encode_ms = png_timer.stop();
+        on_progress(GenerationProgress::new(PipelineStage::EncodingPng, 1.0));
+
+        stats.total_ms = total_timer.stop();
+
+        Ok(GenerationResult {
+            image_data: png_data,
+            stats,
+        })
     }
 }
 

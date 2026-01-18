@@ -3,6 +3,7 @@
 use super::{QueueManager, JobStatus};
 use crate::inference::{InferenceEngine, FluxPipeline, GenerationStats};
 use crate::gallery::{GalleryDb, ImageMetadata};
+use crate::models::ModelType;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::time::{sleep, Duration, timeout};
@@ -179,12 +180,13 @@ async fn process_next_job(
     // This eliminates the race window between increment and guard creation
     let _guard = RunningGuard::new(queue_manager.clone()).await;
 
-    // Execute generation
+    // Execute generation with progress callbacks
     let result = execute_generation(
         &job_id,
         &params,
         queue_manager,
         inference_engine,
+        app_handle,
     ).await;
 
     // Handle result and emit completion/failure event
@@ -228,34 +230,59 @@ async fn execute_generation(
     params: &super::GenerationParams,
     queue_manager: &Arc<QueueManager>,
     inference_engine: &Arc<InferenceEngine>,
+    app_handle: &AppHandle,
 ) -> Result<(String, GenerationStats)> {
-    // Create pipeline
+    use crate::inference::GenerationProgress;
+
+    // Parse model type from params (defaults to Schnell if invalid)
+    let model_type: ModelType = params.model.parse().unwrap_or(ModelType::Schnell);
+
+    // Create pipeline with the specified model type
     let device = inference_engine.get_device().clone();
-    let mut pipeline = FluxPipeline::new(device)?;
+    let mut pipeline = FluxPipeline::with_model_type(device, model_type)?;
 
-    // Update progress: starting
-    queue_manager.update_job_progress(job_id, 0.1).await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    // Clone values for the progress callback closure
+    let job_id_clone = job_id.to_string();
+    let app_handle_clone = app_handle.clone();
+    let queue_manager_clone = queue_manager.clone();
 
-    // Generate using FLUX model
+    // Progress callback that emits Tauri events
+    let on_progress = move |progress: GenerationProgress| {
+        // Emit detailed progress event for frontend
+        let _ = app_handle_clone.emit("job-progress", serde_json::json!({
+            "job_id": job_id_clone,
+            "stage": progress.stage,
+            "stage_progress": progress.stage_progress,
+            "overall_progress": progress.overall_progress,
+            "message": progress.message,
+            "eta_seconds": progress.eta_seconds,
+        }));
+
+        // Also update job progress in queue manager (fire-and-forget)
+        let qm = queue_manager_clone.clone();
+        let jid = job_id_clone.clone();
+        let overall = progress.overall_progress;
+        tokio::spawn(async move {
+            let _ = qm.update_job_progress(&jid, overall).await;
+        });
+    };
+
+    // Generate using FLUX model with progress callbacks
     // Use cfg_scale as guidance (FLUX typically uses 4.0 for Schnell)
     let guidance = if params.cfg_scale > 0.0 { params.cfg_scale } else { 4.0 };
-    let result = pipeline.generate(
+    let result = pipeline.generate_with_progress(
         &params.prompt,
         params.steps as usize,
         params.width as usize,
         params.height as usize,
         guidance,
+        on_progress,
     )?;
-
-    // Update progress: generation complete
-    queue_manager.update_job_progress(job_id, 0.8).await
-        .map_err(|e| anyhow::anyhow!(e))?;
 
     // Save to file
     let home = dirs::home_dir()
         .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?;
-    let output_dir = home.join(".flux-generator").join("outputs");
+    let output_dir = home.join(".rzem-ai-inference").join("outputs");
     std::fs::create_dir_all(&output_dir)?;
 
     let timestamp = std::time::SystemTime::now()
@@ -266,6 +293,7 @@ async fn execute_generation(
 
     std::fs::write(&output_path, &result.image_data)?;
 
+    // Final progress update
     queue_manager.update_job_progress(job_id, 1.0).await
         .map_err(|e| anyhow::anyhow!(e))?;
 

@@ -57,6 +57,9 @@ export interface Model {
   createdAt: number
   lastUsedAt?: number
   metadata?: Record<string, any>
+  description?: string
+  defaultSteps?: number
+  defaultGuidance?: number
 }
 
 export interface LoRA {

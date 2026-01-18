@@ -7,7 +7,7 @@ export const useGenerationStore = defineStore('generation', () => {
   const jobs = ref<GenerationJob[]>([])
   const currentParams = ref<GenerationParams>({
     mode: 'txt2img',
-    prompt: 'a dog',
+    prompt: 'A West Highland White Terrier in the style of a Pixar cartoon',
     negativePrompt: '',
     steps: 4,  // Flux Schnell default
     cfgScale: 1.0,  // Flux uses CFG=1 typically
@@ -16,7 +16,7 @@ export const useGenerationStore = defineStore('generation', () => {
     width: 1024,
     height: 1024,
     seed: -1,
-    model: 'flux-schnell',
+    model: 'schnell',  // Model ID: 'schnell' or 'dev'
     batchSize: 1
   })
 

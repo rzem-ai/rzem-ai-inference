@@ -9,45 +9,66 @@
       {{ error }}
     </Message>
 
+    <!-- FLUX Schnell Card -->
     <div class="model-card">
       <div class="model-header">
         <h2>FLUX.1 [schnell]</h2>
-        <span v-if="isDownloaded" class="badge badge-success">Downloaded</span>
+        <span v-if="schnellModel?.isDownloaded" class="badge badge-success">Downloaded</span>
         <span v-else class="badge badge-warning">Not Downloaded</span>
       </div>
 
       <div class="model-info">
-        <p><strong>Size:</strong> ~12 GB</p>
+        <p><strong>Size:</strong> ~12 GB (quantized)</p>
         <p><strong>Steps:</strong> 4 (fast)</p>
         <p><strong>License:</strong> Apache 2.0</p>
-        <p><strong>Quality:</strong> Good, fast generation</p>
+        <p><strong>Quality:</strong> Good for quick iterations and drafts</p>
       </div>
 
       <div class="model-actions">
-        <Button v-if="!isDownloaded" label="Download FLUX Schnell" icon="pi pi-download" :loading="isDownloading" @click="downloadModels" />
-        <Button v-else label="Re-check Status" icon="pi pi-refresh" severity="secondary" @click="checkModels" />
+        <Button v-if="!schnellModel?.isDownloaded" label="Download" icon="pi pi-download" :loading="isDownloadingSchnell" @click="downloadSchnell" />
         <Button label="Show Details" icon="pi pi-info-circle" severity="secondary" text @click="toggleDetails" />
       </div>
+    </div>
 
-      <ProgressBar v-if="isDownloading" mode="indeterminate" class="mt-3" />
+    <!-- FLUX Dev Card -->
+    <div class="model-card">
+      <div class="model-header">
+        <h2>FLUX.1 [dev]</h2>
+        <span v-if="devModel?.isDownloaded" class="badge badge-success">Downloaded</span>
+        <span v-else class="badge badge-warning">Not Downloaded</span>
+      </div>
 
-      <Message v-if="isDownloading" severity="info" class="mt-3">
-        Downloading models from HuggingFace Hub. This may take several minutes depending on your internet speed.
-      </Message>
+      <div class="model-info">
+        <p><strong>Size:</strong> ~12.8 GB (quantized Q8_0)</p>
+        <p><strong>Steps:</strong> 28+ (high quality)</p>
+        <p><strong>License:</strong> FLUX.1 [dev] Non-Commercial License</p>
+        <p><strong>Quality:</strong> Photorealistic, best for final outputs</p>
+      </div>
 
-      <!-- Model Files Status -->
-      <div v-if="showDetails" class="model-status">
-        <h3>Model Files Status</h3>
-        <div v-if="modelStatus.length === 0" class="loading-status">
-          <i class="pi pi-spin pi-spinner"></i> Loading status...
-        </div>
-        <div v-else class="status-list">
-          <div v-for="file in modelStatus" :key="file.name" class="status-item">
-            <i :class="['pi', file.exists ? 'pi-check-circle status-ok' : 'pi-times-circle status-missing']"></i>
-            <div class="status-info">
-              <span class="status-name">{{ file.name }}</span>
-              <code class="status-path">{{ file.path }}</code>
-            </div>
+      <div class="model-actions">
+        <Button v-if="!devModel?.isDownloaded" label="Download" icon="pi pi-download" :loading="isDownloadingDev" @click="downloadDev" />
+        <Button label="Show Details" icon="pi pi-info-circle" severity="secondary" text @click="toggleDetails" />
+      </div>
+    </div>
+
+    <ProgressBar v-if="isDownloadingSchnell || isDownloadingDev" mode="indeterminate" class="mt-3" />
+
+    <Message v-if="isDownloadingSchnell || isDownloadingDev" severity="info" class="mt-3">
+      Downloading models from HuggingFace Hub. This may take several minutes depending on your internet speed.
+    </Message>
+
+    <!-- Model Files Status -->
+    <div v-if="showDetails" class="model-status-panel">
+      <h3>Model Files Status</h3>
+      <div v-if="modelStatus.length === 0" class="loading-status">
+        <i class="pi pi-spin pi-spinner"></i> Loading status...
+      </div>
+      <div v-else class="status-list">
+        <div v-for="file in modelStatus" :key="file.name" class="status-item">
+          <i :class="['pi', file.exists ? 'pi-check-circle status-ok' : 'pi-times-circle status-missing']"></i>
+          <div class="status-info">
+            <span class="status-name">{{ file.name }}</span>
+            <code class="status-path">{{ file.path }}</code>
           </div>
         </div>
       </div>
@@ -55,17 +76,19 @@
 
     <div class="model-note">
       <p><strong>Note:</strong> Models are downloaded to <code>~/.cache/huggingface/hub/</code></p>
-      <p>After download, the generation system will automatically use real FLUX models instead of stubs.</p>
+      <p>After download, the generation system will automatically use the selected model.</p>
+      <p><strong>Tip:</strong> Quantized models use less VRAM (~12GB vs ~24GB) with minimal quality loss.</p>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import Button from 'primevue/button';
 import ProgressBar from 'primevue/progressbar';
 import Message from 'primevue/message';
+import { useModelsStore } from '@/stores/models';
 
 interface ModelFileStatus {
   name: string;
@@ -73,26 +96,20 @@ interface ModelFileStatus {
   path: string;
 }
 
-const isDownloaded = ref(false);
-const isDownloading = ref(false);
+const modelsStore = useModelsStore();
+
+const schnellModel = computed(() => modelsStore.models.find((m) => m.id === 'schnell'));
+const devModel = computed(() => modelsStore.models.find((m) => m.id === 'dev'));
+
+const isDownloadingSchnell = ref(false);
+const isDownloadingDev = ref(false);
 const error = ref<string | null>(null);
 const showDetails = ref(false);
 const modelStatus = ref<ModelFileStatus[]>([]);
 
 onMounted(async () => {
-  await checkModels();
+  await modelsStore.refreshModelAvailability();
 });
-
-const checkModels = async () => {
-  try {
-    isDownloaded.value = await invoke<boolean>('check_models_downloaded');
-    if (showDetails.value) {
-      await loadModelStatus();
-    }
-  } catch (e) {
-    error.value = `Failed to check models: ${e}`;
-  }
-};
 
 const loadModelStatus = async () => {
   try {
@@ -109,18 +126,31 @@ const toggleDetails = async () => {
   }
 };
 
-const downloadModels = async () => {
-  isDownloading.value = true;
+const downloadSchnell = async () => {
+  isDownloadingSchnell.value = true;
   error.value = null;
 
   try {
-    const result = await invoke<string>('download_flux_schnell');
-    console.log(result);
-    await checkModels();
+    await invoke<string>('download_flux_schnell');
+    await modelsStore.refreshModelAvailability();
   } catch (e) {
     error.value = `Download failed: ${e}`;
   } finally {
-    isDownloading.value = false;
+    isDownloadingSchnell.value = false;
+  }
+};
+
+const downloadDev = async () => {
+  isDownloadingDev.value = true;
+  error.value = null;
+
+  try {
+    await invoke<string>('download_flux_dev');
+    await modelsStore.refreshModelAvailability();
+  } catch (e) {
+    error.value = `Download failed: ${e}`;
+  } finally {
+    isDownloadingDev.value = false;
   }
 };
 </script>
@@ -192,8 +222,9 @@ const downloadModels = async () => {
   @apply flex gap-2;
 }
 
-.model-status {
-  @apply mt-4 pt-4 border-t;
+.model-status-panel {
+  @apply mt-4 p-4 border rounded-xl;
+  background-color: var(--color-slate-800);
   border-color: var(--color-slate-700);
 
   h3 {

@@ -87,7 +87,7 @@ async fn generate_image(
     // Determine output path
     let home = dirs::home_dir()
         .ok_or_else(|| "Could not determine home directory".to_string())?;
-    let output_dir = home.join(".flux-generator").join("outputs");
+    let output_dir = home.join(".rzem-ai-inference").join("outputs");
 
     // Create output directory
     fs::create_dir_all(&output_dir)
@@ -319,6 +319,41 @@ async fn download_flux_schnell(app_state: State<'_, AppState>) -> Result<String,
 }
 
 #[command]
+async fn download_flux_dev(app_state: State<'_, AppState>) -> Result<String, String> {
+    use crate::models::ModelDownloader;
+
+    // Check if download is already in progress
+    {
+        let mut in_progress = app_state.download_in_progress.lock().await;
+        if *in_progress {
+            return Err("Download already in progress".to_string());
+        }
+        *in_progress = true;
+    }
+
+    // Ensure we reset the flag even on error
+    let result = async {
+        let downloader = ModelDownloader::new()
+            .map_err(|e| e.to_string())?;
+
+        if downloader.is_dev_downloaded() {
+            return Ok("FLUX Dev is already downloaded".to_string());
+        }
+
+        downloader.download_dev()
+            .await
+            .map_err(|e| e.to_string())?;
+
+        Ok("FLUX Dev downloaded successfully".to_string())
+    }.await;
+
+    // Reset the flag
+    *app_state.download_in_progress.lock().await = false;
+
+    result
+}
+
+#[command]
 fn check_models_downloaded() -> Result<bool, String> {
     use crate::models::ModelDownloader;
 
@@ -326,6 +361,38 @@ fn check_models_downloaded() -> Result<bool, String> {
         .map_err(|e| e.to_string())?;
 
     Ok(downloader.is_schnell_downloaded())
+}
+
+#[derive(serde::Serialize)]
+struct ModelAvailability {
+    id: String,
+    name: String,
+    is_downloaded: bool,
+    has_quantized: bool,
+}
+
+/// Get availability status of all supported models
+#[command]
+fn get_available_models() -> Result<Vec<ModelAvailability>, String> {
+    use crate::models::{ModelPaths, ModelType};
+
+    let paths = ModelPaths::new()
+        .map_err(|e| e.to_string())?;
+
+    Ok(vec![
+        ModelAvailability {
+            id: "schnell".to_string(),
+            name: "FLUX Schnell".to_string(),
+            is_downloaded: paths.all_files_exist(),
+            has_quantized: paths.has_quantized_for(ModelType::Schnell),
+        },
+        ModelAvailability {
+            id: "dev".to_string(),
+            name: "FLUX Dev".to_string(),
+            is_downloaded: paths.is_dev_downloaded(),
+            has_quantized: paths.has_quantized_for(ModelType::Dev),
+        },
+    ])
 }
 
 #[derive(serde::Serialize)]
@@ -465,8 +532,10 @@ pub fn run() {
             clear_completed_jobs,
             // Model download commands
             download_flux_schnell,
+            download_flux_dev,
             check_models_downloaded,
             get_model_status,
+            get_available_models,
             // Settings commands
             get_hf_token,
             set_hf_token,

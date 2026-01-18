@@ -1,6 +1,6 @@
 //! Application settings management
 //!
-//! Stores user settings in a JSON config file at ~/.flux-generator/settings.json
+//! Stores user settings in a JSON config file at ~/.rzem-ai-inference/settings.json
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
@@ -28,7 +28,7 @@ impl AppSettings {
     fn settings_path() -> Result<PathBuf> {
         let home = dirs::home_dir()
             .context("Could not determine home directory")?;
-        Ok(home.join(".flux-generator").join("settings.json"))
+        Ok(home.join(".rzem-ai-inference").join("settings.json"))
     }
 
     /// Load settings from disk, or return defaults if not found

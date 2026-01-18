@@ -2,7 +2,7 @@
 
 use anyhow::{Context, Result};
 use hf_hub::api::tokio::Api;
-use super::ModelPaths;
+use super::{ModelPaths, ModelType};
 use serde::Deserialize;
 
 /// Response from HuggingFace API for repository file tree
@@ -44,6 +44,19 @@ impl ModelDownloader {
         self.paths.all_files_exist()
     }
 
+    /// Check if FLUX Dev is already downloaded
+    pub fn is_dev_downloaded(&self) -> bool {
+        self.paths.is_dev_downloaded()
+    }
+
+    /// Check if a specific model is downloaded
+    pub fn is_model_downloaded(&self, model_type: ModelType) -> bool {
+        match model_type {
+            ModelType::Schnell => self.is_schnell_downloaded(),
+            ModelType::Dev => self.is_dev_downloaded(),
+        }
+    }
+
     /// Fetch list of files in FLUX Schnell repository from HuggingFace API
     async fn fetch_repo_files(repo_id: &str, token: &str) -> Result<Vec<String>> {
         let url = format!(
@@ -54,7 +67,7 @@ impl ModelDownloader {
         let client = reqwest::Client::new();
         let response = client
             .get(&url)
-            .header("User-Agent", "flux-generator/0.1.0")
+            .header("User-Agent", "rzem-ai-inference/0.1.0")
             .header("Authorization", format!("Bearer {}", token))
             .send()
             .await
@@ -85,12 +98,17 @@ impl ModelDownloader {
         Ok(files)
     }
 
-    /// Filter files to only include model files we need
+    /// Filter files to only include model files we need for Schnell
     fn filter_required_files(files: Vec<String>) -> Vec<String> {
+        Self::filter_required_files_for_model(files, ModelType::Schnell)
+    }
+
+    /// Filter files to only include model files we need for a specific model
+    fn filter_required_files_for_model(files: Vec<String>, model_type: ModelType) -> Vec<String> {
         files
             .into_iter()
             .filter(|path| {
-                // Include files from specific directories
+                // Include files from specific directories (shared between models)
                 let include_dirs = [
                     "text_encoder/",      // CLIP text encoder
                     "text_encoder_2/",    // T5 text encoder
@@ -99,10 +117,15 @@ impl ModelDownloader {
                     "scheduler/",
                 ];
 
-                // Include root-level model files
-                let root_files = [
-                    "ae.safetensors",           // VAE
-                    "flux1-schnell.safetensors", // Transformer
+                // Root-level model files vary by model type
+                let transformer_file = match model_type {
+                    ModelType::Schnell => "flux1-schnell.safetensors",
+                    ModelType::Dev => "flux1-dev.safetensors",
+                };
+
+                let root_files: Vec<&str> = vec![
+                    "ae.safetensors",     // VAE (shared)
+                    transformer_file,      // Transformer (model-specific)
                     "model_index.json",
                 ];
 
@@ -200,6 +223,74 @@ impl ModelDownloader {
 
         println!("FLUX Schnell download complete!");
         Ok(())
+    }
+
+    /// Download FLUX Dev model from HuggingFace Hub
+    ///
+    /// FLUX Dev is a higher quality model that requires more steps (28+)
+    /// Downloads to ~/.cache/huggingface/hub/models--black-forest-labs--FLUX.1-dev/
+    /// Model files: ~24GB total
+    ///
+    /// Note: If Schnell is already downloaded, this will only download
+    /// the Dev-specific transformer file, saving ~11GB of bandwidth.
+    pub async fn download_dev(&self) -> Result<()> {
+        if self.is_dev_downloaded() {
+            println!("FLUX Dev already downloaded");
+            return Ok(());
+        }
+
+        // Load HuggingFace token for gated model access
+        let hf_token = Self::load_hf_token()?;
+        println!("Loaded HuggingFace token");
+
+        // Set HF_TOKEN env var so hf-hub uses it
+        std::env::set_var("HF_TOKEN", &hf_token);
+
+        let api = Api::new()?;
+        let repo_id = ModelType::Dev.repo_id();
+
+        println!("Downloading FLUX Dev from HuggingFace Hub...");
+        println!("Fetching file list from repository...");
+
+        let all_files = Self::fetch_repo_files(repo_id, &hf_token).await?;
+        let mut files = Self::filter_required_files_for_model(all_files, ModelType::Dev);
+
+        // Optimization: If Schnell is already downloaded, skip shared components
+        // Only download the Dev-specific transformer file
+        if self.is_schnell_downloaded() {
+            println!("FLUX Schnell already downloaded - reusing shared components");
+            files.retain(|f| f == "flux1-dev.safetensors");
+            println!("Only downloading Dev transformer (~12GB)");
+        } else {
+            println!("Found {} files to download from FLUX.1-dev", files.len());
+            println!("This will download ~24GB of model files");
+        }
+
+        let repo = api.model(repo_id.to_string());
+        for (idx, file) in files.iter().enumerate() {
+            println!("Downloading [{}/{}] {}", idx + 1, files.len(), file);
+            repo.get(file).await
+                .with_context(|| format!("Failed to download {}", file))?;
+        }
+
+        // Download T5 tokenizer if not already present (shared component)
+        if !self.is_schnell_downloaded() {
+            println!("Downloading T5 tokenizer...");
+            let t5_tokenizer_repo = api.model("lmz/mt5-tokenizers".to_string());
+            t5_tokenizer_repo.get("t5-v1_1-xxl.tokenizer.json").await
+                .context("Failed to download T5 tokenizer")?;
+        }
+
+        println!("FLUX Dev download complete!");
+        Ok(())
+    }
+
+    /// Download a specific model
+    pub async fn download_model(&self, model_type: ModelType) -> Result<()> {
+        match model_type {
+            ModelType::Schnell => self.download_schnell().await,
+            ModelType::Dev => self.download_dev().await,
+        }
     }
 }
 

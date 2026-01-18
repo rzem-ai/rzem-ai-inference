@@ -44,6 +44,17 @@ export interface GenerationStats {
   model_type: string
 }
 
+/**
+ * Pipeline stages during generation
+ */
+export type PipelineStage =
+  | 'loading_models'
+  | 'encoding_t5'
+  | 'encoding_clip'
+  | 'denoising'
+  | 'decoding_vae'
+  | 'encoding_png'
+
 export interface GenerationJob {
   id: string
   params: GenerationParams
@@ -52,6 +63,14 @@ export interface GenerationJob {
    * Progress value from backend (f32: 0.0-1.0)
    */
   progress: number
+  /**
+   * Current pipeline stage (from job-progress events)
+   */
+  currentStage?: PipelineStage
+  /**
+   * Human-readable status message
+   */
+  statusMessage?: string
   created_at: number
   started_at?: number
   completed_at?: number
@@ -69,7 +88,7 @@ export const useQueueStore = defineStore('queue', () => {
 
   // Listen for job updates from backend
   // This is the primary source of truth for job state updates
-  const unlistenPromise = listen<{
+  const unlistenJobUpdate = listen<{
     job_id: string
     status: JobStatus
     progress?: number
@@ -121,6 +140,27 @@ export const useQueueStore = defineStore('queue', () => {
     }
   })
 
+  // Listen for detailed progress updates during generation
+  // Provides real-time stage info and progress messages
+  const unlistenJobProgress = listen<{
+    job_id: string
+    stage: PipelineStage
+    stage_progress: number
+    overall_progress: number
+    message: string
+    eta_seconds?: number
+  }>('job-progress', (event) => {
+    const { job_id, stage, overall_progress, message } = event.payload
+
+    // Find and update job in local state
+    const jobIndex = jobs.value.findIndex((j) => j.id === job_id)
+    if (jobIndex !== -1) {
+      jobs.value[jobIndex].progress = overall_progress
+      jobs.value[jobIndex].currentStage = stage
+      jobs.value[jobIndex].statusMessage = message
+    }
+  })
+
   // Computed
   const pendingJobs = computed(() =>
     jobs.value.filter((j) => j.status === 'pending')
@@ -141,11 +181,13 @@ export const useQueueStore = defineStore('queue', () => {
   const queueLength = computed(() => pendingJobs.value.length)
   const hasRunningJobs = computed(() => runningJobs.value.length > 0)
 
-  // Cleanup polling and event listener on store disposal
+  // Cleanup polling and event listeners on store disposal
   onScopeDispose(async () => {
     stopPolling()
-    const unlisten = await unlistenPromise
-    unlisten()
+    const unlistenUpdate = await unlistenJobUpdate
+    unlistenUpdate()
+    const unlistenProgress = await unlistenJobProgress
+    unlistenProgress()
   })
 
   // Actions

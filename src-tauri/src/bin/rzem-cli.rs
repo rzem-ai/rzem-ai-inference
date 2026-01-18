@@ -1,12 +1,12 @@
-//! FLUX Generator CLI
+//! Rzem AI Inference CLI
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use flux_generator_lib::models::{ModelPaths, ModelType};
+use rzem_ai_inference::models::{ModelPaths, ModelType};
 
 #[derive(Parser)]
-#[command(name = "flux-cli")]
-#[command(about = "FLUX image generation CLI", long_about = None)]
+#[command(name = "rzem-cli")]
+#[command(about = "Rzem AI image generation CLI", long_about = None)]
 #[command(version)]
 struct Cli {
     #[command(subcommand)]
@@ -132,6 +132,11 @@ fn cmd_generate(
     json: bool,
     quiet: bool,
 ) -> Result<()> {
+    use rzem_ai_inference::inference::{InferenceEngine, FluxPipeline, GenerationProgress};
+    use std::io::{Write, stdout};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+
     let model_type: ModelType = model.parse()
         .map_err(|e: String| anyhow::anyhow!(e))?;
 
@@ -149,7 +154,7 @@ fn cmd_generate(
     };
 
     if !quiet && !json {
-        println!("FLUX CLI - Image Generation");
+        println!("Rzem CLI - Image Generation");
         println!("════════════════════════════════════════");
         println!("  Prompt:   {}", prompt);
         println!("  Model:    {}", model_type);
@@ -162,11 +167,143 @@ fn cmd_generate(
         println!();
     }
 
-    // TODO: Implement actual generation in Task 7
+    // Initialize inference engine
+    let engine = InferenceEngine::new()?;
+    let device = engine.get_device().clone();
+
+    // Track last progress line length for proper clearing
+    let last_len = Arc::new(AtomicUsize::new(0));
+
+    // Results for JSON output
+    let mut results: Vec<serde_json::Value> = Vec::new();
+    let start_time = std::time::Instant::now();
+
+    for batch_idx in 0..batch {
+        // Create fresh pipeline for each image (models get unloaded during generation)
+        let mut pipeline = FluxPipeline::with_model_type(device.clone(), model_type)?;
+
+        // Determine output filename for this batch item
+        let output_path = if batch > 1 {
+            let path = std::path::Path::new(&output);
+            let stem = path.file_stem().unwrap_or_default().to_string_lossy();
+            let ext = path.extension().unwrap_or_default().to_string_lossy();
+            let parent = path.parent().unwrap_or(std::path::Path::new("."));
+            parent.join(format!("{}_{}.{}", stem, batch_idx + 1, ext))
+        } else {
+            std::path::PathBuf::from(&output)
+        };
+
+        if !quiet && !json {
+            if batch > 1 {
+                println!("Generating image {}/{}...", batch_idx + 1, batch);
+            }
+        }
+
+        // Progress callback for terminal display
+        let last_len_clone = last_len.clone();
+        let quiet_clone = quiet;
+        let json_clone = json;
+        let batch_clone = batch;
+        let batch_idx_clone = batch_idx;
+
+        let on_progress = move |progress: GenerationProgress| {
+            if quiet_clone || json_clone {
+                return;
+            }
+
+            // Format progress bar
+            let bar_width = 30;
+            let filled = (progress.overall_progress * bar_width as f32) as usize;
+            let empty = bar_width - filled;
+            let bar = format!("[{}{}]", "█".repeat(filled), "░".repeat(empty));
+
+            // Format message
+            let percent = (progress.overall_progress * 100.0) as u32;
+            let batch_prefix = if batch_clone > 1 {
+                format!("[{}/{}] ", batch_idx_clone + 1, batch_clone)
+            } else {
+                String::new()
+            };
+
+            let line = format!(
+                "\r{}{} {:>3}% {}",
+                batch_prefix,
+                bar,
+                percent,
+                progress.message
+            );
+
+            // Clear previous line if it was longer
+            let prev_len = last_len_clone.load(Ordering::Relaxed);
+            if line.len() < prev_len {
+                print!("\r{}", " ".repeat(prev_len));
+            }
+            last_len_clone.store(line.len(), Ordering::Relaxed);
+
+            print!("{}", line);
+            let _ = stdout().flush();
+        };
+
+        // Generate image
+        let result = pipeline.generate_with_progress(
+            &prompt,
+            steps,
+            width,
+            height,
+            guidance,
+            on_progress,
+        )?;
+
+        // Clear progress line
+        if !quiet && !json {
+            let prev_len = last_len.load(Ordering::Relaxed);
+            print!("\r{}\r", " ".repeat(prev_len));
+            let _ = stdout().flush();
+        }
+
+        // Create parent directory if needed
+        if let Some(parent) = output_path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+
+        // Save image
+        std::fs::write(&output_path, &result.image_data)?;
+
+        if json {
+            results.push(serde_json::json!({
+                "path": output_path.to_string_lossy(),
+                "batch_index": batch_idx + 1,
+                "stats": {
+                    "total_ms": result.stats.total_ms,
+                    "denoise_ms": result.stats.denoise_ms,
+                    "model_type": result.stats.model_type,
+                    "steps": result.stats.steps,
+                }
+            }));
+        } else if !quiet {
+            println!("✓ Saved: {} ({}ms)", output_path.display(), result.stats.total_ms);
+        }
+    }
+
+    let total_elapsed = start_time.elapsed().as_millis();
+
     if json {
-        println!(r#"{{"success": false, "error": "Generation not yet implemented"}}"#);
+        println!("{}", serde_json::json!({
+            "success": true,
+            "images": results,
+            "total_ms": total_elapsed,
+            "prompt": prompt,
+            "model": model_type.to_string(),
+            "steps": steps,
+            "guidance": guidance,
+            "seed": actual_seed,
+            "width": width,
+            "height": height,
+        }));
     } else if !quiet {
-        println!("[INFO] Generation not yet implemented - CLI structure ready");
+        println!();
+        println!("════════════════════════════════════════");
+        println!("Generation complete! Total: {}ms", total_elapsed);
     }
 
     Ok(())
@@ -228,9 +365,9 @@ fn cmd_models_info(model: String) -> Result<()> {
 }
 
 fn cmd_info() -> Result<()> {
-    use flux_generator_lib::inference::InferenceEngine;
+    use rzem_ai_inference::inference::InferenceEngine;
 
-    println!("FLUX Generator CLI");
+    println!("Rzem AI Inference CLI");
     println!("════════════════════════════════════════");
 
     let engine = InferenceEngine::new()?;

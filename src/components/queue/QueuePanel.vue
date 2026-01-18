@@ -48,7 +48,12 @@
               <span>CFG {{ job.params.cfg_scale }}</span>
             </div>
 
-            <ProgressBar v-if="job.status === 'running'" :value="job.progress * 100" :show-value="true" />
+            <div v-if="job.status === 'running'" class="job-progress">
+              <ProgressBar :value="job.progress * 100" :show-value="true" />
+              <div v-if="job.statusMessage" class="progress-status">
+                {{ job.statusMessage }}
+              </div>
+            </div>
 
             <div v-if="job.error" class="job-error">
               {{ job.error }}
@@ -258,6 +263,15 @@ async function handleClearCompleted() {
 .job-params {
   @apply flex gap-3 text-xs mb-2;
   color: var(--color-slate-400);
+}
+
+.job-progress {
+  @apply flex flex-col gap-1;
+}
+
+.progress-status {
+  @apply text-xs text-center;
+  color: var(--color-teal-400);
 }
 
 .job-error {

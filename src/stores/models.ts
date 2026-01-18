@@ -1,23 +1,45 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { invoke } from '@tauri-apps/api/core'
 import type { Model, LoRA } from '@/types'
+
+interface ModelAvailability {
+  id: string
+  name: string
+  is_downloaded: boolean
+  has_quantized: boolean
+}
 
 export const useModelsStore = defineStore('models', () => {
   // State
   const models = ref<Model[]>([
     {
-      id: 'flux-schnell',
-      name: 'Flux Schnell',
+      id: 'schnell',
+      name: 'FLUX Schnell',
       type: 'flux-schnell',
-      isDownloaded: true, // Stub model is "downloaded"
+      isDownloaded: false,
       isActive: true,
       createdAt: Date.now(),
+      description: 'Fast generation (4 steps)',
+      defaultSteps: 4,
+      defaultGuidance: 1.0,
+    },
+    {
+      id: 'dev',
+      name: 'FLUX Dev',
+      type: 'flux-dev',
+      isDownloaded: false,
+      isActive: false,
+      createdAt: Date.now(),
+      description: 'High quality (28+ steps)',
+      defaultSteps: 28,
+      defaultGuidance: 3.5,
     },
   ])
 
   const loras = ref<LoRA[]>([])
 
-  const selectedModelId = ref<string>('flux-schnell')
+  const selectedModelId = ref<string>('schnell')
 
   // Getters
   const activeModel = computed(() =>
@@ -98,6 +120,21 @@ export const useModelsStore = defineStore('models', () => {
     return false
   }
 
+  // Fetch model availability from backend
+  async function refreshModelAvailability(): Promise<void> {
+    try {
+      const availability = await invoke<ModelAvailability[]>('get_available_models')
+      for (const avail of availability) {
+        const model = models.value.find((m) => m.id === avail.id)
+        if (model) {
+          model.isDownloaded = avail.is_downloaded
+        }
+      }
+    } catch (error) {
+      console.error('Failed to refresh model availability:', error)
+    }
+  }
+
   return {
     // State
     models,
@@ -115,5 +152,6 @@ export const useModelsStore = defineStore('models', () => {
     removeLora,
     toggleLora,
     updateLoraStrength,
+    refreshModelAvailability,
   }
 })

@@ -242,9 +242,30 @@ impl ModelPaths {
     }
 
     /// Get path to quantized FLUX Dev transformer
+    /// Checks multiple sources: lmz/candle-flux and city96/FLUX.1-dev-gguf
     pub fn quantized_dev_transformer_path(&self) -> PathBuf {
-        let lmz_dir = self.cache_dir.join("models--lmz--candle-flux");
+        // First, check city96/FLUX.1-dev-gguf (Q8_0 quantization)
+        let city96_dir = self.cache_dir.join("models--city96--FLUX.1-dev-gguf");
+        if let Ok(refs_main) = std::fs::read_to_string(city96_dir.join("refs").join("main")) {
+            let hash = refs_main.trim();
+            let path = city96_dir.join("snapshots").join(hash).join("flux1-dev-Q8_0.gguf");
+            if path.exists() {
+                return path;
+            }
+        }
+        if let Ok(entries) = std::fs::read_dir(city96_dir.join("snapshots")) {
+            for entry in entries.flatten() {
+                if entry.path().is_dir() {
+                    let path = entry.path().join("flux1-dev-Q8_0.gguf");
+                    if path.exists() {
+                        return path;
+                    }
+                }
+            }
+        }
 
+        // Fallback: check lmz/candle-flux
+        let lmz_dir = self.cache_dir.join("models--lmz--candle-flux");
         if let Ok(refs_main) = std::fs::read_to_string(lmz_dir.join("refs").join("main")) {
             let hash = refs_main.trim();
             return lmz_dir.join("snapshots").join(hash).join("flux1-dev.gguf");
@@ -258,7 +279,8 @@ impl ModelPaths {
             }
         }
 
-        lmz_dir.join("snapshots").join("main").join("flux1-dev.gguf")
+        // Default fallback path
+        city96_dir.join("snapshots").join("main").join("flux1-dev-Q8_0.gguf")
     }
 
     /// Check if Dev model is downloaded

@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    flux_generator_lib::run()
+    rzem_ai_inference::run()
 }

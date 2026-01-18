@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Flux Generator",
+  "productName": "Rzem AI Inference",
   "version": "0.1.0",
-  "identifier": "com.flux.generator",
+  "identifier": "ai.rzem.inference",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -17,7 +17,7 @@
   "app": {
     "windows": [
       {
-        "title": "Flux Generator",
+        "title": "Rzem AI Inference",
         "width": 2400,
         "height": 1024,
         "minWidth": 1200,
@@ -28,7 +28,7 @@
       "csp": null,
       "assetProtocol": {
         "enable": true,
-        "scope": ["$HOME/.flux-generator/**", "**"]
+        "scope": ["$HOME/.rzem-ai-inference/**", "**"]
       },
       "capabilities": [
         {
@@ -63,7 +63,7 @@
             "fs:default",
             {
               "identifier": "fs:scope",
-              "allow": [{ "path": "$HOME/.flux-generator/**" }]
+              "allow": [{ "path": "$HOME/.rzem-ai-inference/**" }]
             }
           ]
         }

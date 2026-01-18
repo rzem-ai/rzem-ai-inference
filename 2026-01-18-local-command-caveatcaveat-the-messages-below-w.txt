@@ -1,0 +1,17 @@
+                                                                                
+ ▐▛███▜▌   Claude Code v2.1.12                                                  
+▝▜█████▛▘  Opus 4.5 · API Usage Billing                                         
+  ▘▘ ▝▝    ~/Dev/Work/rzem-ai-inference                                         
+                                                                                
+❯ /plugin                                                                       
+  ⎿  ✓ Uninstalled greptile. Restart Claude Code to apply changes.              
+                                                                                
+❯ /plugin                                                                       
+  ⎿  (no content)                                                               
+                                                                                
+❯ /plugin                                                                       
+  ⎿  ✓ Installed github. Restart Claude Code to load new plugins.               
+                                                                                
+❯ /plugin                                                                       
+  ⎿  ✓ Installed 4 plugins. Restart Claude Code to load new plugins.            
+
