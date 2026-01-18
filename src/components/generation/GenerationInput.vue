@@ -3,6 +3,7 @@
         <div
             class="card-wrapper"
             :class="{ 'is-dragging': isDragging }"
+            @dragenter.prevent="handleDragEnter"
             @dragover.prevent="handleDragOver"
             @dragleave.prevent="handleDragLeave"
             @drop.prevent="handleDrop"
@@ -73,25 +74,31 @@ const toast = useToast();
 // Drag and drop state
 const isDragging = ref(false);
 const isAnalyzing = ref(false);
+const dragCounter = ref(0);
 
 // Drag and drop handlers
-const handleDragOver = (e: DragEvent) => {
+const handleDragEnter = (e: DragEvent) => {
+    dragCounter.value++;
     // Check if dragging files
     if (e.dataTransfer?.types.includes('Files')) {
         isDragging.value = true;
     }
 };
 
-const handleDragLeave = (e: DragEvent) => {
-    // Only set to false if leaving the container (not entering a child)
-    const relatedTarget = e.relatedTarget as HTMLElement | null;
-    const currentTarget = e.currentTarget as HTMLElement;
-    if (!currentTarget.contains(relatedTarget)) {
+const handleDragOver = (_e: DragEvent) => {
+    // Required to allow drop - just prevent default
+    // The visual state is handled by dragenter/dragleave
+};
+
+const handleDragLeave = () => {
+    dragCounter.value--;
+    if (dragCounter.value === 0) {
         isDragging.value = false;
     }
 };
 
 const handleDrop = async (e: DragEvent) => {
+    dragCounter.value = 0;
     isDragging.value = false;
 
     const file = e.dataTransfer?.files?.[0];
@@ -231,8 +238,8 @@ defineExpose({
 
 /* Drag Overlay */
 .drag-overlay {
-    @apply absolute inset-0 z-50 flex items-center justify-center rounded-lg;
-    background: rgba(var(--p-primary-500), 0.1);
+    @apply absolute inset-0 z-50 flex items-center justify-center rounded-lg pointer-events-none;
+    background: rgba(59, 130, 246, 0.15);
     backdrop-filter: blur(4px);
     border: 2px dashed var(--p-primary-color);
 }
