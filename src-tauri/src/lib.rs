@@ -4,6 +4,7 @@ mod queue;
 mod gallery;
 mod settings;
 mod utils;
+mod claude;
 
 use tauri::{command, Manager, Emitter};
 use std::sync::Arc;
@@ -477,6 +478,51 @@ fn set_fal_key(key: Option<String>) -> Result<String, String> {
     Ok("Fal.ai key saved".to_string())
 }
 
+/// Analyze an image using Claude and generate a prompt to recreate it
+///
+/// # Arguments
+/// * `image_data` - Base64-encoded image data (can include data URL prefix)
+/// * `media_type` - Optional MIME type. If not provided, will be inferred from data URL.
+#[command]
+async fn analyze_image_for_prompt(
+    image_data: String,
+    media_type: Option<String>,
+) -> Result<String, String> {
+    // Load Claude API key from settings
+    let settings = settings::AppSettings::load()
+        .map_err(|e| e.to_string())?;
+
+    let api_key = settings.claude_api_key
+        .ok_or_else(|| "Claude API key not configured. Please set it in Settings.".to_string())?;
+
+    // Parse image data - handle both raw base64 and data URL formats
+    let (base64_data, mime_type) = if image_data.starts_with("data:") {
+        // Parse data URL: data:image/png;base64,xxxxx
+        let parts: Vec<&str> = image_data.splitn(2, ',').collect();
+        if parts.len() != 2 {
+            return Err("Invalid data URL format".to_string());
+        }
+
+        // Extract MIME type from header
+        let header = parts[0];
+        let inferred_mime = header
+            .strip_prefix("data:")
+            .and_then(|s| s.split(';').next())
+            .unwrap_or("image/png")
+            .to_string();
+
+        (parts[1].to_string(), media_type.unwrap_or(inferred_mime))
+    } else {
+        // Raw base64 - use provided media type or default
+        (image_data, media_type.unwrap_or_else(|| "image/png".to_string()))
+    };
+
+    // Call Claude API to analyze the image
+    claude::analyze_image_for_prompt(&api_key, &base64_data, &mime_type)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let gallery_db = Arc::new(Mutex::new(None));
@@ -543,6 +589,8 @@ pub fn run() {
             set_claude_api_key,
             get_fal_key,
             set_fal_key,
+            // Image analysis
+            analyze_image_for_prompt,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

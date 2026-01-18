@@ -1,21 +1,25 @@
 <template>
   <div class="prompt-input">
-    <div class="field">
-      <label for="prompt">Prompt</label>
-      <Textarea id="prompt" v-model="prompt" rows="4" placeholder="Describe the image you want to generate..." class="w-full" />
-    </div>
+    <PromptEditor
+      v-model="prompt"
+      label="Prompt"
+      placeholder="Describe the image you want to generate..."
+      :rows="4"
+    />
 
-    <div class="field">
-      <label for="negative-prompt">Negative Prompt</label>
-      <Textarea id="negative-prompt" v-model="negativePrompt" rows="2" placeholder="What to avoid in the image..." class="w-full" />
-    </div>
+    <PromptEditor
+      v-model="negativePrompt"
+      label="Negative Prompt"
+      placeholder="What to avoid in the image..."
+      :rows="2"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useGenerationStore } from '@/stores/generation';
-import Textarea from 'primevue/textarea';
+import PromptEditor from './PromptEditor.vue';
 
 const store = useGenerationStore();
 
