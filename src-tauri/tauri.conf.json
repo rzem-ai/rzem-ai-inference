@@ -18,8 +18,8 @@
     "windows": [
       {
         "title": "Flux Generator",
-        "width": 1400,
-        "height": 900,
+        "width": 2400,
+        "height": 1024,
         "minWidth": 1200,
         "minHeight": 700
       }

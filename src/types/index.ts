@@ -6,12 +6,17 @@ export interface GenerationJob {
 
 export type GenerationMode = 'txt2img' | 'img2img' | 'inpainting'
 
+export type Sampler = 'euler' | 'euler_a' | 'heun' | 'dpm_2' | 'dpm_2_a' | 'lms' | 'dpmpp_2m' | 'dpmpp_2s_a' | 'dpmpp_sde'
+export type Scheduler = 'normal' | 'karras' | 'exponential' | 'sgm_uniform' | 'simple' | 'ddim_uniform' | 'beta'
+
 export interface GenerationParams {
   mode: GenerationMode
   prompt: string
   negativePrompt?: string
   steps: number
   cfgScale: number
+  sampler: Sampler
+  scheduler: Scheduler
   width: number
   height: number
   seed: number
@@ -75,6 +80,8 @@ export interface GenerationPreset {
   negativePrompt?: string
   steps: number
   cfgScale: number
+  sampler?: Sampler
+  scheduler?: Scheduler
   width: number
   height: number
   seed?: number

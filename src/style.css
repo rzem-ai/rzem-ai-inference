@@ -1,8 +1,7 @@
-@import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400..700;1,400..700&display=swap');
-
 @import 'tailwindcss';
+@import './assets/fonts.css';
 
-@theme inline {
+@theme {
   --default-font-family: 'Instrument Sans', sans-serif;
 
   --font-body: 'Instrument Sans', sans-serif;
@@ -10,18 +9,110 @@
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
 }
 
+:root {
+  --color-gray-100: #383838;
+  --color-gray-200: #363636;
+  --color-gray-300: #333333;
+  --color-gray-400: #2e2e2e;
+  --color-gray-500: #2c2c2c;
+  --color-gray-600: #272727;
+  --color-gray-700: #252525;
+  --color-gray-800: #232323;
+  --color-gray-800: #1e1e1e;
+  --color-gray-950: #121212;
+
+  --p-splitter-background: var(--color-gray-800);
+  --p-splitter-border-color: var(--color-gray-800);
+  --p-splitter-color: var(--color-neutral-100);;
+  --p-splitter-gutter-background: #FF0000;
+  --p-splitter-handle-background: #00FF00;
+  --p-splitter-handle-border-radius: 0;
+  --p-splitter-handle-focus-ring-color: #FF0000;
+  --p-splitter-handle-focus-ring-offset: 0;
+  --p-splitter-handle-focus-ring-shadow: 0;
+  --p-splitter-handle-focus-ring-style: none;
+  --p-splitter-handle-focus-ring-width: 0;
+  --p-splitter-handle-size: 40px;
+  --p-splitter-transition-duration: '';
+}
+
 html {
   font-size: 14px;
 }
 
 body {
-  margin: 0;
-  padding: 0;
-  font-family: var(--default-font-family)
+  @apply p-0 m-0 bg-gray-200 dark:bg-gray-800;
+
+  font-family: var(--default-font-family);
 }
 
 #app {
   width: 100vw;
   height: 100vh;
   overflow: hidden;
+}
+
+.app-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+}
+
+.main-content {
+  flex: 1;
+  overflow: hidden;
+}
+
+.workspace {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.workspace-nav {
+  @apply flex justify-center px-2 py-1;
+}
+
+.nav-items {
+  @apply flex gap-2 p-1 bg-gray-700 rounded-xl dark:bg-gray-500;
+}
+
+.nav-item {
+  @apply flex items-center justify-center gap-2 px-2 py-1 rounded-xl;
+  @apply transition-all duration-500 ease-in-out;
+  @apply bg-gray-500 dark:bg-gray-500;
+  @apply hover:bg-gray-200 hover:dark:bg-gray-200;
+  @apply text-base font-medium text-neutral-400 dark:text-neutral-400;
+  @apply hover:text-neutral-200 hover:dark:text-neutral-200;
+}
+
+.nav-item-active {
+  @apply flex justify-center gap-2 px-2 py-1 rounded-xl;
+  @apply transition-all duration-500 ease-in-out;
+  @apply bg-gray-900 dark:bg-gray-600;
+  @apply hover:bg-gray-700 hover:dark:bg-gray-200;
+  @apply text-base font-medium text-slate-100 dark:text-slate-100;
+  @apply hover:text-slate-100 hover:dark:text-slate-100;
+}
+
+.nav-item-exact {
+  @apply flex justify-center gap-2 px-2 py-1 rounded-xl;
+  @apply transition-all duration-500 ease-in-out;
+  @apply bg-gray-900 dark:bg-gray-200;
+  @apply hover:bg-gray-700 hover:dark:bg-gray-200;
+  @apply text-base font-medium text-neutral-100 dark:text-neutral-100;
+  @apply hover:text-neutral-100 hover:dark:text-neutral-100;
+}
+
+.workspace-header {
+  @apply p-4 text-neutral-200;
+}
+
+.workspace-header h1 {
+  @apply text-4xl font-semibold;
+}
+
+.workspace-content {
+  @apply w-full h-full;
 }

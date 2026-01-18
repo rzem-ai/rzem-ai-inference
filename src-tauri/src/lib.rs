@@ -53,19 +53,17 @@ async fn init_database(app_state: State<'_, AppState>, db_path: String) -> Resul
 ///
 /// # Returns
 /// File path to the generated image
-///
-/// # Note
-/// Currently uses stub implementation. Real Flux model integration pending.
 #[command]
-fn generate_image(
-    _app_state: State<AppState>,
+async fn generate_image(
+    app_state: State<'_, AppState>,
     prompt: String,
     steps: u32,
-    _width: u32,
-    _height: u32,
+    width: u32,
+    height: u32,
     seed: i64,
 ) -> Result<String, String> {
     use crate::inference::{InferenceEngine, FluxPipeline};
+    use crate::gallery::ImageMetadata;
     use std::fs;
 
     // Get or create inference engine
@@ -73,12 +71,17 @@ fn generate_image(
         .map_err(|e| format!("Failed to initialize inference engine: {}", e))?;
 
     let device = engine.get_device().clone();
-    let pipeline = FluxPipeline::new(device)
+    let mut pipeline = FluxPipeline::new(device)
         .map_err(|e| format!("Failed to create pipeline: {}", e))?;
 
-    // Generate stub image
-    let image_data = pipeline.generate_stub(&prompt, steps as usize)
-        .map_err(|e| format!("Generation failed: {}", e))?;
+    // Generate image using FLUX
+    let image_data = pipeline.generate(
+        &prompt,
+        steps as usize,
+        width as usize,
+        height as usize,
+        4.0, // Default guidance for FLUX Schnell
+    ).map_err(|e| format!("Generation failed: {}", e))?;
 
     // Determine output path
     let home = dirs::home_dir()
@@ -101,6 +104,20 @@ fn generate_image(
     fs::write(&output_path, &image_data)
         .map_err(|e| format!("Failed to write image: {}", e))?;
 
+    // Insert into gallery database
+    let db = app_state.gallery_db.lock().await;
+    if let Some(db) = db.as_ref() {
+        let metadata = ImageMetadata {
+            id: uuid::Uuid::new_v4().to_string(),
+            file_path: output_path.to_string_lossy().to_string(),
+            prompt: prompt.clone(),
+            created_at: timestamp as i64,
+        };
+        if let Err(e) = db.insert_image(&metadata) {
+            eprintln!("Warning: Failed to insert image into gallery: {}", e);
+        }
+    }
+
     Ok(output_path.to_string_lossy().to_string())
 }
 
@@ -108,7 +125,7 @@ fn generate_image(
 async fn get_gallery_images(
     app_state: State<'_, AppState>,
     limit: usize,
-) -> Result<Vec<gallery::ImageMetadata>, String> {
+) -> Result<Vec<gallery::GalleryImage>, String> {
     let db = app_state.gallery_db.lock().await;
     let db = db.as_ref().ok_or("Database not initialized")?;
 

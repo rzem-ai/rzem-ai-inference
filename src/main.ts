@@ -1,25 +1,30 @@
-import { createApp } from 'vue'
-import { createPinia } from 'pinia'
-import PrimeVue from 'primevue/config'
-import ToastService from 'primevue/toastservice'
-import Aura from '@primeuix/themes/aura'
-import router from './router'
-import App from './App.vue'
-import './style.css'
+import { createApp } from 'vue';
+import { createPinia } from 'pinia';
+import PrimeVue from 'primevue/config';
+import ToastService from 'primevue/toastservice';
+import router from './router';
+import App from './App.vue';
 
-const app = createApp(App)
-const pinia = createPinia()
+import { AuraPlus } from './assets/theme';
+import './style.css';
 
-app.use(pinia)
-app.use(router)
+const app = createApp(App);
+const pinia = createPinia();
+
+app.use(pinia);
+app.use(router);
 app.use(PrimeVue, {
   theme: {
-    preset: Aura,
+    preset: AuraPlus,
     options: {
-      darkModeSelector: '.dark-mode'
-    }
-  }
-})
-app.use(ToastService)
+      darkModeSelector: '.dark-mode',
+      cssLayer: {
+        name: 'primevue',
+        order: 'theme, base, primevue',
+      },
+    },
+  },
+});
+app.use(ToastService);
 
-app.mount('#app')
+app.mount('#app');

@@ -1,91 +1,74 @@
-//! VAE decoder for FLUX latent → RGB conversion
+//! FLUX VAE decoder for latent → RGB conversion
 
 use anyhow::Result;
-use candle_core::{Device, Tensor};
+use candle_core::{DType, Device, Tensor};
 use candle_nn::VarBuilder;
-use candle_transformers::models::stable_diffusion;
+use candle_transformers::models::flux::autoencoder::{AutoEncoder, Config};
 use std::path::Path;
 
-/// VAE decoder for converting latents to RGB images
+/// FLUX VAE decoder for converting latents to RGB images
 pub struct VaeDecoder {
-    vae: stable_diffusion::vae::AutoEncoderKL,
+    model: AutoEncoder,
     device: Device,
 }
 
 impl VaeDecoder {
-    /// Load VAE from safetensors file
-    pub fn load<P: AsRef<Path>>(
-        model_path: P,
-        device: Device,
-    ) -> Result<Self> {
-        // SAFETY: from_mmaped_safetensors uses memory-mapped IO which is safe
-        // because safetensors format is designed to be safely memory-mapped
-        // without requiring trust of the file contents.
-        let vb = unsafe {
-            VarBuilder::from_mmaped_safetensors(
-                &[model_path.as_ref()],
-                candle_core::DType::F32,
-                &device,
-            )?
+    /// Load FLUX VAE from ae.safetensors file
+    pub fn load<P: AsRef<Path>>(model_path: P, device: Device) -> Result<Self> {
+        // Use bf16 on CUDA for efficiency, f32 on CPU
+        let dtype = if device.is_cuda() {
+            DType::BF16
+        } else {
+            DType::F32
         };
 
-        // Load VAE configuration for FLUX
-        // FLUX uses 16-channel latents (vs 4 for Stable Diffusion)
-        // Configuration from vae/config.json:
-        // - latent_channels: 16
-        // - in_channels: 3 (RGB)
-        // - out_channels: 3 (RGB)
-        // - block_out_channels: [128, 256, 512, 512]
-        // - use_quant_conv: false (FLUX doesn't use quantization convs)
-        // - use_post_quant_conv: false
-        let mut config = stable_diffusion::vae::AutoEncoderKLConfig::default();
-        config.block_out_channels = vec![128, 256, 512, 512];
-        config.latent_channels = 16;
-        config.use_quant_conv = false;
-        config.use_post_quant_conv = false;
+        let vb = unsafe {
+            VarBuilder::from_mmaped_safetensors(&[model_path.as_ref()], dtype, &device)?
+        };
 
-        // Parameters: in_channels=3 (RGB input), out_channels=3 (RGB output)
-        let vae = stable_diffusion::vae::AutoEncoderKL::new(vb, 3, 3, config)?;
+        // FLUX Schnell VAE config
+        let config = Config::schnell();
+        let model = AutoEncoder::new(&config, vb)?;
 
-        Ok(Self { vae, device })
+        Ok(Self { model, device })
     }
 
     /// Decode latent tensor to RGB image
     ///
     /// # Arguments
-    /// * `latents` - Latent tensor [1, 16, H/8, W/8] (FLUX uses 16-channel latents)
+    /// * `latents` - Latent tensor from flux::sampling::unpack [1, 16, H/8, W/8]
     ///
     /// # Returns
-    /// RGB tensor [1, 3, H, W] with values in range [0, 1]
+    /// RGB tensor [1, 3, H, W] with values in range [-1, 1]
     pub fn decode(&self, latents: &Tensor) -> Result<Tensor> {
-        // VAE decode
-        let image = self.vae.decode(latents)?;
-
-        // Scale from [-1, 1] to [0, 1]
-        let image = ((image + 1.0)? * 0.5)?;
-
-        // Clamp to valid range
-        let image = image.clamp(0.0, 1.0)?;
-
+        // FLUX autoencoder handles the scaling/shifting internally
+        let image = self.model.decode(latents)?;
         Ok(image)
     }
 
-    /// Convert tensor to RGB image buffer
+    /// Convert decoded tensor to RGB image buffer
     ///
     /// # Arguments
-    /// * `tensor` - Image tensor [1, 3, H, W]
+    /// * `tensor` - Image tensor [1, 3, H, W] with values in [-1, 1]
     ///
     /// # Returns
     /// Vec<u8> with RGB pixel data (H * W * 3 bytes)
     pub fn tensor_to_rgb(&self, tensor: &Tensor) -> Result<Vec<u8>> {
-        // Remove batch dimension and permute to HWC
-        let image = tensor.squeeze(0)?.permute((1, 2, 0))?;
+        // Clamp to [-1, 1], scale to [0, 255]
+        let image = tensor.clamp(-1f32, 1f32)?;
+        let image = ((image + 1.0)? * 127.5)?;
+        let image = image.to_dtype(DType::U8)?;
 
-        // Convert to u8 (0-255 range)
-        let image = (image * 255.0)?.to_dtype(candle_core::DType::U8)?;
+        // Remove batch dimension and permute to HWC
+        let image = image.squeeze(0)?.permute((1, 2, 0))?;
 
         // Flatten to Vec<u8>
         Ok(image.flatten_all()?.to_vec1()?)
+    }
+
+    /// Get the device this decoder is on
+    pub fn device(&self) -> &Device {
+        &self.device
     }
 }
 
@@ -101,9 +84,6 @@ mod tests {
         let paths = ModelPaths::new().unwrap();
         let device = Device::cuda_if_available(0).unwrap();
 
-        let _vae = VaeDecoder::load(
-            paths.vae_path().join("diffusion_pytorch_model.safetensors"),
-            device,
-        ).unwrap();
+        let _vae = VaeDecoder::load(paths.vae_path(), device).unwrap();
     }
 }

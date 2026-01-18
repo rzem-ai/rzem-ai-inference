@@ -1,73 +1,186 @@
-//! FLUX transformer diffusion model
+//! FLUX transformer diffusion model with quantized model support
 
 use anyhow::Result;
-use candle_core::{Device, Tensor};
+use candle_core::{DType, Device, Tensor};
+use candle_nn::VarBuilder;
+use candle_transformers::models::flux;
 use std::path::Path;
 
+/// Enum to hold either regular or quantized FLUX model
+enum FluxModel {
+    Regular(flux::model::Flux),
+    Quantized(flux::quantized_model::Flux),
+}
+
 /// FLUX transformer for latent diffusion
-///
-/// Note: This is a simplified stub - full transformer is complex.
-/// For MVP, we'll use a simplified diffusion process.
+/// Supports both full-precision and quantized (GGUF) models
 pub struct FluxTransformer {
+    model: FluxModel,
     device: Device,
-    #[allow(dead_code)]
-    model_path: std::path::PathBuf,
+    is_quantized: bool,
 }
 
 impl FluxTransformer {
-    /// Load FLUX transformer (stub for now)
-    pub fn load<P: AsRef<Path>>(
-        model_path: P,
-        device: Device,
-    ) -> Result<Self> {
+    /// Load FLUX Schnell transformer from safetensors file (full precision)
+    ///
+    /// # Arguments
+    /// * `model_path` - Path to flux1-schnell.safetensors file
+    /// * `device` - Device to load model on
+    pub fn load<P: AsRef<Path>>(model_path: P, device: Device) -> Result<Self> {
+        let model_path = model_path.as_ref();
+
+        // Use bf16 on CUDA for efficiency
+        let dtype = if device.is_cuda() {
+            DType::BF16
+        } else {
+            DType::F32
+        };
+
+        let vb = unsafe {
+            VarBuilder::from_mmaped_safetensors(&[model_path], dtype, &device)?
+        };
+
+        // Load FLUX Schnell model
+        let cfg = flux::model::Config::schnell();
+        let model = flux::model::Flux::new(&cfg, vb)?;
+
         Ok(Self {
+            model: FluxModel::Regular(model),
             device,
-            model_path: model_path.as_ref().to_path_buf(),
+            is_quantized: false,
         })
     }
 
-    /// Denoise latents for N steps (simplified for MVP)
+    /// Load quantized FLUX Schnell transformer from GGUF file
+    /// Uses ~12GB VRAM instead of ~23GB
     ///
     /// # Arguments
-    /// * `noise` - Initial random noise [1, 16, H/8, W/8] (FLUX uses 16-channel latents)
-    /// * `embeddings` - Text embeddings [1, 77, 768]
-    /// * `steps` - Number of denoising steps (4 for Schnell)
-    ///
-    /// # Returns
-    /// Denoised latents [1, 16, H/8, W/8]
-    pub fn denoise(
-        &self,
-        noise: &Tensor,
-        _embeddings: &Tensor,
-        steps: usize,
-    ) -> Result<Tensor> {
-        // Simplified diffusion: gradually reduce noise
-        // This is a placeholder - real FLUX uses complex transformer
-        let mut latents = noise.clone();
+    /// * `model_path` - Path to flux1-schnell.gguf file
+    /// * `device` - Device to load model on
+    pub fn load_quantized<P: AsRef<Path>>(model_path: P, device: Device) -> Result<Self> {
+        use candle_transformers::quantized_var_builder::VarBuilder as QVarBuilder;
 
-        for i in 0..steps {
-            let scale = 1.0 - (i as f64 / steps as f64);
-            latents = (latents * scale)?;
-        }
+        let model_path = model_path.as_ref();
 
-        Ok(latents)
+        let vb = QVarBuilder::from_gguf(model_path, &device)?;
+
+        // Load quantized FLUX Schnell model
+        let cfg = flux::model::Config::schnell();
+        let model = flux::quantized_model::Flux::new(&cfg, vb)?;
+
+        Ok(Self {
+            model: FluxModel::Quantized(model),
+            device,
+            is_quantized: true,
+        })
     }
 
-    /// Create random latent noise
+    /// Check if this is a quantized model
+    pub fn is_quantized(&self) -> bool {
+        self.is_quantized
+    }
+
+    /// Get the device
+    pub fn device(&self) -> &Device {
+        &self.device
+    }
+
+    /// Create initial noise for generation
+    ///
+    /// Uses flux::sampling::get_noise which creates properly shaped noise
     pub fn create_noise(&self, height: usize, width: usize) -> Result<Tensor> {
-        // Latent space is 1/8 resolution, 16 channels (FLUX uses 16-channel latents)
-        let latent_h = height / 8;
-        let latent_w = width / 8;
+        let dtype = if self.is_quantized {
+            // Quantized models work with F32
+            DType::F32
+        } else if self.device.is_cuda() {
+            DType::BF16
+        } else {
+            DType::F32
+        };
+        let noise = flux::sampling::get_noise(1, height, width, &self.device)?;
+        Ok(noise.to_dtype(dtype)?)
+    }
 
-        // Random normal noise [1, 16, H/8, W/8]
-        let noise = Tensor::randn(
-            0f32,
-            1.0f32,
-            (1, 16, latent_h, latent_w),
-            &self.device,
-        )?;
+    /// Denoise latents using the FLUX sampling pipeline
+    ///
+    /// # Arguments
+    /// * `t5_emb` - T5 text embeddings [1, 256, 4096]
+    /// * `clip_emb` - CLIP pooled embeddings [1, 768]
+    /// * `height` - Target image height
+    /// * `width` - Target image width
+    /// * `steps` - Number of denoising steps (4 for Schnell)
+    /// * `guidance` - Guidance scale (typically 4.0)
+    ///
+    /// # Returns
+    /// Denoised latents ready for VAE decode
+    pub fn denoise(
+        &self,
+        t5_emb: &Tensor,
+        clip_emb: &Tensor,
+        height: usize,
+        width: usize,
+        steps: usize,
+        guidance: f64,
+    ) -> Result<Tensor> {
+        // Create initial noise
+        let img = self.create_noise(height, width)?;
 
-        Ok(noise)
+        // For quantized models, convert embeddings to F32
+        let (t5_emb, clip_emb, img) = if self.is_quantized {
+            (
+                t5_emb.to_dtype(DType::F32)?,
+                clip_emb.to_dtype(DType::F32)?,
+                img.to_dtype(DType::F32)?,
+            )
+        } else {
+            (t5_emb.clone(), clip_emb.clone(), img)
+        };
+
+        // Create sampling state from embeddings
+        let state = flux::sampling::State::new(&t5_emb, &clip_emb, &img)?;
+
+        // Get timestep schedule for Schnell (no time shift)
+        let timesteps = flux::sampling::get_schedule(steps, None);
+
+        // Run denoising
+        let denoised = match &self.model {
+            FluxModel::Regular(model) => {
+                flux::sampling::denoise(
+                    model,
+                    &state.img,
+                    &state.img_ids,
+                    &state.txt,
+                    &state.txt_ids,
+                    &state.vec,
+                    &timesteps,
+                    guidance,
+                )?
+            }
+            FluxModel::Quantized(model) => {
+                // Quantized model returns F32, convert back to bf16 if on CUDA
+                let result = flux::sampling::denoise(
+                    model,
+                    &state.img,
+                    &state.img_ids,
+                    &state.txt,
+                    &state.txt_ids,
+                    &state.vec,
+                    &timesteps,
+                    guidance,
+                )?;
+
+                if self.device.is_cuda() {
+                    result.to_dtype(DType::BF16)?
+                } else {
+                    result
+                }
+            }
+        };
+
+        // Unpack to proper shape for VAE
+        let unpacked = flux::sampling::unpack(&denoised, height, width)?;
+
+        Ok(unpacked)
     }
 }
 
@@ -76,19 +189,44 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_flux_creation() {
+    #[ignore] // Requires downloaded model
+    fn test_flux_loading() {
+        use crate::models::ModelPaths;
+
+        let paths = ModelPaths::new().unwrap();
         let device = Device::cuda_if_available(0).unwrap();
-        let _flux = FluxTransformer::load("/tmp/test", device).unwrap();
+
+        let _flux = FluxTransformer::load(paths.transformer_path(), device).unwrap();
+    }
+
+    #[test]
+    #[ignore] // Requires downloaded quantized model
+    fn test_quantized_flux_loading() {
+        use crate::models::ModelPaths;
+
+        let paths = ModelPaths::new().unwrap();
+        let device = Device::cuda_if_available(0).unwrap();
+
+        if paths.has_quantized_transformer() {
+            let flux = FluxTransformer::load_quantized(
+                paths.quantized_transformer_path(),
+                device,
+            ).unwrap();
+            assert!(flux.is_quantized());
+        }
     }
 
     #[test]
     fn test_noise_generation() {
-        let device = Device::cuda_if_available(0).unwrap();
-        let flux = FluxTransformer::load("/tmp/test", device).unwrap();
-
-        let noise = flux.create_noise(1024, 1024).unwrap();
+        let device = Device::Cpu;
+        // Can't test without loading model, so just test the sampling function
+        let noise = flux::sampling::get_noise(1, 1024, 1024, &device).unwrap();
         let shape = noise.dims();
 
-        assert_eq!(shape, &[1, 16, 128, 128]); // FLUX uses 16 channels, 1024/8 = 128
+        // FLUX noise shape: [1, 16, height/8*2, width/8*2] due to div_ceil(16)*2
+        assert_eq!(shape[0], 1);
+        assert_eq!(shape[1], 16);
+        assert_eq!(shape[2], 128); // 1024/16*2 = 128
+        assert_eq!(shape[3], 128);
     }
 }

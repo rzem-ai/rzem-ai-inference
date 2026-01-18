@@ -1,10 +1,49 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useGenerationStore } from '@/stores/generation'
+import type { Sampler, Scheduler } from '@/types'
 import InputNumber from 'primevue/inputnumber'
 import Slider from 'primevue/slider'
+import Select from 'primevue/select'
 
 const store = useGenerationStore()
+
+// Sampler and Scheduler options
+const samplerOptions = [
+  { label: 'Euler', value: 'euler' },
+  { label: 'Euler Ancestral', value: 'euler_a' },
+  { label: 'Heun', value: 'heun' },
+  { label: 'DPM2', value: 'dpm_2' },
+  { label: 'DPM2 Ancestral', value: 'dpm_2_a' },
+  { label: 'LMS', value: 'lms' },
+  { label: 'DPM++ 2M', value: 'dpmpp_2m' },
+  { label: 'DPM++ 2S Ancestral', value: 'dpmpp_2s_a' },
+  { label: 'DPM++ SDE', value: 'dpmpp_sde' },
+]
+
+const schedulerOptions = [
+  { label: 'Normal', value: 'normal' },
+  { label: 'Karras', value: 'karras' },
+  { label: 'Exponential', value: 'exponential' },
+  { label: 'SGM Uniform', value: 'sgm_uniform' },
+  { label: 'Simple', value: 'simple' },
+  { label: 'DDIM Uniform', value: 'ddim_uniform' },
+  { label: 'Beta', value: 'beta' },
+]
+
+const sampler = computed({
+  get: () => store.currentParams.sampler,
+  set: (value: Sampler) => {
+    store.currentParams.sampler = value
+  }
+})
+
+const scheduler = computed({
+  get: () => store.currentParams.scheduler,
+  set: (value: Scheduler) => {
+    store.currentParams.scheduler = value
+  }
+})
 
 const steps = computed({
   get: () => store.currentParams.steps,
@@ -67,6 +106,29 @@ const randomizeSeed = () => {
     <div class="field">
       <label>CFG Scale: {{ cfgScale.toFixed(1) }}</label>
       <Slider v-model="cfgScale" :min="0" :max="20" :step="0.1" />
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label>Sampler</label>
+        <Select
+          v-model="sampler"
+          :options="samplerOptions"
+          optionLabel="label"
+          optionValue="value"
+          class="w-full"
+        />
+      </div>
+      <div class="field">
+        <label>Scheduler</label>
+        <Select
+          v-model="scheduler"
+          :options="schedulerOptions"
+          optionLabel="label"
+          optionValue="value"
+          class="w-full"
+        />
+      </div>
     </div>
 
     <div class="field">

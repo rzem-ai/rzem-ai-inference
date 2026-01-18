@@ -4,12 +4,35 @@ use rusqlite::{Connection, params};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
+/// Image metadata for internal use (snake_case)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImageMetadata {
     pub id: String,
     pub file_path: String,
     pub prompt: String,
     pub created_at: i64,
+}
+
+/// Image metadata for frontend API (camelCase)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GalleryImage {
+    pub id: String,
+    pub file_path: String,
+    pub thumbnail_path: Option<String>,
+    pub created_at: i64,
+    pub width: i32,
+    pub height: i32,
+    pub file_size: i64,
+    pub is_favorite: bool,
+    pub prompt: String,
+    pub negative_prompt: Option<String>,
+    pub model_name: String,
+    pub steps: Option<i32>,
+    pub cfg_scale: Option<f64>,
+    pub seed: Option<i64>,
+    pub sampler: Option<String>,
+    pub tags: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -271,20 +294,34 @@ impl GalleryDb {
         Ok(())
     }
 
-    pub fn get_gallery_images(&self, limit: usize) -> Result<Vec<ImageMetadata>> {
+    pub fn get_gallery_images(&self, limit: usize) -> Result<Vec<GalleryImage>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, file_path, prompt, created_at
+            "SELECT id, file_path, thumbnail_path, created_at, width, height,
+                    file_size, is_favorite, prompt, negative_prompt, model_name,
+                    steps, cfg_scale, seed, sampler
              FROM images
              ORDER BY created_at DESC
              LIMIT ?1"
         )?;
 
         let images = stmt.query_map(params![limit], |row| {
-            Ok(ImageMetadata {
+            Ok(GalleryImage {
                 id: row.get(0)?,
                 file_path: row.get(1)?,
-                prompt: row.get(2)?,
+                thumbnail_path: row.get(2)?,
                 created_at: row.get(3)?,
+                width: row.get(4)?,
+                height: row.get(5)?,
+                file_size: row.get(6)?,
+                is_favorite: row.get::<_, i32>(7)? != 0,
+                prompt: row.get(8)?,
+                negative_prompt: row.get(9)?,
+                model_name: row.get(10)?,
+                steps: row.get(11)?,
+                cfg_scale: row.get(12)?,
+                seed: row.get(13)?,
+                sampler: row.get(14)?,
+                tags: Vec::new(), // TODO: fetch from image_tags table
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;

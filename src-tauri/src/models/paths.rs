@@ -68,43 +68,138 @@ impl ModelPaths {
             .unwrap_or_else(|_| self.schnell_dir.join("snapshots").join("main").join("text_encoder"))
     }
 
-    /// Get path to VAE decoder
+    /// Get path to VAE decoder (ae.safetensors in native FLUX format)
     pub fn vae_path(&self) -> PathBuf {
         self.snapshot_path()
-            .map(|p| p.join("vae"))
-            .unwrap_or_else(|_| self.schnell_dir.join("snapshots").join("main").join("vae"))
+            .map(|p| p.join("ae.safetensors"))
+            .unwrap_or_else(|_| self.schnell_dir.join("snapshots").join("main").join("ae.safetensors"))
     }
 
-    /// Get path to FLUX transformer
+    /// Get path to FLUX transformer (native format single file)
     pub fn transformer_path(&self) -> PathBuf {
         self.snapshot_path()
-            .map(|p| p.join("transformer"))
-            .unwrap_or_else(|_| self.schnell_dir.join("snapshots").join("main").join("transformer"))
+            .map(|p| p.join("flux1-schnell.safetensors"))
+            .unwrap_or_else(|_| self.schnell_dir.join("snapshots").join("main").join("flux1-schnell.safetensors"))
     }
 
-    /// Get path to tokenizer
+    /// Get path to quantized FLUX transformer (GGUF format - ~12GB vs 23GB)
+    /// From lmz/candle-flux repository
+    pub fn quantized_transformer_path(&self) -> PathBuf {
+        let lmz_dir = self.cache_dir.join("models--lmz--candle-flux");
+
+        // Try to find the snapshot
+        if let Ok(refs_main) = std::fs::read_to_string(lmz_dir.join("refs").join("main")) {
+            let hash = refs_main.trim();
+            return lmz_dir.join("snapshots").join(hash).join("flux1-schnell.gguf");
+        }
+
+        // Fallback: look for any snapshot
+        if let Ok(entries) = std::fs::read_dir(lmz_dir.join("snapshots")) {
+            for entry in entries.flatten() {
+                if entry.path().is_dir() {
+                    return entry.path().join("flux1-schnell.gguf");
+                }
+            }
+        }
+
+        // Default path
+        lmz_dir.join("snapshots").join("main").join("flux1-schnell.gguf")
+    }
+
+    /// Check if quantized transformer is available
+    pub fn has_quantized_transformer(&self) -> bool {
+        self.quantized_transformer_path().exists()
+    }
+
+    /// Get path to CLIP tokenizer
     pub fn tokenizer_path(&self) -> PathBuf {
         self.snapshot_path()
             .map(|p| p.join("tokenizer"))
             .unwrap_or_else(|_| self.schnell_dir.join("snapshots").join("main").join("tokenizer"))
     }
 
+    /// Get path to T5 text encoder (text_encoder_2)
+    pub fn t5_path(&self) -> PathBuf {
+        self.snapshot_path()
+            .map(|p| p.join("text_encoder_2"))
+            .unwrap_or_else(|_| self.schnell_dir.join("snapshots").join("main").join("text_encoder_2"))
+    }
+
+    /// Get path to quantized T5 encoder (GGUF format - ~3.3GB vs 9GB)
+    /// From city96/t5-v1_1-xxl-encoder-gguf repository
+    /// Uses Q5_K_M quantization as recommended
+    pub fn quantized_t5_path(&self) -> PathBuf {
+        let t5_gguf_dir = self.cache_dir.join("models--city96--t5-v1_1-xxl-encoder-gguf");
+
+        // Try to find the snapshot
+        if let Ok(refs_main) = std::fs::read_to_string(t5_gguf_dir.join("refs").join("main")) {
+            let hash = refs_main.trim();
+            return t5_gguf_dir.join("snapshots").join(hash).join("t5-v1_1-xxl-encoder-Q5_K_M.gguf");
+        }
+
+        // Fallback: look for any snapshot
+        if let Ok(entries) = std::fs::read_dir(t5_gguf_dir.join("snapshots")) {
+            for entry in entries.flatten() {
+                if entry.path().is_dir() {
+                    return entry.path().join("t5-v1_1-xxl-encoder-Q5_K_M.gguf");
+                }
+            }
+        }
+
+        // Default path
+        t5_gguf_dir.join("snapshots").join("main").join("t5-v1_1-xxl-encoder-Q5_K_M.gguf")
+    }
+
+    /// Check if quantized T5 encoder is available
+    pub fn has_quantized_t5(&self) -> bool {
+        self.quantized_t5_path().exists()
+    }
+
+    /// Get path to T5 tokenizer (from lmz/mt5-tokenizers - compatible format)
+    pub fn t5_tokenizer_path(&self) -> PathBuf {
+        // Use the compatible tokenizer from lmz/mt5-tokenizers
+        let mt5_dir = self.cache_dir.join("models--lmz--mt5-tokenizers");
+
+        // Try to find the snapshot
+        if let Ok(refs_main) = std::fs::read_to_string(mt5_dir.join("refs").join("main")) {
+            let hash = refs_main.trim();
+            return mt5_dir.join("snapshots").join(hash).join("t5-v1_1-xxl.tokenizer.json");
+        }
+
+        // Fallback: look for any snapshot
+        if let Ok(entries) = std::fs::read_dir(mt5_dir.join("snapshots")) {
+            for entry in entries.flatten() {
+                if entry.path().is_dir() {
+                    return entry.path().join("t5-v1_1-xxl.tokenizer.json");
+                }
+            }
+        }
+
+        // Default path
+        mt5_dir.join("snapshots").join("main").join("t5-v1_1-xxl.tokenizer.json")
+    }
+
     /// Check if all required files exist
+    /// Accepts either full precision or quantized versions
     pub fn all_files_exist(&self) -> bool {
         // Check for key model files, not just directories
         let has_clip = self.clip_path().join("model.safetensors").exists();
-        let has_vae = self.vae_path().join("diffusion_pytorch_model.safetensors").exists();
+        let has_vae = self.vae_path().exists(); // ae.safetensors (single file)
 
-        // Transformer model is split into 3 parts - check for first part and index
-        let transformer_dir = self.transformer_path();
-        let has_transformer = transformer_dir
-            .join("diffusion_pytorch_model-00001-of-00003.safetensors")
-            .exists()
-            && transformer_dir
-                .join("diffusion_pytorch_model.safetensors.index.json")
-                .exists();
+        // Transformer model - either full precision or quantized
+        let has_transformer = self.transformer_path().exists()
+            || self.has_quantized_transformer();
 
-        has_clip && has_vae && has_transformer
+        // T5 model - either split safetensors or quantized GGUF
+        let t5_dir = self.t5_path();
+        let has_t5_full = t5_dir.join("model-00001-of-00002.safetensors").exists()
+            && t5_dir.join("config.json").exists();
+        let has_t5 = has_t5_full || self.has_quantized_t5();
+
+        // T5 tokenizer (single file from lmz/mt5-tokenizers)
+        let has_t5_tokenizer = self.t5_tokenizer_path().exists();
+
+        has_clip && has_vae && has_transformer && has_t5 && has_t5_tokenizer
     }
 }
 

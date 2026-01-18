@@ -17,17 +17,3 @@ import { useAppInit } from '@/composables/useAppInit'
 // Initialize app on mount
 useAppInit()
 </script>
-
-<style scoped>
-.app-container {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  width: 100vw;
-}
-
-.main-content {
-  flex: 1;
-  overflow: hidden;
-}
-</style>

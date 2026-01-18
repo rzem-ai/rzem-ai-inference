@@ -13,6 +13,8 @@ export const usePresetsStore = defineStore('presets', () => {
       mode: 'txt2img',
       steps: 4,
       cfgScale: 1.0,
+      sampler: 'euler',
+      scheduler: 'normal',
       width: 1024,
       height: 1024,
       seed: -1,
@@ -26,6 +28,8 @@ export const usePresetsStore = defineStore('presets', () => {
       mode: 'txt2img',
       steps: 2,
       cfgScale: 1.0,
+      sampler: 'euler',
+      scheduler: 'normal',
       width: 512,
       height: 512,
       seed: -1,
@@ -39,6 +43,8 @@ export const usePresetsStore = defineStore('presets', () => {
       mode: 'txt2img',
       steps: 8,
       cfgScale: 1.5,
+      sampler: 'dpmpp_2m',
+      scheduler: 'karras',
       width: 1024,
       height: 1024,
       seed: -1,
@@ -61,6 +67,8 @@ export const usePresetsStore = defineStore('presets', () => {
       negativePrompt: generationStore.currentParams.negativePrompt,
       steps: generationStore.currentParams.steps,
       cfgScale: generationStore.currentParams.cfgScale,
+      sampler: generationStore.currentParams.sampler,
+      scheduler: generationStore.currentParams.scheduler,
       width: generationStore.currentParams.width,
       height: generationStore.currentParams.height,
       seed: generationStore.currentParams.seed,
@@ -91,6 +99,8 @@ export const usePresetsStore = defineStore('presets', () => {
     generationStore.currentParams.negativePrompt = preset.negativePrompt || ''
     generationStore.currentParams.steps = preset.steps
     generationStore.currentParams.cfgScale = preset.cfgScale
+    generationStore.currentParams.sampler = preset.sampler ?? 'euler'
+    generationStore.currentParams.scheduler = preset.scheduler ?? 'normal'
     generationStore.currentParams.width = preset.width
     generationStore.currentParams.height = preset.height
     generationStore.currentParams.seed = preset.seed ?? -1

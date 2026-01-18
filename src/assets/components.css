@@ -1,0 +1,29 @@
+:root {
+  --p-splitter-background: #FF0000;
+  
+  /* --p-splitter-border-color: '';
+  --p-splitter-color: '';
+  --p-splitter-transition-duration: '';
+  --p-splitter-gutter-background: '';
+  --p-splitter-handle-size: '';
+  --p-splitter-handle-background: '';
+  --p-splitter-handle-border-radius: '';
+  --p-splitter-handle-focus-ring-width: '';
+  --p-splitter-handle-focus-ring-style: '';
+  --p-splitter-handle-focus-ring-color: '';
+  --p-splitter-handle-focus-ring-offset: '';
+  --p-splitter-handle-focus-ring-shadow: ''; */
+}
+/* 
+.p-splitter {
+  @apply border-0! rounded-none! w-full h-full;
+}
+
+.p-splitter-gutter {
+  @apply bg-gray-800/20! dark:bg-gray-800/20!;
+  @apply hover:bg-gray-800/70! hover:dark:bg-gray-800/70!;
+}
+
+.p-splitter-gutter-handle {
+  @apply bg-red-600;
+} */

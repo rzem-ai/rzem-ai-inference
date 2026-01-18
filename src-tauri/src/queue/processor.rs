@@ -236,17 +236,16 @@ async fn execute_generation(
     queue_manager.update_job_progress(job_id, 0.1).await
         .map_err(|e| anyhow::anyhow!(e))?;
 
-    // Try real generation first, fall back to stub if models not available
-    let image_data = match pipeline.generate(&params.prompt, params.steps as usize) {
-        Ok(data) => {
-            println!("Generated image using real FLUX model");
-            data
-        }
-        Err(e) => {
-            eprintln!("Real generation failed: {}, falling back to stub", e);
-            pipeline.generate_stub(&params.prompt, params.steps as usize)?
-        }
-    };
+    // Generate using FLUX model
+    // Use cfg_scale as guidance (FLUX typically uses 4.0 for Schnell)
+    let guidance = if params.cfg_scale > 0.0 { params.cfg_scale } else { 4.0 };
+    let image_data = pipeline.generate(
+        &params.prompt,
+        params.steps as usize,
+        params.width as usize,
+        params.height as usize,
+        guidance,
+    )?;
 
     // Update progress: generation complete
     queue_manager.update_job_progress(job_id, 0.8).await

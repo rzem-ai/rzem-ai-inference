@@ -10,14 +10,19 @@ This keeps both versions installed.
 
 ```bash
 # Download CUDA 12.6
-wget https://developer.download.nvidia.com/compute/cuda/12.6.3/local_installers/cuda_12.6.3_560.35.03_linux.run
+wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-ubuntu2404.pin
+sudo mv cuda-ubuntu2404.pin /etc/apt/preferences.d/cuda-repository-pin-600
+wget https://developer.download.nvidia.com/compute/cuda/12.8.1/local_installers/cuda-repo-ubuntu2404-12-8-local_12.8.1-570.124.06-1_amd64.deb
 
-# Install CUDA 12.6
-sudo sh cuda_12.6.3_560.35.03_linux.run --silent --toolkit --override
+# Install CUDA 12.8
+sudo dpkg -i cuda-repo-ubuntu2404-12-8-local_12.8.1-570.124.06-1_amd64.deb
+sudo cp /var/cuda-repo-ubuntu2404-12-8-local/cuda-*-keyring.gpg /usr/share/keyrings/
+sudo apt-get update
+sudo apt-get -y install cuda-toolkit-12-8
 
 # Switch default CUDA version
-sudo update-alternatives --install /usr/local/cuda cuda /usr/local/cuda-12.6 126
-sudo update-alternatives --set cuda /usr/local/cuda-12.6
+sudo update-alternatives --install /usr/local/cuda cuda /usr/local/cuda-12.8 128
+sudo update-alternatives --set cuda /usr/local/cuda-12.8
 
 # Verify
 nvcc --version  # Should show CUDA 12.6
@@ -60,8 +65,8 @@ nvcc --version  # Should show CUDA 12.6
 
 3. **Enable CUDA in Cargo.toml:**
    ```toml
-   candle-core = { version = "0.9.2-alpha.2", features = ["cuda"] }
-   candle-nn = { version = "0.9.2-alpha.2", features = ["cuda"] }
+   candle-core = { version = "0.8.4", features = ["cuda"] }
+   candle-nn = { version = "0.8.4", features = ["cuda"] }
    candle-transformers = { version = "0.9.2-alpha.2", features = ["cuda"] }
    ```
 

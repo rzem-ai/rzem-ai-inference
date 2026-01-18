@@ -1,10 +1,11 @@
 //! CLIP text encoder for FLUX
 
 use anyhow::Result;
-use candle_core::{Device, Module, Tensor};
+use candle_core::{Device, IndexOp, Module, Tensor};
 use candle_nn::VarBuilder;
 use candle_transformers::models::clip;
-use tokenizers::{Tokenizer, models::bpe::BPE};
+use tokenizers::{Tokenizer, models::bpe::BPE, AddedToken};
+use tokenizers::processors::template::TemplateProcessing;
 use std::path::Path;
 
 /// CLIP text encoder wrapper for FLUX
@@ -40,10 +41,26 @@ impl ClipTextEncoder {
 
             let mut tokenizer = Tokenizer::new(bpe);
 
-            // CLIP uses specific pre/post processing:
-            // - Lowercase and strip accents
-            // - Add [CLS] and [SEP] tokens
-            // - Pad to max length of 77 tokens
+            // Add special tokens
+            tokenizer.add_special_tokens(&[
+                AddedToken::from("<|startoftext|>", true).single_word(false),
+                AddedToken::from("<|endoftext|>", true).single_word(false),
+            ]);
+
+            // CLIP post-processing: add SOT at start, EOT at end
+            // SOT = 49406, EOT = 49407
+            let template = TemplateProcessing::builder()
+                .try_single("<|startoftext|> $A <|endoftext|>")
+                .map_err(|e| anyhow::anyhow!("Failed to set template: {}", e))?
+                .special_tokens(vec![
+                    ("<|startoftext|>", 49406u32),
+                    ("<|endoftext|>", 49407u32),
+                ])
+                .build()
+                .map_err(|e| anyhow::anyhow!("Failed to build template: {}", e))?;
+            tokenizer.with_post_processor(template);
+
+            // Padding and truncation to 77 tokens
             tokenizer.with_padding(Some(tokenizers::PaddingParams {
                 strategy: tokenizers::PaddingStrategy::Fixed(77),
                 pad_id: 49407,  // <|endoftext|>
@@ -85,7 +102,7 @@ impl ClipTextEncoder {
             activation: clip::text_model::Activation::QuickGelu,
             intermediate_size: 3072,
             max_position_embeddings: 77,
-            pad_with: None,
+            pad_with: Some("<|endoftext|>".to_string()),  // EOT token - tells CLIP where to extract pooled output
             num_hidden_layers: 12,
             num_attention_heads: 12,
             projection_dim: 768,
@@ -99,25 +116,38 @@ impl ClipTextEncoder {
         })
     }
 
-    /// Encode text prompt to embeddings
+    /// Encode text prompt to pooled embeddings
     ///
-    /// Returns tensor of shape [1, 77, 768] (batch, seq_len, embed_dim)
+    /// Returns tensor of shape [1, 768] (batch, embed_dim)
+    /// Note: Returns POOLED output for FLUX's `vec` parameter
     pub fn encode(&self, prompt: &str) -> Result<Tensor> {
-        // Tokenize prompt
-        // Note: encode(prompt, true) enables padding/truncation to 77 tokens (CLIP max length)
+        // Tokenize prompt - tokenizer adds SOT/EOT and pads to 77 tokens
         let tokens = self.tokenizer
             .encode(prompt, true)
             .map_err(|e| anyhow::anyhow!("Tokenization error: {}", e))?;
 
-        // Convert to tensor
         let token_ids: Vec<u32> = tokens.get_ids().to_vec();
-        let token_ids = Tensor::new(token_ids.as_slice(), &self.device)?
-            .unsqueeze(0)?; // Add batch dimension
 
-        // Encode with CLIP
-        let embeddings = self.model.forward(&token_ids)?;
+        // Find EOS position (first occurrence of 49407 after the text tokens)
+        let eos_position = token_ids.iter()
+            .position(|&id| id == 49407)
+            .unwrap_or(token_ids.len() - 1);
 
-        Ok(embeddings)
+        if token_ids.len() != 77 {
+            anyhow::bail!("CLIP tokenization produced {} tokens, expected 77", token_ids.len());
+        }
+
+        let input_ids = Tensor::new(token_ids.as_slice(), &self.device)?
+            .unsqueeze(0)?; // Add batch dimension [1, 77]
+
+        // Use forward_with_mask to get full hidden states, then manually extract pooled output
+        // This bypasses the buggy argmax in the default forward() method
+        let hidden_states = self.model.forward_with_mask(&input_ids, usize::MAX)?;
+
+        // Extract hidden state at EOS position for pooled output [1, 768]
+        let pooled = hidden_states.i((0, eos_position))?.unsqueeze(0)?;
+
+        Ok(pooled)
     }
 }
 
@@ -143,7 +173,6 @@ mod tests {
         let shape = embeddings.dims();
 
         assert_eq!(shape[0], 1); // batch
-        assert_eq!(shape[1], 77); // sequence length
-        assert_eq!(shape[2], 768); // embedding dim
+        assert_eq!(shape[1], 768); // pooled embedding dim
     }
 }

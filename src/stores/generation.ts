@@ -7,10 +7,12 @@ export const useGenerationStore = defineStore('generation', () => {
   const jobs = ref<GenerationJob[]>([])
   const currentParams = ref<GenerationParams>({
     mode: 'txt2img',
-    prompt: '',
+    prompt: 'a dog',
     negativePrompt: '',
     steps: 4,  // Flux Schnell default
     cfgScale: 1.0,  // Flux uses CFG=1 typically
+    sampler: 'euler',  // Default sampler
+    scheduler: 'normal',  // Default scheduler
     width: 1024,
     height: 1024,
     seed: -1,
