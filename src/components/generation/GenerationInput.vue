@@ -1,50 +1,48 @@
 <template>
-    <div class="pb-2 pl-2 pr-1 panel-scroll bg-surface-100 dark:bg-surface-100">
-        <div
-            class="card-wrapper"
-            :class="{ 'is-dragging': isDragging }"
-            @dragenter.prevent="handleDragEnter"
-            @dragover.prevent="handleDragOver"
-            @dragleave.prevent="handleDragLeave"
-            @drop.prevent="handleDrop"
-        >
-            <Card :class="{ 'drag-highlight': isDragging }">
-                <template #title>Generate</template>
-                <template #content>
-                    <PromptInput />
-                    <div class="divider"></div>
-                    <ModelSelector />
-                    <PresetSelector />
-                    <div class="divider"></div>
-                    <ParameterControls />
-                </template>
-            </Card>
+    <div
+        class="generation-input-container pb-2 pl-2 pr-1 panel-scroll bg-surface-100 dark:bg-surface-100"
+        :class="{ 'is-dragging': isDragging }"
+        @dragenter.prevent="handleDragEnter"
+        @dragover.prevent="handleDragOver"
+        @dragleave.prevent="handleDragLeave"
+        @drop.prevent="handleDrop"
+    >
+        <Card :class="{ 'drag-highlight': isDragging }">
+            <template #title>Generate</template>
+            <template #content>
+                <PromptInput />
+                <div class="divider"></div>
+                <ModelSelector />
+                <PresetSelector />
+                <div class="divider"></div>
+                <ParameterControls />
+            </template>
+        </Card>
 
-            <!-- Drag Overlay -->
-            <div v-if="isDragging" class="drag-overlay">
-                <div class="drag-content">
-                    <i class="pi pi-image drag-icon"></i>
-                    <div class="drag-text">
-                        <div class="drag-title">Drop Image to Analyze</div>
-                        <div class="drag-subtitle">Generate a prompt to recreate this image</div>
-                    </div>
-                </div>
-            </div>
+        <div class="pt-2 shrink-0">
+            <GenerateButton :queue-count="queueStore.queueLength" @generate="handleGenerate" />
+        </div>
 
-            <!-- Analysis Loading Overlay -->
-            <div v-if="isAnalyzing" class="analysis-overlay">
-                <div class="analysis-content">
-                    <i class="pi pi-spin pi-spinner analysis-spinner"></i>
-                    <div class="analysis-text">
-                        <div class="analysis-title">Analyzing Image</div>
-                        <div class="analysis-subtitle">Claude is generating a prompt...</div>
-                    </div>
+        <!-- Drag Overlay -->
+        <div v-if="isDragging" class="drag-overlay">
+            <div class="drag-content">
+                <i class="pi pi-image drag-icon"></i>
+                <div class="drag-text">
+                    <div class="drag-title">Drop Image to Analyze</div>
+                    <div class="drag-subtitle">Generate a prompt to recreate this image</div>
                 </div>
             </div>
         </div>
 
-        <div class="pt-2 shrink-0">
-            <GenerateButton :queue-count="queueStore.queueLength" @generate="handleGenerate" />
+        <!-- Analysis Loading Overlay -->
+        <div v-if="isAnalyzing" class="analysis-overlay">
+            <div class="analysis-content">
+                <i class="pi pi-spin pi-spinner analysis-spinner"></i>
+                <div class="analysis-text">
+                    <div class="analysis-title">Analyzing Image</div>
+                    <div class="analysis-subtitle">Claude is generating a prompt...</div>
+                </div>
+            </div>
         </div>
     </div>
 </template>
@@ -227,11 +225,11 @@ defineExpose({
 <style scoped>
 @reference "tailwindcss";
 
-.card-wrapper {
+.generation-input-container {
     @apply relative;
 }
 
-.card-wrapper.is-dragging :deep(.p-card) {
+.generation-input-container.is-dragging :deep(.p-card) {
     @apply border-2 border-dashed;
     border-color: var(--p-primary-color);
 }
