@@ -13,11 +13,34 @@ pub struct ModelPaths {
 
 impl ModelPaths {
     /// Create new ModelPaths using HuggingFace cache structure
+    /// Checks multiple possible cache locations in order of priority
     pub fn new() -> Result<Self> {
         let home = dirs::home_dir()
             .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?;
 
-        let cache_dir = home.join(".cache").join("huggingface").join("hub");
+        // Check for HF_HUB_CACHE or HF_HOME environment variables first
+        let cache_dir = if let Ok(hf_cache) = std::env::var("HF_HUB_CACHE") {
+            std::path::PathBuf::from(hf_cache)
+        } else if let Ok(hf_home) = std::env::var("HF_HOME") {
+            std::path::PathBuf::from(hf_home).join("hub")
+        } else {
+            // Check possible cache locations
+            let possible_locations = vec![
+                home.join(".cache").join("huggingface").join("hub"),
+                // macOS alternative location
+                #[cfg(target_os = "macos")]
+                home.join("Library").join("Caches").join("huggingface").join("hub"),
+            ];
+
+            // Find the first location that exists and has the model, or default to first
+            let schnell_model = "models--black-forest-labs--FLUX.1-schnell";
+            possible_locations
+                .iter()
+                .find(|p| p.join(schnell_model).exists())
+                .cloned()
+                .unwrap_or_else(|| possible_locations[0].clone())
+        };
+
         let schnell_dir = cache_dir.join("models--black-forest-labs--FLUX.1-schnell");
 
         Ok(Self {
@@ -200,6 +223,30 @@ impl ModelPaths {
         let has_t5_tokenizer = self.t5_tokenizer_path().exists();
 
         has_clip && has_vae && has_transformer && has_t5 && has_t5_tokenizer
+    }
+
+    /// Get detailed status of which model files exist (for debugging)
+    pub fn get_status(&self) -> Vec<(String, bool, String)> {
+        let clip_path = self.clip_path().join("model.safetensors");
+        let vae_path = self.vae_path();
+        let transformer_path = self.transformer_path();
+        let quantized_transformer_path = self.quantized_transformer_path();
+        let t5_path = self.t5_path();
+        let t5_model_path = t5_path.join("model-00001-of-00002.safetensors");
+        let t5_config_path = t5_path.join("config.json");
+        let quantized_t5_path = self.quantized_t5_path();
+        let t5_tokenizer_path = self.t5_tokenizer_path();
+
+        vec![
+            ("CLIP text encoder".to_string(), clip_path.exists(), clip_path.display().to_string()),
+            ("VAE (ae.safetensors)".to_string(), vae_path.exists(), vae_path.display().to_string()),
+            ("Transformer (full)".to_string(), transformer_path.exists(), transformer_path.display().to_string()),
+            ("Transformer (quantized)".to_string(), quantized_transformer_path.exists(), quantized_transformer_path.display().to_string()),
+            ("T5 model".to_string(), t5_model_path.exists(), t5_model_path.display().to_string()),
+            ("T5 config".to_string(), t5_config_path.exists(), t5_config_path.display().to_string()),
+            ("T5 (quantized)".to_string(), quantized_t5_path.exists(), quantized_t5_path.display().to_string()),
+            ("T5 tokenizer".to_string(), t5_tokenizer_path.exists(), t5_tokenizer_path.display().to_string()),
+        ]
     }
 }
 

@@ -21,6 +21,29 @@ export interface GenerationParams {
  */
 export type JobStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
 
+/**
+ * Generation statistics from the backend
+ */
+export interface GenerationStats {
+  model_load_ms?: number
+  t5_load_ms?: number
+  clip_load_ms?: number
+  vae_load_ms?: number
+  flux_load_ms?: number
+  t5_encode_ms: number
+  clip_encode_ms: number
+  denoise_ms: number
+  vae_decode_ms: number
+  png_encode_ms: number
+  total_ms: number
+  t5_embedding_shape: number[]
+  clip_embedding_shape: number[]
+  latent_shape: number[]
+  image_shape: number[]
+  steps: number
+  model_type: string
+}
+
 export interface GenerationJob {
   id: string
   params: GenerationParams
@@ -34,6 +57,7 @@ export interface GenerationJob {
   completed_at?: number
   result_path?: string
   error?: string
+  stats?: GenerationStats
 }
 
 export const useQueueStore = defineStore('queue', () => {
@@ -51,8 +75,9 @@ export const useQueueStore = defineStore('queue', () => {
     progress?: number
     result_path?: string
     error?: string
+    stats?: GenerationStats
   }>('job-update', async (event) => {
-    const { job_id, status, progress, result_path, error: jobError } = event.payload
+    const { job_id, status, progress, result_path, error: jobError, stats } = event.payload
 
     // Find and update job in local state
     let jobIndex = jobs.value.findIndex((j) => j.id === job_id)
@@ -75,6 +100,9 @@ export const useQueueStore = defineStore('queue', () => {
       }
       if (jobError) {
         jobs.value[jobIndex].error = jobError
+      }
+      if (stats) {
+        jobs.value[jobIndex].stats = stats
       }
       // Update started_at when job begins running
       if (status === 'running' && !jobs.value[jobIndex].started_at) {

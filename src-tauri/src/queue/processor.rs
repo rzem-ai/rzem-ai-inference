@@ -1,7 +1,7 @@
 //! Queue processor that executes pending jobs
 
 use super::{QueueManager, JobStatus};
-use crate::inference::{InferenceEngine, FluxPipeline};
+use crate::inference::{InferenceEngine, FluxPipeline, GenerationStats};
 use crate::gallery::{GalleryDb, ImageMetadata};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -189,9 +189,9 @@ async fn process_next_job(
 
     // Handle result and emit completion/failure event
     match result {
-        Ok(image_path) => {
-            // Save to gallery
-            if let Err(e) = save_to_gallery(&image_path, &params, gallery_db).await {
+        Ok((image_path, stats)) => {
+            // Save to gallery with stats
+            if let Err(e) = save_to_gallery(&image_path, &params, &stats, gallery_db).await {
                 eprintln!("Failed to save to gallery: {}", e);
             }
 
@@ -203,6 +203,7 @@ async fn process_next_job(
                 "status": "completed",
                 "progress": 1.0,
                 "result_path": image_path,
+                "stats": stats,
             }));
         }
         Err(e) => {
@@ -227,7 +228,7 @@ async fn execute_generation(
     params: &super::GenerationParams,
     queue_manager: &Arc<QueueManager>,
     inference_engine: &Arc<InferenceEngine>,
-) -> Result<String> {
+) -> Result<(String, GenerationStats)> {
     // Create pipeline
     let device = inference_engine.get_device().clone();
     let mut pipeline = FluxPipeline::new(device)?;
@@ -239,7 +240,7 @@ async fn execute_generation(
     // Generate using FLUX model
     // Use cfg_scale as guidance (FLUX typically uses 4.0 for Schnell)
     let guidance = if params.cfg_scale > 0.0 { params.cfg_scale } else { 4.0 };
-    let image_data = pipeline.generate(
+    let result = pipeline.generate(
         &params.prompt,
         params.steps as usize,
         params.width as usize,
@@ -251,7 +252,7 @@ async fn execute_generation(
     queue_manager.update_job_progress(job_id, 0.8).await
         .map_err(|e| anyhow::anyhow!(e))?;
 
-    // Save to file (existing code continues...)
+    // Save to file
     let home = dirs::home_dir()
         .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?;
     let output_dir = home.join(".flux-generator").join("outputs");
@@ -263,17 +264,18 @@ async fn execute_generation(
     let filename = format!("flux_{}_{}.png", timestamp, params.seed);
     let output_path = output_dir.join(&filename);
 
-    std::fs::write(&output_path, &image_data)?;
+    std::fs::write(&output_path, &result.image_data)?;
 
     queue_manager.update_job_progress(job_id, 1.0).await
         .map_err(|e| anyhow::anyhow!(e))?;
 
-    Ok(output_path.to_string_lossy().to_string())
+    Ok((output_path.to_string_lossy().to_string(), result.stats))
 }
 
 async fn save_to_gallery(
     image_path: &str,
     params: &super::GenerationParams,
+    stats: &GenerationStats,
     gallery_db: &Arc<tokio::sync::Mutex<Option<GalleryDb>>>,
 ) -> Result<()> {
     let db_guard = gallery_db.lock().await;
@@ -289,6 +291,9 @@ async fn save_to_gallery(
     };
 
     db.insert_image(&metadata)?;
+
+    // Store generation stats
+    db.insert_generation_stats(&metadata.id, stats)?;
 
     Ok(())
 }

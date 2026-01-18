@@ -9,8 +9,43 @@ pub struct InferenceEngine {
 
 impl InferenceEngine {
     pub fn new() -> Result<Self> {
-        let device = Device::cuda_if_available(0)?;
+        let device = Self::select_device()?;
         Ok(Self { device })
+    }
+
+    /// Select the best available compute device based on platform
+    fn select_device() -> Result<Device> {
+        // macOS: Try Metal first (Apple Silicon)
+        #[cfg(target_os = "macos")]
+        {
+            match Device::new_metal(0) {
+                Ok(device) => {
+                    println!("[InferenceEngine] Using Metal device for inference");
+                    return Ok(device);
+                }
+                Err(e) => {
+                    println!("[InferenceEngine] Metal not available: {}, falling back to CPU", e);
+                }
+            }
+        }
+
+        // Linux: Try CUDA first
+        #[cfg(target_os = "linux")]
+        {
+            match Device::new_cuda(0) {
+                Ok(device) => {
+                    println!("[InferenceEngine] Using CUDA device for inference");
+                    return Ok(device);
+                }
+                Err(e) => {
+                    println!("[InferenceEngine] CUDA not available: {}, falling back to CPU", e);
+                }
+            }
+        }
+
+        // Fallback to CPU for all platforms
+        println!("[InferenceEngine] Using CPU for inference");
+        Ok(Device::Cpu)
     }
 
     pub fn get_device(&self) -> &Device {

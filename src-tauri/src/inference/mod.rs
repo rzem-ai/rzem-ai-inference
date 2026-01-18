@@ -2,9 +2,11 @@
 
 mod engine;
 mod pipeline;
+mod stats;
 
 pub use engine::InferenceEngine;
 pub use pipeline::FluxPipeline;
+pub use stats::{GenerationStats, GenerationResult, Timer};
 
 #[cfg(test)]
 mod tests {

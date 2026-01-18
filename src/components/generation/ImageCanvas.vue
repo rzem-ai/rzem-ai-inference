@@ -1,62 +1,57 @@
-<script setup lang="ts">
-import { ref } from 'vue'
-import { convertFileSrc } from '@tauri-apps/api/core'
-
-// For now, we'll store the image path in the job
-// In a future task, this will come from gallery
-const imageSrc = ref<string | null>(null)
-
-defineExpose({
-  setImage: (path: string) => {
-    // Convert filesystem path to asset URL
-    imageSrc.value = convertFileSrc(path)
-  }
-})
-</script>
-
 <template>
-  <div class="image-canvas">
-    <div v-if="!imageSrc" class="canvas-empty">
-      <p>Generated images will appear here</p>
-    </div>
+  <div class="image-canvas-wrapper">
+    <div class="image-canvas">
+      <div v-if="!imageSrc" class="canvas-empty">
+        <p>Generated images will appear here</p>
+      </div>
 
-    <div v-else class="canvas-content">
-      <img :src="imageSrc" alt="Generated image" class="generated-image" />
+      <div v-else class="canvas-content">
+        <img :src="imageSrc" alt="Generated image" class="generated-image" />
+      </div>
     </div>
   </div>
 </template>
 
+<script setup lang="ts">
+import { ref } from 'vue';
+import { convertFileSrc } from '@tauri-apps/api/core';
+
+// For now, we'll store the image path in the job
+// In a future task, this will come from gallery
+const imageSrc = ref<string | null>(null);
+
+defineExpose({
+  setImage: (path: string) => {
+    // Convert filesystem path to asset URL
+    imageSrc.value = convertFileSrc(path);
+  },
+});
+</script>
+
 <style scoped>
+@reference "tailwindcss";
+
+.image-canvas-wrapper {
+  @apply w-full h-full flex rounded-lg items-center justify-center pb-2 pr-2 pl-1;
+}
+
 .image-canvas {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #f9fafb;
-  border-radius: 0.5rem;
-  overflow: hidden;
+  @apply w-full h-full flex items-center justify-center border border-dashed rounded-xl overflow-hidden;
+  border-color: var(--color-slate-700);
+  background-color: var(--color-slate-900);
 }
 
 .canvas-empty {
-  color: #9ca3af;
-  font-size: 0.875rem;
+  @apply text-sm;
+  color: var(--color-slate-500);
 }
 
 .canvas-content {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1rem;
+  @apply w-full h-full flex items-center justify-center p-4;
 }
 
 .generated-image {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
-  border-radius: 0.375rem;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  @apply max-w-full max-h-full object-contain rounded-lg;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
 </style>

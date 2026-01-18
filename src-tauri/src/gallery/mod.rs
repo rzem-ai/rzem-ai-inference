@@ -3,6 +3,7 @@
 use rusqlite::{Connection, params};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use crate::inference::GenerationStats;
 
 /// Image metadata for internal use (snake_case)
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -170,6 +171,33 @@ impl GalleryDb {
                 lora_ids TEXT,
                 created_at INTEGER NOT NULL,
                 updated_at INTEGER NOT NULL
+            )",
+            [],
+        )?;
+
+        // Create generation_stats table for detailed timing statistics
+        self.conn.execute(
+            "CREATE TABLE IF NOT EXISTS generation_stats (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                image_id TEXT NOT NULL UNIQUE,
+                model_load_ms INTEGER,
+                t5_load_ms INTEGER,
+                clip_load_ms INTEGER,
+                vae_load_ms INTEGER,
+                flux_load_ms INTEGER,
+                t5_encode_ms INTEGER NOT NULL,
+                clip_encode_ms INTEGER NOT NULL,
+                denoise_ms INTEGER NOT NULL,
+                vae_decode_ms INTEGER NOT NULL,
+                png_encode_ms INTEGER NOT NULL,
+                total_ms INTEGER NOT NULL,
+                steps INTEGER NOT NULL,
+                model_type TEXT NOT NULL,
+                t5_embedding_shape TEXT,
+                clip_embedding_shape TEXT,
+                latent_shape TEXT,
+                image_shape TEXT,
+                FOREIGN KEY (image_id) REFERENCES images(id) ON DELETE CASCADE
             )",
             [],
         )?;
@@ -421,13 +449,99 @@ impl GalleryDb {
             params![image_id],
         )?;
 
-        // Then delete from main table (cascades to image_tags)
+        // Then delete from main table (cascades to image_tags and generation_stats)
         self.conn.execute(
             "DELETE FROM images WHERE id = ?1",
             params![image_id],
         )?;
 
         Ok(())
+    }
+
+    /// Insert generation statistics for an image
+    pub fn insert_generation_stats(&self, image_id: &str, stats: &GenerationStats) -> Result<()> {
+        self.conn.execute(
+            "INSERT INTO generation_stats (
+                image_id, model_load_ms, t5_load_ms, clip_load_ms, vae_load_ms, flux_load_ms,
+                t5_encode_ms, clip_encode_ms, denoise_ms, vae_decode_ms, png_encode_ms,
+                total_ms, steps, model_type,
+                t5_embedding_shape, clip_embedding_shape, latent_shape, image_shape
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)",
+            params![
+                image_id,
+                stats.model_load_ms,
+                stats.t5_load_ms,
+                stats.clip_load_ms,
+                stats.vae_load_ms,
+                stats.flux_load_ms,
+                stats.t5_encode_ms,
+                stats.clip_encode_ms,
+                stats.denoise_ms,
+                stats.vae_decode_ms,
+                stats.png_encode_ms,
+                stats.total_ms,
+                stats.steps,
+                stats.model_type,
+                serde_json::to_string(&stats.t5_embedding_shape).ok(),
+                serde_json::to_string(&stats.clip_embedding_shape).ok(),
+                serde_json::to_string(&stats.latent_shape).ok(),
+                serde_json::to_string(&stats.image_shape).ok(),
+            ],
+        )?;
+
+        // Also update the generation_time_ms in the images table for quick access
+        self.conn.execute(
+            "UPDATE images SET generation_time_ms = ?1 WHERE id = ?2",
+            params![stats.total_ms, image_id],
+        )?;
+
+        Ok(())
+    }
+
+    /// Get generation statistics for an image
+    pub fn get_generation_stats(&self, image_id: &str) -> Result<Option<GenerationStats>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT model_load_ms, t5_load_ms, clip_load_ms, vae_load_ms, flux_load_ms,
+                    t5_encode_ms, clip_encode_ms, denoise_ms, vae_decode_ms, png_encode_ms,
+                    total_ms, steps, model_type,
+                    t5_embedding_shape, clip_embedding_shape, latent_shape, image_shape
+             FROM generation_stats
+             WHERE image_id = ?1"
+        )?;
+
+        let mut rows = stmt.query(params![image_id])?;
+
+        if let Some(row) = rows.next()? {
+            Ok(Some(GenerationStats {
+                model_load_ms: row.get(0)?,
+                t5_load_ms: row.get(1)?,
+                clip_load_ms: row.get(2)?,
+                vae_load_ms: row.get(3)?,
+                flux_load_ms: row.get(4)?,
+                t5_encode_ms: row.get(5)?,
+                clip_encode_ms: row.get(6)?,
+                denoise_ms: row.get(7)?,
+                vae_decode_ms: row.get(8)?,
+                png_encode_ms: row.get(9)?,
+                total_ms: row.get(10)?,
+                steps: row.get(11)?,
+                model_type: row.get(12)?,
+                t5_embedding_shape: row.get::<_, Option<String>>(13)?
+                    .and_then(|s| serde_json::from_str(&s).ok())
+                    .unwrap_or_default(),
+                clip_embedding_shape: row.get::<_, Option<String>>(14)?
+                    .and_then(|s| serde_json::from_str(&s).ok())
+                    .unwrap_or_default(),
+                latent_shape: row.get::<_, Option<String>>(15)?
+                    .and_then(|s| serde_json::from_str(&s).ok())
+                    .unwrap_or_default(),
+                image_shape: row.get::<_, Option<String>>(16)?
+                    .and_then(|s| serde_json::from_str(&s).ok())
+                    .unwrap_or_default(),
+            }))
+        } else {
+            Ok(None)
+        }
     }
 }
 

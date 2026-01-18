@@ -1,51 +1,12 @@
-<script setup lang="ts">
-import { convertFileSrc } from '@tauri-apps/api/core'
-import type { GalleryImage } from '@/stores/gallery'
-import Image from 'primevue/image'
-import Checkbox from 'primevue/checkbox'
-import Button from 'primevue/button'
-
-interface Props {
-  images: GalleryImage[]
-  selectedIds: Set<string>
-}
-
-defineProps<Props>()
-
-const emit = defineEmits<{
-  select: [imageId: string]
-  openDetail: [image: GalleryImage]
-  toggleFavorite: [imageId: string]
-  addToCompare: [image: GalleryImage]
-}>()
-
-const getImageSrc = (filePath: string) => {
-  return convertFileSrc(filePath)
-}
-</script>
-
 <template>
   <div class="image-grid">
-    <div
-      v-for="image in images"
-      :key="image.id"
-      class="image-card"
-      :class="{ selected: selectedIds.has(image.id) }"
-    >
+    <div v-for="image in images" :key="image.id" class="image-card" :class="{ selected: selectedIds.has(image.id) }">
       <div class="image-checkbox">
-        <Checkbox
-          :model-value="selectedIds.has(image.id)"
-          @change="emit('select', image.id)"
-          binary
-        />
+        <Checkbox :model-value="selectedIds.has(image.id)" @change="emit('select', image.id)" binary />
       </div>
 
       <div class="image-container" @click="emit('openDetail', image)">
-        <Image
-          :src="getImageSrc(image.filePath)"
-          :alt="image.prompt"
-          preview
-        />
+        <Image :src="getImageSrc(image.filePath)" :alt="image.prompt" preview />
       </div>
 
       <div class="image-actions">
@@ -55,16 +16,8 @@ const getImageSrc = (filePath: string) => {
           text
           rounded
           @click.stop="emit('toggleFavorite', image.id)"
-          :title="image.isFavorite ? 'Remove from favorites' : 'Add to favorites'"
-        />
-        <Button
-          icon="pi pi-clone"
-          severity="secondary"
-          text
-          rounded
-          @click.stop="emit('addToCompare', image)"
-          title="Add to compare"
-        />
+          :title="image.isFavorite ? 'Remove from favorites' : 'Add to favorites'" />
+        <Button icon="pi pi-clone" severity="secondary" text rounded @click.stop="emit('addToCompare', image)" title="Add to compare" />
         <span class="image-date">
           {{ new Date(image.createdAt).toLocaleDateString() }}
         </span>
@@ -81,92 +34,85 @@ const getImageSrc = (filePath: string) => {
   </div>
 </template>
 
+<script setup lang="ts">
+import { convertFileSrc } from '@tauri-apps/api/core';
+import type { GalleryImage } from '@/stores/gallery';
+import Image from 'primevue/image';
+import Checkbox from 'primevue/checkbox';
+import Button from 'primevue/button';
+
+interface Props {
+  images: GalleryImage[];
+  selectedIds: Set<string>;
+}
+
+defineProps<Props>();
+
+const emit = defineEmits<{
+  select: [imageId: string];
+  openDetail: [image: GalleryImage];
+  toggleFavorite: [imageId: string];
+  addToCompare: [image: GalleryImage];
+}>();
+
+const getImageSrc = (filePath: string) => {
+  return convertFileSrc(filePath);
+};
+</script>
+
 <style scoped>
+@reference "tailwindcss";
+
 .image-grid {
-  display: grid;
+  @apply grid gap-4 p-4;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 1rem;
-  padding: 1rem;
 }
 
 .image-card {
-  position: relative;
-  border: 2px solid transparent;
-  border-radius: 0.5rem;
-  background: white;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  transition: all 0.2s;
-  overflow: hidden;
-}
+  @apply relative border-2 border-transparent rounded-lg bg-white shadow-sm transition-all duration-200 overflow-hidden;
 
-.image-card:hover {
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
-  transform: translateY(-2px);
-}
+  &:hover {
+    @apply shadow-md -translate-y-0.5;
+  }
 
-.image-card.selected {
-  border-color: #3b82f6;
-  background: #eff6ff;
+  &.selected {
+    @apply border-blue-500 bg-blue-50;
+  }
 }
 
 .image-checkbox {
-  position: absolute;
-  top: 0.5rem;
-  left: 0.5rem;
-  z-index: 10;
-  background: white;
-  border-radius: 0.25rem;
-  padding: 0.25rem;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  @apply absolute top-2 left-2 z-10 bg-white rounded p-1 shadow;
 }
 
 .image-container {
-  cursor: pointer;
-  aspect-ratio: 1;
-  overflow: hidden;
-  background: #f3f4f6;
-}
+  @apply cursor-pointer aspect-square overflow-hidden bg-gray-100;
 
-.image-container :deep(img) {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  :deep(img) {
+    @apply w-full h-full object-cover;
+  }
 }
 
 .image-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.5rem;
-  border-top: 1px solid #e5e7eb;
+  @apply flex items-center justify-between p-2 border-t border-gray-200;
 }
 
 .image-date {
-  font-size: 0.75rem;
-  color: #6b7280;
+  @apply text-xs text-gray-500;
 }
 
 .image-info {
-  padding: 0.75rem;
-  background: #f9fafb;
+  @apply p-3 bg-gray-50;
 }
 
 .image-prompt {
-  margin: 0 0 0.5rem 0;
-  font-size: 0.875rem;
-  line-height: 1.25rem;
-  color: #374151;
+  @apply m-0 mb-2 text-sm leading-5 text-gray-700;
 }
 
 .image-meta {
-  display: flex;
-  gap: 0.75rem;
-  font-size: 0.75rem;
-  color: #6b7280;
-}
+  @apply flex gap-3 text-xs text-gray-500;
 
-.image-meta span {
-  display: flex;
-  align-items: center;
+  span {
+    @apply flex items-center;
+  }
 }
 </style>

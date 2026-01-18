@@ -2,6 +2,7 @@ mod inference;
 mod models;
 mod queue;
 mod gallery;
+mod settings;
 mod utils;
 
 use tauri::{command, Manager, Emitter};
@@ -75,7 +76,7 @@ async fn generate_image(
         .map_err(|e| format!("Failed to create pipeline: {}", e))?;
 
     // Generate image using FLUX
-    let image_data = pipeline.generate(
+    let result = pipeline.generate(
         &prompt,
         steps as usize,
         width as usize,
@@ -101,20 +102,25 @@ async fn generate_image(
     let output_path = output_dir.join(&filename);
 
     // Save PNG image data
-    fs::write(&output_path, &image_data)
+    fs::write(&output_path, &result.image_data)
         .map_err(|e| format!("Failed to write image: {}", e))?;
 
     // Insert into gallery database
     let db = app_state.gallery_db.lock().await;
     if let Some(db) = db.as_ref() {
+        let image_id = uuid::Uuid::new_v4().to_string();
         let metadata = ImageMetadata {
-            id: uuid::Uuid::new_v4().to_string(),
+            id: image_id.clone(),
             file_path: output_path.to_string_lossy().to_string(),
             prompt: prompt.clone(),
             created_at: timestamp as i64,
         };
         if let Err(e) = db.insert_image(&metadata) {
             eprintln!("Warning: Failed to insert image into gallery: {}", e);
+        }
+        // Store generation stats
+        if let Err(e) = db.insert_generation_stats(&image_id, &result.stats) {
+            eprintln!("Warning: Failed to insert generation stats: {}", e);
         }
     }
 
@@ -322,6 +328,88 @@ fn check_models_downloaded() -> Result<bool, String> {
     Ok(downloader.is_schnell_downloaded())
 }
 
+#[derive(serde::Serialize)]
+struct ModelFileStatus {
+    name: String,
+    exists: bool,
+    path: String,
+}
+
+#[command]
+fn get_model_status() -> Result<Vec<ModelFileStatus>, String> {
+    use crate::models::ModelPaths;
+
+    let paths = ModelPaths::new()
+        .map_err(|e| e.to_string())?;
+
+    let status = paths.get_status()
+        .into_iter()
+        .map(|(name, exists, path)| ModelFileStatus { name, exists, path })
+        .collect();
+
+    Ok(status)
+}
+
+#[command]
+fn get_hf_token() -> Result<Option<String>, String> {
+    let settings = settings::AppSettings::load()
+        .map_err(|e| e.to_string())?;
+
+    Ok(settings.hf_token)
+}
+
+#[command]
+fn set_hf_token(token: Option<String>) -> Result<String, String> {
+    let mut settings = settings::AppSettings::load()
+        .map_err(|e| e.to_string())?;
+
+    settings.set_hf_token(token);
+    settings.save()
+        .map_err(|e| e.to_string())?;
+
+    Ok("HuggingFace token saved".to_string())
+}
+
+#[command]
+fn get_claude_api_key() -> Result<Option<String>, String> {
+    let settings = settings::AppSettings::load()
+        .map_err(|e| e.to_string())?;
+
+    Ok(settings.claude_api_key)
+}
+
+#[command]
+fn set_claude_api_key(key: Option<String>) -> Result<String, String> {
+    let mut settings = settings::AppSettings::load()
+        .map_err(|e| e.to_string())?;
+
+    settings.set_claude_api_key(key);
+    settings.save()
+        .map_err(|e| e.to_string())?;
+
+    Ok("Claude API key saved".to_string())
+}
+
+#[command]
+fn get_fal_key() -> Result<Option<String>, String> {
+    let settings = settings::AppSettings::load()
+        .map_err(|e| e.to_string())?;
+
+    Ok(settings.fal_key)
+}
+
+#[command]
+fn set_fal_key(key: Option<String>) -> Result<String, String> {
+    let mut settings = settings::AppSettings::load()
+        .map_err(|e| e.to_string())?;
+
+    settings.set_fal_key(key);
+    settings.save()
+        .map_err(|e| e.to_string())?;
+
+    Ok("Fal.ai key saved".to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let gallery_db = Arc::new(Mutex::new(None));
@@ -375,9 +463,17 @@ pub fn run() {
             get_queue_job,
             cancel_queue_job,
             clear_completed_jobs,
-            // NEW: Model download commands
+            // Model download commands
             download_flux_schnell,
             check_models_downloaded,
+            get_model_status,
+            // Settings commands
+            get_hf_token,
+            set_hf_token,
+            get_claude_api_key,
+            set_claude_api_key,
+            get_fal_key,
+            set_fal_key,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

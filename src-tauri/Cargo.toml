@@ -26,14 +26,30 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 dirs = "5.0"
 chrono = "0.4"
 
-# Candle 0.8.4 with CUDA 12.8 (patched for glibc 2.42 compatibility)
-# See fix_cuda_glibc.sh for header patches applied to /usr/local/cuda
-candle-core = { version = "0.8.4", features = ["cuda"] }
-candle-nn = { version = "0.8.4", features = ["cuda"] }
-candle-transformers = { version = "0.8.4", features = ["cuda"] }     
+# Candle ML framework - GPU features are platform-specific (see below)
+candle-core = "0.8.4"
+candle-nn = "0.8.4"
+candle-transformers = "0.8.4"     
 hf-hub = { version = "0.3", features = ["tokio"] }
 tokenizers = "0.15"
 safetensors = "0.4"
 image = "0.25"
 reqwest = { version = "0.12", features = ["json"] }
 dotenvy = "0.15"
+
+# =============================================================================
+# Platform-specific GPU acceleration
+# =============================================================================
+
+# Linux: CUDA 12.8 support (patched for glibc 2.42 compatibility)
+# See fix_cuda_glibc.sh for header patches applied to /usr/local/cuda
+[target.'cfg(target_os = "linux")'.dependencies]
+candle-core = { version = "0.8.4", features = ["cuda"] }
+candle-nn = { version = "0.8.4", features = ["cuda"] }
+candle-transformers = { version = "0.8.4", features = ["cuda"] }
+
+# macOS: Metal support for Apple Silicon
+[target.'cfg(target_os = "macos")'.dependencies]
+candle-core = { version = "0.8.4", features = ["metal"] }
+candle-nn = { version = "0.8.4", features = ["metal"] }
+candle-transformers = { version = "0.8.4", features = ["metal"] }

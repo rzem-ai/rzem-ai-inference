@@ -92,29 +92,45 @@ impl ModelDownloader {
             .filter(|path| {
                 // Include files from specific directories
                 let include_dirs = [
-                    "text_encoder/",
-                    "vae/",
-                    "transformer/",
+                    "text_encoder/",      // CLIP text encoder
+                    "text_encoder_2/",    // T5 text encoder
                     "tokenizer/",
+                    "tokenizer_2/",
                     "scheduler/",
                 ];
 
-                // Only include if in one of the target directories
+                // Include root-level model files
+                let root_files = [
+                    "ae.safetensors",           // VAE
+                    "flux1-schnell.safetensors", // Transformer
+                    "model_index.json",
+                ];
+
                 let in_target_dir = include_dirs.iter().any(|dir| path.starts_with(dir));
+                let is_root_file = root_files.iter().any(|f| path == *f);
 
                 // Exclude certain file types we don't need
                 let is_unwanted = path.ends_with(".md")
-                    || path.ends_with(".txt.md")
+                    || path.ends_with(".txt")
                     || path.ends_with(".gitattributes")
                     || path.contains("/.git/");
 
-                in_target_dir && !is_unwanted
+                (in_target_dir || is_root_file) && !is_unwanted
             })
             .collect()
     }
 
-    /// Load HuggingFace token from .env file
+    /// Load HuggingFace token from settings, .env file, or environment variable
     fn load_hf_token() -> Result<String> {
+        // First, try to load from app settings
+        if let Ok(settings) = crate::settings::AppSettings::load() {
+            if let Some(token) = settings.get_hf_token() {
+                if !token.is_empty() {
+                    return Ok(token.to_string());
+                }
+            }
+        }
+
         // Try to load from .env file in project root
         if let Ok(cwd) = std::env::current_dir() {
             let env_path = cwd.join(".env");
@@ -136,7 +152,7 @@ impl ModelDownloader {
         // Try HF_API_KEY first (from .env), then HF_TOKEN (standard env var)
         std::env::var("HF_API_KEY")
             .or_else(|_| std::env::var("HF_TOKEN"))
-            .context("HuggingFace token not found. Please set HF_API_KEY in .env file or HF_TOKEN environment variable")
+            .context("HuggingFace token not found. Please set it in Settings or as HF_TOKEN environment variable")
     }
 
     /// Download FLUX Schnell model from HuggingFace Hub
@@ -151,33 +167,36 @@ impl ModelDownloader {
 
         // Load HuggingFace token for gated model access
         let hf_token = Self::load_hf_token()?;
-        println!("Loaded HuggingFace token from .env");
+        println!("Loaded HuggingFace token");
 
         // Set HF_TOKEN env var so hf-hub uses it
         std::env::set_var("HF_TOKEN", &hf_token);
 
-        let repo_id = "black-forest-labs/FLUX.1-schnell";
+        let api = Api::new()?;
 
+        // Download main FLUX Schnell model
+        let repo_id = "black-forest-labs/FLUX.1-schnell";
         println!("Downloading FLUX Schnell from HuggingFace Hub...");
         println!("Fetching file list from repository...");
 
-        // Fetch and filter file list dynamically from HuggingFace API
         let all_files = Self::fetch_repo_files(repo_id, &hf_token).await?;
         let files = Self::filter_required_files(all_files);
 
-        println!("Found {} files to download", files.len());
+        println!("Found {} files to download from FLUX.1-schnell", files.len());
         println!("This will download ~24GB of model files");
-        println!("NOTE: If download is interrupted, delete ~/.cache/huggingface/hub/models--black-forest-labs--FLUX.1-schnell and restart");
 
-        let api = Api::new()?;
         let repo = api.model(repo_id.to_string());
-
-        // Download each file
         for (idx, file) in files.iter().enumerate() {
             println!("Downloading [{}/{}] {}", idx + 1, files.len(), file);
             repo.get(file).await
                 .with_context(|| format!("Failed to download {}", file))?;
         }
+
+        // Download T5 tokenizer from lmz/mt5-tokenizers (required for text encoding)
+        println!("Downloading T5 tokenizer...");
+        let t5_tokenizer_repo = api.model("lmz/mt5-tokenizers".to_string());
+        t5_tokenizer_repo.get("t5-v1_1-xxl.tokenizer.json").await
+            .context("Failed to download T5 tokenizer")?;
 
         println!("FLUX Schnell download complete!");
         Ok(())

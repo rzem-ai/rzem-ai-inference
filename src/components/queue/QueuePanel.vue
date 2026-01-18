@@ -1,36 +1,159 @@
-<script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue'
-import Card from 'primevue/card'
-import Button from 'primevue/button'
-import ProgressBar from 'primevue/progressbar'
-import { useQueueStore } from '@/stores/queue'
-import type { GenerationJob } from '@/stores/queue'
+<template>
+  <div class="px-1 pb-2 panel-scroll">
+    <Card>
+      <template #title>
+        <div class="queue-header">
+          <span>Generation Queue</span>
+          <div class="queue-stats">
+            <span class="stat">
+              <i class="pi pi-clock"></i>
+              {{ queueStore.queueLength }}
+            </span>
+            <span class="stat">
+              <i class="pi pi-spin pi-spinner" v-if="queueStore.hasRunningJobs"></i>
+              <i class="pi pi-check" v-else></i>
+              {{ queueStore.runningJobs.length }}
+            </span>
+          </div>
+        </div>
+      </template>
 
-const queueStore = useQueueStore()
+      <template #content>
+        <div class="queue-actions">
+          <Button
+            label="Clear Completed"
+            icon="pi pi-trash"
+            size="small"
+            outlined
+            :disabled="queueStore.completedJobs.length === 0"
+            @click="handleClearCompleted" />
+        </div>
+
+        <div class="queue-list-scroll">
+          <div v-for="job in queueStore.jobs" :key="job.id" class="queue-item" :class="`status-${job.status}`">
+            <div class="job-header">
+              <i :class="`pi ${getStatusIcon(job.status)}`"></i>
+              <span class="job-status">{{ job.status }}</span>
+              <span class="job-time">{{ formatDuration(job.started_at, job.completed_at) }}</span>
+            </div>
+
+            <div class="job-prompt">
+              {{ job.params.prompt.substring(0, 80) }}
+              {{ job.params.prompt.length > 80 ? '...' : '' }}
+            </div>
+
+            <div class="job-params">
+              <span>{{ job.params.width }}×{{ job.params.height }}</span>
+              <span>{{ job.params.steps }} steps</span>
+              <span>CFG {{ job.params.cfg_scale }}</span>
+            </div>
+
+            <ProgressBar v-if="job.status === 'running'" :value="job.progress * 100" :show-value="true" />
+
+            <div v-if="job.error" class="job-error">
+              {{ job.error }}
+            </div>
+
+            <!-- Generation Stats for completed jobs -->
+            <div v-if="job.stats && job.status === 'completed'" class="job-stats">
+              <div class="stats-header" @click="toggleStats(job.id)">
+                <i :class="`pi ${expandedStats[job.id] ? 'pi-chevron-down' : 'pi-chevron-right'}`"></i>
+                <span>Stats: {{ formatMs(job.stats.total_ms) }} total</span>
+              </div>
+              <div v-if="expandedStats[job.id]" class="stats-details">
+                <div class="stats-grid">
+                  <div v-if="job.stats.model_load_ms" class="stat-row">
+                    <span class="stat-label">Model Load</span>
+                    <span class="stat-value">{{ formatMs(job.stats.model_load_ms) }}</span>
+                  </div>
+                  <div class="stat-row">
+                    <span class="stat-label">T5 Encode</span>
+                    <span class="stat-value">{{ formatMs(job.stats.t5_encode_ms) }}</span>
+                  </div>
+                  <div class="stat-row">
+                    <span class="stat-label">CLIP Encode</span>
+                    <span class="stat-value">{{ formatMs(job.stats.clip_encode_ms) }}</span>
+                  </div>
+                  <div class="stat-row highlight">
+                    <span class="stat-label">Denoising ({{ job.stats.steps }} steps)</span>
+                    <span class="stat-value">{{ formatMs(job.stats.denoise_ms) }}</span>
+                  </div>
+                  <div class="stat-row">
+                    <span class="stat-label">VAE Decode</span>
+                    <span class="stat-value">{{ formatMs(job.stats.vae_decode_ms) }}</span>
+                  </div>
+                  <div class="stat-row">
+                    <span class="stat-label">PNG Encode</span>
+                    <span class="stat-value">{{ formatMs(job.stats.png_encode_ms) }}</span>
+                  </div>
+                </div>
+                <div class="stats-meta">
+                  <span>{{ job.stats.model_type }}</span>
+                  <span>{{ job.stats.image_shape[2] }}×{{ job.stats.image_shape[1] }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="job-actions">
+              <Button v-if="job.status === 'pending'" label="Cancel" icon="pi pi-times" size="small" severity="danger" text @click="handleCancel(job)" />
+            </div>
+          </div>
+
+          <div v-if="queueStore.jobs.length === 0" class="empty-queue">
+            <i class="pi pi-inbox"></i>
+            <p>No jobs in queue</p>
+          </div>
+        </div>
+      </template>
+    </Card>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { onMounted, onUnmounted, reactive } from 'vue';
+import Card from 'primevue/card';
+import Button from 'primevue/button';
+import ProgressBar from 'primevue/progressbar';
+import { useQueueStore } from '@/stores/queue';
+import type { GenerationJob } from '@/stores/queue';
+
+const queueStore = useQueueStore();
+
+// Track which job stats are expanded
+const expandedStats = reactive<Record<string, boolean>>({});
+
+function toggleStats(jobId: string) {
+  expandedStats[jobId] = !expandedStats[jobId];
+}
+
+function formatMs(ms: number): string {
+  if (ms < 1000) return `${ms}ms`;
+  return `${(ms / 1000).toFixed(1)}s`;
+}
 
 onMounted(() => {
-  queueStore.refreshJobs()
-  queueStore.startPolling(1000)
-})
+  queueStore.refreshJobs();
+  queueStore.startPolling(1000);
+});
 
 onUnmounted(() => {
-  queueStore.stopPolling()
-})
+  queueStore.stopPolling();
+});
 
 function getStatusIcon(status: string): string {
   switch (status) {
     case 'pending':
-      return 'pi-clock'
+      return 'pi-clock';
     case 'running':
-      return 'pi-spin pi-spinner'
+      return 'pi-spin pi-spinner';
     case 'completed':
-      return 'pi-check'
+      return 'pi-check';
     case 'failed':
-      return 'pi-times'
+      return 'pi-times';
     case 'cancelled':
-      return 'pi-ban'
+      return 'pi-ban';
     default:
-      return 'pi-question'
+      return 'pi-question';
   }
 }
 
@@ -38,233 +161,174 @@ function getStatusIcon(status: string): string {
 function getStatusColor(status: string): string {
   switch (status) {
     case 'pending':
-      return 'info'
+      return 'info';
     case 'running':
-      return 'primary'
+      return 'primary';
     case 'completed':
-      return 'success'
+      return 'success';
     case 'failed':
-      return 'danger'
+      return 'danger';
     case 'cancelled':
-      return 'warning'
+      return 'warning';
     default:
-      return 'secondary'
+      return 'secondary';
   }
 }
 
 function formatDuration(startedAt?: number, completedAt?: number): string {
-  if (!startedAt) return '-'
-  const end = completedAt || Date.now() / 1000
-  const duration = Math.floor(end - startedAt)
-  if (duration < 60) return `${duration}s`
-  return `${Math.floor(duration / 60)}m ${duration % 60}s`
+  if (!startedAt) return '-';
+  const end = completedAt || Date.now() / 1000;
+  const duration = Math.floor(end - startedAt);
+  if (duration < 60) return `${duration}s`;
+  return `${Math.floor(duration / 60)}m ${duration % 60}s`;
 }
 
 async function handleCancel(job: GenerationJob) {
-  await queueStore.cancelJob(job.id)
+  await queueStore.cancelJob(job.id);
 }
 
 async function handleClearCompleted() {
-  await queueStore.clearCompleted()
+  await queueStore.clearCompleted();
 }
 </script>
 
-<template>
-  <Card class="queue-panel">
-    <template #title>
-      <div class="queue-header">
-        <span>Generation Queue</span>
-        <div class="queue-stats">
-          <span class="stat">
-            <i class="pi pi-clock"></i>
-            {{ queueStore.queueLength }}
-          </span>
-          <span class="stat">
-            <i class="pi pi-spin pi-spinner" v-if="queueStore.hasRunningJobs"></i>
-            <i class="pi pi-check" v-else></i>
-            {{ queueStore.runningJobs.length }}
-          </span>
-        </div>
-      </div>
-    </template>
-
-    <template #content>
-      <div class="queue-actions">
-        <Button
-          label="Clear Completed"
-          icon="pi pi-trash"
-          size="small"
-          outlined
-          :disabled="queueStore.completedJobs.length === 0"
-          @click="handleClearCompleted"
-        />
-      </div>
-
-      <div class="queue-list">
-        <div
-          v-for="job in queueStore.jobs"
-          :key="job.id"
-          class="queue-item"
-          :class="`status-${job.status}`"
-        >
-          <div class="job-header">
-            <i :class="`pi ${getStatusIcon(job.status)}`"></i>
-            <span class="job-status">{{ job.status }}</span>
-            <span class="job-time">{{ formatDuration(job.started_at, job.completed_at) }}</span>
-          </div>
-
-          <div class="job-prompt">
-            {{ job.params.prompt.substring(0, 80) }}
-            {{ job.params.prompt.length > 80 ? '...' : '' }}
-          </div>
-
-          <div class="job-params">
-            <span>{{ job.params.width }}×{{ job.params.height }}</span>
-            <span>{{ job.params.steps }} steps</span>
-            <span>CFG {{ job.params.cfg_scale }}</span>
-          </div>
-
-          <ProgressBar
-            v-if="job.status === 'running'"
-            :value="job.progress * 100"
-            :show-value="true"
-          />
-
-          <div v-if="job.error" class="job-error">
-            {{ job.error }}
-          </div>
-
-          <div class="job-actions">
-            <Button
-              v-if="job.status === 'pending'"
-              label="Cancel"
-              icon="pi pi-times"
-              size="small"
-              severity="danger"
-              text
-              @click="handleCancel(job)"
-            />
-          </div>
-        </div>
-
-        <div v-if="queueStore.jobs.length === 0" class="empty-queue">
-          <i class="pi pi-inbox"></i>
-          <p>No jobs in queue</p>
-        </div>
-      </div>
-    </template>
-  </Card>
-</template>
-
 <style scoped>
-.queue-panel {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-}
+@reference "tailwindcss";
 
 .queue-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  @apply flex justify-between items-center;
+  color: var(--color-slate-50);
 }
 
 .queue-stats {
-  display: flex;
-  gap: 1rem;
+  @apply flex gap-4;
 }
 
 .stat {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  font-size: 0.875rem;
-  color: var(--text-color-secondary);
+  @apply flex items-center gap-1 text-sm;
+  color: var(--color-slate-400);
 }
 
 .queue-actions {
-  margin-bottom: 1rem;
+  @apply mb-4;
 }
 
-.queue-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
+.queue-list-scroll {
+  @apply flex flex-col gap-3;
 }
 
 .queue-item {
-  padding: 1rem;
-  border: 1px solid var(--surface-border);
-  border-radius: var(--border-radius);
-  background: var(--surface-card);
-}
+  @apply p-4 border rounded-lg;
+  border-color: var(--color-slate-700);
+  background: var(--color-slate-900);
+  color: var(--color-slate-50);
 
-.queue-item.status-running {
-  border-color: var(--primary-color);
-  background: var(--primary-50);
-}
+  &.status-running {
+    border-color: var(--color-teal-400);
+    background: rgba(45, 212, 191, 0.1);
+  }
 
-.queue-item.status-completed {
-  opacity: 0.6;
+  &.status-completed {
+    @apply opacity-70;
+  }
+
+  &.status-failed {
+    border-color: #ef4444;
+  }
 }
 
 .job-header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
-  font-size: 0.875rem;
+  @apply flex items-center gap-2 mb-2 text-sm;
 }
 
 .job-status {
-  font-weight: 600;
-  text-transform: capitalize;
+  @apply font-semibold capitalize;
 }
 
 .job-time {
-  margin-left: auto;
-  color: var(--text-color-secondary);
+  @apply ml-auto;
+  color: var(--color-slate-400);
 }
 
 .job-prompt {
-  margin-bottom: 0.5rem;
-  font-size: 0.875rem;
+  @apply mb-2 text-sm;
+  color: var(--color-slate-200);
 }
 
 .job-params {
-  display: flex;
-  gap: 0.75rem;
-  font-size: 0.75rem;
-  color: var(--text-color-secondary);
-  margin-bottom: 0.5rem;
+  @apply flex gap-3 text-xs mb-2;
+  color: var(--color-slate-400);
 }
 
 .job-error {
-  color: var(--red-500);
-  font-size: 0.75rem;
-  margin-top: 0.5rem;
-  padding: 0.5rem;
-  background: var(--red-50);
-  border-radius: var(--border-radius);
+  @apply text-xs mt-2 p-2 rounded;
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.job-stats {
+  @apply mt-2 text-xs border rounded-lg;
+  border-color: var(--color-slate-700);
+  background: var(--color-slate-800);
+}
+
+.stats-header {
+  @apply flex items-center gap-2 p-2 cursor-pointer rounded-t-lg;
+  color: var(--color-slate-400);
+
+  &:hover {
+    background: var(--color-slate-700);
+  }
+
+  i {
+    @apply text-xs;
+  }
+}
+
+.stats-details {
+  @apply p-2 pt-0;
+}
+
+.stats-grid {
+  @apply flex flex-col gap-1;
+}
+
+.stat-row {
+  @apply flex justify-between;
+  color: var(--color-slate-300);
+
+  &.highlight {
+    @apply font-semibold;
+    color: var(--color-teal-400);
+  }
+}
+
+.stat-label {
+  color: var(--color-slate-400);
+}
+
+.stat-value {
+  @apply font-mono;
+  color: var(--color-slate-200);
+}
+
+.stats-meta {
+  @apply flex gap-3 mt-2 pt-2 border-t;
+  border-color: var(--color-slate-700);
+  color: var(--color-slate-500);
 }
 
 .job-actions {
-  margin-top: 0.5rem;
-  display: flex;
-  justify-content: flex-end;
+  @apply mt-2 flex justify-end;
 }
 
 .empty-queue {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 3rem;
-  color: var(--text-color-secondary);
-}
+  @apply flex flex-col items-center justify-center p-12;
+  color: var(--color-slate-500);
 
-.empty-queue i {
-  font-size: 3rem;
-  margin-bottom: 1rem;
+  i {
+    @apply text-5xl mb-4;
+    color: var(--color-slate-600);
+  }
 }
 </style>

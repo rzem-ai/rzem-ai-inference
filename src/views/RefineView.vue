@@ -11,33 +11,25 @@
 </template>
 
 <style scoped>
+@reference "tailwindcss";
+
 .workspace {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  background: white;
+  @apply flex flex-col h-full bg-white;
 }
 
 .workspace-header {
-  padding: 1.5rem 2rem;
-  border-bottom: 1px solid #e9ecef;
-}
+  @apply py-6 px-8 border-b border-gray-200;
 
-.workspace-header h1 {
-  margin: 0;
-  font-size: 1.5rem;
-  font-weight: 600;
-}
+  h1 {
+    @apply m-0 text-2xl font-semibold;
+  }
 
-.workspace-header p {
-  margin: 0.25rem 0 0 0;
-  color: #6c757d;
-  font-size: 0.875rem;
+  p {
+    @apply mt-1 mb-0 text-gray-500 text-sm;
+  }
 }
 
 .workspace-content {
-  flex: 1;
-  padding: 2rem;
-  overflow-y: auto;
+  @apply flex-1 p-8 overflow-y-auto;
 }
 </style>

@@ -1,10 +1,3 @@
-<script setup lang="ts">
-import { useModelsStore } from '@/stores/models'
-import Select from 'primevue/select'
-
-const modelsStore = useModelsStore()
-</script>
-
 <template>
   <div class="model-selector">
     <div class="field">
@@ -16,8 +9,7 @@ const modelsStore = useModelsStore()
         option-label="name"
         option-value="id"
         placeholder="Select a model"
-        class="w-full"
-      />
+        class="w-full" />
     </div>
 
     <div v-if="modelsStore.activeModel" class="model-info">
@@ -27,33 +19,25 @@ const modelsStore = useModelsStore()
   </div>
 </template>
 
+<script setup lang="ts">
+import { useModelsStore } from '@/stores/models';
+import Select from 'primevue/select';
+
+const modelsStore = useModelsStore();
+</script>
+
 <style scoped>
+@reference "tailwindcss";
+
 .model-selector {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.field label {
-  font-weight: 600;
-  font-size: 0.875rem;
-  color: #374151;
+  @apply flex flex-col gap-2;
 }
 
 .model-info {
-  display: flex;
-  gap: 0.5rem;
-  font-size: 0.75rem;
-  color: #6b7280;
+  @apply flex gap-2 text-xs text-gray-500;
 }
 
 .info-label {
-  font-weight: 500;
+  @apply font-medium;
 }
 </style>
