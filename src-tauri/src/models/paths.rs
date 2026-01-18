@@ -202,6 +202,103 @@ impl ModelPaths {
         mt5_dir.join("snapshots").join("main").join("t5-v1_1-xxl.tokenizer.json")
     }
 
+    // ===== FLUX Dev Methods =====
+
+    /// Get the FLUX Dev model directory
+    pub fn dev_dir(&self) -> PathBuf {
+        self.cache_dir.join("models--black-forest-labs--FLUX.1-dev")
+    }
+
+    /// Get snapshot hash for Dev model
+    fn get_dev_snapshot_hash(&self) -> Result<String> {
+        let refs_main = self.dev_dir().join("refs").join("main");
+
+        if refs_main.exists() {
+            let hash = std::fs::read_to_string(&refs_main)
+                .context("Failed to read Dev refs/main")?
+                .trim()
+                .to_string();
+            Ok(hash)
+        } else {
+            let snapshots_dir = self.dev_dir().join("snapshots");
+            if let Ok(entries) = std::fs::read_dir(&snapshots_dir) {
+                for entry in entries.flatten() {
+                    if entry.path().is_dir() {
+                        if let Some(name) = entry.file_name().to_str() {
+                            return Ok(name.to_string());
+                        }
+                    }
+                }
+            }
+            anyhow::bail!("Could not find Dev snapshot directory")
+        }
+    }
+
+    /// Get path to FLUX Dev transformer
+    pub fn dev_transformer_path(&self) -> PathBuf {
+        self.get_dev_snapshot_hash()
+            .map(|hash| self.dev_dir().join("snapshots").join(hash).join("flux1-dev.safetensors"))
+            .unwrap_or_else(|_| self.dev_dir().join("snapshots").join("main").join("flux1-dev.safetensors"))
+    }
+
+    /// Get path to quantized FLUX Dev transformer
+    pub fn quantized_dev_transformer_path(&self) -> PathBuf {
+        let lmz_dir = self.cache_dir.join("models--lmz--candle-flux");
+
+        if let Ok(refs_main) = std::fs::read_to_string(lmz_dir.join("refs").join("main")) {
+            let hash = refs_main.trim();
+            return lmz_dir.join("snapshots").join(hash).join("flux1-dev.gguf");
+        }
+
+        if let Ok(entries) = std::fs::read_dir(lmz_dir.join("snapshots")) {
+            for entry in entries.flatten() {
+                if entry.path().is_dir() {
+                    return entry.path().join("flux1-dev.gguf");
+                }
+            }
+        }
+
+        lmz_dir.join("snapshots").join("main").join("flux1-dev.gguf")
+    }
+
+    /// Check if Dev model is downloaded
+    pub fn is_dev_downloaded(&self) -> bool {
+        self.dev_transformer_path().exists() || self.quantized_dev_transformer_path().exists()
+    }
+
+    /// Check if quantized Dev transformer is available
+    pub fn has_quantized_dev(&self) -> bool {
+        self.quantized_dev_transformer_path().exists()
+    }
+
+    // ===== Model Type Helpers =====
+
+    /// Get transformer path for a given model type
+    pub fn transformer_path_for(&self, model_type: super::ModelType) -> PathBuf {
+        match model_type {
+            super::ModelType::Schnell => self.transformer_path(),
+            super::ModelType::Dev => self.dev_transformer_path(),
+        }
+    }
+
+    /// Get quantized transformer path for a given model type
+    pub fn quantized_transformer_path_for(&self, model_type: super::ModelType) -> PathBuf {
+        match model_type {
+            super::ModelType::Schnell => self.quantized_transformer_path(),
+            super::ModelType::Dev => self.quantized_dev_transformer_path(),
+        }
+    }
+
+    /// Check if quantized version exists for model type
+    pub fn has_quantized_for(&self, model_type: super::ModelType) -> bool {
+        match model_type {
+            super::ModelType::Schnell => self.has_quantized_transformer(),
+            super::ModelType::Dev => self.has_quantized_dev(),
+        }
+    }
+
+    // ===== Validation =====
+
     /// Check if all required files exist
     /// Accepts either full precision or quantized versions
     pub fn all_files_exist(&self) -> bool {
@@ -231,6 +328,8 @@ impl ModelPaths {
         let vae_path = self.vae_path();
         let transformer_path = self.transformer_path();
         let quantized_transformer_path = self.quantized_transformer_path();
+        let dev_transformer_path = self.dev_transformer_path();
+        let quantized_dev_path = self.quantized_dev_transformer_path();
         let t5_path = self.t5_path();
         let t5_model_path = t5_path.join("model-00001-of-00002.safetensors");
         let t5_config_path = t5_path.join("config.json");
@@ -240,8 +339,10 @@ impl ModelPaths {
         vec![
             ("CLIP text encoder".to_string(), clip_path.exists(), clip_path.display().to_string()),
             ("VAE (ae.safetensors)".to_string(), vae_path.exists(), vae_path.display().to_string()),
-            ("Transformer (full)".to_string(), transformer_path.exists(), transformer_path.display().to_string()),
-            ("Transformer (quantized)".to_string(), quantized_transformer_path.exists(), quantized_transformer_path.display().to_string()),
+            ("Schnell transformer (full)".to_string(), transformer_path.exists(), transformer_path.display().to_string()),
+            ("Schnell transformer (quantized)".to_string(), quantized_transformer_path.exists(), quantized_transformer_path.display().to_string()),
+            ("Dev transformer (full)".to_string(), dev_transformer_path.exists(), dev_transformer_path.display().to_string()),
+            ("Dev transformer (quantized)".to_string(), quantized_dev_path.exists(), quantized_dev_path.display().to_string()),
             ("T5 model".to_string(), t5_model_path.exists(), t5_model_path.display().to_string()),
             ("T5 config".to_string(), t5_config_path.exists(), t5_config_path.display().to_string()),
             ("T5 (quantized)".to_string(), quantized_t5_path.exists(), quantized_t5_path.display().to_string()),
