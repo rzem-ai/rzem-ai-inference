@@ -2,10 +2,12 @@
 
 mod engine;
 mod pipeline;
+mod progress;
 mod stats;
 
 pub use engine::InferenceEngine;
 pub use pipeline::FluxPipeline;
+pub use progress::{GenerationProgress, PipelineStage, ProgressCallback};
 pub use stats::{GenerationStats, GenerationResult, Timer};
 
 #[cfg(test)]
