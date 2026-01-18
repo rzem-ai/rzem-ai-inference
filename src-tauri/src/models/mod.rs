@@ -3,6 +3,7 @@
 mod clip;
 mod downloader;
 mod flux;
+mod model_type;
 mod paths;
 mod t5;
 mod vae;
@@ -10,6 +11,7 @@ mod vae;
 pub use clip::ClipTextEncoder;
 pub use downloader::ModelDownloader;
 pub use flux::FluxTransformer;
+pub use model_type::ModelType;
 pub use paths::ModelPaths;
 pub use t5::T5TextEncoder;
 pub use vae::VaeDecoder;
