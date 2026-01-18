@@ -64,7 +64,11 @@
             "fs:default",
             {
               "identifier": "fs:scope",
-              "allow": [{ "path": "$HOME/.rzem-ai-inference/**" }]
+              "allow": [
+                { "path": "$HOME/.rzem-ai-inference/**" },
+                { "path": "$HOME/**" },
+                { "path": "/tmp/**" }
+              ]
             }
           ]
         }

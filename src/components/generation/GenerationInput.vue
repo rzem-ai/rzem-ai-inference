@@ -1,7 +1,7 @@
 <template>
     <div
-        class="generation-input-container pb-2 pl-2 pr-1 panel-scroll bg-surface-100 dark:bg-surface-100"
-        :class="{ 'is-dragging': isDragging }"
+        class="pb-2 pl-2 pr-1 generation-input-container panel-scroll bg-surface-100 dark:bg-surface-100"
+        :class="{ 'is-dragging drag-highlight': isDragging }"
         @dragenter.prevent="handleDragEnter"
         @dragover.prevent="handleDragOver"
         @dragleave.prevent="handleDragLeave"
@@ -62,6 +62,7 @@ import { useGenerationStore } from '@/stores/generation';
 import { useModelsStore } from '@/stores/models';
 import type { GenerationParams } from '@/stores/queue';
 import { analyzeImageForPrompt, fileToDataUrl, isValidImageFile } from '@/services/imageAnalysis';
+import { readFile } from '@tauri-apps/plugin-fs';
 
 const canvasRef = ref<InstanceType<typeof ImageCanvas> | null>(null);
 const queueStore = useQueueStore();
@@ -74,18 +75,24 @@ const isDragging = ref(false);
 const isAnalyzing = ref(false);
 const dragCounter = ref(0);
 
+// Check if drag contains image content (file or URL)
+const hasImageContent = (dataTransfer: DataTransfer | null): boolean => {
+    if (!dataTransfer) return false;
+    const types = dataTransfer.types;
+    // Files from file system, or URLs from browser (text/uri-list, text/html)
+    return types.includes('Files') || types.includes('text/uri-list') || types.includes('text/html');
+};
+
 // Drag and drop handlers
 const handleDragEnter = (e: DragEvent) => {
     dragCounter.value++;
-    // Check if dragging files
-    if (e.dataTransfer?.types.includes('Files')) {
+    if (hasImageContent(e.dataTransfer)) {
         isDragging.value = true;
     }
 };
 
 const handleDragOver = (_e: DragEvent) => {
     // Required to allow drop - just prevent default
-    // The visual state is handled by dragenter/dragleave
 };
 
 const handleDragLeave = () => {
@@ -99,20 +106,193 @@ const handleDrop = async (e: DragEvent) => {
     dragCounter.value = 0;
     isDragging.value = false;
 
-    const file = e.dataTransfer?.files?.[0];
-    if (!file) return;
+    const dataTransfer = e.dataTransfer;
+    if (!dataTransfer) return;
 
-    if (!isValidImageFile(file)) {
-        toast.add({
-            severity: 'warn',
-            summary: 'Invalid File',
-            detail: 'Please drop an image file (PNG, JPEG, WebP, or GIF)',
-            life: 3000,
-        });
+    // Try to get file first (from file system drop - Windows/macOS)
+    const file = dataTransfer.files?.[0];
+    if (file && isValidImageFile(file)) {
+        await analyzeDroppedImage(file);
         return;
     }
 
-    await analyzeDroppedImage(file);
+    // Try to get URI (Linux file managers use file:// URIs)
+    const uriList = dataTransfer.getData('text/uri-list');
+    console.log('handleDrop:uriList:', uriList)
+    if (uriList) {
+        // Parse URI list (can contain multiple lines, take first non-comment)
+        const uri = uriList.split('\n').find(line => line.trim() && !line.startsWith('#'))?.trim();
+        console.log('handleDrop:', uri)
+
+        if (uri?.startsWith('file://')) {
+            // Local file from Linux file manager
+            await analyzeLocalFile(uri);
+            return;
+        } else if (uri && isImageUrl(uri)) {
+            // Remote URL
+            await analyzeImageFromUrl(uri);
+            return;
+        }
+    }
+
+    // Try to extract image URL from HTML (some browsers provide this)
+    const html = dataTransfer.getData('text/html');
+    console.log('handleDrop:html:', html)
+    if (html) {
+        const imgUrl = extractImageUrlFromHtml(html);
+        if (imgUrl) {
+            console.log('handleDrop:', imgUrl)
+            if (imgUrl.startsWith('file://')) {
+                await analyzeLocalFile(imgUrl);
+            } else {
+                await analyzeImageFromUrl(imgUrl);
+            }
+            return;
+        }
+    }
+
+    toast.add({
+        severity: 'warn',
+        summary: 'Invalid Content',
+        detail: 'Please drop an image file or image from a webpage',
+        life: 3000,
+    });
+};
+
+// Check if URL looks like an image
+const isImageUrl = (url: string): boolean => {
+    const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'];
+    const lowerUrl = url.toLowerCase();
+    return imageExtensions.some(ext => lowerUrl.includes(ext)) || lowerUrl.includes('image');
+};
+
+// Get MIME type from file extension
+const getMimeType = (filePath: string): string => {
+    const ext = filePath.toLowerCase().split('.').pop();
+    const mimeTypes: Record<string, string> = {
+        'png': 'image/png',
+        'jpg': 'image/jpeg',
+        'jpeg': 'image/jpeg',
+        'gif': 'image/gif',
+        'webp': 'image/webp',
+        'bmp': 'image/bmp',
+    };
+    return mimeTypes[ext || ''] || 'image/png';
+};
+
+// Read and analyze a local file (from file:// URI)
+const analyzeLocalFile = async (fileUri: string) => {
+    isAnalyzing.value = true;
+
+    try {
+        // Convert file:// URI to path
+        // URI format: file:///path/to/file or file://localhost/path/to/file
+        let filePath = fileUri.replace(/^file:\/\/(localhost)?/, '');
+        // Decode URI components (handles spaces and special chars)
+        filePath = decodeURIComponent(filePath);
+
+        // Check if it's an image file
+        if (!isImageUrl(filePath)) {
+            throw new Error('File is not a supported image format');
+        }
+
+        // Read file using Tauri fs plugin
+        const fileData = await readFile(filePath);
+
+        // Convert to base64 data URL
+        const base64 = btoa(
+            fileData.reduce((data: string, byte: number) => data + String.fromCharCode(byte), '')
+        );
+        const mimeType = getMimeType(filePath);
+        const dataUrl = `data:${mimeType};base64,${base64}`;
+
+        // Call Claude API to analyze the image
+        const prompt = await analyzeImageForPrompt(dataUrl);
+        generationStore.currentParams.prompt = prompt;
+
+        toast.add({
+            severity: 'success',
+            summary: 'Image Analyzed',
+            detail: 'Prompt generated from image',
+            life: 3000,
+        });
+    } catch (error) {
+        console.error('Failed to analyze local file:', error);
+        toast.add({
+            severity: 'error',
+            summary: 'Analysis Failed',
+            detail: error instanceof Error ? error.message : 'Failed to analyze image',
+            life: 5000,
+        });
+    } finally {
+        isAnalyzing.value = false;
+    }
+};
+
+// Extract image URL from HTML string
+const extractImageUrlFromHtml = (html: string): string | null => {
+    // Try <img src="...">
+    const imgMatch = html.match(/<img[^>]+src=["']([^"']+)["']/i);
+    if (imgMatch) return imgMatch[1];
+
+    // Try <a>file://...</a> (Linux file managers like Nautilus)
+    const anchorMatch = html.match(/<a[^>]*>(file:\/\/[^<]+)<\/a>/i);
+    if (anchorMatch && isImageUrl(anchorMatch[1])) return anchorMatch[1];
+
+    // Try <a href="file://...">
+    const hrefMatch = html.match(/<a[^>]+href=["'](file:\/\/[^"']+)["']/i);
+    if (hrefMatch && isImageUrl(hrefMatch[1])) return hrefMatch[1];
+
+    return null;
+};
+
+// Fetch image from URL and analyze it
+const analyzeImageFromUrl = async (url: string) => {
+    isAnalyzing.value = true;
+
+    try {
+        // Fetch the image
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch image: ${response.status}`);
+        }
+
+        const blob = await response.blob();
+
+        // Validate it's an image
+        if (!blob.type.startsWith('image/')) {
+            throw new Error('URL did not return an image');
+        }
+
+        // Convert to data URL
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = () => reject(new Error('Failed to read image'));
+            reader.readAsDataURL(blob);
+        });
+
+        // Call Claude API to analyze the image
+        const prompt = await analyzeImageForPrompt(dataUrl);
+        generationStore.currentParams.prompt = prompt;
+
+        toast.add({
+            severity: 'success',
+            summary: 'Image Analyzed',
+            detail: 'Prompt generated from image',
+            life: 3000,
+        });
+    } catch (error) {
+        console.error('Failed to analyze image from URL:', error);
+        toast.add({
+            severity: 'error',
+            summary: 'Analysis Failed',
+            detail: error instanceof Error ? error.message : 'Failed to analyze image',
+            life: 5000,
+        });
+    } finally {
+        isAnalyzing.value = false;
+    }
 };
 
 const analyzeDroppedImage = async (file: File) => {
@@ -229,7 +409,7 @@ defineExpose({
     @apply relative;
 }
 
-.generation-input-container.is-dragging :deep(.p-card) {
+.generation-input-container.is-dragging {
     @apply border-2 border-dashed;
     border-color: var(--p-primary-color);
 }
