@@ -688,12 +688,14 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
 
 ## Task 6: Create Queue Display Component
 
+> **Note:** This plan was superseded. The queue UI is now integrated into `src/components/generation/BottomPanel.vue` instead of a separate QueueList component.
+
 **Files:**
-- Create: `src/components/generation/QueueList.vue`
+- ~~Create: `src/components/generation/QueueList.vue`~~ → Now in `BottomPanel.vue`
 - Modify: `src/views/GenerateView.vue`
 - Test: Visual display of queued jobs
 
-**Step 1: Create QueueList component**
+**Step 1: Create QueueList component** *(Superseded - see BottomPanel.vue)*
 
 ```vue
 <script setup lang="ts">

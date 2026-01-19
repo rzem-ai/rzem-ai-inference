@@ -41,7 +41,19 @@
                   </div>
                 </div>
                 <div v-if="job.status === 'running'" class="job-progress">
-                  <ProgressBar :value="job.progress * 100" :showValue="false" style="height: 4px" />
+                  <!-- Pipeline progress (top bar) -->
+                  <div class="progress-row">
+                    <span class="progress-label">Pipeline</span>
+                    <ProgressBar :value="job.progress * 100" :showValue="false" class="progress-bar-pipeline" />
+                    <span class="progress-value">{{ Math.round(job.progress * 100) }}%</span>
+                  </div>
+                  <div class="progress-stage">{{ getStageDisplayName(job.currentStage) }}</div>
+                  <!-- Steps progress (bottom bar) -->
+                  <div class="progress-row">
+                    <span class="progress-label">Steps</span>
+                    <ProgressBar :value="getStepProgress(job)" :showValue="false" class="progress-bar-steps" />
+                    <span class="progress-value">{{ getStepDisplay(job) }}</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -79,7 +91,7 @@ import TabPanels from 'primevue/tabpanels';
 import TabPanel from 'primevue/tabpanel';
 import Badge from 'primevue/badge';
 import ProgressBar from 'primevue/progressbar';
-import { useQueueStore } from '@/stores/queue';
+import { useQueueStore, type GenerationJob } from '@/stores/queue';
 
 const queueStore = useQueueStore();
 const activeTab = ref('queue');
@@ -112,6 +124,47 @@ function getStatusIcon(status: string): string {
 
 function truncatePrompt(prompt: string): string {
   return prompt.length > 60 ? prompt.substring(0, 60) + '...' : prompt;
+}
+
+function getStageDisplayName(stage?: string): string {
+  if (!stage) return 'Starting...';
+  const stageNames: Record<string, string> = {
+    loading_models: 'Loading models...',
+    encoding_t5: 'Encoding prompt (T5)...',
+    encoding_clip: 'Encoding prompt (CLIP)...',
+    denoising: 'Denoising...',
+    decoding_vae: 'Decoding image...',
+    encoding_png: 'Saving image...',
+  };
+  return stageNames[stage] || stage;
+}
+
+function getStepProgress(job: GenerationJob): number {
+  const totalSteps = job.params.steps;
+  if (!totalSteps || totalSteps === 0) return 0;
+
+  const stage = job.currentStage;
+  if (!stage || stage === 'loading_models' || stage === 'encoding_t5' || stage === 'encoding_clip') {
+    return 0;
+  }
+  if (stage === 'decoding_vae' || stage === 'encoding_png') {
+    return 100;
+  }
+  if (job.currentStep !== undefined) {
+    return (job.currentStep / totalSteps) * 100;
+  }
+  return 0;
+}
+
+function getStepDisplay(job: GenerationJob): string {
+  const totalSteps = job.params.steps;
+  const stage = job.currentStage;
+
+  if (stage === 'decoding_vae' || stage === 'encoding_png') {
+    return `${totalSteps}/${totalSteps}`;
+  }
+  const current = job.currentStep ?? 0;
+  return `${current}/${totalSteps}`;
 }
 </script>
 
@@ -234,6 +287,58 @@ function truncatePrompt(prompt: string): string {
 }
 
 .job-progress {
-  @apply w-full mt-2;
+  @apply w-full mt-2 flex flex-col gap-1;
+}
+
+.progress-row {
+  @apply flex items-center gap-2;
+}
+
+.progress-label {
+  @apply text-xs;
+  width: 50px;
+  flex-shrink: 0;
+  color: #94a3b8;
+}
+
+.progress-value {
+  @apply text-xs font-mono;
+  width: 40px;
+  text-align: right;
+  flex-shrink: 0;
+  color: #e2e8f0;
+}
+
+.progress-stage {
+  @apply text-xs text-center;
+  color: #2dd4bf;
+  margin: 2px 0;
+}
+
+.progress-bar-pipeline,
+.progress-bar-steps {
+  @apply flex-1;
+}
+
+:deep(.progress-bar-pipeline .p-progressbar) {
+  background: #334155;
+  height: 6px;
+  border-radius: 9999px;
+}
+
+:deep(.progress-bar-pipeline .p-progressbar-value) {
+  background: linear-gradient(90deg, #14b8a6, #2dd4bf);
+  border-radius: 9999px;
+}
+
+:deep(.progress-bar-steps .p-progressbar) {
+  background: #334155;
+  height: 5px;
+  border-radius: 9999px;
+}
+
+:deep(.progress-bar-steps .p-progressbar-value) {
+  background: linear-gradient(90deg, #0ea5e9, #38bdf8);
+  border-radius: 9999px;
 }
 </style>

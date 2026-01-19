@@ -2,6 +2,7 @@ import { createApp } from 'vue';
 import { createPinia } from 'pinia';
 import PrimeVue from 'primevue/config';
 import ToastService from 'primevue/toastservice';
+import Tooltip from 'primevue/tooltip';
 import router from './router';
 import App from './App.vue';
 
@@ -13,6 +14,7 @@ const pinia = createPinia();
 
 app.use(pinia);
 app.use(router);
+app.directive('tooltip', Tooltip);
 app.use(PrimeVue, {
   theme: {
     preset: AuraPlus,

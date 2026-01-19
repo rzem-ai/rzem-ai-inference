@@ -29,12 +29,12 @@
 
       <!-- Bottom section (could add user profile, dark mode, etc.) -->
       <div class="sidebar-bottom">
-        <button class="nav-item" @click="toggleDarkMode">
+        <RouterLink class="nav-item" :to="manage.path">
           <div class="nav-icon">
-            <Settings :size="20" />
+            <component :is="manage.icon" :size="20" />
           </div>
-          <span class="nav-label">Settings</span>
-        </button>
+          <span class="nav-label">{{ manage.label }}</span>
+        </RouterLink>
       </div>
     </nav>
   </aside>
@@ -50,6 +50,9 @@ const workspaces = [
   { label: 'X/Y Plot', path: '/compare', icon: Images },
   { label: 'Storyboarder AI', path: '/models', icon: Download },
 ];
+
+const manage = 
+  { label: 'Settings', path: '/manage', icon: Sparkles };
 
 const toggleDarkMode = () => {
   // Placeholder for dark mode toggle

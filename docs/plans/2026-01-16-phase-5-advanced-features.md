@@ -564,11 +564,13 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
 
 ## Task 4: Create Queue Display Component
 
+> **Note:** This plan was superseded. The queue UI is now integrated into `src/components/generation/BottomPanel.vue` instead of a separate QueuePanel component.
+
 **Files:**
-- Create: `src/components/queue/QueuePanel.vue`
+- ~~Create: `src/components/queue/QueuePanel.vue`~~ → Now in `BottomPanel.vue`
 - Test: Manual UI testing
 
-**Step 1: Create QueuePanel component**
+**Step 1: Create QueuePanel component** *(Superseded - see BottomPanel.vue)*
 
 Create `src/components/queue/QueuePanel.vue`:
 

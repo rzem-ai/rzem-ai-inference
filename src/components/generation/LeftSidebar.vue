@@ -118,6 +118,7 @@
                 :max="2147483647"
                 :disabled="!seedLocked"
                 :placeholder="seedLocked ? '' : 'Random'"
+                :useGrouping="false"
                 class="flex-1" />
               <Button
                 icon="pi pi-sync"

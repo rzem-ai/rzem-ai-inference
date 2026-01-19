@@ -127,6 +127,7 @@ impl FluxPipeline {
     /// * `width` - Image width (default 1024)
     /// * `height` - Image height (default 1024)
     /// * `guidance` - Guidance scale (default 4.0)
+    /// * `seed` - Random seed for reproducible generation
     ///
     /// # Returns
     /// GenerationResult containing image data and timing statistics
@@ -137,6 +138,7 @@ impl FluxPipeline {
         width: usize,
         height: usize,
         guidance: f64,
+        seed: u64,
     ) -> Result<GenerationResult> {
         let total_timer = Timer::start();
         let mut stats = GenerationStats::default();
@@ -179,9 +181,9 @@ impl FluxPipeline {
         } else {
             "full_precision".to_string()
         };
-        println!("Denoising for {} steps (guidance={}, model={})...", steps, guidance, stats.model_type);
+        println!("Denoising for {} steps (guidance={}, model={}, seed={})...", steps, guidance, stats.model_type, seed);
         let denoise_timer = Timer::start();
-        let latents = flux.denoise(&t5_emb, &clip_emb, height, width, steps, guidance)?;
+        let latents = flux.denoise(&t5_emb, &clip_emb, height, width, steps, guidance, seed)?;
         stats.denoise_ms = denoise_timer.stop();
         stats.latent_shape = latents.dims().to_vec();
         println!("  Latent shape: {:?} ({}ms)", latents.dims(), stats.denoise_ms);
@@ -229,7 +231,9 @@ impl FluxPipeline {
 
     /// Simplified generate with defaults
     pub fn generate_simple(&mut self, prompt: &str, steps: usize) -> Result<GenerationResult> {
-        self.generate(prompt, steps, 1024, 1024, 4.0)
+        // Use random seed when not specified
+        let seed = rand::random::<u64>();
+        self.generate(prompt, steps, 1024, 1024, 4.0, seed)
     }
 
     /// Generate image with progress callbacks
@@ -243,6 +247,7 @@ impl FluxPipeline {
         width: usize,
         height: usize,
         guidance: f64,
+        seed: u64,
         on_progress: F,
     ) -> Result<GenerationResult>
     where
@@ -298,7 +303,7 @@ impl FluxPipeline {
         on_progress(GenerationProgress::denoising_step(0, steps));
 
         let denoise_timer = Timer::start();
-        let latents = flux.denoise(&t5_emb, &clip_emb, height, width, steps, guidance)?;
+        let latents = flux.denoise(&t5_emb, &clip_emb, height, width, steps, guidance, seed)?;
         stats.denoise_ms = denoise_timer.stop();
         stats.latent_shape = latents.dims().to_vec();
 

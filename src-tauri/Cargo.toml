@@ -38,6 +38,7 @@ image = "0.25"
 reqwest = { version = "0.12", features = ["json"] }
 dotenvy = "0.15"
 clap = { version = "4.4", features = ["derive"] }
+rand = "0.8"
 
 # =============================================================================
 # Platform-specific GPU acceleration

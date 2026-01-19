@@ -77,12 +77,15 @@ async fn generate_image(
         .map_err(|e| format!("Failed to create pipeline: {}", e))?;
 
     // Generate image using FLUX
+    // Convert seed to u64 (negative means use random)
+    let seed_u64 = if seed >= 0 { seed as u64 } else { rand::random::<u64>() };
     let result = pipeline.generate(
         &prompt,
         steps as usize,
         width as usize,
         height as usize,
         4.0, // Default guidance for FLUX Schnell
+        seed_u64,
     ).map_err(|e| format!("Generation failed: {}", e))?;
 
     // Determine output path

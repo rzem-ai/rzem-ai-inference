@@ -71,6 +71,14 @@ export interface GenerationJob {
    * Human-readable status message
    */
   statusMessage?: string
+  /**
+   * Current denoising step (when in denoising stage)
+   */
+  currentStep?: number
+  /**
+   * Total denoising steps
+   */
+  totalSteps?: number
   created_at: number
   started_at?: number
   completed_at?: number
@@ -149,8 +157,10 @@ export const useQueueStore = defineStore('queue', () => {
     overall_progress: number
     message: string
     eta_seconds?: number
+    current_step?: number
+    total_steps?: number
   }>('job-progress', (event) => {
-    const { job_id, stage, overall_progress, message } = event.payload
+    const { job_id, stage, overall_progress, message, current_step, total_steps } = event.payload
 
     // Find and update job in local state
     const jobIndex = jobs.value.findIndex((j) => j.id === job_id)
@@ -158,6 +168,13 @@ export const useQueueStore = defineStore('queue', () => {
       jobs.value[jobIndex].progress = overall_progress
       jobs.value[jobIndex].currentStage = stage
       jobs.value[jobIndex].statusMessage = message
+      // Track denoising steps separately for the step progress bar
+      if (current_step !== undefined) {
+        jobs.value[jobIndex].currentStep = current_step
+      }
+      if (total_steps !== undefined) {
+        jobs.value[jobIndex].totalSteps = total_steps
+      }
     }
   })
 

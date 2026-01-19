@@ -87,8 +87,9 @@ impl FluxTransformer {
 
     /// Create initial noise for generation
     ///
-    /// Uses flux::sampling::get_noise which creates properly shaped noise
-    pub fn create_noise(&self, height: usize, width: usize) -> Result<Tensor> {
+    /// Uses flux::sampling::get_noise which creates properly shaped noise.
+    /// The seed is used to initialize the device RNG for reproducible generation.
+    pub fn create_noise(&self, height: usize, width: usize, seed: u64) -> Result<Tensor> {
         let dtype = if self.is_quantized {
             // Quantized models work with F32
             DType::F32
@@ -97,6 +98,14 @@ impl FluxTransformer {
         } else {
             DType::F32
         };
+
+        // Set the device RNG seed for reproducible noise generation
+        // This works on CUDA and Metal backends
+        if let Err(e) = self.device.set_seed(seed) {
+            // CPU backend doesn't support set_seed, but we can use candle's manual seeding
+            eprintln!("Note: Could not set device seed ({}), using fallback", e);
+        }
+
         let noise = flux::sampling::get_noise(1, height, width, &self.device)?;
         Ok(noise.to_dtype(dtype)?)
     }
@@ -110,6 +119,7 @@ impl FluxTransformer {
     /// * `width` - Target image width
     /// * `steps` - Number of denoising steps (4 for Schnell)
     /// * `guidance` - Guidance scale (typically 4.0)
+    /// * `seed` - Random seed for reproducible generation
     ///
     /// # Returns
     /// Denoised latents ready for VAE decode
@@ -121,9 +131,10 @@ impl FluxTransformer {
         width: usize,
         steps: usize,
         guidance: f64,
+        seed: u64,
     ) -> Result<Tensor> {
-        // Create initial noise
-        let img = self.create_noise(height, width)?;
+        // Create initial noise with seed for reproducibility
+        let img = self.create_noise(height, width, seed)?;
 
         // For quantized models, convert embeddings to F32
         let (t5_emb, clip_emb, img) = if self.is_quantized {

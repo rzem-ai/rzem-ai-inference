@@ -13,8 +13,8 @@
         <div class="generate-bar">
           <Button
             class="generate-button"
-            :label="queueStore.queueLength > 0 ? `Generate (${queueStore.queueLength})` : 'Generate'"
             icon="pi pi-sparkles"
+            :label="queueStore.queueLength > 0 ? `Generate (${queueStore.queueLength})` : 'Generate'"
             :loading="queueStore.hasRunningJobs"
             @click="handleGenerate" />
         </div>
@@ -36,12 +36,7 @@
               </div>
               <div v-else class="image-container">
                 <Image :src="slot1Image" alt="Generated image" preview image-class="slot-image" />
-                <Button
-                  icon="pi pi-download"
-                  class="download-button"
-                  rounded
-                  severity="secondary"
-                  @click.stop="handleDownload(slot1Image, 1)" />
+                <Button icon="pi pi-download" class="download-button" rounded severity="secondary" @click.stop="handleDownload(slot1Image, 1)" />
               </div>
             </div>
 
@@ -54,12 +49,7 @@
               </div>
               <div v-else class="image-container">
                 <Image :src="slot2Image" alt="Generated image" preview image-class="slot-image" />
-                <Button
-                  icon="pi pi-download"
-                  class="download-button"
-                  rounded
-                  severity="secondary"
-                  @click.stop="handleDownload(slot2Image, 2)" />
+                <Button icon="pi pi-download" class="download-button" rounded severity="secondary" @click.stop="handleDownload(slot2Image, 2)" />
               </div>
             </div>
           </div>

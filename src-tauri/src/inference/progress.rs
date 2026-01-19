@@ -69,6 +69,10 @@ pub struct GenerationProgress {
     pub batch_index: Option<usize>,
     /// For batch jobs: total image count
     pub batch_total: Option<usize>,
+    /// Current denoising step (if in denoising stage)
+    pub current_step: Option<usize>,
+    /// Total denoising steps (if in denoising stage)
+    pub total_steps: Option<usize>,
 }
 
 impl GenerationProgress {
@@ -87,6 +91,8 @@ impl GenerationProgress {
             eta_seconds: None,
             batch_index: None,
             batch_total: None,
+            current_step: None,
+            total_steps: None,
         }
     }
 
@@ -95,6 +101,8 @@ impl GenerationProgress {
         let stage_progress = current_step as f32 / total_steps as f32;
         let mut progress = Self::new(PipelineStage::Denoising, stage_progress);
         progress.message = format!("Denoising step {}/{}", current_step, total_steps);
+        progress.current_step = Some(current_step);
+        progress.total_steps = Some(total_steps);
         progress
     }
 

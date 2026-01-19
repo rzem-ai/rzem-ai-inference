@@ -256,6 +256,8 @@ async fn execute_generation(
             "overall_progress": progress.overall_progress,
             "message": progress.message,
             "eta_seconds": progress.eta_seconds,
+            "current_step": progress.current_step,
+            "total_steps": progress.total_steps,
         }));
 
         // Also update job progress in queue manager (fire-and-forget)
@@ -270,12 +272,15 @@ async fn execute_generation(
     // Generate using FLUX model with progress callbacks
     // Use cfg_scale as guidance (FLUX typically uses 4.0 for Schnell)
     let guidance = if params.cfg_scale > 0.0 { params.cfg_scale } else { 4.0 };
+    // Convert seed to u64 (params.seed is i64, use absolute value for consistency)
+    let seed = if params.seed >= 0 { params.seed as u64 } else { rand::random::<u64>() };
     let result = pipeline.generate_with_progress(
         &params.prompt,
         params.steps as usize,
         params.width as usize,
         params.height as usize,
         guidance,
+        seed,
         on_progress,
     )?;
 

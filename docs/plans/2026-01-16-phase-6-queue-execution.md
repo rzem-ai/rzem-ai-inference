@@ -16,7 +16,7 @@
 - QueueManager with HashMap-based storage (O(1) lookups)
 - 5 Tauri commands for queue operations
 - Frontend queue store with polling
-- QueuePanel UI showing jobs
+- BottomPanel UI showing jobs (queue tab)
 - GenerateView adds jobs to queue
 
 **What's Missing:**
