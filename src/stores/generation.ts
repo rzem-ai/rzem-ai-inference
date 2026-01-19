@@ -20,6 +20,10 @@ export const useGenerationStore = defineStore('generation', () => {
     batchSize: 1
   })
 
+  // When true, a new random seed is generated for each generation
+  // When false, the current seed value is used (locked)
+  const randomizeSeedOnGenerate = ref(true)
+
   const activeProgress = ref<Record<string, GenerationProgress>>({})
 
   // Getters
@@ -72,6 +76,7 @@ export const useGenerationStore = defineStore('generation', () => {
     jobs,
     currentParams,
     activeProgress,
+    randomizeSeedOnGenerate,
     // Getters
     queuedJobs,
     runningJobs,

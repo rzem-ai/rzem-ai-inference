@@ -1,8 +1,8 @@
 <template>
-  <div class="image-canvas-wrapper">
+  <div class="" :style="'height: ' + windowsStore.mainHeight + 'px'">
     <div class="image-canvas">
       <div v-if="!imageSrc" class="canvas-empty">
-        <p>Generated images will appear here</p>
+        <p>Generated images will appear here [{{ windowsStore.mainHeight }}]  [{{ windowsStore.navHeight }}]   [{{ windowsStore.windowsHeight }}] </p>
       </div>
 
       <div v-else class="canvas-content">
@@ -15,6 +15,9 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { convertFileSrc } from '@tauri-apps/api/core';
+import { useWindowsStore } from '../../stores/windows';
+
+const windowsStore = useWindowsStore();
 
 // For now, we'll store the image path in the job
 // In a future task, this will come from gallery

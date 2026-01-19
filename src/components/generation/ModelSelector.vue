@@ -47,12 +47,22 @@ const modelsStore = useModelsStore();
   @apply flex flex-col gap-2;
 }
 
+.field {
+  @apply flex flex-col gap-2;
+}
+
+.field label {
+  @apply text-xs font-medium tracking-wide;
+  color: #64748b;
+}
+
 .model-option {
   @apply flex items-center justify-between w-full;
 }
 
 .model-name {
   @apply font-medium;
+  color: #e2e8f0;
 }
 
 .model-badge {
@@ -64,8 +74,9 @@ const modelsStore = useModelsStore();
 }
 
 .model-info {
-  @apply flex flex-col gap-1 text-xs;
-  color: var(--color-slate-400);
+  @apply flex flex-col gap-1 text-xs p-2 rounded-lg;
+  background: #2d3748;
+  color: #94a3b8;
 }
 
 .info-desc {
@@ -74,5 +85,21 @@ const modelsStore = useModelsStore();
 
 .info-stats {
   @apply flex gap-3;
+  color: #38bdf8;
+}
+
+/* PrimeVue Select dark theme */
+:deep(.p-select) {
+  background: #2d3748;
+  border-color: #374151;
+  color: #e2e8f0;
+}
+
+:deep(.p-select-label) {
+  color: #e2e8f0;
+}
+
+:deep(.p-select-dropdown) {
+  color: #94a3b8;
 }
 </style>

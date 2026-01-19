@@ -109,20 +109,20 @@ onUnmounted(() => {
   @apply flex flex-col gap-1;
 
   label {
-    @apply text-sm font-medium;
-    color: var(--p-text-color);
+    @apply text-xs font-medium tracking-wide mb-1;
+    color: #64748b;
   }
 }
 
 .editor-container {
-  @apply rounded-md border;
-  background-color: var(--p-inputtext-background);
-  border-color: var(--p-inputtext-border-color);
+  @apply rounded-lg border;
+  background-color: #2d3748;
+  border-color: #374151;
   transition: border-color 0.2s, box-shadow 0.2s;
 
   &:focus-within {
-    border-color: var(--p-inputtext-focus-border-color);
-    box-shadow: var(--p-inputtext-focus-ring-shadow);
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
   }
 }
 
@@ -131,7 +131,7 @@ onUnmounted(() => {
 
   :deep(.tiptap) {
     @apply p-3 min-h-24 max-h-48 overflow-y-auto text-sm;
-    color: var(--p-inputtext-color);
+    color: #e2e8f0;
 
     &:focus {
       @apply outline-none;
@@ -145,7 +145,7 @@ onUnmounted(() => {
     &.is-empty::before {
       @apply float-left h-0 pointer-events-none;
       content: attr(data-placeholder);
-      color: var(--p-inputtext-placeholder-color);
+      color: #64748b;
     }
   }
 }

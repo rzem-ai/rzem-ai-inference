@@ -1,19 +1,39 @@
 <template>
-  <div class="app-container">
-    <Toast />
-    <WorkspaceNav />
-    <main class="main-content">
-      <RouterView />
-    </main>
-  </div>
+  <Toast />
+  <WorkspaceNav />
+  <main :style="'height: ' + windowsStore.windowsHeight + 'px'" class="main-content">
+    <RouterView />
+  </main>
 </template>
 
 <script setup lang="ts">
+import { onMounted, watch } from 'vue';
+import { useWindowSize } from '@vueuse/core';
 import { RouterView } from 'vue-router';
 import Toast from 'primevue/toast';
 import WorkspaceNav from '@/components/shared/WorkspaceNav.vue';
 import { useAppInit } from '@/composables/useAppInit';
+import { useWindowsStore } from './stores/windows';
+
+const windowsStore = useWindowsStore();
+const { height: windowHeight } = useWindowSize();
+
+// Watch for window height changes
+watch(windowHeight, (newHeight) => {
+  windowsStore.setWindowsHeight(newHeight);
+});
+
+onMounted(() => {
+  windowsStore.setWindowsHeight(windowHeight.value);
+});
 
 // Initialize app on mount
 useAppInit();
 </script>
+
+<style scoped>
+.main-content {
+  margin-left: 60px; /* Matches collapsed sidebar width */
+  overflow: hidden;
+}
+</style>
