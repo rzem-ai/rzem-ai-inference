@@ -43,7 +43,7 @@ export const usePresetsStore = defineStore('presets', () => {
       mode: 'txt2img',
       steps: 8,
       cfgScale: 1.5,
-      sampler: 'dpmpp_2m',
+      sampler: 'dpm_pp_2m',
       scheduler: 'karras',
       width: 1024,
       height: 1024,

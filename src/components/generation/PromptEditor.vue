@@ -1,11 +1,8 @@
 <template>
-  <div class="prompt-editor" :data-rows="rows">
-    <label v-if="label">{{ label }}</label>
-    <div class="editor-container">
-      <EditorContent
-        :editor="editor"
-        class="editor-content"
-      />
+  <div class="flex flex-col gap-1" :data-rows="rows">
+    <label v-if="label" class="text-xs font-medium tracking-wide text-gray-400 ">{{ label }}</label>
+    <div class="bg-gray-700 border border-gray-500 rounded-lg ">
+      <EditorContent :editor="editor" class="w-full editor-content" />
     </div>
   </div>
 </template>
@@ -25,7 +22,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'update:modelValue': [value: string];
-  'submit': [];
+  submit: [];
 }>();
 
 // Initialize TipTap editor
@@ -105,65 +102,39 @@ onUnmounted(() => {
 <style scoped>
 @reference "tailwindcss";
 
-.prompt-editor {
-  @apply flex flex-col gap-1;
-
-  label {
-    @apply text-xs font-medium tracking-wide mb-1;
-    color: #64748b;
-  }
+/* TipTap editor deep selectors */
+.editor-content :deep(.tiptap) {
+  @apply max-h-48 min-h-24 overflow-y-auto p-3 text-sm text-(--text-primary);
 }
 
-.editor-container {
-  @apply rounded-lg border;
-  background-color: #2d3748;
-  border-color: #374151;
-  transition: border-color 0.2s, box-shadow 0.2s;
-
-  &:focus-within {
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
-  }
+.editor-content :deep(.tiptap:focus) {
+  @apply outline-none;
 }
 
-.editor-content {
-  @apply w-full;
+.editor-content :deep(.tiptap p) {
+  @apply m-0;
+}
 
-  :deep(.tiptap) {
-    @apply p-3 min-h-24 max-h-48 overflow-y-auto text-sm;
-    color: #e2e8f0;
-
-    &:focus {
-      @apply outline-none;
-    }
-
-    p {
-      @apply m-0;
-    }
-
-    /* Placeholder styling */
-    &.is-empty::before {
-      @apply float-left h-0 pointer-events-none;
-      content: attr(data-placeholder);
-      color: #64748b;
-    }
-  }
+/* Placeholder styling */
+.editor-content :deep(.tiptap.is-empty::before) {
+  @apply float-left h-0 pointer-events-none text-(--text-secondary);
+  content: attr(data-placeholder);
 }
 
 /* Support for different row heights */
-.prompt-editor[data-rows="2"] .editor-content :deep(.tiptap) {
+[data-rows='2'] .editor-content :deep(.tiptap) {
   @apply min-h-14;
 }
 
-.prompt-editor[data-rows="3"] .editor-content :deep(.tiptap) {
+[data-rows='3'] .editor-content :deep(.tiptap) {
   @apply min-h-20;
 }
 
-.prompt-editor[data-rows="4"] .editor-content :deep(.tiptap) {
+[data-rows='4'] .editor-content :deep(.tiptap) {
   @apply min-h-24;
 }
 
-.prompt-editor[data-rows="6"] .editor-content :deep(.tiptap) {
+[data-rows='6'] .editor-content :deep(.tiptap) {
   @apply min-h-36;
 }
 </style>

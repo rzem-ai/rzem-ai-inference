@@ -3,6 +3,7 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use rzem_ai_inference::models::{ModelPaths, ModelType};
+use rzem_ai_inference::inference::samplers::{SamplerType, SchedulerType};
 
 #[derive(Parser)]
 #[command(name = "rzem-cli")]
@@ -92,6 +93,10 @@ enum ModelCommands {
 }
 
 fn main() -> Result<()> {
+    // Initialize logging (defaults to info, use RUST_LOG to override)
+    // Note: quiet flag in generate command will suppress progress output but not logs
+    rzem_ai_inference::init_logging("info");
+
     let cli = Cli::parse();
 
     match cli.command {
@@ -132,7 +137,7 @@ fn cmd_generate(
     json: bool,
     quiet: bool,
 ) -> Result<()> {
-    use rzem_ai_inference::inference::{InferenceEngine, FluxPipeline, GenerationProgress};
+    use rzem_ai_inference::inference::{InferenceEngine, FluxPipeline, GenerationProgress, ImageMetadata};
     use std::io::{Write, stdout};
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
@@ -244,6 +249,20 @@ fn cmd_generate(
             let _ = stdout().flush();
         };
 
+        // Create metadata for embedding in the PNG
+        let metadata = ImageMetadata {
+            prompt: prompt.clone(),
+            negative_prompt: None,
+            steps: steps as u32,
+            cfg_scale: guidance,
+            width: width as u32,
+            height: height as u32,
+            seed: actual_seed,
+            model: model_type.to_string(),
+            sampler: Some("euler".to_string()),
+            scheduler: Some("normal".to_string()),
+        };
+
         // Generate image
         let result = pipeline.generate_with_progress(
             &prompt,
@@ -251,6 +270,10 @@ fn cmd_generate(
             width,
             height,
             guidance,
+            actual_seed as u64,
+            Some(metadata),
+            SamplerType::default(),
+            SchedulerType::default(),
             on_progress,
         )?;
 

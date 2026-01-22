@@ -1,13 +1,23 @@
-//! Inference engine for running Flux models with Candle
+//! Inference engine for running diffusion models with Candle
 
+pub mod cache;
+mod embedding_cache;
 mod engine;
-mod pipeline;
+mod flux_pipeline;
+pub mod metadata;
 mod progress;
+pub mod samplers;
 mod stats;
+mod zindex_pipeline;
 
+pub use cache::{CacheStats, ModelCache, ModelCacheConfig, ModelsLoaded};
+pub use embedding_cache::{CachedEmbedding, EmbeddingCache};
 pub use engine::InferenceEngine;
-pub use pipeline::FluxPipeline;
+pub use flux_pipeline::FluxPipeline;
+pub use metadata::{ImageMetadata, encode_png_with_metadata, read_png_metadata};
 pub use progress::{GenerationProgress, PipelineStage, ProgressCallback};
+pub use samplers::{SamplerType, SchedulerType, get_timesteps};
+pub use zindex_pipeline::ZIndexPipeline;
 pub use stats::{GenerationStats, GenerationResult, Timer};
 
 #[cfg(test)]

@@ -8,6 +8,8 @@ use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
 use uuid::Uuid;
 
+use crate::inference::samplers::{SamplerType, SchedulerType};
+
 pub use processor::QueueProcessor;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
@@ -30,6 +32,12 @@ pub struct GenerationParams {
     pub height: u32,
     pub seed: i64,
     pub model: String,
+    /// Sampling algorithm (euler, euler_a, dpm_pp_2m)
+    #[serde(default)]
+    pub sampler: Option<SamplerType>,
+    /// Noise schedule (normal, karras, exponential)
+    #[serde(default)]
+    pub scheduler: Option<SchedulerType>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -239,6 +247,8 @@ mod tests {
             height: 512,
             seed: 42,
             model: "test-model".to_string(),
+            sampler: None,
+            scheduler: None,
         }
     }
 

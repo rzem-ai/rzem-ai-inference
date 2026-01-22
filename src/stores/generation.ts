@@ -1,28 +1,57 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import type { GenerationJob, GenerationParams, GenerationProgress } from '@/types'
+
+const STORAGE_KEY = 'generation-params'
+const SEED_RANDOMIZE_KEY = 'generation-randomize-seed'
+
+const defaultParams: GenerationParams = {
+  mode: 'txt2img',
+  prompt: 'A West Highland White Terrier in the style of a Pixar cartoon',
+  negativePrompt: '',
+  steps: 4,  // Flux Schnell default
+  cfgScale: 1.0,  // Flux uses CFG=1 typically
+  sampler: 'euler',  // Default sampler
+  scheduler: 'normal',  // Default scheduler
+  width: 1024,
+  height: 1024,
+  seed: -1,
+  model: 'schnell',  // Model ID: 'schnell' or 'dev'
+  batchSize: 1
+}
+
+function loadParams(): GenerationParams {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY)
+    if (stored) {
+      return { ...defaultParams, ...JSON.parse(stored) }
+    }
+  } catch (e) {
+    console.warn('Failed to load generation params from localStorage:', e)
+  }
+  return { ...defaultParams }
+}
+
+function loadRandomizeSeed(): boolean {
+  try {
+    const stored = localStorage.getItem(SEED_RANDOMIZE_KEY)
+    if (stored !== null) {
+      return JSON.parse(stored)
+    }
+  } catch (e) {
+    console.warn('Failed to load randomize seed setting from localStorage:', e)
+  }
+  return true
+}
 
 export const useGenerationStore = defineStore('generation', () => {
   // State
   const jobs = ref<GenerationJob[]>([])
-  const currentParams = ref<GenerationParams>({
-    mode: 'txt2img',
-    prompt: 'A West Highland White Terrier in the style of a Pixar cartoon',
-    negativePrompt: '',
-    steps: 4,  // Flux Schnell default
-    cfgScale: 1.0,  // Flux uses CFG=1 typically
-    sampler: 'euler',  // Default sampler
-    scheduler: 'normal',  // Default scheduler
-    width: 1024,
-    height: 1024,
-    seed: -1,
-    model: 'schnell',  // Model ID: 'schnell' or 'dev'
-    batchSize: 1
-  })
+  const currentParams = ref<GenerationParams>(loadParams())
 
   // When true, a new random seed is generated for each generation
   // When false, the current seed value is used (locked)
-  const randomizeSeedOnGenerate = ref(true)
+  const randomizeSeedOnGenerate = ref(loadRandomizeSeed())
 
   const activeProgress = ref<Record<string, GenerationProgress>>({})
 
@@ -70,6 +99,23 @@ export const useGenerationStore = defineStore('generation', () => {
   function clearProgress(jobId: string) {
     delete activeProgress.value[jobId]
   }
+
+  // Persist params to localStorage on change
+  watch(currentParams, (params) => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(params))
+    } catch (e) {
+      console.warn('Failed to save generation params to localStorage:', e)
+    }
+  }, { deep: true })
+
+  watch(randomizeSeedOnGenerate, (value) => {
+    try {
+      localStorage.setItem(SEED_RANDOMIZE_KEY, JSON.stringify(value))
+    } catch (e) {
+      console.warn('Failed to save randomize seed setting to localStorage:', e)
+    }
+  })
 
   return {
     // State

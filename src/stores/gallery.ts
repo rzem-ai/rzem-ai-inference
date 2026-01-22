@@ -19,6 +19,7 @@ export interface GalleryImage {
   seed?: number
   sampler?: string
   tags: string[]
+  folderIds: string[]
 }
 
 export interface GalleryFilters {
@@ -28,7 +29,10 @@ export interface GalleryFilters {
   tags: string[]
   dateFrom?: number
   dateTo?: number
+  folderId?: string
 }
+
+export type GalleryViewMode = 'all' | 'folder' | 'uncategorized'
 
 export const useGalleryStore = defineStore('gallery', () => {
   // State
@@ -39,6 +43,8 @@ export const useGalleryStore = defineStore('gallery', () => {
     tags: [],
   })
   const isLoading = ref(false)
+  const viewMode = ref<GalleryViewMode>('all')
+  const currentFolderId = ref<string | null>(null)
 
   // Getters
   const filteredImages = computed(() => {
@@ -207,12 +213,93 @@ export const useGalleryStore = defineStore('gallery', () => {
     }
   }
 
+  // Folder-related actions
+  async function loadFolderImages(folderId: string, includeDescendants = true): Promise<void> {
+    isLoading.value = true
+    currentFolderId.value = folderId
+    viewMode.value = 'folder'
+    try {
+      const result = await invoke<GalleryImage[]>('get_folder_images', {
+        folderId,
+        includeDescendants,
+        limit: 100,
+      })
+      images.value = result
+    } catch (error) {
+      console.error('Failed to load folder images:', error)
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  async function loadUncategorizedImages(): Promise<void> {
+    isLoading.value = true
+    currentFolderId.value = null
+    viewMode.value = 'uncategorized'
+    try {
+      const result = await invoke<GalleryImage[]>('get_uncategorized_images', {
+        limit: 100,
+      })
+      images.value = result
+    } catch (error) {
+      console.error('Failed to load uncategorized images:', error)
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  async function loadAllImages(): Promise<void> {
+    currentFolderId.value = null
+    viewMode.value = 'all'
+    await loadImages()
+  }
+
+  async function addToFolder(imageIds: string[], folderId: string): Promise<boolean> {
+    try {
+      await invoke('add_images_to_folder', { imageIds, folderId })
+      // Update local state
+      for (const imageId of imageIds) {
+        const image = images.value.find((img) => img.id === imageId)
+        if (image && !image.folderIds.includes(folderId)) {
+          image.folderIds.push(folderId)
+        }
+      }
+      return true
+    } catch (error) {
+      console.error('Failed to add images to folder:', error)
+      return false
+    }
+  }
+
+  async function removeFromFolder(imageIds: string[], folderId: string): Promise<boolean> {
+    try {
+      await invoke('remove_images_from_folder', { imageIds, folderId })
+      // Update local state
+      for (const imageId of imageIds) {
+        const image = images.value.find((img) => img.id === imageId)
+        if (image) {
+          image.folderIds = image.folderIds.filter((id) => id !== folderId)
+        }
+      }
+      // If viewing this folder, remove images from view
+      if (viewMode.value === 'folder' && currentFolderId.value === folderId) {
+        images.value = images.value.filter((img) => !imageIds.includes(img.id))
+      }
+      return true
+    } catch (error) {
+      console.error('Failed to remove images from folder:', error)
+      return false
+    }
+  }
+
   return {
     // State
     images,
     selectedImages,
     filters,
     isLoading,
+    viewMode,
+    currentFolderId,
     // Getters
     filteredImages,
     selectedImagesList,
@@ -228,5 +315,11 @@ export const useGalleryStore = defineStore('gallery', () => {
     selectAll,
     setFilter,
     clearFilters,
+    // Folder actions
+    loadFolderImages,
+    loadUncategorizedImages,
+    loadAllImages,
+    addToFolder,
+    removeFromFolder,
   }
 })

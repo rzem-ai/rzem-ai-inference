@@ -2,12 +2,15 @@
   <div class="workspace-content models-view">
     <div class="models-header">
       <h1>Model Management</h1>
-      <p class="subtitle">Download and manage FLUX models for local generation</p>
+      <p class="subtitle">Download and manage models for local generation and AI features</p>
     </div>
 
     <Message v-if="error" severity="error" :closable="true" @close="error = null">
       {{ error }}
     </Message>
+
+    <!-- Section: Image Generation Models -->
+    <h2 class="section-title">Image Generation</h2>
 
     <!-- FLUX Schnell Card -->
     <div class="model-card">
@@ -79,6 +82,51 @@
       <p>After download, the generation system will automatically use the selected model.</p>
       <p><strong>Tip:</strong> Quantized models use less VRAM (~12GB vs ~24GB) with minimal quality loss.</p>
     </div>
+
+    <!-- Section: Vision Models -->
+    <h2 class="section-title mt-8">Vision & Analysis</h2>
+
+    <!-- Moondream 2 Card -->
+    <div class="model-card">
+      <div class="model-header">
+        <h2>Moondream 2</h2>
+        <span v-if="autoTagStore.isLocalAvailable" class="badge badge-success">Downloaded</span>
+        <span v-else class="badge badge-warning">Not Downloaded</span>
+      </div>
+
+      <div class="model-info">
+        <p><strong>Size:</strong> ~1.8 GB</p>
+        <p><strong>Purpose:</strong> Vision-language model for image understanding</p>
+        <p><strong>License:</strong> Apache 2.0</p>
+        <p><strong>Features:</strong> Auto-tag images with descriptive tags for organization</p>
+      </div>
+
+      <div v-if="autoTagStore.isDownloading" class="mb-4">
+        <ProgressBar :value="autoTagStore.downloadProgressPercent" :showValue="true" />
+        <p class="text-sm text-slate-400 mt-2">Downloading Moondream model...</p>
+      </div>
+
+      <div class="model-actions">
+        <Button
+          v-if="!autoTagStore.isLocalAvailable"
+          label="Download"
+          icon="pi pi-download"
+          :loading="autoTagStore.isDownloading"
+          @click="downloadMoondream" />
+        <Button
+          label="Learn More"
+          icon="pi pi-external-link"
+          severity="secondary"
+          text
+          @click="openMoondreamDocs" />
+      </div>
+    </div>
+
+    <div class="model-note">
+      <p><strong>About Moondream:</strong> A small, efficient vision-language model that runs locally on your GPU.</p>
+      <p>Used by the Auto-Tag feature to analyze images and generate descriptive tags automatically.</p>
+      <p><strong>Tip:</strong> Once downloaded, enable Auto-Tag in the Gallery settings for automatic image organization.</p>
+    </div>
   </div>
 </template>
 
@@ -89,6 +137,7 @@ import Button from 'primevue/button';
 import ProgressBar from 'primevue/progressbar';
 import Message from 'primevue/message';
 import { useModelsStore } from '@/stores/models';
+import { useAutoTagStore } from '@/stores/autoTag';
 
 interface ModelFileStatus {
   name: string;
@@ -97,6 +146,7 @@ interface ModelFileStatus {
 }
 
 const modelsStore = useModelsStore();
+const autoTagStore = useAutoTagStore();
 
 const schnellModel = computed(() => modelsStore.models.find((m) => m.id === 'schnell'));
 const devModel = computed(() => modelsStore.models.find((m) => m.id === 'dev'));
@@ -108,7 +158,10 @@ const showDetails = ref(false);
 const modelStatus = ref<ModelFileStatus[]>([]);
 
 onMounted(async () => {
-  await modelsStore.refreshModelAvailability();
+  await Promise.all([
+    modelsStore.refreshModelAvailability(),
+    autoTagStore.checkModelStatus(),
+  ]);
 });
 
 const loadModelStatus = async () => {
@@ -153,6 +206,19 @@ const downloadDev = async () => {
     isDownloadingDev.value = false;
   }
 };
+
+const downloadMoondream = async () => {
+  error.value = null;
+  try {
+    await autoTagStore.downloadModel();
+  } catch (e) {
+    error.value = `Download failed: ${e}`;
+  }
+};
+
+const openMoondreamDocs = () => {
+  window.open('https://huggingface.co/vikhyatk/moondream2', '_blank');
+};
 </script>
 
 <style scoped>
@@ -174,6 +240,11 @@ const downloadDev = async () => {
 .subtitle {
   @apply m-0;
   color: var(--color-slate-400);
+}
+
+.section-title {
+  @apply text-lg font-semibold mb-4;
+  color: var(--color-slate-200);
 }
 
 .model-card {

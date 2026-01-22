@@ -1,7 +1,7 @@
 <template>
   <Toast />
   <WorkspaceNav />
-  <main :style="'height: ' + windowsStore.windowsHeight + 'px'" class="main-content">
+  <main :style="'height: ' + windowsStore.windowsHeight + 'px'" class="overflow-hidden ml-18">
     <RouterView />
   </main>
 </template>
@@ -31,9 +31,3 @@ onMounted(() => {
 useAppInit();
 </script>
 
-<style scoped>
-.main-content {
-  margin-left: 60px; /* Matches collapsed sidebar width */
-  overflow: hidden;
-}
-</style>

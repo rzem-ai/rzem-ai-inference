@@ -1,79 +1,40 @@
 <template>
-  <div class="bottom-panel">
+  <div class="relative h-full overflow-hidden bg-gray-800">
+    <!-- Demo mode indicator -->
+    <div v-if="demoMode" class="absolute top-1 right-2 z-10 flex items-center gap-1 px-2 py-0.5 bg-purple-600 text-white text-xs rounded-full">
+      <span class="animate-pulse">●</span> Demo Mode (Ctrl+Shift+D to exit)
+    </div>
+
     <Tabs v-model:value="activeTab">
       <TabList>
         <Tab value="queue">
-          <i class="pi pi-list mr-2"></i>
-          Queue
-          <Badge v-if="queueStore.queueLength > 0" :value="queueStore.queueLength" severity="info" class="ml-2" />
-        </Tab>
-        <Tab value="history">
-          <i class="pi pi-history mr-2"></i>
-          History
+          <div class="flex flex-row items-center gap-2">
+            <List class="w-5 h-5" /> Queue <Badge v-if="pendingJobCount > 0" :value="pendingJobCount" severity="info" class="ml-2" />
+          </div>
         </Tab>
         <Tab value="presets">
-          <i class="pi pi-bookmark mr-2"></i>
-          Presets
+          <div class="flex flex-row items-center gap-2"> <BookMarked class="w-5 h-5" /> Presets </div>
         </Tab>
       </TabList>
 
       <TabPanels>
         <TabPanel value="queue">
-          <div class="panel-content">
-            <div v-if="queueStore.jobs.length === 0" class="empty-state">
-              <i class="pi pi-inbox"></i>
-              <p>No jobs in queue</p>
+          <div class="h-full p-3 overflow-auto">
+            <div v-if="allJobs.length === 0" class="flex h-full flex-col items-center justify-center gap-2 text-(--text-secondary)">
+              <Inbox class="w-4 h-4" />
+              <p class="text-sm">No jobs in queue</p>
             </div>
-            <div v-else class="job-grid">
-              <div
-                v-for="job in queueStore.jobs"
-                :key="job.id"
-                class="job-card"
-                :class="`status-${job.status}`">
-                <div class="job-icon">
-                  <i :class="`pi ${getStatusIcon(job.status)}`"></i>
-                </div>
-                <div class="job-info">
-                  <div class="job-prompt">{{ truncatePrompt(job.params.prompt) }}</div>
-                  <div class="job-meta">
-                    <span>{{ job.params.width }}x{{ job.params.height }}</span>
-                    <span>{{ job.params.steps }} steps</span>
-                  </div>
-                </div>
-                <div v-if="job.status === 'running'" class="job-progress">
-                  <!-- Pipeline progress (top bar) -->
-                  <div class="progress-row">
-                    <span class="progress-label">Pipeline</span>
-                    <ProgressBar :value="job.progress * 100" :showValue="false" class="progress-bar-pipeline" />
-                    <span class="progress-value">{{ Math.round(job.progress * 100) }}%</span>
-                  </div>
-                  <div class="progress-stage">{{ getStageDisplayName(job.currentStage) }}</div>
-                  <!-- Steps progress (bottom bar) -->
-                  <div class="progress-row">
-                    <span class="progress-label">Steps</span>
-                    <ProgressBar :value="getStepProgress(job)" :showValue="false" class="progress-bar-steps" />
-                    <span class="progress-value">{{ getStepDisplay(job) }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </TabPanel>
-
-        <TabPanel value="history">
-          <div class="panel-content">
-            <div class="empty-state">
-              <i class="pi pi-history"></i>
-              <p>Generation history will appear here</p>
+            <div v-else class="flex flex-wrap gap-2">
+              <QueueJobCard v-for="job in allJobs" :key="job.id" :job="job" />
             </div>
           </div>
         </TabPanel>
 
         <TabPanel value="presets">
-          <div class="panel-content">
-            <div class="empty-state">
-              <i class="pi pi-bookmark"></i>
-              <p>Saved presets will appear here</p>
+          <div class="h-full p-3 overflow-auto">
+            <div class="flex h-full flex-col items-center justify-center gap-2 text-(--text-secondary)">
+              <i class="text-3xl pi pi-bookmark"></i>
+              <p class="text-sm">Saved presets will appear here</p>
             </div>
           </div>
         </TabPanel>
@@ -83,262 +44,162 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import Tabs from 'primevue/tabs';
 import TabList from 'primevue/tablist';
 import Tab from 'primevue/tab';
 import TabPanels from 'primevue/tabpanels';
 import TabPanel from 'primevue/tabpanel';
 import Badge from 'primevue/badge';
-import ProgressBar from 'primevue/progressbar';
-import { useQueueStore, type GenerationJob } from '@/stores/queue';
+import { useQueueStore, type GenerationJob, type PipelineStage } from '@/stores/queue';
+import { BookMarked, Inbox, List } from 'lucide-vue-next';
+import QueueJobCard from './QueueJobCard.vue';
 
 const queueStore = useQueueStore();
 const activeTab = ref('queue');
 
+// Demo mode state
+const demoMode = ref(false);
+const demoProgress = ref(0);
+let demoInterval: ReturnType<typeof setInterval> | null = null;
+
+// Demo jobs with various states
+const demoAllJobs = computed<GenerationJob[]>(() => {
+  const baseParams = {
+    prompt: 'A beautiful sunset over mountains with dramatic clouds',
+    steps: 28,
+    cfg_scale: 3.5,
+    width: 1024,
+    height: 1024,
+    seed: 42,
+    model: 'flux-dev',
+    sampler: 'euler' as const,
+    scheduler: 'normal' as const,
+  };
+
+  // Cycle through stages based on demo progress
+  const stages: PipelineStage[] = ['loading_models', 'encoding_t5', 'encoding_clip', 'denoising', 'decoding_vae', 'encoding_png'];
+  const stageIndex = Math.floor((demoProgress.value / 100) * stages.length);
+  const currentStage = stages[Math.min(stageIndex, stages.length - 1)];
+  const currentStep = currentStage === 'denoising' ? Math.floor((demoProgress.value / 100) * 28) : undefined;
+
+  return [
+    {
+      id: 'demo-running',
+      params: { ...baseParams, prompt: 'Cyberpunk city at night with neon lights reflecting on wet streets' },
+      status: 'running',
+      progress: demoProgress.value / 100,
+      currentStage,
+      currentStep,
+      totalSteps: 28,
+      created_at: Date.now() - 30000,
+      started_at: Date.now() - 15000,
+    },
+    {
+      id: 'demo-pending-1',
+      params: { ...baseParams, prompt: 'Ancient forest with mystical fog and rays of sunlight' },
+      status: 'pending',
+      progress: 0,
+      created_at: Date.now() - 20000,
+    },
+    {
+      id: 'demo-pending-2',
+      params: { ...baseParams, prompt: 'Futuristic spaceship interior with holographic displays', width: 1280, height: 720 },
+      status: 'pending',
+      progress: 0,
+      created_at: Date.now() - 10000,
+    },
+    {
+      id: 'demo-completed-1',
+      params: { ...baseParams, prompt: 'Majestic mountain peak at golden hour' },
+      status: 'completed',
+      progress: 1,
+      created_at: Date.now() - 120000,
+      started_at: Date.now() - 110000,
+      completed_at: Date.now() - 60000,
+      result_path: '/demo/path/image1.png',
+    },
+    {
+      id: 'demo-failed-1',
+      params: { ...baseParams, prompt: 'Abstract geometric patterns in vibrant colors' },
+      status: 'failed',
+      progress: 0.3,
+      created_at: Date.now() - 180000,
+      started_at: Date.now() - 170000,
+      error: 'CUDA out of memory',
+    },
+  ];
+});
+
+// Toggle demo mode with Ctrl+Shift+D
+const handleKeydown = (e: KeyboardEvent) => {
+  if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+    e.preventDefault();
+    demoMode.value = !demoMode.value;
+
+    if (demoMode.value) {
+      // Start animating progress
+      demoProgress.value = 0;
+      demoInterval = setInterval(() => {
+        demoProgress.value = (demoProgress.value + 1) % 100;
+      }, 200);
+      console.log('Demo mode enabled - press Ctrl+Shift+D to disable');
+    } else {
+      // Stop animation
+      if (demoInterval) {
+        clearInterval(demoInterval);
+        demoInterval = null;
+      }
+      console.log('Demo mode disabled');
+    }
+  }
+};
+
+// All jobs (active queue + history)
+const allJobs = computed(() => {
+  if (demoMode.value) {
+    return demoAllJobs.value;
+  }
+  // Combine current jobs and history, with active jobs first
+  return [...queueStore.jobs, ...queueStore.historyJobs];
+});
+
+// Count of pending/running jobs for badge
+const pendingJobCount = computed(() => {
+  if (demoMode.value) {
+    return demoAllJobs.value.filter((j) => j.status === 'pending' || j.status === 'running').length;
+  }
+  return queueStore.jobs.filter((j) => j.status === 'pending' || j.status === 'running').length;
+});
+
 onMounted(() => {
   queueStore.refreshJobs();
   queueStore.startPolling(1000);
+  window.addEventListener('keydown', handleKeydown);
 });
 
 onUnmounted(() => {
   queueStore.stopPolling();
+  window.removeEventListener('keydown', handleKeydown);
+  if (demoInterval) {
+    clearInterval(demoInterval);
+  }
 });
-
-function getStatusIcon(status: string): string {
-  switch (status) {
-    case 'pending':
-      return 'pi-clock';
-    case 'running':
-      return 'pi-spin pi-spinner';
-    case 'completed':
-      return 'pi-check';
-    case 'failed':
-      return 'pi-times';
-    case 'cancelled':
-      return 'pi-ban';
-    default:
-      return 'pi-question';
-  }
-}
-
-function truncatePrompt(prompt: string): string {
-  return prompt.length > 60 ? prompt.substring(0, 60) + '...' : prompt;
-}
-
-function getStageDisplayName(stage?: string): string {
-  if (!stage) return 'Starting...';
-  const stageNames: Record<string, string> = {
-    loading_models: 'Loading models...',
-    encoding_t5: 'Encoding prompt (T5)...',
-    encoding_clip: 'Encoding prompt (CLIP)...',
-    denoising: 'Denoising...',
-    decoding_vae: 'Decoding image...',
-    encoding_png: 'Saving image...',
-  };
-  return stageNames[stage] || stage;
-}
-
-function getStepProgress(job: GenerationJob): number {
-  const totalSteps = job.params.steps;
-  if (!totalSteps || totalSteps === 0) return 0;
-
-  const stage = job.currentStage;
-  if (!stage || stage === 'loading_models' || stage === 'encoding_t5' || stage === 'encoding_clip') {
-    return 0;
-  }
-  if (stage === 'decoding_vae' || stage === 'encoding_png') {
-    return 100;
-  }
-  if (job.currentStep !== undefined) {
-    return (job.currentStep / totalSteps) * 100;
-  }
-  return 0;
-}
-
-function getStepDisplay(job: GenerationJob): string {
-  const totalSteps = job.params.steps;
-  const stage = job.currentStage;
-
-  if (stage === 'decoding_vae' || stage === 'encoding_png') {
-    return `${totalSteps}/${totalSteps}`;
-  }
-  const current = job.currentStep ?? 0;
-  return `${current}/${totalSteps}`;
-}
 </script>
 
 <style scoped>
 @reference "tailwindcss";
 
-.bottom-panel {
-  @apply h-full overflow-hidden;
-  background: #1e2530;
+/* PrimeVue Tabs overrides */
+:deep(.p-tabs) {
+  @apply flex h-full flex-col;
 }
 
-.bottom-panel :deep(.p-tabs) {
-  @apply h-full flex flex-col;
-  background: transparent;
-}
-
-.bottom-panel :deep(.p-tablist) {
-  @apply border-b px-4;
-  border-color: #2d3748;
-  background: #1a1f28;
-}
-
-.bottom-panel :deep(.p-tab) {
-  color: #64748b;
-  background: transparent;
-
-  &:hover {
-    color: #94a3b8;
-  }
-
-  &[data-p-active="true"] {
-    color: #f1f5f9;
-    border-color: #3b82f6;
-  }
-}
-
-.bottom-panel :deep(.p-tabpanels) {
-  @apply flex-1 overflow-hidden;
-  background: transparent;
-}
-
-.bottom-panel :deep(.p-tabpanel) {
+:deep(.p-tabpanels) {
   @apply h-full p-0;
-  background: transparent;
 }
 
-.panel-content {
-  @apply h-full overflow-auto p-3;
-}
-
-.empty-state {
-  @apply flex flex-col items-center justify-center h-full gap-2;
-  color: #475569;
-
-  i {
-    @apply text-3xl;
-  }
-
-  p {
-    @apply text-sm;
-  }
-}
-
-.job-grid {
-  @apply flex gap-3 flex-wrap;
-}
-
-.job-card {
-  @apply flex items-start gap-3 p-3 rounded-lg min-w-[250px] max-w-[300px];
-  background: #2d3748;
-  border: 1px solid #374151;
-
-  &.status-running {
-    border-color: #3b82f6;
-    background: rgba(59, 130, 246, 0.1);
-  }
-
-  &.status-completed {
-    @apply opacity-70;
-  }
-
-  &.status-failed {
-    border-color: #ef4444;
-  }
-}
-
-.job-icon {
-  @apply flex items-center justify-center w-8 h-8 rounded-full;
-  background: #374151;
-  color: #64748b;
-
-  .status-running & {
-    background: #3b82f6;
-    color: white;
-  }
-
-  .status-completed & {
-    background: #22c55e;
-    color: white;
-  }
-
-  .status-failed & {
-    background: #ef4444;
-    color: white;
-  }
-}
-
-.job-info {
-  @apply flex-1 min-w-0;
-}
-
-.job-prompt {
-  @apply text-sm font-medium truncate;
-  color: #e2e8f0;
-}
-
-.job-meta {
-  @apply flex gap-2 text-xs mt-1;
-  color: #64748b;
-}
-
-.job-progress {
-  @apply w-full mt-2 flex flex-col gap-1;
-}
-
-.progress-row {
-  @apply flex items-center gap-2;
-}
-
-.progress-label {
-  @apply text-xs;
-  width: 50px;
-  flex-shrink: 0;
-  color: #94a3b8;
-}
-
-.progress-value {
-  @apply text-xs font-mono;
-  width: 40px;
-  text-align: right;
-  flex-shrink: 0;
-  color: #e2e8f0;
-}
-
-.progress-stage {
-  @apply text-xs text-center;
-  color: #2dd4bf;
-  margin: 2px 0;
-}
-
-.progress-bar-pipeline,
-.progress-bar-steps {
-  @apply flex-1;
-}
-
-:deep(.progress-bar-pipeline .p-progressbar) {
-  background: #334155;
-  height: 6px;
-  border-radius: 9999px;
-}
-
-:deep(.progress-bar-pipeline .p-progressbar-value) {
-  background: linear-gradient(90deg, #14b8a6, #2dd4bf);
-  border-radius: 9999px;
-}
-
-:deep(.progress-bar-steps .p-progressbar) {
-  background: #334155;
-  height: 5px;
-  border-radius: 9999px;
-}
-
-:deep(.progress-bar-steps .p-progressbar-value) {
-  background: linear-gradient(90deg, #0ea5e9, #38bdf8);
-  border-radius: 9999px;
+:deep(.p-tabpanel) {
+  @apply h-full p-0;
 }
 </style>

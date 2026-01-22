@@ -4,6 +4,7 @@ use anyhow::Result;
 use candle_core::Device;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+use tracing::{debug, info};
 
 use super::{ClipTextEncoder, FluxTransformer, ModelPaths, ModelType, T5TextEncoder, VaeDecoder};
 
@@ -127,10 +128,10 @@ impl ModelManager {
             anyhow::bail!("Required model files not downloaded");
         }
 
-        println!("Loading shared components...");
+        info!("Loading shared components");
 
         if self.t5.is_none() {
-            println!("  Loading T5 encoder...");
+            info!("Loading T5 encoder");
             self.t5 = Some(T5TextEncoder::load(
                 self.paths.t5_path(),
                 self.paths.t5_tokenizer_path(),
@@ -139,7 +140,7 @@ impl ModelManager {
         }
 
         if self.clip.is_none() {
-            println!("  Loading CLIP encoder...");
+            info!("Loading CLIP encoder");
             self.clip = Some(ClipTextEncoder::load(
                 self.paths.clip_path().join("model.safetensors"),
                 self.paths.tokenizer_path(),
@@ -148,7 +149,7 @@ impl ModelManager {
         }
 
         if self.vae.is_none() {
-            println!("  Loading VAE decoder...");
+            info!("Loading VAE decoder");
             self.vae = Some(VaeDecoder::load(
                 self.paths.vae_path(),
                 self.device.clone(),
@@ -170,7 +171,7 @@ impl ModelManager {
 
         // Unload current transformer if different model
         if self.current_model.is_some() && self.current_model != Some(model) {
-            println!("  Unloading {} transformer...", self.current_model.unwrap());
+            debug!(model = ?self.current_model.unwrap(), "Unloading transformer");
             self.flux = None;
             self.current_model = None;
             self.current_precision = None;
@@ -180,10 +181,10 @@ impl ModelManager {
         let precision = self.select_precision(model);
         let use_quantized = precision == Precision::Quantized;
 
-        println!(
-            "  Loading {} transformer ({})...",
-            model,
-            if use_quantized { "quantized" } else { "full precision" }
+        info!(
+            model = %model,
+            precision = if use_quantized { "quantized" } else { "full_precision" },
+            "Loading transformer"
         );
 
         // Load transformer
@@ -203,7 +204,7 @@ impl ModelManager {
         self.current_model = Some(model);
         self.current_precision = Some(precision);
 
-        println!("  {} loaded successfully!", model);
+        info!(model = %model, "Model loaded successfully");
         Ok(())
     }
 

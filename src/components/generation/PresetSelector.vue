@@ -1,8 +1,12 @@
 <template>
-  <div class="preset-selector">
-    <div class="field">
-      <label for="preset">Preset</label>
-      <div class="preset-controls">
+  <div class="flex flex-col">
+    <button
+      class="flex items-center justify-between w-full text-xs font-medium tracking-wide text-gray-400 transition-colors cursor-pointer hover:text-gray-300">
+      <span>Presets</span>
+    </button>
+
+    <div class="overflow-hidden">
+      <div class="flex items-center gap-2">
         <Select
           id="preset"
           v-model="selectedPresetId"
@@ -11,13 +15,16 @@
           option-value="id"
           placeholder="Select a preset"
           class="flex-1"
+          size="small"
           @change="handleLoadPreset" />
-        <Button icon="pi pi-save" severity="secondary" @click="showSaveDialog = true" title="Save current settings as preset" />
+        <Button @click="showSaveDialog = true" title="Save current settings as preset">
+          <BookMarked class="w-4 h-4" />
+        </Button>
       </div>
     </div>
 
     <Dialog v-model:visible="showSaveDialog" modal header="Save Preset" :style="{ width: '350px' }">
-      <div class="save-dialog-content">
+      <div class="flex flex-col gap-3 py-4">
         <label for="preset-name">Preset Name</label>
         <InputText id="preset-name" v-model="newPresetName" placeholder="My Preset" class="w-full" @keyup.enter="handleSavePreset" />
       </div>
@@ -36,6 +43,7 @@ import Select from 'primevue/select';
 import Button from 'primevue/button';
 import InputText from 'primevue/inputtext';
 import Dialog from 'primevue/dialog';
+import { BookMarked } from 'lucide-vue-next';
 
 const presetsStore = usePresetsStore();
 
@@ -57,19 +65,3 @@ const handleSavePreset = () => {
   }
 };
 </script>
-
-<style scoped>
-@reference "tailwindcss";
-
-.preset-selector {
-  @apply flex flex-col gap-2;
-}
-
-.preset-controls {
-  @apply flex gap-2 items-center;
-}
-
-.save-dialog-content {
-  @apply flex flex-col gap-3 py-4;
-}
-</style>

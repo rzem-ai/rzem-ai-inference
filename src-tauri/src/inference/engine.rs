@@ -2,6 +2,7 @@
 
 use anyhow::Result;
 use candle_core::{Device, Tensor};
+use tracing::{info, warn};
 
 pub struct InferenceEngine {
     device: Device,
@@ -20,11 +21,11 @@ impl InferenceEngine {
         {
             match Device::new_metal(0) {
                 Ok(device) => {
-                    println!("[InferenceEngine] Using Metal device for inference");
+                    info!("Using Metal device for inference");
                     return Ok(device);
                 }
                 Err(e) => {
-                    println!("[InferenceEngine] Metal not available: {}, falling back to CPU", e);
+                    warn!(error = %e, "Metal not available, falling back to CPU");
                 }
             }
         }
@@ -34,17 +35,17 @@ impl InferenceEngine {
         {
             match Device::new_cuda(0) {
                 Ok(device) => {
-                    println!("[InferenceEngine] Using CUDA device for inference");
+                    info!("Using CUDA device for inference");
                     return Ok(device);
                 }
                 Err(e) => {
-                    println!("[InferenceEngine] CUDA not available: {}, falling back to CPU", e);
+                    warn!(error = %e, "CUDA not available, falling back to CPU");
                 }
             }
         }
 
         // Fallback to CPU for all platforms
-        println!("[InferenceEngine] Using CPU for inference");
+        info!("Using CPU for inference");
         Ok(Device::Cpu)
     }
 

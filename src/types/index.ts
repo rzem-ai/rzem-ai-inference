@@ -6,8 +6,10 @@ export interface GenerationJob {
 
 export type GenerationMode = 'txt2img' | 'img2img' | 'inpainting'
 
-export type Sampler = 'euler' | 'euler_a' | 'heun' | 'dpm_2' | 'dpm_2_a' | 'lms' | 'dpmpp_2m' | 'dpmpp_2s_a' | 'dpmpp_sde'
-export type Scheduler = 'normal' | 'karras' | 'exponential' | 'sgm_uniform' | 'simple' | 'ddim_uniform' | 'beta'
+// Sampler types supported by FLUX
+export type Sampler = 'euler' | 'euler_a' | 'dpm_pp_2m'
+// Scheduler types supported by FLUX
+export type Scheduler = 'normal' | 'simple' | 'karras' | 'exponential'
 
 export interface GenerationParams {
   mode: GenerationMode

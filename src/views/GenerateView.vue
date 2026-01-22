@@ -1,63 +1,20 @@
 <template>
-  <div class="generate-view">
+  <div class="flex h-full bg-gray-900">
     <!-- Left Sidebar -->
-    <aside class="sidebar">
-      <LeftSidebar />
+    <aside class="w-100 shrink-0">
+      <LeftSidebar @generate="handleGenerate" />
     </aside>
 
     <!-- Main Content Area -->
-    <div class="main-area">
-      <!-- Canvas Section with Generate Button -->
-      <div class="canvas-section">
-        <!-- Generate Button -->
-        <div class="generate-bar">
-          <Button
-            class="generate-button"
-            icon="pi pi-sparkles"
-            :label="queueStore.queueLength > 0 ? `Generate (${queueStore.queueLength})` : 'Generate'"
-            :loading="queueStore.hasRunningJobs"
-            @click="handleGenerate" />
-        </div>
-
+    <div class="flex flex-col flex-1 overflow-hidden bg-gray-600">
+      <!-- Canvas Section -->
+      <div class="flex flex-col flex-1 p-4 overflow-hidden">
         <!-- Generated Results -->
-        <div class="results-area">
-          <div class="results-header">
-            <span class="results-label">GENERATED RESULTS</span>
-            <span class="results-status">{{ slotsStatus }}</span>
-          </div>
-
-          <div class="image-slots">
-            <!-- Slot 1 -->
-            <div class="image-slot" :class="{ 'has-image': slot1Image }">
-              <div v-if="!slot1Image" class="slot-empty">
-                <i class="pi pi-image"></i>
-                <span class="slot-label">SLOT 1</span>
-                <span class="slot-status">Ready</span>
-              </div>
-              <div v-else class="image-container">
-                <Image :src="slot1Image" alt="Generated image" preview image-class="slot-image" />
-                <Button icon="pi pi-download" class="download-button" rounded severity="secondary" @click.stop="handleDownload(slot1Image, 1)" />
-              </div>
-            </div>
-
-            <!-- Slot 2 -->
-            <div class="image-slot" :class="{ 'has-image': slot2Image }">
-              <div v-if="!slot2Image" class="slot-empty">
-                <i class="pi pi-image"></i>
-                <span class="slot-label">SLOT 2</span>
-                <span class="slot-status">Ready</span>
-              </div>
-              <div v-else class="image-container">
-                <Image :src="slot2Image" alt="Generated image" preview image-class="slot-image" />
-                <Button icon="pi pi-download" class="download-button" rounded severity="secondary" @click.stop="handleDownload(slot2Image, 2)" />
-              </div>
-            </div>
-          </div>
-        </div>
+        <GeneratedResults :images="generatedImages" :pending-count="pendingCount" @download="handleDownload" />
       </div>
 
       <!-- Bottom Panel -->
-      <div class="bottom-section">
+      <div class="bg-gray-800 border-t border-gray-500 h-50 shrink-0">
         <BottomPanel />
       </div>
     </div>
@@ -65,15 +22,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, watch } from 'vue';
 import { useToast } from 'primevue/usetoast';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeFile, readFile } from '@tauri-apps/plugin-fs';
-import Button from 'primevue/button';
-import Image from 'primevue/image';
 import LeftSidebar from '@/components/generation/LeftSidebar.vue';
 import BottomPanel from '@/components/generation/BottomPanel.vue';
+import GeneratedResults from '@/components/generation/GeneratedResults.vue';
 import { useQueueStore } from '@/stores/queue';
 import { useGenerationStore } from '@/stores/generation';
 import type { GenerationParams } from '@/stores/queue';
@@ -82,41 +38,50 @@ const queueStore = useQueueStore();
 const generationStore = useGenerationStore();
 const toast = useToast();
 
-// Image slots
-const slot1Image = ref<string | null>(null);
-const slot2Image = ref<string | null>(null);
-const currentSlot = ref(1);
+// Generated images array
+interface GeneratedImage {
+  id: string;
+  src: string;
+}
+
+const generatedImages = ref<GeneratedImage[]>([]);
 
 // Track displayed job IDs
 const displayedJobIds = ref<Set<string>>(new Set());
 
-const slotsStatus = computed(() => {
-  const ready = [!slot1Image.value, !slot2Image.value].filter(Boolean).length;
-  return `${ready} slots ready`;
-});
+// Track job IDs in the current generation batch
+const currentBatchJobIds = ref<Set<string>>(new Set());
 
-// Watch for completed jobs
+// Track pending image count for skeleton placeholders
+const pendingCount = ref(0);
+
+// Watch for completed jobs - only show jobs from current batch
 watch(
   () => queueStore.jobs,
   (jobs) => {
-    const newlyCompleted = jobs.filter((j) => j.status === 'completed' && j.result_path && !displayedJobIds.value.has(j.id));
+    const newlyCompleted = jobs.filter(
+      (j) =>
+        j.status === 'completed' &&
+        j.result_path &&
+        currentBatchJobIds.value.has(j.id) &&
+        !displayedJobIds.value.has(j.id)
+    );
 
     if (newlyCompleted.length > 0) {
-      const latestJob = newlyCompleted[newlyCompleted.length - 1];
-      if (latestJob.result_path) {
-        const imageSrc = convertFileSrc(latestJob.result_path);
-
-        // Alternate between slots
-        if (currentSlot.value === 1) {
-          slot1Image.value = imageSrc;
-          currentSlot.value = 2;
-        } else {
-          slot2Image.value = imageSrc;
-          currentSlot.value = 1;
+      newlyCompleted.forEach((job) => {
+        if (job.result_path) {
+          const imageSrc = convertFileSrc(job.result_path);
+          generatedImages.value.push({
+            id: job.id,
+            src: imageSrc,
+          });
+          displayedJobIds.value.add(job.id);
+          // Decrement pending count as images complete
+          if (pendingCount.value > 0) {
+            pendingCount.value--;
+          }
         }
-
-        newlyCompleted.forEach((j) => displayedJobIds.value.add(j.id));
-      }
+      });
     }
   },
   { deep: true },
@@ -124,32 +89,57 @@ watch(
 
 const handleGenerate = async () => {
   const params = generationStore.currentParams;
+  const batchSize = params.batchSize || 1;
 
-  // Determine the seed to use
-  let seedToUse: number;
+  // Move completed jobs to history before starting new generation
+  queueStore.moveCompletedToHistory();
+
+  // Clear state for new generation batch
+  generatedImages.value = [];
+  displayedJobIds.value.clear();
+  currentBatchJobIds.value.clear();
+  pendingCount.value = batchSize;
+
+  // Determine the base seed to use
+  let baseSeed: number;
   if (generationStore.randomizeSeedOnGenerate) {
     // Generate a new random seed for this generation
-    seedToUse = Math.floor(Math.random() * 2147483647);
+    baseSeed = Math.floor(Math.random() * 2147483647);
     // Update the store so user can see/copy the seed that was used
-    generationStore.currentParams.seed = seedToUse;
+    generationStore.currentParams.seed = baseSeed;
   } else {
     // Use the locked seed value
-    seedToUse = params.seed >= 0 ? params.seed : Math.floor(Math.random() * 2147483647);
+    baseSeed = params.seed >= 0 ? params.seed : Math.floor(Math.random() * 2147483647);
   }
 
-  const queueParams: GenerationParams = {
-    prompt: params.prompt,
-    negative_prompt: params.negativePrompt || undefined,
-    steps: params.steps,
-    cfg_scale: params.cfgScale,
-    width: params.width,
-    height: params.height,
-    seed: seedToUse,
-    model: params.model,
-  };
-
   try {
-    await queueStore.addToQueue(queueParams);
+    // Generate multiple images based on batchSize
+    for (let i = 0; i < batchSize; i++) {
+      // For each image in the batch, use a different seed
+      let seedToUse: number;
+      if (generationStore.randomizeSeedOnGenerate) {
+        // Each image gets a unique random seed
+        seedToUse = i === 0 ? baseSeed : Math.floor(Math.random() * 2147483647);
+      } else {
+        // Increment seed for reproducibility (baseSeed, baseSeed+1, baseSeed+2, etc.)
+        seedToUse = baseSeed + i;
+      }
+
+      const queueParams: GenerationParams = {
+        prompt: params.prompt,
+        steps: params.steps,
+        cfg_scale: params.cfgScale,
+        width: params.width,
+        height: params.height,
+        seed: seedToUse,
+        model: params.model,
+        sampler: params.sampler,
+        scheduler: params.scheduler,
+      };
+
+      const jobId = await queueStore.addToQueue(queueParams);
+      currentBatchJobIds.value.add(jobId);
+    }
   } catch (error) {
     console.error('Failed to add to queue:', error);
     toast.add({
@@ -212,131 +202,15 @@ const handleDownload = async (imageSrc: string, slotNumber: number) => {
 <style scoped>
 @reference "tailwindcss";
 
-.generate-view {
-  @apply flex h-full;
-  background: #151a21;
-}
-
-.sidebar {
-  @apply flex-shrink-0;
-  width: 320px;
-}
-
-.main-area {
-  @apply flex-1 flex flex-col overflow-hidden;
-}
-
-.canvas-section {
-  @apply flex-1 flex flex-col p-4 overflow-hidden;
-}
-
-.generate-bar {
-  @apply mb-4;
-}
-
-.generate-button {
-  @apply w-full py-3 text-lg font-semibold;
-  background: #3b82f6 !important;
-  border-color: #3b82f6 !important;
-
-  &:hover {
-    background: #2563eb !important;
-    border-color: #2563eb !important;
-  }
-}
-
-.results-area {
-  @apply flex-1 flex flex-col overflow-hidden;
-}
-
-.results-header {
-  @apply flex items-center justify-between mb-3;
-}
-
-.results-label {
-  @apply text-xs font-semibold tracking-wider;
-  color: #64748b;
-}
-
-.results-status {
-  @apply text-xs;
-  color: #38bdf8;
-}
-
-.image-slots {
-  @apply flex-1 grid grid-cols-2 gap-4;
-  min-height: 0; /* Allow grid to shrink within flex container */
-}
-
-.image-slot {
-  @apply flex items-center justify-center rounded-xl overflow-hidden;
-  background: #1e2530;
-  border: 2px dashed #2d3748;
-  min-height: 0; /* Prevent grid items from expanding beyond container */
-
-  &.has-image {
-    border-style: solid;
-    border-color: #3b82f6;
-  }
-}
-
-.slot-empty {
-  @apply flex flex-col items-center gap-2;
-  color: #475569;
-
-  i {
-    @apply text-4xl;
-  }
-}
-
-.slot-label {
-  @apply text-sm font-semibold;
-}
-
-.slot-status {
-  @apply text-xs;
-  color: #64748b;
-}
-
-/* Image container with download button */
-.image-container {
-  @apply relative w-full h-full;
-}
-
-/* Download button - hidden by default, shown on hover */
-.download-button {
-  @apply absolute;
-  top: 12px;
-  right: 12px;
-  z-index: 10;
-  opacity: 0;
-  transition: opacity 0.2s ease-in-out;
-  background: rgba(59, 130, 246, 0.9) !important;
-  border-color: rgba(59, 130, 246, 0.9) !important;
-  backdrop-filter: blur(8px);
-
-  &:hover {
-    background: rgba(37, 99, 235, 0.95) !important;
-    border-color: rgba(37, 99, 235, 0.95) !important;
-  }
-}
-
-/* Show download button on image container hover */
-.image-container:hover .download-button {
-  opacity: 1;
-}
-
-/* Image component wrapper - takes full slot size */
+/* PrimeVue deep selectors for Image component */
 :deep(.p-image) {
-  @apply w-full h-full flex items-center justify-center cursor-pointer;
+  @apply flex h-full w-full cursor-pointer items-center justify-center;
 }
 
-/* Scaled image inside slot */
 .slot-image {
-  @apply w-full h-full object-contain;
+  @apply object-fill;
 }
 
-/* Preview toolbar styling */
 :deep(.p-image-preview-container) {
   background: rgba(0, 0, 0, 0.95);
 }
@@ -344,12 +218,5 @@ const handleDownload = async (imageSrc: string, slotNumber: number) => {
 :deep(.p-image-toolbar) {
   background: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(10px);
-}
-
-.bottom-section {
-  @apply flex-shrink-0;
-  height: 200px;
-  background: #1e2530;
-  border-top: 1px solid #2d3748;
 }
 </style>

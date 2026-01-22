@@ -4,6 +4,9 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { useGalleryStore } from './gallery'
 
+export type SamplerType = 'euler' | 'euler_a' | 'dpm_pp_2m'
+export type SchedulerType = 'normal' | 'simple' | 'karras' | 'exponential'
+
 export interface GenerationParams {
   prompt: string
   negative_prompt?: string
@@ -13,6 +16,8 @@ export interface GenerationParams {
   height: number
   seed: number
   model: string
+  sampler?: SamplerType
+  scheduler?: SchedulerType
 }
 
 /**
@@ -90,6 +95,7 @@ export interface GenerationJob {
 export const useQueueStore = defineStore('queue', () => {
   // State
   const jobs = ref<GenerationJob[]>([])
+  const historyJobs = ref<GenerationJob[]>([])
   const isPolling = ref(false)
   const pollingInterval = ref<number | null>(null)
   const error = ref<string | null>(null)
@@ -118,27 +124,33 @@ export const useQueueStore = defineStore('queue', () => {
     }
 
     if (jobIndex !== -1) {
-      jobs.value[jobIndex].status = status
+      // Update job properties - use object spread to ensure reactivity triggers
+      const updatedJob = { ...jobs.value[jobIndex] }
+      updatedJob.status = status
       if (progress !== undefined) {
-        jobs.value[jobIndex].progress = progress
+        updatedJob.progress = progress
       }
       if (result_path) {
-        jobs.value[jobIndex].result_path = result_path
+        updatedJob.result_path = result_path
       }
       if (jobError) {
-        jobs.value[jobIndex].error = jobError
+        updatedJob.error = jobError
       }
       if (stats) {
-        jobs.value[jobIndex].stats = stats
+        updatedJob.stats = stats
       }
       // Update started_at when job begins running
-      if (status === 'running' && !jobs.value[jobIndex].started_at) {
-        jobs.value[jobIndex].started_at = Math.floor(Date.now() / 1000)
+      if (status === 'running' && !updatedJob.started_at) {
+        updatedJob.started_at = Math.floor(Date.now() / 1000)
       }
       // Update completed_at when job finishes
       if (status === 'completed' || status === 'failed' || status === 'cancelled') {
-        jobs.value[jobIndex].completed_at = Math.floor(Date.now() / 1000)
+        updatedJob.completed_at = Math.floor(Date.now() / 1000)
       }
+
+      // Replace job in array to trigger Vue reactivity
+      jobs.value[jobIndex] = updatedJob
+
       // Refresh gallery when job completes successfully
       if (status === 'completed') {
         // Get gallery store inside the callback (after Pinia is initialized)
@@ -296,9 +308,27 @@ export const useQueueStore = defineStore('queue', () => {
     }
   }
 
+  function moveCompletedToHistory(): void {
+    // Move all completed and failed jobs from queue to history
+    const completedOrFailed = jobs.value.filter(
+      (j) => j.status === 'completed' || j.status === 'failed'
+    )
+
+    if (completedOrFailed.length > 0) {
+      // Add to beginning of history (most recent first)
+      historyJobs.value = [...completedOrFailed, ...historyJobs.value]
+
+      // Remove from active queue
+      jobs.value = jobs.value.filter(
+        (j) => j.status !== 'completed' && j.status !== 'failed'
+      )
+    }
+  }
+
   return {
     // State
     jobs,
+    historyJobs,
     isPolling,
     error,
 
@@ -318,5 +348,6 @@ export const useQueueStore = defineStore('queue', () => {
     clearCompleted,
     startPolling,
     stopPolling,
+    moveCompletedToHistory,
   }
 })

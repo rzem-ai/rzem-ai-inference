@@ -1,7 +1,7 @@
 //! Queue processor that executes pending jobs
 
 use super::{QueueManager, JobStatus};
-use crate::inference::{InferenceEngine, FluxPipeline, GenerationStats};
+use crate::inference::{InferenceEngine, GenerationStats, ModelCache, ModelCacheConfig};
 use crate::gallery::{GalleryDb, ImageMetadata};
 use crate::models::ModelType;
 use std::sync::Arc;
@@ -10,11 +10,13 @@ use tokio::time::{sleep, Duration, timeout};
 use tokio::task::JoinHandle;
 use anyhow::Result;
 use tauri::{AppHandle, Emitter};
+use tracing::{debug, error, info, warn};
 
 pub struct QueueProcessor {
     queue_manager: Arc<QueueManager>,
     gallery_db: Arc<tokio::sync::Mutex<Option<GalleryDb>>>,
     inference_engine: Arc<InferenceEngine>,
+    model_cache: Arc<ModelCache>,
     running: Arc<AtomicBool>,
     task_handle: Arc<tokio::sync::Mutex<Option<JoinHandle<()>>>>,
     app_handle: AppHandle,
@@ -28,14 +30,24 @@ impl QueueProcessor {
     ) -> Result<Self> {
         let inference_engine = Arc::new(InferenceEngine::new()?);
 
+        // Create model cache with default config
+        let device = inference_engine.get_device().clone();
+        let model_cache = ModelCache::new(device, ModelCacheConfig::default());
+
         Ok(Self {
             queue_manager,
             gallery_db,
             inference_engine,
+            model_cache,
             running: Arc::new(AtomicBool::new(false)),
             task_handle: Arc::new(tokio::sync::Mutex::new(None)),
             app_handle,
         })
+    }
+
+    /// Get a reference to the model cache for external configuration
+    pub fn model_cache(&self) -> &Arc<ModelCache> {
+        &self.model_cache
     }
 
     /// Start the processor loop
@@ -53,9 +65,27 @@ impl QueueProcessor {
 
         let queue_manager = self.queue_manager.clone();
         let gallery_db = self.gallery_db.clone();
-        let inference_engine = self.inference_engine.clone();
+        let model_cache = self.model_cache.clone();
         let running = self.running.clone();
         let app_handle = self.app_handle.clone();
+
+        // Spawn idle timeout checker
+        let model_cache_for_timeout = self.model_cache.clone();
+        let running_for_timeout = self.running.clone();
+        tokio::spawn(async move {
+            loop {
+                // Check every 60 seconds
+                sleep(Duration::from_secs(60)).await;
+
+                // Stop if processor stopped
+                if !running_for_timeout.load(Ordering::SeqCst) {
+                    break;
+                }
+
+                // Check and handle idle timeout
+                model_cache_for_timeout.check_idle_timeout().await;
+            }
+        });
 
         // Fix Issue 1: Store the JoinHandle so we can await it later
         let handle = tokio::spawn(async move {
@@ -69,10 +99,10 @@ impl QueueProcessor {
                 if let Err(e) = process_next_job(
                     &queue_manager,
                     &gallery_db,
-                    &inference_engine,
+                    &model_cache,
                     &app_handle,
                 ).await {
-                    eprintln!("Error processing job: {}", e);
+                    error!(error = %e, "Error processing job");
                 }
 
                 // Sleep before checking again
@@ -99,10 +129,10 @@ impl QueueProcessor {
                     // Task finished successfully
                 }
                 Ok(Err(e)) => {
-                    eprintln!("Processor task panicked: {:?}", e);
+                    error!(error = ?e, "Processor task panicked");
                 }
                 Err(_) => {
-                    eprintln!("Processor task did not stop within timeout");
+                    warn!("Processor task did not stop within timeout");
                 }
             }
         }
@@ -140,7 +170,7 @@ impl Drop for RunningGuard {
                 queue_manager.decrement_running().await;
             });
         } else {
-            eprintln!("Warning: Could not decrement running jobs - runtime not available");
+            warn!("Could not decrement running jobs - runtime not available");
         }
     }
 }
@@ -148,7 +178,7 @@ impl Drop for RunningGuard {
 async fn process_next_job(
     queue_manager: &Arc<QueueManager>,
     gallery_db: &Arc<tokio::sync::Mutex<Option<GalleryDb>>>,
-    inference_engine: &Arc<InferenceEngine>,
+    model_cache: &Arc<ModelCache>,
     app_handle: &AppHandle,
 ) -> Result<()> {
     // Check if we can start a new job
@@ -185,7 +215,7 @@ async fn process_next_job(
         &job_id,
         &params,
         queue_manager,
-        inference_engine,
+        model_cache,
         app_handle,
     ).await;
 
@@ -193,8 +223,22 @@ async fn process_next_job(
     match result {
         Ok((image_path, stats)) => {
             // Save to gallery with stats
-            if let Err(e) = save_to_gallery(&image_path, &params, &stats, gallery_db).await {
-                eprintln!("Failed to save to gallery: {}", e);
+            let image_id = match save_to_gallery(&image_path, &params, &stats, gallery_db).await {
+                Ok(id) => id,
+                Err(e) => {
+                    warn!(error = %e, "Failed to save to gallery");
+                    String::new()
+                }
+            };
+
+            // Auto-tag if enabled (runs asynchronously, non-blocking)
+            if !image_id.is_empty() {
+                let gallery_db = gallery_db.clone();
+                let app_handle = app_handle.clone();
+                let image_path_clone = image_path.clone();
+                tokio::spawn(async move {
+                    auto_tag_if_enabled(&image_id, &image_path_clone, &gallery_db, &app_handle).await;
+                });
             }
 
             // Mark as completed
@@ -229,17 +273,21 @@ async fn execute_generation(
     job_id: &str,
     params: &super::GenerationParams,
     queue_manager: &Arc<QueueManager>,
-    inference_engine: &Arc<InferenceEngine>,
+    model_cache: &Arc<ModelCache>,
     app_handle: &AppHandle,
 ) -> Result<(String, GenerationStats)> {
-    use crate::inference::GenerationProgress;
+    use crate::inference::{GenerationProgress, ImageMetadata};
 
     // Parse model type from params (defaults to Schnell if invalid)
     let model_type: ModelType = params.model.parse().unwrap_or(ModelType::Schnell);
 
-    // Create pipeline with the specified model type
-    let device = inference_engine.get_device().clone();
-    let mut pipeline = FluxPipeline::with_model_type(device, model_type)?;
+    // Get or create cached pipeline for this model type
+    let created_new = model_cache.get_or_create_pipeline(model_type).await?;
+    if created_new {
+        info!(model = ?model_type, "Created new pipeline");
+    } else {
+        debug!(model = ?model_type, "Reusing cached pipeline");
+    }
 
     // Clone values for the progress callback closure
     let job_id_clone = job_id.to_string();
@@ -274,15 +322,57 @@ async fn execute_generation(
     let guidance = if params.cfg_scale > 0.0 { params.cfg_scale } else { 4.0 };
     // Convert seed to u64 (params.seed is i64, use absolute value for consistency)
     let seed = if params.seed >= 0 { params.seed as u64 } else { rand::random::<u64>() };
-    let result = pipeline.generate_with_progress(
-        &params.prompt,
-        params.steps as usize,
-        params.width as usize,
-        params.height as usize,
-        guidance,
-        seed,
-        on_progress,
-    )?;
+
+    // Get sampler and scheduler from params (with defaults)
+    let sampler = params.sampler.unwrap_or_default();
+    let scheduler = params.scheduler.unwrap_or_default();
+
+    // Create metadata for embedding in the PNG
+    let metadata = ImageMetadata {
+        prompt: params.prompt.clone(),
+        negative_prompt: params.negative_prompt.clone(),
+        steps: params.steps,
+        cfg_scale: guidance,
+        width: params.width,
+        height: params.height,
+        seed: params.seed,
+        model: params.model.clone(),
+        sampler: Some(sampler.to_string()),
+        scheduler: Some(scheduler.to_string()),
+    };
+
+    // Use the cached pipeline for generation
+    debug!("Calling with_pipeline");
+    let result = model_cache.with_pipeline(|pipeline| {
+        debug!("Inside with_pipeline, calling generate_with_progress");
+        // Use the progress-enabled generation method
+        // The embedding cache integration will be refined in a future iteration
+        let gen_result = pipeline.generate_with_progress(
+            &params.prompt,
+            params.steps as usize,
+            params.width as usize,
+            params.height as usize,
+            guidance,
+            seed,
+            Some(metadata),
+            sampler,
+            scheduler,
+            on_progress,
+        );
+        if let Err(ref e) = gen_result {
+            error!(error = ?e, "Generation error");
+        }
+        gen_result
+    }).await;
+
+    if let Err(ref e) = result {
+        error!(error = ?e, "with_pipeline error");
+    }
+    let result = result?;
+    debug!(size_bytes = result.image_data.len(), "Generation successful");
+
+    // Apply post-generation cleanup based on cache config
+    model_cache.apply_post_generation_cleanup().await;
 
     // Save to file
     let home = dirs::home_dir()
@@ -305,20 +395,57 @@ async fn execute_generation(
     Ok((output_path.to_string_lossy().to_string(), result.stats))
 }
 
+/// Generate a cover/thumbnail image for gallery display
+fn generate_thumbnail(image_path: &str, thumbnail_size: u32) -> Result<String> {
+    use image::imageops::FilterType;
+    use std::path::Path;
+
+    let path = Path::new(image_path);
+    let img = image::open(path)?;
+
+    // Create thumbnail maintaining aspect ratio, fitting within thumbnail_size x thumbnail_size
+    let thumbnail = img.resize(thumbnail_size, thumbnail_size, FilterType::Lanczos3);
+
+    // Create thumbnail path: same directory, with _cover suffix
+    let stem = path.file_stem()
+        .ok_or_else(|| anyhow::anyhow!("Invalid file path"))?
+        .to_string_lossy();
+    let thumbnail_filename = format!("{}_cover.jpg", stem);
+    let thumbnail_path = path.parent()
+        .ok_or_else(|| anyhow::anyhow!("Invalid file path"))?
+        .join(&thumbnail_filename);
+
+    // Save as JPEG with good quality (smaller file size than PNG)
+    thumbnail.save(&thumbnail_path)?;
+
+    Ok(thumbnail_path.to_string_lossy().to_string())
+}
+
 async fn save_to_gallery(
     image_path: &str,
     params: &super::GenerationParams,
     stats: &GenerationStats,
     gallery_db: &Arc<tokio::sync::Mutex<Option<GalleryDb>>>,
-) -> Result<()> {
+) -> Result<String> {
     let db_guard = gallery_db.lock().await;
     let Some(db) = db_guard.as_ref() else {
-        return Ok(()); // Database not initialized, skip
+        return Ok(String::new()); // Database not initialized, skip
     };
 
+    // Generate thumbnail for gallery display (400px covers most use cases)
+    let thumbnail_path = match generate_thumbnail(image_path, 400) {
+        Ok(path) => Some(path),
+        Err(e) => {
+            warn!(error = ?e, "Failed to generate thumbnail, using original image");
+            None
+        }
+    };
+
+    let image_id = uuid::Uuid::new_v4().to_string();
     let metadata = ImageMetadata {
-        id: uuid::Uuid::new_v4().to_string(),
+        id: image_id.clone(),
         file_path: image_path.to_string(),
+        thumbnail_path,
         prompt: params.prompt.clone(),
         created_at: chrono::Utc::now().timestamp(),
     };
@@ -326,7 +453,100 @@ async fn save_to_gallery(
     db.insert_image(&metadata)?;
 
     // Store generation stats
-    db.insert_generation_stats(&metadata.id, stats)?;
+    db.insert_generation_stats(&image_id, stats)?;
 
-    Ok(())
+    Ok(image_id)
+}
+
+/// Auto-tag a newly generated image if enabled in settings
+async fn auto_tag_if_enabled(
+    image_id: &str,
+    image_path: &str,
+    gallery_db: &Arc<tokio::sync::Mutex<Option<GalleryDb>>>,
+    app_handle: &AppHandle,
+) {
+    use crate::vision::{AutoTagSettings, TaggingBackend, ClaudeTagger, TagWithConfidence};
+
+    // Phase 1: Get settings (with lock)
+    let settings: AutoTagSettings = {
+        let db_guard = gallery_db.lock().await;
+        let Some(db) = db_guard.as_ref() else {
+            return; // Database not initialized
+        };
+        db.get_auto_tag_settings().unwrap_or_default()
+    };
+
+    // Check if auto-tagging on generation is enabled
+    if !settings.enabled || !settings.auto_tag_on_generation {
+        return;
+    }
+
+    // Check if we have an available backend
+    let effective_backend = settings.effective_backend();
+    let Some(backend) = effective_backend else {
+        debug!("Auto-tagging skipped: no backend available");
+        return;
+    };
+
+    info!(
+        image_id = %image_id,
+        backend = %backend,
+        "Auto-tagging generated image"
+    );
+
+    // Phase 2: Run tagging (without lock for Claude's async API call)
+    let tags_result: Result<Vec<TagWithConfidence>, String> = match backend {
+        TaggingBackend::Local => {
+            // Local tagger is currently a stub - skip
+            debug!("Local tagger not yet implemented, skipping auto-tag");
+            return;
+        }
+        TaggingBackend::Claude => {
+            let Some(api_key) = settings.claude_api_key.clone() else {
+                warn!("Claude API key not configured");
+                return;
+            };
+
+            let tagger = ClaudeTagger::new(api_key);
+            let path = std::path::Path::new(image_path);
+
+            match tagger.extract_tags(path).await {
+                Ok(mut tags) => {
+                    // Filter by confidence threshold
+                    tags.retain(|t| t.confidence >= settings.min_confidence);
+                    Ok(tags)
+                }
+                Err(e) => Err(e.to_string()),
+            }
+        }
+    };
+
+    // Phase 3: Save tags to database (with lock)
+    match tags_result {
+        Ok(tags) => {
+            let tag_count = tags.len();
+            let db_guard = gallery_db.lock().await;
+            if let Some(db) = db_guard.as_ref() {
+                if let Err(e) = db.bulk_add_tags_with_category(image_id, &tags) {
+                    warn!(error = %e, "Failed to save auto-tags to database");
+                } else {
+                    info!(image_id = %image_id, tag_count = tag_count, "Auto-tagging complete");
+
+                    // Emit event so frontend can update
+                    let _ = app_handle.emit("auto-tag-complete", serde_json::json!({
+                        "image_id": image_id,
+                        "tags": tags,
+                        "backend": backend.to_string(),
+                    }));
+                }
+            }
+        }
+        Err(e) => {
+            warn!(image_id = %image_id, error = %e, "Auto-tagging failed");
+            let _ = app_handle.emit("auto-tag-failed", serde_json::json!({
+                "image_id": image_id,
+                "error": e,
+            }));
+        }
+    }
 }

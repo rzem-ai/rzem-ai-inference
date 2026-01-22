@@ -35,10 +35,16 @@ hf-hub = { version = "0.3", features = ["tokio"] }
 tokenizers = "0.15"
 safetensors = "0.4"
 image = "0.25"
+png = "0.17"
 reqwest = { version = "0.12", features = ["json"] }
+base64 = "0.22"
 dotenvy = "0.15"
 clap = { version = "4.4", features = ["derive"] }
 rand = "0.8"
+
+# Logging - tracing for async-aware structured logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 
 # =============================================================================
 # Platform-specific GPU acceleration
