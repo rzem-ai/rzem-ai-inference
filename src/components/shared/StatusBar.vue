@@ -205,8 +205,24 @@ const getVramTextClass = () => {
 
 onMounted(() => {
   fetchStats();
-  // Poll every 2 seconds
-  pollInterval = setInterval(fetchStats, 2000);
+
+  // Adaptive polling: faster when generating, slower when idle
+  // This reduces unnecessary updates when nothing is happening
+  pollInterval = setInterval(() => {
+    const isGenerating = stats.value?.is_generating ?? false;
+
+    // Poll more frequently during generation (2s), less when idle (6s)
+    if (isGenerating) {
+      fetchStats();
+    } else {
+      // Only update every 3rd interval when idle (6 seconds)
+      const now = Date.now();
+      if (!lastIdleUpdate || now - lastIdleUpdate >= 6000) {
+        fetchStats();
+        lastIdleUpdate = now;
+      }
+    }
+  }, 2000);
 });
 
 onUnmounted(() => {
@@ -214,6 +230,8 @@ onUnmounted(() => {
     clearInterval(pollInterval);
   }
 });
+
+let lastIdleUpdate = 0;
 </script>
 
 <style scoped>
