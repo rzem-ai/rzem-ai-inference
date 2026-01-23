@@ -252,7 +252,7 @@ onUnmounted(() => {
 }
 
 .text-status-gray {
-  @apply bg-surface-200;
+  @apply bg-gray-200;
 }
 
 .flex items-center gap-2 {

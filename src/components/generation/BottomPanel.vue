@@ -173,13 +173,17 @@ const pendingJobCount = computed(() => {
 });
 
 onMounted(() => {
+  // Initial load of jobs
   queueStore.refreshJobs();
-  queueStore.startPolling(1000);
+
+  // Note: No polling needed! Queue store already listens to real-time events:
+  // - Tauri events (local/server mode)
+  // - WebSocket messages (client mode)
+
   window.addEventListener('keydown', handleKeydown);
 });
 
 onUnmounted(() => {
-  queueStore.stopPolling();
   window.removeEventListener('keydown', handleKeydown);
   if (demoInterval) {
     clearInterval(demoInterval);
