@@ -53,12 +53,14 @@ export interface TaggingResult {
 }
 
 /**
- * Vision model (Moondream) status
+ * Vision model (Moondream) status (matches backend VisionModelStatus)
  */
 export interface VisionModelStatus {
-  downloaded: boolean
-  download_progress: number
-  model_size_bytes: number
+  is_downloaded: boolean
+  download_progress: number | null
+  model_size: number
+  model_size_display: string
+  error: string | null
 }
 
 export const useAutoTagStore = defineStore('autoTag', () => {
@@ -71,9 +73,11 @@ export const useAutoTagStore = defineStore('autoTag', () => {
     claude_api_key: undefined,
   })
   const modelStatus = ref<VisionModelStatus>({
-    downloaded: false,
-    download_progress: 0,
-    model_size_bytes: 0,
+    is_downloaded: false,
+    download_progress: null,
+    model_size: 0,
+    model_size_display: '',
+    error: null,
   })
   const isLoadingSettings = ref(false)
   const isTagging = ref(false)
@@ -87,7 +91,7 @@ export const useAutoTagStore = defineStore('autoTag', () => {
   })
 
   const isLocalAvailable = computed(() => {
-    return modelStatus.value.downloaded
+    return modelStatus.value.is_downloaded
   })
 
   const effectiveBackend = computed((): TaggingBackend | null => {
@@ -105,10 +109,9 @@ export const useAutoTagStore = defineStore('autoTag', () => {
   })
 
   const downloadProgressPercent = computed(() => {
-    if (modelStatus.value.model_size_bytes === 0) return 0
-    return Math.round(
-      (modelStatus.value.download_progress / modelStatus.value.model_size_bytes) * 100
-    )
+    const progress = modelStatus.value.download_progress
+    if (progress === null || modelStatus.value.model_size === 0) return 0
+    return Math.round((progress / modelStatus.value.model_size) * 100)
   })
 
   // Listen for auto-tag events from backend
@@ -153,7 +156,7 @@ export const useAutoTagStore = defineStore('autoTag', () => {
     total_bytes: number
   }>('vision-model-download-progress', (event) => {
     modelStatus.value.download_progress = event.payload.bytes_downloaded
-    modelStatus.value.model_size_bytes = event.payload.total_bytes
+    modelStatus.value.model_size = event.payload.total_bytes
   })
 
   // Cleanup listeners on store disposal
@@ -223,6 +226,16 @@ export const useAutoTagStore = defineStore('autoTag', () => {
     }
   }
 
+  async function clearLocks(): Promise<string> {
+    try {
+      const result = await invoke<string>('clear_vision_model_locks')
+      return result
+    } catch (error) {
+      console.error('Failed to clear locks:', error)
+      throw error
+    }
+  }
+
   async function tagImages(
     imageIds: string[],
     backend?: TaggingBackend
@@ -277,6 +290,7 @@ export const useAutoTagStore = defineStore('autoTag', () => {
     saveSettings,
     checkModelStatus,
     downloadModel,
+    clearLocks,
     tagImages,
     clearRecentResults,
   }

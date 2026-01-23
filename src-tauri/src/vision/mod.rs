@@ -10,8 +10,8 @@ pub mod taxonomy;
 
 // Re-exports for convenience
 pub use downloader::{
-    download_moondream, ensure_moondream_weights, get_model_status, is_moondream_downloaded,
-    VisionModelStatus, MOONDREAM_SIZE_BYTES,
+    download_moondream, ensure_moondream_weights, force_cleanup_locks, get_model_status,
+    is_moondream_downloaded, VisionModelStatus, MOONDREAM_SIZE_BYTES,
 };
 pub use models::{is_moondream_available, moondream_repo_id, MoondreamTagger};
 pub use tagger::{ClaudeTagger, TaggerBackend};

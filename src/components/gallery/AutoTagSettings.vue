@@ -47,10 +47,24 @@
                 <ProgressBar :value="autoTagStore.downloadProgressPercent" :showValue="true" />
               </template>
               <template v-else>
-                <Button size="small" severity="secondary" @click.stop="downloadModel">
-                  <Download class="w-4 h-4 mr-2" />
-                  Download Model (~1.8GB)
-                </Button>
+                <div class="flex flex-col gap-2">
+                  <div class="flex items-center gap-2">
+                    <Button size="small" severity="secondary" @click.stop="downloadModel">
+                      <Download class="w-4 h-4 mr-2" />
+                      Download Model (~1.8GB)
+                    </Button>
+                    <Button
+                      size="small"
+                      severity="secondary"
+                      text
+                      :loading="isClearingLocks"
+                      @click.stop="clearLocks"
+                      title="Clear stale lock files from failed downloads">
+                      <Trash2 class="w-4 h-4" />
+                    </Button>
+                  </div>
+                  <span v-if="lockClearMessage" class="text-xs text-slate-400">{{ lockClearMessage }}</span>
+                </div>
               </template>
             </div>
             <div v-else class="backend-status ready">
@@ -134,7 +148,7 @@ import ToggleSwitch from 'primevue/toggleswitch'
 import Slider from 'primevue/slider'
 import InputText from 'primevue/inputtext'
 import ProgressBar from 'primevue/progressbar'
-import { Monitor, Cloud, Download, Check, Pencil, X, AlertCircle } from 'lucide-vue-next'
+import { Monitor, Cloud, Download, Check, Pencil, X, AlertCircle, Trash2 } from 'lucide-vue-next'
 
 const props = defineProps<{
   visible: boolean
@@ -162,6 +176,8 @@ const localSettings = ref<AutoTagSettings>({
 
 const showApiKeyInput = ref(false)
 const isSaving = ref(false)
+const isClearingLocks = ref(false)
+const lockClearMessage = ref<string | null>(null)
 
 // Slider works with 0-100, settings use 0.0-1.0
 const confidenceSlider = computed({
@@ -187,7 +203,23 @@ watch(
 )
 
 const downloadModel = async () => {
+  lockClearMessage.value = null
   await autoTagStore.downloadModel()
+}
+
+const clearLocks = async () => {
+  isClearingLocks.value = true
+  lockClearMessage.value = null
+  try {
+    const result = await autoTagStore.clearLocks()
+    lockClearMessage.value = result
+    // Refresh model status after clearing locks
+    await autoTagStore.checkModelStatus()
+  } catch (error) {
+    lockClearMessage.value = `Failed: ${error}`
+  } finally {
+    isClearingLocks.value = false
+  }
 }
 
 const handleCancel = () => {

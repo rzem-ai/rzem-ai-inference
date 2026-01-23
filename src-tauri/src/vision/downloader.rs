@@ -7,9 +7,113 @@ use anyhow::{Context, Result};
 use hf_hub::api::tokio::Api;
 use std::path::PathBuf;
 use tauri::{AppHandle, Emitter};
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 use super::models::moondream_repo_id;
+
+/// Clean up stale lock files from HuggingFace cache
+///
+/// Lock files are left behind when downloads are interrupted.
+/// This function removes them so downloads can proceed.
+fn cleanup_stale_locks() -> Result<usize> {
+    let cache_dir = dirs::cache_dir()
+        .context("Could not find cache directory")?
+        .join("huggingface/hub/models--vikhyatk--moondream2");
+
+    if !cache_dir.exists() {
+        return Ok(0);
+    }
+
+    let mut removed = 0;
+
+    // Clean locks in blobs directory
+    let blobs_dir = cache_dir.join("blobs");
+    if blobs_dir.exists() {
+        if let Ok(entries) = std::fs::read_dir(&blobs_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.extension().map_or(false, |ext| ext == "lock") {
+                    // Check if lock is stale (older than 5 minutes)
+                    if let Ok(metadata) = path.metadata() {
+                        if let Ok(modified) = metadata.modified() {
+                            let age = std::time::SystemTime::now()
+                                .duration_since(modified)
+                                .unwrap_or_default();
+
+                            if age.as_secs() > 300 {
+                                info!(path = %path.display(), age_secs = age.as_secs(), "Removing stale lock file");
+                                if std::fs::remove_file(&path).is_ok() {
+                                    removed += 1;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Also check refs directory
+    let refs_dir = cache_dir.join("refs");
+    if refs_dir.exists() {
+        if let Ok(entries) = std::fs::read_dir(&refs_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.extension().map_or(false, |ext| ext == "lock") {
+                    if let Ok(metadata) = path.metadata() {
+                        if let Ok(modified) = metadata.modified() {
+                            let age = std::time::SystemTime::now()
+                                .duration_since(modified)
+                                .unwrap_or_default();
+
+                            if age.as_secs() > 300 {
+                                info!(path = %path.display(), age_secs = age.as_secs(), "Removing stale lock file");
+                                if std::fs::remove_file(&path).is_ok() {
+                                    removed += 1;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(removed)
+}
+
+/// Force remove all lock files (use when user explicitly requests retry)
+pub fn force_cleanup_locks() -> Result<usize> {
+    let cache_dir = dirs::cache_dir()
+        .context("Could not find cache directory")?
+        .join("huggingface/hub/models--vikhyatk--moondream2");
+
+    if !cache_dir.exists() {
+        return Ok(0);
+    }
+
+    let mut removed = 0;
+
+    // Remove ALL lock files regardless of age
+    for subdir in ["blobs", "refs", "snapshots"] {
+        let dir = cache_dir.join(subdir);
+        if dir.exists() {
+            if let Ok(entries) = std::fs::read_dir(&dir) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.extension().map_or(false, |ext| ext == "lock") {
+                        info!(path = %path.display(), "Force removing lock file");
+                        if std::fs::remove_file(&path).is_ok() {
+                            removed += 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(removed)
+}
 
 /// Approximate size of Moondream 2 model in bytes (~1.8GB)
 pub const MOONDREAM_SIZE_BYTES: u64 = 1_800_000_000;
@@ -66,10 +170,45 @@ fn format_bytes(bytes: u64) -> String {
 }
 
 /// Check if Moondream model is fully downloaded
+///
+/// This checks the filesystem directly rather than using hf_hub API
+/// to avoid network requests just for status checks.
 pub fn is_moondream_downloaded() -> bool {
+    // First try direct filesystem check (fast, no network)
+    if let Some(cache_dir) = dirs::cache_dir() {
+        let model_dir = cache_dir.join("huggingface/hub/models--vikhyatk--moondream2/snapshots");
+
+        if model_dir.exists() {
+            // Find the latest snapshot directory
+            if let Ok(entries) = std::fs::read_dir(&model_dir) {
+                for entry in entries.flatten() {
+                    let snapshot_dir = entry.path();
+                    if snapshot_dir.is_dir() {
+                        // Check if all required files exist in this snapshot
+                        let all_exist = MOONDREAM_FILES.iter().all(|file| {
+                            snapshot_dir.join(file).exists()
+                        });
+
+                        if all_exist {
+                            debug!(
+                                snapshot = %snapshot_dir.display(),
+                                "Moondream model found via filesystem check"
+                            );
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Fallback to hf_hub API check (may involve network)
     let api = match hf_hub::api::sync::Api::new() {
         Ok(api) => api,
-        Err(_) => return false,
+        Err(e) => {
+            debug!(error = %e, "Failed to create HF API for model check");
+            return false;
+        }
     };
 
     let repo = api.model(moondream_repo_id().to_string());
@@ -110,13 +249,58 @@ pub fn get_moondream_cache_path() -> Result<PathBuf> {
         .unwrap_or_else(|| model_path))
 }
 
+/// Download a single file with retry logic
+async fn download_file_with_retry(
+    repo: &hf_hub::api::tokio::ApiRepo,
+    file: &str,
+    max_retries: u32,
+) -> Result<PathBuf> {
+    let mut last_error = None;
+
+    for attempt in 1..=max_retries {
+        match repo.get(file).await {
+            Ok(path) => {
+                info!(file = %file, path = %path.display(), attempt = attempt, "Downloaded successfully");
+                return Ok(path);
+            }
+            Err(e) => {
+                warn!(
+                    file = %file,
+                    attempt = attempt,
+                    max_retries = max_retries,
+                    error = %e,
+                    "Download attempt failed"
+                );
+                last_error = Some(e);
+
+                // Wait before retrying (exponential backoff)
+                if attempt < max_retries {
+                    let delay = std::time::Duration::from_millis(500 * (1 << attempt));
+                    info!(delay_ms = delay.as_millis(), "Waiting before retry");
+                    tokio::time::sleep(delay).await;
+                }
+            }
+        }
+    }
+
+    Err(last_error.unwrap()).with_context(|| format!("Failed to download {} after {} attempts", file, max_retries))
+}
+
 /// Download Moondream model from HuggingFace Hub
 ///
 /// Emits progress events via Tauri for UI feedback.
 pub async fn download_moondream(app_handle: Option<&AppHandle>) -> Result<PathBuf> {
-    info!("Starting Moondream 2 download");
+    info!("Starting Moondream 2 download from {}", moondream_repo_id());
 
-    let api = Api::new()?;
+    // Clean up any stale lock files from previous interrupted downloads
+    match cleanup_stale_locks() {
+        Ok(0) => debug!("No stale lock files found"),
+        Ok(n) => info!(count = n, "Cleaned up stale lock files"),
+        Err(e) => warn!(error = %e, "Failed to clean up stale locks, continuing anyway"),
+    }
+
+    let api = Api::new()
+        .context("Failed to initialize HuggingFace Hub API")?;
     let repo = api.model(moondream_repo_id().to_string());
 
     let total_files = MOONDREAM_FILES.len();
@@ -138,8 +322,37 @@ pub async fn download_moondream(app_handle: Option<&AppHandle>) -> Result<PathBu
 
         info!(file = %file, progress = %format!("{:.0}%", progress * 100.0), "Downloading");
 
-        let path = repo.get(file).await
-            .with_context(|| format!("Failed to download {}", file))?;
+        let path = match download_file_with_retry(&repo, file, 3).await {
+            Ok(path) => path,
+            Err(e) => {
+                // Log detailed error information
+                tracing::error!(
+                    file = %file,
+                    error = %e,
+                    error_debug = ?e,
+                    "Failed to download file from HuggingFace Hub"
+                );
+
+                // Emit error event
+                if let Some(handle) = app_handle {
+                    let _ = handle.emit("vision-model-download", serde_json::json!({
+                        "status": "error",
+                        "file": file,
+                        "error": format!("{}", e),
+                    }));
+                }
+
+                return Err(e).with_context(|| {
+                    format!(
+                        "Failed to download '{}' from {}. \
+                        This could be due to network issues, rate limiting, or the file may have been moved. \
+                        Try again in a few moments.",
+                        file,
+                        moondream_repo_id()
+                    )
+                });
+            }
+        };
 
         if *file == "model.safetensors" {
             downloaded_path = Some(path);
