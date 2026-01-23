@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref, computed, onScopeDispose } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
 import { useGalleryStore } from './gallery'
+import { useJobUpdates } from '@/composables/useWebSocket'
 
 export type SamplerType = 'euler' | 'euler_a' | 'dpm_pp_2m'
 export type SchedulerType = 'normal' | 'simple' | 'karras' | 'exponential'
@@ -100,17 +100,19 @@ export const useQueueStore = defineStore('queue', () => {
   const pollingInterval = ref<number | null>(null)
   const error = ref<string | null>(null)
 
-  // Listen for job updates from backend
-  // This is the primary source of truth for job state updates
-  const unlistenJobUpdate = listen<{
+  // Set up unified job update listeners (works in both local and client modes)
+  const jobUpdates = useJobUpdates()
+
+  // Handle job update events
+  const handleJobUpdate = async (payload: {
     job_id: string
-    status: JobStatus
+    status: string
     progress?: number
     result_path?: string
     error?: string
-    stats?: GenerationStats
-  }>('job-update', async (event) => {
-    const { job_id, status, progress, result_path, error: jobError, stats } = event.payload
+    stats?: any
+  }) => {
+    const { job_id, status, progress, result_path, error: jobError, stats } = payload
 
     // Find and update job in local state
     let jobIndex = jobs.value.findIndex((j) => j.id === job_id)
@@ -126,7 +128,7 @@ export const useQueueStore = defineStore('queue', () => {
     if (jobIndex !== -1) {
       // Update job properties - use object spread to ensure reactivity triggers
       const updatedJob = { ...jobs.value[jobIndex] }
-      updatedJob.status = status
+      updatedJob.status = status as JobStatus
       if (progress !== undefined) {
         updatedJob.progress = progress
       }
@@ -158,27 +160,26 @@ export const useQueueStore = defineStore('queue', () => {
         await galleryStore.loadImages()
       }
     }
-  })
+  }
 
-  // Listen for detailed progress updates during generation
-  // Provides real-time stage info and progress messages
-  const unlistenJobProgress = listen<{
+  // Handle job progress events
+  const handleJobProgress = (payload: {
     job_id: string
-    stage: PipelineStage
+    stage: string
     stage_progress: number
     overall_progress: number
     message: string
     eta_seconds?: number
     current_step?: number
     total_steps?: number
-  }>('job-progress', (event) => {
-    const { job_id, stage, overall_progress, message, current_step, total_steps } = event.payload
+  }) => {
+    const { job_id, stage, overall_progress, message, current_step, total_steps } = payload
 
     // Find and update job in local state
     const jobIndex = jobs.value.findIndex((j) => j.id === job_id)
     if (jobIndex !== -1) {
       jobs.value[jobIndex].progress = overall_progress
-      jobs.value[jobIndex].currentStage = stage
+      jobs.value[jobIndex].currentStage = stage as PipelineStage
       jobs.value[jobIndex].statusMessage = message
       // Track denoising steps separately for the step progress bar
       if (current_step !== undefined) {
@@ -188,7 +189,11 @@ export const useQueueStore = defineStore('queue', () => {
         jobs.value[jobIndex].totalSteps = total_steps
       }
     }
-  })
+  }
+
+  // Subscribe to job update events
+  jobUpdates.onJobUpdate(handleJobUpdate)
+  jobUpdates.onJobProgress(handleJobProgress)
 
   // Computed
   const pendingJobs = computed(() =>
@@ -211,18 +216,15 @@ export const useQueueStore = defineStore('queue', () => {
   const hasRunningJobs = computed(() => runningJobs.value.length > 0)
 
   // Cleanup polling and event listeners on store disposal
-  onScopeDispose(async () => {
+  onScopeDispose(() => {
     stopPolling()
-    const unlistenUpdate = await unlistenJobUpdate
-    unlistenUpdate()
-    const unlistenProgress = await unlistenJobProgress
-    unlistenProgress()
+    jobUpdates.cleanup()
   })
 
   // Actions
   async function addToQueue(params: GenerationParams): Promise<string> {
     try {
-      const jobId = await invoke<string>('add_to_queue', { params })
+      const jobId = await invoke<string>('client_add_to_queue', { params })
       // Note: No refreshJobs() call here - backend emits job-update events
       // which the event listener handles as the single source of truth
       error.value = null
@@ -237,7 +239,7 @@ export const useQueueStore = defineStore('queue', () => {
 
   async function refreshJobs(): Promise<void> {
     try {
-      const result = await invoke<GenerationJob[]>('get_queue_jobs')
+      const result = await invoke<GenerationJob[]>('client_get_queue_jobs')
       jobs.value = result
       error.value = null
     } catch (err) {
@@ -249,7 +251,7 @@ export const useQueueStore = defineStore('queue', () => {
 
   async function getJob(jobId: string): Promise<GenerationJob | null> {
     try {
-      const result = await invoke<GenerationJob | null>('get_queue_job', {
+      const result = await invoke<GenerationJob | null>('client_get_queue_job', {
         jobId,
       })
       error.value = null
@@ -264,7 +266,7 @@ export const useQueueStore = defineStore('queue', () => {
 
   async function cancelJob(jobId: string): Promise<boolean> {
     try {
-      const cancelled = await invoke<boolean>('cancel_queue_job', { jobId })
+      const cancelled = await invoke<boolean>('client_cancel_queue_job', { jobId })
       // Note: No refreshJobs() call here - backend emits job-update events
       // which the event listener handles as the single source of truth
       error.value = null

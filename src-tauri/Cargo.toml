@@ -31,7 +31,7 @@ chrono = "0.4"
 candle-core = "0.8.4"
 candle-nn = "0.8.4"
 candle-transformers = "0.8.4"     
-hf-hub = { version = "0.3", features = ["tokio"] }
+hf-hub = { version = "0.4", features = ["tokio"] }
 tokenizers = "0.15"
 safetensors = "0.4"
 image = "0.25"
@@ -46,6 +46,16 @@ sysinfo = "0.32"
 # Logging - tracing for async-aware structured logging
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+
+# Server mode dependencies
+axum = { version = "0.7", features = ["ws"] }
+tower = "0.5"
+tower-http = { version = "0.5", features = ["cors", "fs", "trace"] }
+tokio-tungstenite = "0.21"
+tokio-util = { version = "0.7", features = ["io"] }
+futures-util = "0.3"
+r2d2 = "0.8"
+r2d2_sqlite = "0.25"
 
 # =============================================================================
 # Platform-specific GPU acceleration

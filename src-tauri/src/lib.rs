@@ -7,6 +7,9 @@ mod utils;
 mod claude;
 mod logging;
 pub mod vision;
+pub mod server;
+pub mod shared;
+pub mod client;
 
 pub use logging::init_logging;
 
@@ -17,12 +20,18 @@ use tokio::sync::Mutex;
 use tracing::warn;
 use queue::QueueProcessor;
 
-struct AppState {
-    gallery_db: Arc<Mutex<Option<gallery::GalleryDb>>>,
-    queue_manager: Arc<queue::QueueManager>,
-    queue_processor: Arc<QueueProcessor>,
-    app_handle: tauri::AppHandle,
-    download_in_progress: Arc<Mutex<bool>>,
+#[derive(Clone)]
+pub struct AppState {
+    pub gallery_db: Arc<Mutex<Option<gallery::GalleryDb>>>,
+    pub queue_manager: Arc<queue::QueueManager>,
+    pub queue_processor: Arc<QueueProcessor>,
+    pub app_handle: tauri::AppHandle,
+    pub download_in_progress: Arc<Mutex<bool>>,
+    pub runtime_config: shared::protocol::RuntimeConfig,
+    /// WebSocket state for server mode (None in local/client mode)
+    pub ws_state: Option<Arc<server::ws_state::WsState>>,
+    /// Client API client for client mode (None in local/server mode)
+    pub client_api: Option<Arc<client::api::ApiClient>>,
 }
 
 #[command]
@@ -432,12 +441,8 @@ async fn add_to_queue(
 ) -> Result<String, String> {
     let job_id = app_state.queue_manager.add_job(params).await;
 
-    // Emit event for new job
-    app_state.app_handle.emit("job-update", serde_json::json!({
-        "job_id": job_id,
-        "status": "pending",
-        "progress": 0.0,
-    })).map_err(|e| e.to_string())?;
+    // Emit event for new job (both Tauri and WebSocket)
+    emit_job_update(&app_state, &job_id, "pending", 0.0, None, None).await;
 
     Ok(job_id)
 }
@@ -467,11 +472,8 @@ async fn cancel_queue_job(
     let cancelled = app_state.queue_manager.cancel_job(&job_id).await;
 
     if cancelled {
-        // Emit event for cancelled job
-        app_state.app_handle.emit("job-update", serde_json::json!({
-            "job_id": job_id,
-            "status": "cancelled",
-        })).map_err(|e| e.to_string())?;
+        // Emit event for cancelled job (both Tauri and WebSocket)
+        emit_job_update(&app_state, &job_id, "cancelled", 0.0, None, None).await;
     }
 
     Ok(cancelled)
@@ -617,6 +619,77 @@ fn get_model_status() -> Result<Vec<ModelFileStatus>, String> {
         .collect();
 
     Ok(status)
+}
+
+/// Structured component availability for UI display
+#[derive(serde::Serialize)]
+struct ComponentAvailability {
+    id: String,
+    name: String,
+    description: String,
+    is_downloaded: bool,
+    size_estimate: String,
+    has_quantized: bool,
+    quantized_downloaded: bool,
+}
+
+/// Get availability status of model components (VAE, CLIP, T5)
+#[command]
+fn get_component_availability() -> Result<Vec<ComponentAvailability>, String> {
+    use crate::models::ModelPaths;
+
+    let paths = ModelPaths::new()
+        .map_err(|e| e.to_string())?;
+
+    // Check each component's download status
+    let clip_downloaded = paths.clip_path().join("model.safetensors").exists();
+    let vae_downloaded = paths.vae_path().exists();
+
+    // T5 can be full precision (split safetensors) or quantized (single GGUF)
+    let t5_dir = paths.t5_path();
+    let t5_full_downloaded = t5_dir.join("model-00001-of-00002.safetensors").exists()
+        && t5_dir.join("config.json").exists();
+    let t5_quantized_downloaded = paths.has_quantized_t5();
+    let t5_tokenizer_downloaded = paths.t5_tokenizer_path().exists();
+
+    Ok(vec![
+        ComponentAvailability {
+            id: "vae".to_string(),
+            name: "FLUX VAE".to_string(),
+            description: "Variational Autoencoder for encoding images to latent space and decoding back".to_string(),
+            is_downloaded: vae_downloaded,
+            size_estimate: "~335 MB".to_string(),
+            has_quantized: false,
+            quantized_downloaded: false,
+        },
+        ComponentAvailability {
+            id: "clip".to_string(),
+            name: "CLIP Text Encoder".to_string(),
+            description: "OpenAI CLIP model for encoding text prompts into embeddings".to_string(),
+            is_downloaded: clip_downloaded,
+            size_estimate: "~250 MB".to_string(),
+            has_quantized: false,
+            quantized_downloaded: false,
+        },
+        ComponentAvailability {
+            id: "t5".to_string(),
+            name: "T5-XXL Text Encoder".to_string(),
+            description: "Google T5-XXL encoder for detailed text understanding and long prompts".to_string(),
+            is_downloaded: t5_full_downloaded || t5_quantized_downloaded,
+            size_estimate: "~9 GB (full) / ~3.3 GB (quantized)".to_string(),
+            has_quantized: true,
+            quantized_downloaded: t5_quantized_downloaded,
+        },
+        ComponentAvailability {
+            id: "t5-tokenizer".to_string(),
+            name: "T5 Tokenizer".to_string(),
+            description: "Tokenizer for converting text to tokens for T5 encoder".to_string(),
+            is_downloaded: t5_tokenizer_downloaded,
+            size_estimate: "~2 MB".to_string(),
+            has_quantized: false,
+            quantized_downloaded: false,
+        },
+    ])
 }
 
 #[command]
@@ -845,6 +918,26 @@ async fn download_vision_model(
     *app_state.download_in_progress.lock().await = false;
 
     result
+}
+
+/// Clear stale lock files that may be blocking vision model downloads
+///
+/// Call this if downloads are failing with "Lock acquisition failed" errors.
+#[command]
+async fn clear_vision_model_locks() -> Result<String, String> {
+    tokio::task::spawn_blocking(|| {
+        vision::force_cleanup_locks()
+            .map(|count| {
+                if count > 0 {
+                    format!("Removed {} lock file(s)", count)
+                } else {
+                    "No lock files found".to_string()
+                }
+            })
+            .map_err(|e| format!("Failed to clear locks: {}", e))
+    })
+    .await
+    .map_err(|e| format!("Task failed: {}", e))?
 }
 
 /// Get auto-tagging settings from the gallery database
@@ -1157,6 +1250,146 @@ fn get_gpu_stats() -> (Option<u64>, Option<u64>, Option<f32>, Option<String>) {
     (None, None, None, None)
 }
 
+/// Emit a job update event to both Tauri and WebSocket (if in server mode)
+pub async fn emit_job_update(
+    app_state: &AppState,
+    job_id: &str,
+    status: &str,
+    progress: f32,
+    result_path: Option<&str>,
+    error: Option<&str>,
+) {
+    // Emit to Tauri (for desktop UI)
+    let payload = serde_json::json!({
+        "job_id": job_id,
+        "status": status,
+        "progress": progress,
+    });
+
+    let _ = app_state.app_handle.emit("job-update", payload);
+
+    // Emit to WebSocket (if in server mode)
+    if let Some(ws_state) = &app_state.ws_state {
+        let message = if status == "completed" && result_path.is_some() {
+            server::websocket::ServerMessage::JobComplete {
+                job_id: job_id.to_string(),
+                result_url: format!("/api/v1/files/{}",
+                    std::path::Path::new(result_path.unwrap())
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or("")
+                ),
+            }
+        } else if status == "failed" && error.is_some() {
+            server::websocket::ServerMessage::JobFailed {
+                job_id: job_id.to_string(),
+                error: error.unwrap().to_string(),
+            }
+        } else {
+            server::websocket::ServerMessage::JobProgress {
+                job_id: job_id.to_string(),
+                status: status.to_string(),
+                progress,
+                stage: None,
+                current_step: None,
+                total_steps: None,
+            }
+        };
+
+        server::websocket::broadcast_job_update(ws_state, job_id, message).await;
+    }
+}
+
+/// Get the runtime configuration (mode, server URL, etc.)
+#[command]
+fn get_runtime_config(app_state: State<'_, AppState>) -> shared::protocol::RuntimeConfig {
+    app_state.runtime_config.clone()
+}
+
+// ========== Client Mode Commands ==========
+
+/// Add a job to queue (client mode aware)
+#[command]
+async fn client_add_to_queue(
+    app_state: State<'_, AppState>,
+    params: queue::GenerationParams,
+) -> Result<String, String> {
+    if let Some(client) = &app_state.client_api {
+        // Client mode: Use REST API
+        client.submit_job(params).await
+            .map_err(|e| e.to_string())
+    } else {
+        // Local/Server mode: Use local queue
+        add_to_queue(app_state, params).await
+    }
+}
+
+/// Get all queue jobs (client mode aware)
+#[command]
+async fn client_get_queue_jobs(
+    app_state: State<'_, AppState>,
+) -> Result<Vec<queue::GenerationJob>, String> {
+    if let Some(client) = &app_state.client_api {
+        // Client mode: Use REST API
+        client.get_jobs().await
+            .map_err(|e| e.to_string())
+    } else {
+        // Local/Server mode: Use local queue
+        get_queue_jobs(app_state).await
+    }
+}
+
+/// Get a specific job (client mode aware)
+#[command]
+async fn client_get_queue_job(
+    app_state: State<'_, AppState>,
+    job_id: String,
+) -> Result<Option<queue::GenerationJob>, String> {
+    if let Some(client) = &app_state.client_api {
+        // Client mode: Use REST API
+        client.get_job(&job_id).await
+            .map_err(|e| e.to_string())
+    } else {
+        // Local/Server mode: Use local queue
+        Ok(app_state.queue_manager.get_job(&job_id).await)
+    }
+}
+
+/// Cancel a job (client mode aware)
+#[command]
+async fn client_cancel_queue_job(
+    app_state: State<'_, AppState>,
+    job_id: String,
+) -> Result<bool, String> {
+    if let Some(client) = &app_state.client_api {
+        // Client mode: Use REST API
+        client.cancel_job(&job_id).await
+            .map_err(|e| e.to_string())
+    } else {
+        // Local/Server mode: Use local queue
+        cancel_queue_job(app_state, job_id).await
+    }
+}
+
+/// Get the file URL for an image (client mode aware)
+#[command]
+fn client_get_file_url(
+    app_state: State<'_, AppState>,
+    filename: String,
+) -> Result<String, String> {
+    if let Some(client) = &app_state.client_api {
+        // Client mode: Return server URL
+        Ok(client.get_file_url(&filename))
+    } else {
+        // Local/Server mode: Return local file path
+        let home = dirs::home_dir()
+            .ok_or_else(|| "Could not determine home directory".to_string())?;
+        let output_dir = home.join(".rzem-ai-inference").join("outputs");
+        let file_path = output_dir.join(&filename);
+        Ok(file_path.to_string_lossy().to_string())
+    }
+}
+
 /// Analyze an image using Claude and generate a prompt to recreate it
 ///
 /// # Arguments
@@ -1204,6 +1437,13 @@ async fn analyze_image_for_prompt(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    run_with_config(shared::protocol::RuntimeConfig::local(), None)
+}
+
+/// Run the application with a specific configuration
+///
+/// This is the main entry point that supports different operation modes
+pub fn run_with_config(runtime_config: shared::protocol::RuntimeConfig, port: Option<u16>) {
     // Initialize logging (defaults to info level, use RUST_LOG to override)
     init_logging("info");
 
@@ -1218,33 +1458,88 @@ pub fn run() {
             // Get app handle
             let app_handle = app.handle().clone();
 
+            // Create WebSocket state if in server mode
+            let ws_state = if runtime_config.mode == shared::protocol::OperationMode::Server {
+                Some(Arc::new(server::ws_state::WsState::new()))
+            } else {
+                None
+            };
+
+            // Create client API if in client mode
+            let client_api = if runtime_config.mode == shared::protocol::OperationMode::Client {
+                if let Some(server_url) = &runtime_config.server_url {
+                    let config = client::ClientConfig::new(server_url.clone());
+                    Some(Arc::new(client::api::ApiClient::new(config)))
+                } else {
+                    tracing::error!("Client mode requires server URL");
+                    None
+                }
+            } else {
+                None
+            };
+
             // Create processor with app handle (needs its own clone)
             let queue_processor = Arc::new(
                 QueueProcessor::new(
                     queue_manager.clone(),
                     gallery_db.clone(),
                     app_handle.clone(),
+                    ws_state.clone(),
                 ).expect("Failed to create queue processor")
             );
 
             // Store in managed state
-            app.manage(AppState {
+            let app_state = Arc::new(AppState {
                 gallery_db: gallery_db.clone(),
                 queue_manager: queue_manager.clone(),
                 queue_processor: queue_processor.clone(),
-                app_handle,
+                app_handle: app_handle.clone(),
                 download_in_progress: Arc::new(Mutex::new(false)),
+                runtime_config: runtime_config.clone(),
+                ws_state: ws_state.clone(),
+                client_api: client_api.clone(),
             });
 
+            app.manage(app_state.as_ref().clone());
+
             // Start processor
-            tauri::async_runtime::spawn(async move {
-                queue_processor.start().await;
+            tauri::async_runtime::spawn({
+                let queue_processor = queue_processor.clone();
+                async move {
+                    queue_processor.start().await;
+                }
             });
+
+            // Start server if in server mode
+            if runtime_config.mode == shared::protocol::OperationMode::Server {
+                let port = port.unwrap_or(8080);
+                tauri::async_runtime::spawn({
+                    let app_state_for_server = app_state.clone();
+                    async move {
+                        match server::start_server(app_state_for_server, port, false).await {
+                            Ok(addr) => {
+                                tracing::info!("Server started at {}", addr);
+                            }
+                            Err(e) => {
+                                tracing::error!("Failed to start server: {}", e);
+                            }
+                        }
+                    }
+                });
+            }
 
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             health_check,
+            get_runtime_config,
+            // Client mode commands
+            client_add_to_queue,
+            client_get_queue_jobs,
+            client_get_queue_job,
+            client_cancel_queue_job,
+            client_get_file_url,
+            // Local commands
             init_database,
             generate_image,
             get_gallery_images,
@@ -1279,6 +1574,7 @@ pub fn run() {
             check_models_downloaded,
             get_model_status,
             get_available_models,
+            get_component_availability,
             // Settings commands
             get_hf_token,
             set_hf_token,
@@ -1298,6 +1594,7 @@ pub fn run() {
             // Auto-tagging commands
             check_vision_model_status,
             download_vision_model,
+            clear_vision_model_locks,
             get_auto_tag_settings,
             update_auto_tag_settings,
             auto_tag_images,

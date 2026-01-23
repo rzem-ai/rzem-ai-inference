@@ -20,6 +20,7 @@ pub struct QueueProcessor {
     running: Arc<AtomicBool>,
     task_handle: Arc<tokio::sync::Mutex<Option<JoinHandle<()>>>>,
     app_handle: AppHandle,
+    ws_state: Option<Arc<crate::server::ws_state::WsState>>,
 }
 
 impl QueueProcessor {
@@ -27,6 +28,7 @@ impl QueueProcessor {
         queue_manager: Arc<QueueManager>,
         gallery_db: Arc<tokio::sync::Mutex<Option<GalleryDb>>>,
         app_handle: AppHandle,
+        ws_state: Option<Arc<crate::server::ws_state::WsState>>,
     ) -> Result<Self> {
         let inference_engine = Arc::new(InferenceEngine::new()?);
 
@@ -42,6 +44,7 @@ impl QueueProcessor {
             running: Arc::new(AtomicBool::new(false)),
             task_handle: Arc::new(tokio::sync::Mutex::new(None)),
             app_handle,
+            ws_state,
         })
     }
 
@@ -68,6 +71,7 @@ impl QueueProcessor {
         let model_cache = self.model_cache.clone();
         let running = self.running.clone();
         let app_handle = self.app_handle.clone();
+        let ws_state = self.ws_state.clone();
 
         // Spawn idle timeout checker
         let model_cache_for_timeout = self.model_cache.clone();
@@ -101,6 +105,7 @@ impl QueueProcessor {
                     &gallery_db,
                     &model_cache,
                     &app_handle,
+                    &ws_state,
                 ).await {
                     error!(error = %e, "Error processing job");
                 }
@@ -180,6 +185,7 @@ async fn process_next_job(
     gallery_db: &Arc<tokio::sync::Mutex<Option<GalleryDb>>>,
     model_cache: &Arc<ModelCache>,
     app_handle: &AppHandle,
+    ws_state: &Option<Arc<crate::server::ws_state::WsState>>,
 ) -> Result<()> {
     // Check if we can start a new job
     if !queue_manager.can_start_job().await {
@@ -200,11 +206,8 @@ async fn process_next_job(
     // Mark as running and emit event
     queue_manager.update_job_status(&job_id, JobStatus::Running).await
         .map_err(|e| anyhow::anyhow!(e))?;
-    let _ = app_handle.emit("job-update", serde_json::json!({
-        "job_id": job_id,
-        "status": "running",
-        "progress": 0.0,
-    }));
+
+    emit_job_event(app_handle, ws_state, &job_id, "running", 0.0, None, None).await;
 
     // Create guard that increments counter and will decrement it even on panic
     // This eliminates the race window between increment and guard creation
@@ -244,24 +247,16 @@ async fn process_next_job(
             // Mark as completed
             queue_manager.complete_job(&job_id, image_path.clone()).await
                 .map_err(|e| anyhow::anyhow!(e))?;
-            let _ = app_handle.emit("job-update", serde_json::json!({
-                "job_id": job_id,
-                "status": "completed",
-                "progress": 1.0,
-                "result_path": image_path,
-                "stats": stats,
-            }));
+
+            emit_job_event(app_handle, ws_state, &job_id, "completed", 1.0, Some(&image_path), None).await;
         }
         Err(e) => {
             let error_msg = e.to_string();
             // Mark as failed
             queue_manager.fail_job(&job_id, error_msg.clone()).await
                 .map_err(|e| anyhow::anyhow!(e))?;
-            let _ = app_handle.emit("job-update", serde_json::json!({
-                "job_id": job_id,
-                "status": "failed",
-                "error": error_msg,
-            }));
+
+            emit_job_event(app_handle, ws_state, &job_id, "failed", 0.0, None, Some(&error_msg)).await;
         }
     }
 
@@ -548,5 +543,54 @@ async fn auto_tag_if_enabled(
                 "error": e,
             }));
         }
+    }
+}
+
+/// Helper function to emit job events to both Tauri and WebSocket
+async fn emit_job_event(
+    app_handle: &AppHandle,
+    ws_state: &Option<Arc<crate::server::ws_state::WsState>>,
+    job_id: &str,
+    status: &str,
+    progress: f32,
+    result_path: Option<&str>,
+    error: Option<&str>,
+) {
+    // Emit to Tauri (for desktop UI)
+    let _ = app_handle.emit("job-update", serde_json::json!({
+        "job_id": job_id,
+        "status": status,
+        "progress": progress,
+    }));
+
+    // Emit to WebSocket (if in server mode)
+    if let Some(ws_state) = ws_state {
+        let message = if status == "completed" && result_path.is_some() {
+            crate::server::websocket::ServerMessage::JobComplete {
+                job_id: job_id.to_string(),
+                result_url: format!("/api/v1/files/{}",
+                    std::path::Path::new(result_path.unwrap())
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or("")
+                ),
+            }
+        } else if status == "failed" && error.is_some() {
+            crate::server::websocket::ServerMessage::JobFailed {
+                job_id: job_id.to_string(),
+                error: error.unwrap().to_string(),
+            }
+        } else {
+            crate::server::websocket::ServerMessage::JobProgress {
+                job_id: job_id.to_string(),
+                status: status.to_string(),
+                progress,
+                stage: None,
+                current_step: None,
+                total_steps: None,
+            }
+        };
+
+        crate::server::websocket::broadcast_job_update(ws_state, job_id, message).await;
     }
 }
