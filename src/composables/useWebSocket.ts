@@ -44,8 +44,16 @@ class WebSocketClient {
   private subscriptions = new Set<string>()
   private updateCallbacks: JobUpdateCallback[] = []
   private progressCallbacks: JobProgressCallback[] = []
+  private serverUrl: string
 
   constructor(private wsUrl: string) {
+    // Extract HTTP server URL from WebSocket URL
+    // ws://localhost:8080/api/v1/ws -> http://localhost:8080
+    this.serverUrl = wsUrl
+      .replace('ws://', 'http://')
+      .replace('wss://', 'https://')
+      .replace('/api/v1/ws', '')
+
     this.connect()
   }
 
@@ -132,11 +140,16 @@ class WebSocketClient {
 
       case 'JobComplete':
         // Map server message to job update payload
+        // Convert relative URL to full URL (e.g., /api/v1/files/x.png -> http://server:8080/api/v1/files/x.png)
+        const fullUrl = message.result_url.startsWith('http')
+          ? message.result_url
+          : `${this.serverUrl}${message.result_url}`
+
         const completePayload: JobUpdatePayload = {
           job_id: message.job_id,
           status: 'completed',
           progress: 1.0,
-          result_path: message.result_url,
+          result_path: fullUrl,
         }
         this.updateCallbacks.forEach(cb => cb(completePayload))
         break

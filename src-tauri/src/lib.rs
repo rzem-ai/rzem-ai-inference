@@ -1260,11 +1260,21 @@ pub async fn emit_job_update(
     error: Option<&str>,
 ) {
     // Emit to Tauri (for desktop UI)
-    let payload = serde_json::json!({
+    let mut payload = serde_json::json!({
         "job_id": job_id,
         "status": status,
         "progress": progress,
     });
+
+    // Add result_path if available
+    if let Some(path) = result_path {
+        payload["result_path"] = serde_json::json!(path);
+    }
+
+    // Add error if available
+    if let Some(err) = error {
+        payload["error"] = serde_json::json!(err);
+    }
 
     let _ = app_state.app_handle.emit("job-update", payload);
 
