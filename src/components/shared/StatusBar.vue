@@ -33,7 +33,9 @@
         <div class="stat-bar-container">
           <div class="stat-bar" :style="{ width: `${stats?.memory_percent ?? 0}%` }" :class="getMemBarClass()" />
         </div>
-        <span class="font-mono text-xs text-right min-w-14" :class="getMemTextClass()"> {{ formatBytes(stats?.memory_used) }} / {{ formatBytes(stats?.memory_total) }} </span>
+        <span class="font-mono text-xs text-right min-w-14" :class="getMemTextClass()">
+          {{ formatBytes(stats?.memory_used) }} / {{ formatBytes(stats?.memory_total) }}
+        </span>
       </div>
     </div>
 
@@ -62,13 +64,20 @@
           <div class="stat-bar-container">
             <div class="stat-bar" :style="{ width: `${gpuMemPercent}%` }" :class="getVramBarClass()" />
           </div>
-          <span class="font-mono text-xs text-right min-w-14" :class="getVramTextClass()"> {{ formatBytes(stats?.gpu_memory_used) }} / {{ formatBytes(stats?.gpu_memory_total) }} </span>
+          <span class="font-mono text-xs text-right min-w-14" :class="getVramTextClass()">
+            {{ formatBytes(stats?.gpu_memory_used) }} / {{ formatBytes(stats?.gpu_memory_total) }}
+          </span>
         </div>
       </div>
     </template>
 
+    <!-- Connection Status (server/client mode) -->
+    <div class="ml-auto">
+      <ConnectionStatus />
+    </div>
+
     <!-- Refresh indicator -->
-    <div class="flex items-center gap-2 ml-auto">
+    <div class="flex items-center gap-2">
       <RefreshCw class="w-3 h-3 text-surface-500" :class="{ 'animate-spin': isRefreshing }" />
     </div>
   </div>
@@ -78,6 +87,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { Circle, Cpu, MemoryStick, MonitorDot, Layers, Loader2, RefreshCw } from 'lucide-vue-next';
+import ConnectionStatus from './ConnectionStatus.vue';
 
 interface SystemStats {
   cpu_usage: number;
@@ -139,58 +149,58 @@ const truncateGpuName = (name: string): string => {
 // Color classes based on usage levels
 const getCpuBarClass = () => {
   const usage = stats.value?.cpu_usage ?? 0;
-  if (usage >= 90) return 'bg-red-500';
-  if (usage >= 70) return 'bg-amber-500';
-  return 'bg-emerald-500';
+  if (usage >= 90) return 'bg-status-red';
+  if (usage >= 70) return 'bg-status-yellow';
+  return 'bg-status-green';
 };
 
 const getCpuTextClass = () => {
   const usage = stats.value?.cpu_usage ?? 0;
-  if (usage >= 90) return 'text-red-400';
-  if (usage >= 70) return 'text-amber-400';
-  return 'text-surface-300';
+  if (usage >= 90) return 'text-status-red';
+  if (usage >= 70) return 'text-status-yellow';
+  return 'text-status-gray';
 };
 
 const getMemBarClass = () => {
   const usage = stats.value?.memory_percent ?? 0;
-  if (usage >= 90) return 'bg-red-500';
-  if (usage >= 75) return 'bg-amber-500';
-  return 'bg-blue-500';
+  if (usage >= 90) return 'bg-status-red';
+  if (usage >= 75) return 'bg-status-yellow';
+  return 'bg-status-blue';
 };
 
 const getMemTextClass = () => {
   const usage = stats.value?.memory_percent ?? 0;
-  if (usage >= 90) return 'text-red-400';
-  if (usage >= 75) return 'text-amber-400';
-  return 'text-surface-300';
+  if (usage >= 90) return 'text-status-red';
+  if (usage >= 75) return 'text-status-yellow';
+  return 'text-status-gray';
 };
 
 const getGpuBarClass = () => {
   const usage = stats.value?.gpu_usage_percent ?? 0;
-  if (usage >= 95) return 'bg-red-500';
-  if (usage >= 80) return 'bg-purple-500';
-  return 'bg-emerald-500';
+  if (usage >= 95) return 'bg-status-red';
+  if (usage >= 80) return 'bg-status-purple';
+  return 'bg-status-green';
 };
 
 const getGpuTextClass = () => {
   const usage = stats.value?.gpu_usage_percent ?? 0;
-  if (usage >= 95) return 'text-red-400';
-  if (usage >= 80) return 'text-purple-400';
-  return 'text-surface-300';
+  if (usage >= 95) return 'text-status-red';
+  if (usage >= 80) return 'text-status-purple';
+  return 'text-status-gray';
 };
 
 const getVramBarClass = () => {
   const usage = gpuMemPercent.value;
-  if (usage >= 95) return 'bg-red-500';
-  if (usage >= 80) return 'bg-purple-500';
-  return 'bg-cyan-500';
+  if (usage >= 95) return 'bg-status-red';
+  if (usage >= 80) return 'bg-status-purple';
+  return 'bg-status-blue';
 };
 
 const getVramTextClass = () => {
   const usage = gpuMemPercent.value;
-  if (usage >= 95) return 'text-red-400';
-  if (usage >= 80) return 'text-purple-400';
-  return 'text-surface-300';
+  if (usage >= 95) return 'text-status-red';
+  if (usage >= 80) return 'text-status-purple';
+  return 'text-status-gray';
 };
 
 onMounted(() => {
@@ -208,6 +218,42 @@ onUnmounted(() => {
 
 <style scoped>
 @reference 'tailwindcss';
+
+.bg-status-red {
+  @apply bg-red-500;
+}
+
+.bg-status-yellow {
+  @apply bg-amber-500;
+}
+
+.bg-status-green {
+  @apply bg-emerald-500;
+}
+
+.bg-status-blue {
+  @apply bg-blue-500;
+}
+
+.bg-status-purple {
+  @apply bg-purple-500;
+}
+
+.text-status-red {
+  @apply bg-red-500;
+}
+
+.text-status-yellow {
+  @apply bg-amber-500;
+}
+
+.text-status-green {
+  @apply bg-emerald-500;
+}
+
+.text-status-gray {
+  @apply bg-surface-200;
+}
 
 .flex items-center gap-2 {
   &.active {
@@ -237,6 +283,4 @@ onUnmounted(() => {
     @apply w-auto max-w-20 truncate;
   }
 }
- 
- 
 </style>
