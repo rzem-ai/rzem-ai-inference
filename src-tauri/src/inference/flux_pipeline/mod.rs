@@ -9,7 +9,8 @@ mod loader;
 
 use anyhow::Result;
 use candle_core::Device;
-use crate::models::{ClipTextEncoder, FluxTransformer, ModelType, T5TextEncoder, VaeDecoder};
+use std::sync::Arc;
+use crate::models::{ClipTextEncoder, FluxTransformer, LoraAdapter, LoraConfig, ModelType, T5TextEncoder, VaeDecoder};
 
 /// Flux diffusion model pipeline for image generation
 pub struct FluxPipeline {
@@ -21,6 +22,10 @@ pub struct FluxPipeline {
     pub(crate) flux: Option<FluxTransformer>,
     /// Whether models were loaded this session (for stats)
     pub(crate) models_loaded_this_session: bool,
+    /// Currently active LoRA adapters
+    pub(crate) active_loras: Vec<(Arc<LoraAdapter>, f32)>,
+    /// Hash of current LoRA config for change detection
+    pub(crate) lora_config_hash: u64,
 }
 
 impl FluxPipeline {
@@ -39,7 +44,49 @@ impl FluxPipeline {
             vae: None,
             flux: None,
             models_loaded_this_session: false,
+            active_loras: Vec::new(),
+            lora_config_hash: 0,
         })
+    }
+
+    /// Set LoRA adapters for this pipeline
+    ///
+    /// If the LoRAs differ from the current set, the FLUX transformer
+    /// will be reloaded on the next generation.
+    pub fn set_loras(&mut self, loras: Vec<(Arc<LoraAdapter>, f32)>) {
+        let new_hash = Self::compute_lora_hash(&loras);
+
+        if new_hash != self.lora_config_hash {
+            // LoRAs changed, need to reload transformer
+            self.flux = None;
+            self.active_loras = loras;
+            self.lora_config_hash = new_hash;
+            tracing::info!(lora_count = self.active_loras.len(), "LoRAs updated, transformer will reload");
+        }
+    }
+
+    /// Check if LoRAs have changed
+    pub fn loras_changed(&self, loras: &[(Arc<LoraAdapter>, f32)]) -> bool {
+        let new_hash = Self::compute_lora_hash(loras);
+        new_hash != self.lora_config_hash
+    }
+
+    /// Get currently active LoRAs
+    pub fn active_loras(&self) -> &[(Arc<LoraAdapter>, f32)] {
+        &self.active_loras
+    }
+
+    /// Compute a hash for LoRA configuration
+    fn compute_lora_hash(loras: &[(Arc<LoraAdapter>, f32)]) -> u64 {
+        use std::hash::{Hash, Hasher};
+        use std::collections::hash_map::DefaultHasher;
+
+        let mut hasher = DefaultHasher::new();
+        for (lora, strength) in loras {
+            lora.id.hash(&mut hasher);
+            strength.to_bits().hash(&mut hasher);
+        }
+        hasher.finish()
     }
 
     /// Get the model type this pipeline is configured for

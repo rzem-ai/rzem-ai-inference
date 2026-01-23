@@ -132,11 +132,36 @@ impl FluxPipeline {
     /// Load FLUX transformer
     fn load_flux_transformer(&mut self, paths: &ModelPaths, stats: &mut GenerationStats) -> Result<()> {
         let flux_timer = Timer::start();
+
+        // Check if LoRAs are active
+        let has_loras = !self.active_loras.is_empty();
+
         if paths.has_quantized_for(self.model_type) {
-            info!(model = %self.model_type, "Loading transformer (quantized GGUF)");
+            if has_loras {
+                // LoRAs not yet supported with quantized models
+                // Fall back to loading without LoRAs and log a warning
+                info!(
+                    model = %self.model_type,
+                    lora_count = self.active_loras.len(),
+                    "Loading quantized transformer (LoRAs not supported with GGUF, ignoring)"
+                );
+            } else {
+                info!(model = %self.model_type, "Loading transformer (quantized GGUF)");
+            }
             self.flux = Some(FluxTransformer::load_quantized(
                 paths.quantized_transformer_path_for(self.model_type),
                 self.device.clone(),
+            )?);
+        } else if has_loras {
+            info!(
+                model = %self.model_type,
+                lora_count = self.active_loras.len(),
+                "Loading transformer with LoRAs (full precision)"
+            );
+            self.flux = Some(FluxTransformer::load_with_loras(
+                paths.transformer_path_for(self.model_type),
+                self.device.clone(),
+                &self.active_loras,
             )?);
         } else {
             info!(model = %self.model_type, "Loading transformer (full precision)");

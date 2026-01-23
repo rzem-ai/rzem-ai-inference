@@ -33,11 +33,13 @@ import BottomPanel from '@/components/generation/BottomPanel.vue';
 import GeneratedResults from '@/components/generation/GeneratedResults.vue';
 import { useQueueStore } from '@/stores/queue';
 import { useGenerationStore } from '@/stores/generation';
+import { useModelsStore } from '@/stores/models';
 import type { GenerationParams } from '@/stores/queue';
 import WorkspaceActions from '@/components/shared/WorkspaceActions.vue';
 
 const queueStore = useQueueStore();
 const generationStore = useGenerationStore();
+const modelsStore = useModelsStore();
 const toast = useToast();
 
 // Generated images array
@@ -123,6 +125,9 @@ const handleGenerate = async () => {
         seedToUse = baseSeed + i;
       }
 
+      // Get active LoRA configs for this generation
+      const activeLoraConfigs = modelsStore.getActiveLoraConfigs();
+
       const queueParams: GenerationParams = {
         prompt: params.prompt,
         steps: params.steps,
@@ -133,6 +138,8 @@ const handleGenerate = async () => {
         model: params.model,
         sampler: params.sampler,
         scheduler: params.scheduler,
+        // Include active LoRAs if any
+        ...(activeLoraConfigs.length > 0 && { loras: activeLoraConfigs }),
       };
 
       const jobId = await queueStore.addToQueue(queueParams);

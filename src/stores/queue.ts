@@ -7,6 +7,12 @@ import { useJobUpdates } from '@/composables/useWebSocket';
 export type SamplerType = 'euler' | 'euler_a' | 'dpm_pp_2m';
 export type SchedulerType = 'normal' | 'simple' | 'karras' | 'exponential';
 
+// LoRA configuration for generation
+export interface LoraConfig {
+  id: string;
+  strength: number;
+}
+
 export interface GenerationParams {
   prompt: string;
   negative_prompt?: string;
@@ -18,6 +24,8 @@ export interface GenerationParams {
   model: string;
   sampler?: SamplerType;
   scheduler?: SchedulerType;
+  // LoRA adapters to apply during generation
+  loras?: LoraConfig[];
 }
 
 /**
@@ -104,48 +112,49 @@ export const useQueueStore = defineStore('queue', () => {
     // Find and update job in local state
     let jobIndex = jobs.value.findIndex((j) => j.id === job_id);
     if (jobIndex === -1) {
-      // Job not found in local state
-      if (status === 'pending') {
-        // This is likely a new job - refresh to get it
-        await refreshJobs();
+      // Job not found in local state - refresh to get it
+      await refreshJobs();
+      // Re-check after refresh
+      jobIndex = jobs.value.findIndex((j) => j.id === job_id);
+      if (jobIndex === -1) {
+        // Still not found - job may have been cancelled or cleared
+        console.warn(`Job ${job_id} not found in local state after refresh`);
+        return;
       }
-      return;
     }
 
-    if (jobIndex !== -1) {
-      // Update job properties - use object spread to ensure reactivity triggers
-      const updatedJob = { ...jobs.value[jobIndex] };
-      updatedJob.status = status as JobStatus;
-      if (progress !== undefined) {
-        updatedJob.progress = progress;
-      }
-      if (result_path) {
-        updatedJob.result_path = result_path;
-      }
-      if (jobError) {
-        updatedJob.error = jobError;
-      }
-      if (stats) {
-        updatedJob.stats = stats;
-      }
-      // Update started_at when job begins running
-      if (status === 'running' && !updatedJob.started_at) {
-        updatedJob.started_at = Math.floor(Date.now() / 1000);
-      }
-      // Update completed_at when job finishes
-      if (status === 'completed' || status === 'failed' || status === 'cancelled') {
-        updatedJob.completed_at = Math.floor(Date.now() / 1000);
-      }
+    // Job found - update its properties
+    const updatedJob = { ...jobs.value[jobIndex] };
+    updatedJob.status = status as JobStatus;
+    if (progress !== undefined) {
+      updatedJob.progress = progress;
+    }
+    if (result_path) {
+      updatedJob.result_path = result_path;
+    }
+    if (jobError) {
+      updatedJob.error = jobError;
+    }
+    if (stats) {
+      updatedJob.stats = stats;
+    }
+    // Update started_at when job begins running
+    if (status === 'running' && !updatedJob.started_at) {
+      updatedJob.started_at = Math.floor(Date.now() / 1000);
+    }
+    // Update completed_at when job finishes
+    if (status === 'completed' || status === 'failed' || status === 'cancelled') {
+      updatedJob.completed_at = Math.floor(Date.now() / 1000);
+    }
 
-      // Replace job in array to trigger Vue reactivity
-      jobs.value[jobIndex] = updatedJob;
+    // Replace job in array to trigger Vue reactivity
+    jobs.value[jobIndex] = updatedJob;
 
-      // Refresh gallery when job completes successfully
-      if (status === 'completed') {
-        // Get gallery store inside the callback (after Pinia is initialized)
-        const galleryStore = useGalleryStore();
-        await galleryStore.loadImages();
-      }
+    // Refresh gallery when job completes successfully
+    if (status === 'completed') {
+      // Get gallery store inside the callback (after Pinia is initialized)
+      const galleryStore = useGalleryStore();
+      await galleryStore.loadImages();
     }
   };
 

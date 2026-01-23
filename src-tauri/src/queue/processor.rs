@@ -3,7 +3,7 @@
 use super::{QueueManager, JobStatus};
 use crate::inference::{InferenceEngine, GenerationStats, ModelCache, ModelCacheConfig};
 use crate::gallery::{GalleryDb, ImageMetadata};
-use crate::models::ModelType;
+use crate::models::{LoraManager, ModelType};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::time::{sleep, Duration, timeout};
@@ -17,6 +17,7 @@ pub struct QueueProcessor {
     gallery_db: Arc<tokio::sync::Mutex<Option<GalleryDb>>>,
     inference_engine: Arc<InferenceEngine>,
     model_cache: Arc<ModelCache>,
+    lora_manager: Arc<tokio::sync::Mutex<LoraManager>>,
     running: Arc<AtomicBool>,
     task_handle: Arc<tokio::sync::Mutex<Option<JoinHandle<()>>>>,
     app_handle: AppHandle,
@@ -36,16 +37,25 @@ impl QueueProcessor {
         let device = inference_engine.get_device().clone();
         let model_cache = ModelCache::new(device, ModelCacheConfig::default());
 
+        // Create LoRA manager
+        let lora_manager = Arc::new(tokio::sync::Mutex::new(LoraManager::new()?));
+
         Ok(Self {
             queue_manager,
             gallery_db,
             inference_engine,
             model_cache,
+            lora_manager,
             running: Arc::new(AtomicBool::new(false)),
             task_handle: Arc::new(tokio::sync::Mutex::new(None)),
             app_handle,
             ws_state,
         })
+    }
+
+    /// Get a reference to the LoRA manager
+    pub fn lora_manager(&self) -> &Arc<tokio::sync::Mutex<LoraManager>> {
+        &self.lora_manager
     }
 
     /// Get a reference to the model cache for external configuration
@@ -69,6 +79,7 @@ impl QueueProcessor {
         let queue_manager = self.queue_manager.clone();
         let gallery_db = self.gallery_db.clone();
         let model_cache = self.model_cache.clone();
+        let lora_manager = self.lora_manager.clone();
         let running = self.running.clone();
         let app_handle = self.app_handle.clone();
         let ws_state = self.ws_state.clone();
@@ -104,6 +115,7 @@ impl QueueProcessor {
                     &queue_manager,
                     &gallery_db,
                     &model_cache,
+                    &lora_manager,
                     &app_handle,
                     &ws_state,
                 ).await {
@@ -184,6 +196,7 @@ async fn process_next_job(
     queue_manager: &Arc<QueueManager>,
     gallery_db: &Arc<tokio::sync::Mutex<Option<GalleryDb>>>,
     model_cache: &Arc<ModelCache>,
+    lora_manager: &Arc<tokio::sync::Mutex<LoraManager>>,
     app_handle: &AppHandle,
     ws_state: &Option<Arc<crate::server::ws_state::WsState>>,
 ) -> Result<()> {
@@ -219,6 +232,7 @@ async fn process_next_job(
         &params,
         queue_manager,
         model_cache,
+        lora_manager,
         app_handle,
     ).await;
 
@@ -269,12 +283,43 @@ async fn execute_generation(
     params: &super::GenerationParams,
     queue_manager: &Arc<QueueManager>,
     model_cache: &Arc<ModelCache>,
+    lora_manager: &Arc<tokio::sync::Mutex<LoraManager>>,
     app_handle: &AppHandle,
 ) -> Result<(String, GenerationStats)> {
     use crate::inference::{GenerationProgress, ImageMetadata};
+    use crate::models::LoraAdapter;
+    use candle_core::DType;
 
     // Parse model type from params (defaults to Schnell if invalid)
     let model_type: ModelType = params.model.parse().unwrap_or(ModelType::Schnell);
+
+    // Load LoRA adapters if specified
+    let mut loaded_loras: Vec<(Arc<LoraAdapter>, f32)> = Vec::new();
+    if !params.loras.is_empty() {
+        let device = model_cache.device();
+        let dtype = if device.is_cuda() { DType::BF16 } else { DType::F32 };
+
+        let mut lora_mgr = lora_manager.lock().await;
+        for lora_config in &params.loras {
+            match lora_mgr.get_or_load_lora(&lora_config.id, device, dtype).await {
+                Ok(adapter) => {
+                    info!(
+                        lora_id = %lora_config.id,
+                        strength = lora_config.strength,
+                        "Loaded LoRA adapter"
+                    );
+                    loaded_loras.push((adapter, lora_config.strength));
+                }
+                Err(e) => {
+                    warn!(
+                        lora_id = %lora_config.id,
+                        error = %e,
+                        "Failed to load LoRA adapter, skipping"
+                    );
+                }
+            }
+        }
+    }
 
     // Get or create cached pipeline for this model type
     let created_new = model_cache.get_or_create_pipeline(model_type).await?;
@@ -282,6 +327,14 @@ async fn execute_generation(
         info!(model = ?model_type, "Created new pipeline");
     } else {
         debug!(model = ?model_type, "Reusing cached pipeline");
+    }
+
+    // Set LoRAs on the pipeline (will trigger reload if changed)
+    if !loaded_loras.is_empty() {
+        model_cache.with_pipeline(|pipeline| {
+            pipeline.set_loras(loaded_loras.clone());
+            Ok(())
+        }).await?;
     }
 
     // Clone values for the progress callback closure

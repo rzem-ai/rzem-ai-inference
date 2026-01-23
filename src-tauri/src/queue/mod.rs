@@ -9,6 +9,7 @@ use tokio::sync::{Mutex, RwLock};
 use uuid::Uuid;
 
 use crate::inference::samplers::{SamplerType, SchedulerType};
+use crate::models::LoraConfig;
 
 pub use processor::QueueProcessor;
 
@@ -38,6 +39,9 @@ pub struct GenerationParams {
     /// Noise schedule (normal, karras, exponential)
     #[serde(default)]
     pub scheduler: Option<SchedulerType>,
+    /// LoRA adapters to apply with their strengths
+    #[serde(default)]
+    pub loras: Vec<LoraConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -249,6 +253,7 @@ mod tests {
             model: "test-model".to_string(),
             sampler: None,
             scheduler: None,
+            loras: Vec::new(),
         }
     }
 

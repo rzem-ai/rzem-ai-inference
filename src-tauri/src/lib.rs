@@ -435,6 +435,34 @@ async fn bulk_remove_tag(
 }
 
 #[command]
+async fn delete_tag(
+    app_state: State<'_, AppState>,
+    tag_id: i64,
+) -> Result<String, String> {
+    let db = app_state.gallery_db.lock().await;
+    let db = db.as_ref().ok_or("Database not initialized")?;
+
+    db.delete_tag(tag_id)
+        .map_err(|e| format!("Failed to delete tag: {}", e))?;
+
+    Ok("Tag deleted".to_string())
+}
+
+#[command]
+async fn reorder_folders(
+    app_state: State<'_, AppState>,
+    folder_ids: Vec<String>,
+) -> Result<String, String> {
+    let db = app_state.gallery_db.lock().await;
+    let db = db.as_ref().ok_or("Database not initialized")?;
+
+    db.reorder_folders(&folder_ids)
+        .map_err(|e| format!("Failed to reorder folders: {}", e))?;
+
+    Ok("Folders reordered".to_string())
+}
+
+#[command]
 async fn add_to_queue(
     app_state: State<'_, AppState>,
     params: queue::GenerationParams,
@@ -1067,16 +1095,22 @@ async fn auto_tag_images(
             match vision::MoondreamTagger::new(device) {
                 Ok(mut tagger) => {
                     for (image_id, path) in image_paths {
+                        info!(image_id = %image_id, path = %path.display(), "Processing image with Moondream");
                         let result = tagger.extract_tags(&path)
                             .map(|mut tags| {
+                                info!(tag_count = tags.len(), "Tags extracted successfully");
                                 tags.retain(|t| t.confidence >= settings.min_confidence);
                                 tags
                             })
-                            .map_err(|e| e.to_string());
+                            .map_err(|e| {
+                                warn!(error = %e, "Failed to extract tags from image");
+                                e.to_string()
+                            });
                         tagging_results.push((image_id, result));
                     }
                 }
                 Err(e) => {
+                    warn!(error = %e, "Failed to load Moondream model");
                     // If model loading fails, mark all as failed
                     for (image_id, _) in image_paths {
                         tagging_results.push((image_id, Err(format!("Failed to load model: {}", e))));
@@ -1144,6 +1178,79 @@ async fn auto_tag_images(
     );
 
     Ok(results)
+}
+
+// ========== LoRA Commands ==========
+
+/// Get all available LoRAs
+#[command]
+async fn get_loras(
+    app_state: State<'_, AppState>,
+) -> Result<Vec<models::LoraInfo>, String> {
+    let mut lora_manager = app_state.queue_processor.lora_manager().lock().await;
+    lora_manager.scan_loras().await.map_err(|e| e.to_string())
+}
+
+/// Import a LoRA from a local file
+#[command]
+async fn import_lora(
+    app_state: State<'_, AppState>,
+    source_path: String,
+    name: String,
+    trigger_words: Option<String>,
+) -> Result<models::LoraInfo, String> {
+    let lora_manager = app_state.queue_processor.lora_manager().lock().await;
+    lora_manager
+        .import_lora(
+            std::path::Path::new(&source_path),
+            &name,
+            trigger_words.as_deref(),
+        )
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Remove a LoRA from the collection
+#[command]
+async fn remove_lora(
+    app_state: State<'_, AppState>,
+    id: String,
+) -> Result<String, String> {
+    let lora_manager = app_state.queue_processor.lora_manager().lock().await;
+    lora_manager.remove_lora(&id).await.map_err(|e| e.to_string())?;
+    Ok("LoRA removed".to_string())
+}
+
+/// Update LoRA metadata
+#[command]
+async fn update_lora(
+    app_state: State<'_, AppState>,
+    id: String,
+    name: Option<String>,
+    trigger_words: Option<Option<String>>,
+) -> Result<models::LoraInfo, String> {
+    let lora_manager = app_state.queue_processor.lora_manager().lock().await;
+
+    // Convert trigger_words: Option<Option<String>> to Option<Option<&str>>
+    // None = don't change, Some(None) = clear, Some(Some(s)) = set to s
+    let tw_ref = trigger_words.as_ref().map(|opt| opt.as_deref());
+
+    lora_manager
+        .update_lora(&id, name.as_deref(), tw_ref)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Get file info for a LoRA without importing it
+#[command]
+async fn get_lora_file_info(
+    app_state: State<'_, AppState>,
+    path: String,
+) -> Result<models::LoraFileInfo, String> {
+    let lora_manager = app_state.queue_processor.lora_manager().lock().await;
+    lora_manager
+        .get_file_info(std::path::Path::new(&path))
+        .map_err(|e| e.to_string())
 }
 
 // ========== System Stats Commands ==========
@@ -1578,6 +1685,9 @@ pub fn run_with_config(runtime_config: shared::protocol::RuntimeConfig, port: Op
             update_tag,
             bulk_add_tag,
             bulk_remove_tag,
+            delete_tag,
+            // Folder reordering
+            reorder_folders,
             // Model download commands
             download_flux_schnell,
             download_flux_dev,
@@ -1610,6 +1720,12 @@ pub fn run_with_config(runtime_config: shared::protocol::RuntimeConfig, port: Op
             auto_tag_images,
             // System stats
             get_system_stats,
+            // LoRA commands
+            get_loras,
+            import_lora,
+            remove_lora,
+            update_lora,
+            get_lora_file_info,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -5,10 +5,14 @@ use candle_core::{DType, Device, Tensor};
 use candle_nn::VarBuilder;
 use candle_transformers::models::flux;
 use candle_transformers::models::flux::WithForward;
+use safetensors::SafeTensors;
+use std::collections::HashMap;
 use std::path::Path;
-use tracing::{debug, warn};
+use std::sync::Arc;
+use tracing::{debug, info, warn};
 
 use crate::inference::samplers::{SamplerType, SchedulerType, get_timesteps};
+use crate::models::lora::{LoraAdapter, LoraConfig};
 
 /// Enum to hold either regular or quantized FLUX model
 enum FluxModel {
@@ -76,6 +80,131 @@ impl FluxTransformer {
             model: FluxModel::Quantized(model),
             device,
             is_quantized: true,
+        })
+    }
+
+    /// Load FLUX transformer with LoRA adapters merged at load time
+    ///
+    /// This method loads the base model weights, applies LoRA modifications,
+    /// and builds the model from the merged weights.
+    ///
+    /// # Arguments
+    /// * `model_path` - Path to flux1-schnell.safetensors file
+    /// * `device` - Device to load model on
+    /// * `loras` - List of LoRA adapters with their strengths
+    pub fn load_with_loras<P: AsRef<Path>>(
+        model_path: P,
+        device: Device,
+        loras: &[(Arc<LoraAdapter>, f32)],
+    ) -> Result<Self> {
+        let model_path = model_path.as_ref();
+
+        // Use bf16 on CUDA for efficiency
+        let dtype = if device.is_cuda() {
+            DType::BF16
+        } else {
+            DType::F32
+        };
+
+        if loras.is_empty() {
+            // No LoRAs, use standard loading
+            return Self::load(model_path, device);
+        }
+
+        info!(
+            lora_count = loras.len(),
+            "Loading FLUX with LoRA adapters"
+        );
+
+        // Load base weights from safetensors
+        let file_data = std::fs::read(model_path)?;
+        let base_tensors = SafeTensors::deserialize(&file_data)?;
+
+        // Create a hashmap to hold modified tensors
+        let mut merged_tensors: HashMap<String, Tensor> = HashMap::new();
+
+        // Load all base tensors
+        for (name, _) in base_tensors.tensors() {
+            let tensor = load_safetensor_to_candle(&base_tensors, &name, &device, dtype)?;
+            merged_tensors.insert(name.clone(), tensor);
+        }
+
+        // Apply each LoRA
+        for (lora, strength) in loras {
+            debug!(
+                lora_id = %lora.id,
+                lora_name = %lora.name,
+                strength = strength,
+                weights = lora.weight_count(),
+                "Applying LoRA"
+            );
+
+            for (layer_name, lora_weight) in &lora.weights {
+                // Map LoRA layer name to FLUX model tensor name
+                let flux_tensor_name = map_lora_to_flux_tensor(layer_name);
+
+                if let Some(base_tensor) = merged_tensors.get_mut(&flux_tensor_name) {
+                    // Compute LoRA delta: (alpha/rank) * strength * (B @ A)
+                    match lora_weight.compute_delta(*strength) {
+                        Ok(delta) => {
+                            // Ensure delta has same dtype as base
+                            let delta = if delta.dtype() != base_tensor.dtype() {
+                                delta.to_dtype(base_tensor.dtype())?
+                            } else {
+                                delta
+                            };
+
+                            // Add delta to base weight
+                            match base_tensor.add(&delta) {
+                                Ok(merged) => {
+                                    *base_tensor = merged;
+                                    debug!(
+                                        layer = %layer_name,
+                                        flux_name = %flux_tensor_name,
+                                        "Applied LoRA weight"
+                                    );
+                                }
+                                Err(e) => {
+                                    warn!(
+                                        layer = %layer_name,
+                                        flux_name = %flux_tensor_name,
+                                        error = %e,
+                                        "Shape mismatch applying LoRA"
+                                    );
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            warn!(
+                                layer = %layer_name,
+                                error = %e,
+                                "Failed to compute LoRA delta"
+                            );
+                        }
+                    }
+                } else {
+                    debug!(
+                        layer = %layer_name,
+                        flux_name = %flux_tensor_name,
+                        "LoRA layer not found in base model"
+                    );
+                }
+            }
+        }
+
+        // Build VarBuilder from merged tensors
+        let vb = VarBuilder::from_tensors(merged_tensors, dtype, &device);
+
+        // Load FLUX Schnell model
+        let cfg = flux::model::Config::schnell();
+        let model = flux::model::Flux::new(&cfg, vb)?;
+
+        info!("FLUX loaded with LoRA adapters merged");
+
+        Ok(Self {
+            model: FluxModel::Regular(model),
+            device,
+            is_quantized: false,
         })
     }
 
@@ -530,6 +659,139 @@ fn denoise_dpm_pp_2m_impl_q(
     }
 
     Ok(img)
+}
+
+// ============================================================================
+// LoRA Helper Functions
+// ============================================================================
+
+/// Load a tensor from safetensors to a candle Tensor
+fn load_safetensor_to_candle(
+    tensors: &SafeTensors,
+    key: &str,
+    device: &Device,
+    dtype: DType,
+) -> Result<Tensor> {
+    let view = tensors.tensor(key)?;
+
+    // Convert safetensors dtype to candle dtype
+    let st_dtype = view.dtype();
+    let candle_dtype = match st_dtype {
+        safetensors::Dtype::F32 => DType::F32,
+        safetensors::Dtype::F16 => DType::F16,
+        safetensors::Dtype::BF16 => DType::BF16,
+        _ => anyhow::bail!("Unsupported tensor dtype: {:?}", st_dtype),
+    };
+
+    // Create tensor from raw data
+    let shape: Vec<usize> = view.shape().to_vec();
+    let data = view.data();
+
+    // Load as original dtype first
+    let tensor = match candle_dtype {
+        DType::F32 => {
+            let floats: Vec<f32> = data
+                .chunks_exact(4)
+                .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]))
+                .collect();
+            Tensor::from_vec(floats, shape.as_slice(), device)?
+        }
+        DType::F16 => {
+            let halfs: Vec<half::f16> = data
+                .chunks_exact(2)
+                .map(|b| half::f16::from_le_bytes([b[0], b[1]]))
+                .collect();
+            Tensor::from_vec(halfs, shape.as_slice(), device)?
+        }
+        DType::BF16 => {
+            let bhalfs: Vec<half::bf16> = data
+                .chunks_exact(2)
+                .map(|b| half::bf16::from_le_bytes([b[0], b[1]]))
+                .collect();
+            Tensor::from_vec(bhalfs, shape.as_slice(), device)?
+        }
+        _ => unreachable!(),
+    };
+
+    // Convert to target dtype if different
+    if candle_dtype != dtype {
+        Ok(tensor.to_dtype(dtype)?)
+    } else {
+        Ok(tensor)
+    }
+}
+
+/// Map LoRA layer name to FLUX model tensor name
+///
+/// FLUX LoRA files use naming conventions like:
+/// - `lora_unet_double_blocks_0_img_attn_qkv` -> `double_blocks.0.img_attn.qkv.weight`
+/// - `transformer_blocks.0.attn.to_q` -> `single_blocks.0.linear1.weight`
+fn map_lora_to_flux_tensor(lora_layer: &str) -> String {
+    // FLUX model uses these layer patterns:
+    // - double_blocks.N.* (joint attention blocks)
+    // - single_blocks.N.* (single stream blocks)
+    //
+    // LoRA files typically target attention layers:
+    // - img_attn.qkv, img_attn.proj
+    // - txt_attn.qkv, txt_attn.proj
+    // - img_mlp.*, txt_mlp.*
+
+    let mut name = lora_layer.to_string();
+
+    // Remove common LoRA prefixes
+    for prefix in ["lora_unet_", "lora_te_", "transformer."] {
+        if name.starts_with(prefix) {
+            name = name[prefix.len()..].to_string();
+        }
+    }
+
+    // Convert underscores to dots for structure
+    // double_blocks_0_img_attn_qkv -> double_blocks.0.img_attn.qkv
+    let parts: Vec<&str> = name.split('.').collect();
+    if parts.len() == 1 {
+        // No dots yet, need to parse underscores
+        let underscore_parts: Vec<&str> = name.split('_').collect();
+        let mut result = Vec::new();
+        let mut i = 0;
+
+        while i < underscore_parts.len() {
+            let part = underscore_parts[i];
+
+            // Check if next part is a number (block index)
+            if i + 1 < underscore_parts.len() {
+                if let Ok(_) = underscore_parts[i + 1].parse::<u32>() {
+                    // Combine: "double" + "blocks" or just "blocks" + "0"
+                    if part == "double" || part == "single" {
+                        result.push(format!(
+                            "{}_{}.{}",
+                            part,
+                            underscore_parts[i + 1],
+                            underscore_parts[i + 2]
+                        ));
+                        i += 3;
+                        continue;
+                    } else if part == "blocks" {
+                        // Just "blocks_0"
+                        result.push(format!("{}.{}", part, underscore_parts[i + 1]));
+                        i += 2;
+                        continue;
+                    }
+                }
+            }
+
+            result.push(part.to_string());
+            i += 1;
+        }
+
+        name = result.join(".");
+    }
+
+    // Add .weight suffix if not present
+    if !name.ends_with(".weight") && !name.ends_with(".bias") {
+        name.push_str(".weight");
+    }
+
+    name
 }
 
 #[cfg(test)]

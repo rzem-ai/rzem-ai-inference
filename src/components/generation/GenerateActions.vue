@@ -53,8 +53,9 @@ import PromptInput from '@/components/generation/PromptInput.vue';
 import ImageSettings from '@/components/generation/ImageSettings.vue';
 import GenerationSettings from '@/components/generation/GenerationSettings.vue';
 import ModelSelector from '@/components/generation/ModelSelector.vue';
+import LoraPanel from '@/components/generation/LoraPanel.vue';
 import PresetSelector from '@/components/generation/PresetSelector.vue';
-import { SquarePen, SlidersHorizontal, Cog, Package } from 'lucide-vue-next';
+import { SquarePen, SlidersHorizontal, Cog, Package, Layers } from 'lucide-vue-next';
 import { useGenerationStore } from '@/stores/generation';
 import { useModelsStore } from '@/stores/models';
 import { analyzeImageForPrompt, fileToDataUrl, isValidImageFile } from '@/services/imageAnalysis';
@@ -109,6 +110,14 @@ const sections = [
     label: 'MODEL',
     icon: Package,
     component: ModelSelector,
+    toggleable: true,
+    collapsed: true,
+  },
+  {
+    id: 'LORAS',
+    label: 'LORAS',
+    icon: Layers,
+    component: LoraPanel,
     toggleable: true,
     collapsed: true,
   },
