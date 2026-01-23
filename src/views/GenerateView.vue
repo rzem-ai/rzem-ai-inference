@@ -1,12 +1,13 @@
 <template>
-  <div class="flex h-full bg-gray-900">
+  <div class="flex w-full h-full bg-gray-900">
     <!-- Left Sidebar -->
-    <aside class="w-100 shrink-0">
-      <LeftSidebar @generate="handleGenerate" />
-    </aside>
+    <WorkspaceActions>
+      <template #header>Generate Images</template>
+      <template #body><GenerateActions @generate="handleGenerate" /></template>
+    </WorkspaceActions>
 
     <!-- Main Content Area -->
-    <div class="flex flex-col flex-1 overflow-hidden bg-gray-600">
+    <div class="flex flex-col flex-1 overflow-hidden bg-gray-950">
       <!-- Canvas Section -->
       <div class="flex flex-col flex-1 p-4 overflow-hidden">
         <!-- Generated Results -->
@@ -27,12 +28,13 @@ import { useToast } from 'primevue/usetoast';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeFile, readFile } from '@tauri-apps/plugin-fs';
-import LeftSidebar from '@/components/generation/LeftSidebar.vue';
+import GenerateActions from '@/components/generation/GenerateActions.vue';
 import BottomPanel from '@/components/generation/BottomPanel.vue';
 import GeneratedResults from '@/components/generation/GeneratedResults.vue';
 import { useQueueStore } from '@/stores/queue';
 import { useGenerationStore } from '@/stores/generation';
 import type { GenerationParams } from '@/stores/queue';
+import WorkspaceActions from '@/components/shared/WorkspaceActions.vue';
 
 const queueStore = useQueueStore();
 const generationStore = useGenerationStore();
@@ -60,11 +62,7 @@ watch(
   () => queueStore.jobs,
   (jobs) => {
     const newlyCompleted = jobs.filter(
-      (j) =>
-        j.status === 'completed' &&
-        j.result_path &&
-        currentBatchJobIds.value.has(j.id) &&
-        !displayedJobIds.value.has(j.id)
+      (j) => j.status === 'completed' && j.result_path && currentBatchJobIds.value.has(j.id) && !displayedJobIds.value.has(j.id),
     );
 
     if (newlyCompleted.length > 0) {

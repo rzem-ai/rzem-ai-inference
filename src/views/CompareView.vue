@@ -1,6 +1,6 @@
 <template>
-  <div class="workspace-content compare-view">
-    <div class="compare-header">
+  <div class="flex flex-col h-full bg-gray-900">
+    <div class="bg-gray-900">
       <h1>Compare Images</h1>
       <div class="compare-actions">
         <span class="compare-count"> {{ compareStore.compareCount }} / {{ compareStore.maxCompareImages }} images </span>
@@ -8,13 +8,13 @@
       </div>
     </div>
 
-    <div v-if="compareStore.compareCount === 0" class="empty-state">
+    <div v-if="compareStore.compareCount === 0" class="bg-gray-700 empty-state">
       <i class="pi pi-images" style="font-size: 3rem; color: #9ca3af"></i>
       <p>No images to compare</p>
       <p class="empty-hint">Add images from the gallery to compare them side by side</p>
     </div>
 
-    <div v-else class="compare-grid" :style="{ gridTemplateColumns: `repeat(${compareStore.compareCount}, 1fr)` }">
+    <div v-else class="bg-gray-700 compare-grid" :style="{ gridTemplateColumns: `repeat(${compareStore.compareCount}, 1fr)` }">
       <div v-for="(image, index) in compareStore.compareImages" :key="image.id" class="compare-item">
         <div class="compare-image-header">
           <span class="compare-index">#{{ index + 1 }}</span>

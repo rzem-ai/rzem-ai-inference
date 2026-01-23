@@ -1053,6 +1053,110 @@ async fn auto_tag_images(
     Ok(results)
 }
 
+// ========== System Stats Commands ==========
+
+#[derive(serde::Serialize)]
+struct SystemStats {
+    /// CPU usage as percentage (0-100)
+    cpu_usage: f32,
+    /// Memory used in bytes
+    memory_used: u64,
+    /// Total memory in bytes
+    memory_total: u64,
+    /// Memory usage as percentage (0-100)
+    memory_percent: f32,
+    /// GPU memory used in bytes (if available)
+    gpu_memory_used: Option<u64>,
+    /// GPU memory total in bytes (if available)
+    gpu_memory_total: Option<u64>,
+    /// GPU usage percentage (if available)
+    gpu_usage_percent: Option<f32>,
+    /// GPU name (if available)
+    gpu_name: Option<String>,
+    /// Whether a generation is currently running
+    is_generating: bool,
+}
+
+/// Get current system resource usage (CPU, RAM, GPU)
+#[command]
+async fn get_system_stats(
+    app_state: State<'_, AppState>,
+) -> Result<SystemStats, String> {
+    use sysinfo::System;
+
+    let mut sys = System::new();
+    sys.refresh_cpu_all();
+    sys.refresh_memory();
+
+    // Wait a bit for CPU readings to stabilize
+    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+    sys.refresh_cpu_all();
+
+    // Calculate average CPU usage across all cores
+    let cpu_usage: f32 = sys.cpus().iter().map(|cpu| cpu.cpu_usage()).sum::<f32>()
+        / sys.cpus().len().max(1) as f32;
+
+    let memory_used = sys.used_memory();
+    let memory_total = sys.total_memory();
+    let memory_percent = if memory_total > 0 {
+        (memory_used as f64 / memory_total as f64 * 100.0) as f32
+    } else {
+        0.0
+    };
+
+    // Check if generating
+    let is_generating = {
+        let jobs = app_state.queue_manager.get_jobs().await;
+        jobs.iter().any(|j| j.status == queue::JobStatus::Running)
+    };
+
+    // Try to get GPU stats via CUDA (Linux) or nvml
+    let (gpu_memory_used, gpu_memory_total, gpu_usage_percent, gpu_name) = get_gpu_stats();
+
+    Ok(SystemStats {
+        cpu_usage,
+        memory_used,
+        memory_total,
+        memory_percent,
+        gpu_memory_used,
+        gpu_memory_total,
+        gpu_usage_percent,
+        gpu_name,
+        is_generating,
+    })
+}
+
+/// Get GPU stats using nvidia-smi (cross-platform fallback)
+fn get_gpu_stats() -> (Option<u64>, Option<u64>, Option<f32>, Option<String>) {
+    // Try to run nvidia-smi to get GPU stats
+    let output = std::process::Command::new("nvidia-smi")
+        .args([
+            "--query-gpu=memory.used,memory.total,utilization.gpu,name",
+            "--format=csv,noheader,nounits",
+        ])
+        .output();
+
+    match output {
+        Ok(output) if output.status.success() => {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let line = stdout.lines().next().unwrap_or("");
+            let parts: Vec<&str> = line.split(',').map(|s| s.trim()).collect();
+
+            if parts.len() >= 4 {
+                let mem_used = parts[0].parse::<u64>().ok().map(|v| v * 1024 * 1024); // MiB to bytes
+                let mem_total = parts[1].parse::<u64>().ok().map(|v| v * 1024 * 1024);
+                let gpu_util = parts[2].parse::<f32>().ok();
+                let gpu_name = Some(parts[3].to_string());
+
+                return (mem_used, mem_total, gpu_util, gpu_name);
+            }
+        }
+        _ => {}
+    }
+
+    (None, None, None, None)
+}
+
 /// Analyze an image using Claude and generate a prompt to recreate it
 ///
 /// # Arguments
@@ -1197,6 +1301,8 @@ pub fn run() {
             get_auto_tag_settings,
             update_auto_tag_settings,
             auto_tag_images,
+            // System stats
+            get_system_stats,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

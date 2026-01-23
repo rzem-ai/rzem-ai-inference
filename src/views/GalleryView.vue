@@ -1,18 +1,15 @@
 <template>
-  <div class="flex h-full overflow-hidden bg-gray-700">
+  <div class="flex w-full h-full">
     <!-- Sidebar -->
-    <aside class="flex flex-col h-full overflow-hidden bg-gray-900 border-r border-gray-600 w-100">
-      <div class="flex items-start justify-between px-4 py-4">
-        <div class="flex flex-col gap-y-1">
-          <h2 class="text-xl font-medium text-gray-50">Folders</h2>
-          <p class="text-xs text-gray-400">Image Organisation</p>
-        </div>
-        <div class=""> </div>
-      </div>
-
-      <FolderTree @create-folder="openCreateFolderDialog" @edit-folder="openEditFolderDialog" @delete-folder="confirmDeleteFolder" />
-      <TagManager />
-    </aside>
+    <WorkspaceActions>
+      <template #header>Image Gallery</template>
+      <template #body>
+        <FolderTree @create-folder="openCreateFolderDialog" @edit-folder="openEditFolderDialog" @delete-folder="confirmDeleteFolder" />
+      </template>
+      <template #footer>
+        <TagManager />
+      </template>
+    </WorkspaceActions>
 
     <!-- Main Content -->
     <main class="flex flex-col flex-1 h-full overflow-hidden">
@@ -48,9 +45,7 @@
             <Button :disabled="galleryStore.selectedImages.size == 0" size="small" severity="secondary" @click="showAddToFolderMenu">
               <div class="flex items-center gap-2"><Folder class="w-4 h-4" /> Add to Folder</div>
             </Button>
-            <AutoTagButton
-              @open-settings="openAutoTagSettings"
-              @tagging-complete="handleTaggingComplete" />
+            <AutoTagButton @open-settings="openAutoTagSettings" @tagging-complete="handleTaggingComplete" />
             <Button label="Select All" severity="secondary" @click="galleryStore.selectAll"><CheckSquare class="w-4 h-4" /></Button>
             <Button label="Clear" severity="secondary" @click="galleryStore.clearSelection" :disabled="galleryStore.selectedImages.size === 0">
               <X class="w-4 h-4" />
@@ -126,6 +121,7 @@ import Menu from 'primevue/menu';
 import ConfirmDialog from 'primevue/confirmdialog';
 import Toast from 'primevue/toast';
 import { CheckSquare, Folder, RefreshCw, Search, X } from 'lucide-vue-next';
+import WorkspaceActions from '@/components/shared/WorkspaceActions.vue';
 
 const galleryStore = useGalleryStore();
 const foldersStore = useFoldersStore();

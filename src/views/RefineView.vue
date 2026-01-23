@@ -1,10 +1,10 @@
 <template>
-  <div class="workspace">
-    <div class="workspace-header">
+  <div class="flex flex-col h-full bg-gray-900">
+    <div class="bg-gray-900">
       <h1>Refine</h1>
       <p>Model Hub and LoRA Library</p>
     </div>
-    <div class="workspace-content">
+    <div class="flex-1 p-8 overflow-y-auto bg-gray-700">
       <p>Model and LoRA management will go here</p>
     </div>
   </div>

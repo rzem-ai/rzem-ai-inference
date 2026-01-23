@@ -1,44 +1,53 @@
 <template>
-  <div class="flex flex-col gap-4">
-    <div class="flex flex-col gap-2">
-      <div class="flex items-center justify-between mb-1">
-        <label class="text-xs font-medium tracking-wide text-gray-400">Steps</label>
-        <span class="font-mono text-xs text-blue-400">{{ steps }}</span>
+  <Panel :collapsed="props.collapsed" :toggleable="props.toggleable">
+    <template #header>
+      <div class="flex gap-2 px-0 py-2 text-xs font-semibold tracking-wider text-gray-300 uppercase">
+        <component :is="props.icon" class="w-4 h-4" />
+        {{ props.label }}
       </div>
-      <Slider v-model="steps" :min="1" :max="50" />
-    </div>
+    </template>
 
-    <div class="flex flex-col gap-2">
-      <div class="flex items-center justify-between mb-1">
-        <label class="text-xs font-medium tracking-wide text-gray-400">CFG Scale</label>
-        <span class="font-mono text-xs text-blue-400">{{ cfgScale.toFixed(1) }}</span>
+    <div class="flex flex-col gap-4 px-2">
+      <div class="flex flex-col gap-2">
+        <div class="flex items-center justify-between mb-1">
+          <label class="text-xs font-medium tracking-wide text-surface-300">Steps</label>
+          <span class="font-mono text-xs text-blue-400">{{ steps }}</span>
+        </div>
+        <Slider v-model="steps" :min="1" :max="50" />
       </div>
-      <Slider v-model="cfgScale" :min="0" :max="20" :step="0.1" />
-    </div>
 
-    <div class="flex flex-col gap-1">
-      <div class="flex items-center justify-between">
-        <label class="text-xs font-medium tracking-wide text-gray-400">Seed</label>
+      <div class="flex flex-col gap-2">
+        <div class="flex items-center justify-between mb-1">
+          <label class="text-xs font-medium tracking-wide text-surface-300">CFG Scale</label>
+          <span class="font-mono text-xs text-blue-400">{{ cfgScale.toFixed(1) }}</span>
+        </div>
+        <Slider v-model="cfgScale" :min="0" :max="20" :step="0.1" />
       </div>
-      <div class="flex gap-2">
-        <InputNumber
-          v-model="seed"
-          :min="0"
-          :max="2147483647"
-          :disabled="!seedLocked"
-          :placeholder="seedLocked ? '' : 'Random'"
-          :useGrouping="false"
-          size="small"
-          fluid />
-        <Button @click="randomizeSeed" :disabled="!seedLocked" v-tooltip.top="'Generate new random seed'">
-          <Sprout class="w-4 h-4" />
-        </Button>
-        <Button @click="toggleSeedLock" v-tooltip.top="seedLocked ? 'Locked' : 'Random'">
-          <component :is="seedLocked ? Lock : Unlock" class="w-4 h-4" />
-        </Button>
+
+      <div class="flex flex-col gap-1">
+        <div class="flex items-center justify-between">
+          <label class="text-xs font-medium tracking-wide text-surface-300">Seed</label>
+        </div>
+        <div class="flex gap-2">
+          <InputNumber
+            v-model="seed"
+            :min="0"
+            :max="2147483647"
+            :disabled="!seedLocked"
+            :placeholder="seedLocked ? '' : 'Random'"
+            :useGrouping="false"
+            size="small"
+            fluid />
+          <Button @click="randomizeSeed" :disabled="!seedLocked" v-tooltip.top="'Generate new random seed'">
+            <Sprout class="w-4 h-4" />
+          </Button>
+          <Button @click="toggleSeedLock" v-tooltip.top="seedLocked ? 'Locked' : 'Random'">
+            <component :is="seedLocked ? Lock : Unlock" class="w-4 h-4" />
+          </Button>
+        </div>
       </div>
     </div>
-  </div>
+  </Panel>
 </template>
 
 <script setup lang="ts">
@@ -48,6 +57,9 @@ import Slider from 'primevue/slider';
 import InputNumber from 'primevue/inputnumber';
 import { Lock, Unlock, Sprout } from 'lucide-vue-next';
 import { useGenerationStore } from '@/stores/generation';
+import Panel from 'primevue/panel';
+
+const props = defineProps(['collapsed', 'icon', 'label', 'toggleable']);
 
 const generationStore = useGenerationStore();
 

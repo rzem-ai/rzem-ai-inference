@@ -5,28 +5,11 @@
     @dragover.prevent="handleDragOver"
     @dragleave.prevent="handleDragLeave"
     @drop.prevent="handleDrop">
-    <!-- Header -->
-    <div class="px-4 py-4 border-b border-gray-700">
-      <div class="flex items-start justify-between">
-        <h1 class="m-0 text-lg font-semibold text-gray-100">Image Generator</h1>
-        <Cog class="w-5 h-5 text-gray-300 transition-colors cursor-pointer hover:text-gray-100" @click="showPresetModal = true" />
-      </div>
-    </div>
-
     <!-- Scrollable Content -->
-    <div class="flex flex-col gap-2 overflow-y-auto">
+    <div class="flex flex-col gap-0 px-2 py-2 overflow-y-auto">
       <!-- Preset Section -->
-      <div v-for="section in sections" :key="section.id" class="">
-        <div class="flex gap-2 px-2 py-2 text-xs font-semibold tracking-wider text-gray-300 uppercase border-l-3 border-l-gray-500/50">
-          <component :is="section.icon" class="w-4 h-4" />
-          {{ section.label }} A
-        </div>
-
-        <div
-          class="flex items-start gap-3 px-4 py-3 transition-colors bg-gray-900 border-transparent cursor-pointer border-l-3 hover:bg-gray-800 border-l-gray-500/50 hover:border-l-blue-500">
-          <component :is="section.component" @generate="handleGenerate" />
-        </div>
-
+      <div v-for="section in sections" :key="section.id">
+        <component :is="section.component" :icon="section.icon" :label="section.label" :collapsed="section.collapsed" :toggleable="section.toggleable" @generate="handleGenerate" />
       </div>
     </div>
 
@@ -102,7 +85,7 @@ const sections = [
     label: 'PROMPT',
     icon: SquarePen,
     component: PromptInput,
-    canCollapse: false,
+    toggleable: false,
     collapsed: false,
   },
   {
@@ -110,7 +93,7 @@ const sections = [
     label: 'IMAGE SETTINGS',
     icon: SlidersHorizontal,
     component: ImageSettings,
-    canCollapse: false,
+    toggleable: true,
     collapsed: false,
   },
   {
@@ -118,16 +101,16 @@ const sections = [
     label: 'GENERATION SETTINGS',
     icon: Cog,
     component: GenerationSettings,
-    canCollapse: false,
-    collapsed: false,
+    toggleable: true,
+    collapsed: true,
   },
   {
     id: 'MODEL',
     label: 'MODEL',
     icon: Package,
     component: ModelSelector,
-    canCollapse: false,
-    collapsed: false,
+    toggleable: true,
+    collapsed: true,
   },
 ];
 

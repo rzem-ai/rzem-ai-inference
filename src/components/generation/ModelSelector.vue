@@ -1,54 +1,66 @@
 <template>
-  <div class="flex flex-col gap-4">
-    <div class="flex flex-col gap-2">
-      <label for="model" class="text-xs font-medium tracking-wide text-gray-400">Model</label>
-      <Select
-        id="model"
-        v-model="modelsStore.selectedModelId"
-        :options="modelsStore.models"
-        option-label="name"
-        option-value="id"
-        placeholder="Select a model"
-        size="small"
-        class="w-full">
-        <template #option="slotProps">
-          <div class="flex items-center justify-between w-full">
-            <span class="font-medium">{{ slotProps.option?.name }}</span>
-            <span v-if="!slotProps.option.isDownloaded" class="rounded bg-amber-500/20 px-2 py-0.5 text-xs text-amber-400"> Not Downloaded </span>
-          </div>
-        </template>
-      </Select>
-    </div>
+  <Panel :collapsed="props.collapsed" :toggleable="props.toggleable">
+    <template #header>
+      <div class="flex gap-2 px-0 py-2 text-xs font-semibold tracking-wider text-gray-300 uppercase">
+        <component :is="props.icon" class="w-4 h-4" />
+        {{ props.label }}
+      </div>
+    </template>
 
-    <div class="grid grid-cols-2 gap-3">
-      <div class="flex flex-col gap-1">
-        <label class="text-xs font-medium tracking-wide text-gray-400">Sampler</label>
-        <Select v-model="sampler" :options="samplerOptions" optionLabel="label" optionValue="value" size="small" fluid />
+    <div class="flex flex-col gap-4 px-2">
+      <div class="flex flex-col gap-2">
+        <label for="model" class="text-xs font-medium tracking-wide text-surface-300">Model</label>
+        <Select
+          id="model"
+          v-model="modelsStore.selectedModelId"
+          :options="modelsStore.models"
+          option-label="name"
+          option-value="id"
+          placeholder="Select a model"
+          size="small"
+          class="w-full">
+          <template #option="slotProps">
+            <div class="flex items-center justify-between w-full">
+              <span class="font-medium">{{ slotProps.option?.name }}</span>
+              <span v-if="!slotProps.option.isDownloaded" class="rounded bg-amber-500/20 px-2 py-0.5 text-xs text-amber-400"> Not Downloaded </span>
+            </div>
+          </template>
+        </Select>
       </div>
-      <div class="flex flex-col gap-1">
-        <label class="text-xs font-medium tracking-wide text-gray-400">Scheduler</label>
-        <Select v-model="scheduler" :options="schedulerOptions" optionLabel="label" optionValue="value" size="small" fluid />
-      </div>
-    </div>
 
-    <div v-if="modelsStore.activeModel" class="flex flex-col gap-1 p-2 text-xs bg-gray-800 rounded text-slate-400">
-      <span v-if="modelsStore.activeModel.description" class="italic">
-        {{ modelsStore.activeModel.description }}
-      </span>
-      <div class="flex gap-3 text-sky-400">
-        <span>{{ modelsStore.activeModel.defaultSteps }} steps</span>
-        <span>CFG {{ modelsStore.activeModel.defaultGuidance }}</span>
+      <div class="grid grid-cols-2 gap-3">
+        <div class="flex flex-col gap-1">
+          <label class="text-xs font-medium tracking-wide text-surface-300">Sampler</label>
+          <Select v-model="sampler" :options="samplerOptions" optionLabel="label" optionValue="value" size="small" fluid />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="text-xs font-medium tracking-wide text-surface-300">Scheduler</label>
+          <Select v-model="scheduler" :options="schedulerOptions" optionLabel="label" optionValue="value" size="small" fluid />
+        </div>
+      </div>
+
+      <div v-if="modelsStore.activeModel" class="flex flex-col gap-1 p-2 text-xs rounded bg-surface-800 text-slate-400">
+        <span v-if="modelsStore.activeModel.description" class="italic">
+          {{ modelsStore.activeModel.description }}
+        </span>
+        <div class="flex gap-3 text-sky-400">
+          <span>{{ modelsStore.activeModel.defaultSteps }} steps</span>
+          <span>CFG {{ modelsStore.activeModel.defaultGuidance }}</span>
+        </div>
       </div>
     </div>
-  </div>
+  </Panel>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useModelsStore } from '@/stores/models';
 import { useGenerationStore } from '@/stores/generation';
+import Panel from 'primevue/panel';
 import Select from 'primevue/select';
 import type { Sampler, Scheduler } from '@/types';
+
+const props = defineProps(['collapsed', 'icon', 'label', 'toggleable']);
 
 const modelsStore = useModelsStore();
 const generationStore = useGenerationStore();
