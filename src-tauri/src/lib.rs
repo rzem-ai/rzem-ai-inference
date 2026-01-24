@@ -19,6 +19,7 @@ use tauri::State;
 use tokio::sync::Mutex;
 use tracing::warn;
 use queue::QueueProcessor;
+use gallery::GalleryDb;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -52,6 +53,16 @@ async fn init_database(app_state: State<'_, AppState>, db_path: String) -> Resul
 
     db.init_schema()
         .map_err(|e| format!("Failed to initialize schema: {}", e))?;
+
+    // Seed default models on first run
+    let model_count = db.get_model_count()
+        .map_err(|e| format!("Failed to get model count: {}", e))?;
+
+    if model_count == 0 {
+        tracing::info!("First run detected, seeding default models");
+        db.seed_default_models()
+            .map_err(|e| format!("Failed to seed models: {}", e))?;
+    }
 
     *app_state.gallery_db.lock().await = Some(db);
 
@@ -718,6 +729,17 @@ fn get_component_availability() -> Result<Vec<ComponentAvailability>, String> {
             quantized_downloaded: false,
         },
     ])
+}
+
+/// Get all models from database
+#[command]
+async fn get_all_models(
+    app_state: State<'_, AppState>,
+) -> Result<Vec<gallery::ModelRecord>, String> {
+    let db_guard = app_state.gallery_db.lock().await;
+    let db = db_guard.as_ref()
+        .ok_or_else(|| "Database not initialized".to_string())?;
+    db.get_all_models().map_err(|e| e.to_string())
 }
 
 #[command]
@@ -1695,6 +1717,8 @@ pub fn run_with_config(runtime_config: shared::protocol::RuntimeConfig, port: Op
             get_model_status,
             get_available_models,
             get_component_availability,
+            // Model database commands
+            get_all_models,
             // Settings commands
             get_hf_token,
             set_hf_token,

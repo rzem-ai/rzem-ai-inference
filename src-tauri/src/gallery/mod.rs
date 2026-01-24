@@ -106,6 +106,45 @@ pub struct GenerationPreset {
     pub updated_at: i64,
 }
 
+/// Model record stored in database
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelRecord {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    #[serde(rename = "type")]
+    pub model_type: String,
+    pub category: String,
+    pub category_label: String,
+
+    pub path: Option<String>,
+    pub size_estimate: String,
+    pub size_bytes: Option<i64>,
+    pub format: String,
+
+    pub is_downloaded: bool,
+    pub is_active: bool,
+
+    pub source: String,
+    pub license: String,
+    pub docs_url: Option<String>,
+
+    pub tags: Vec<String>,
+    pub icon: String,
+    pub icon_class: String,
+
+    pub default_settings: Option<serde_json::Value>,
+    pub features: Option<Vec<String>>,
+    pub notes: Option<String>,
+
+    pub has_quantized: bool,
+    pub quantized_downloaded: bool,
+
+    pub created_at: i64,
+    pub last_used_at: Option<i64>,
+}
+
 pub struct GalleryDb {
     conn: Connection,
 }
@@ -138,6 +177,48 @@ impl GalleryDb {
 
         if !has_category {
             self.conn.execute("ALTER TABLE tags ADD COLUMN category TEXT", [])?;
+        }
+
+        // Migrate models table to include new fields
+        self.migrate_models_table()?;
+
+        Ok(())
+    }
+
+    /// Migrate models table to add new columns
+    fn migrate_models_table(&self) -> Result<()> {
+        // Check if we need to migrate models table
+        let needs_migration: bool = self.conn.query_row(
+            "SELECT COUNT(*) = 0 FROM pragma_table_info('models') WHERE name = 'description'",
+            [],
+            |row| row.get(0),
+        ).unwrap_or(true);
+
+        if needs_migration {
+            // Add all new columns
+            let new_columns = vec![
+                "description TEXT DEFAULT ''",
+                "category TEXT DEFAULT 'component'",
+                "category_label TEXT DEFAULT 'Component'",
+                "size_estimate TEXT DEFAULT 'Unknown'",
+                "format TEXT DEFAULT 'Safetensors'",
+                "source TEXT DEFAULT ''",
+                "license TEXT DEFAULT 'Unknown'",
+                "docs_url TEXT",
+                "tags TEXT DEFAULT '[]'",
+                "icon TEXT DEFAULT 'box'",
+                "icon_class TEXT DEFAULT 'icon-default'",
+                "default_settings TEXT",
+                "features TEXT",
+                "notes TEXT",
+                "has_quantized INTEGER DEFAULT 0",
+                "quantized_downloaded INTEGER DEFAULT 0",
+            ];
+
+            for column in new_columns {
+                // Try to add column, ignore if already exists
+                let _ = self.conn.execute(&format!("ALTER TABLE models ADD COLUMN {}", column), []);
+            }
         }
 
         Ok(())
@@ -1259,6 +1340,406 @@ impl GalleryDb {
                 "INSERT OR IGNORE INTO image_tags (image_id, tag_id) VALUES (?1, ?2)",
                 params![image_id, tag_id],
             )?;
+        }
+
+        Ok(())
+    }
+
+    // ========== Model Operations ==========
+
+    /// Get all models from database
+    pub fn get_all_models(&self) -> Result<Vec<ModelRecord>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, name, description, type, category, category_label,
+                    path, size_estimate, size_bytes, format,
+                    is_downloaded, is_active,
+                    source, license, docs_url,
+                    tags, icon, icon_class,
+                    default_settings, features, notes,
+                    has_quantized, quantized_downloaded,
+                    created_at, last_used_at
+             FROM models
+             ORDER BY category, name"
+        )?;
+
+        let models = stmt.query_map([], |row| {
+            Ok(ModelRecord {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                description: row.get(2)?,
+                model_type: row.get(3)?,
+                category: row.get(4)?,
+                category_label: row.get(5)?,
+                path: row.get(6)?,
+                size_estimate: row.get(7)?,
+                size_bytes: row.get(8)?,
+                format: row.get(9)?,
+                is_downloaded: row.get::<_, i32>(10)? != 0,
+                is_active: row.get::<_, i32>(11)? != 0,
+                source: row.get(12)?,
+                license: row.get(13)?,
+                docs_url: row.get(14)?,
+                tags: row.get::<_, String>(15)
+                    .ok()
+                    .and_then(|s| serde_json::from_str(&s).ok())
+                    .unwrap_or_default(),
+                icon: row.get(16)?,
+                icon_class: row.get(17)?,
+                default_settings: row.get::<_, Option<String>>(18)?
+                    .and_then(|s| serde_json::from_str(&s).ok()),
+                features: row.get::<_, Option<String>>(19)?
+                    .and_then(|s| serde_json::from_str(&s).ok()),
+                notes: row.get(20)?,
+                has_quantized: row.get::<_, i32>(21)? != 0,
+                quantized_downloaded: row.get::<_, i32>(22)? != 0,
+                created_at: row.get(23)?,
+                last_used_at: row.get(24)?,
+            })
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(models)
+    }
+
+    /// Insert or update a model
+    pub fn upsert_model(&self, model: &ModelRecord) -> Result<()> {
+        let tags_json = serde_json::to_string(&model.tags)?;
+        let default_settings_json = model.default_settings.as_ref()
+            .map(|s| serde_json::to_string(s))
+            .transpose()?;
+        let features_json = model.features.as_ref()
+            .map(|f| serde_json::to_string(f))
+            .transpose()?;
+
+        self.conn.execute(
+            "INSERT INTO models (
+                id, name, description, type, category, category_label,
+                path, size_estimate, size_bytes, format,
+                is_downloaded, is_active,
+                source, license, docs_url,
+                tags, icon, icon_class,
+                default_settings, features, notes,
+                has_quantized, quantized_downloaded,
+                created_at, last_used_at, metadata
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15,
+                      ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, NULL)
+            ON CONFLICT(id) DO UPDATE SET
+                name = excluded.name,
+                description = excluded.description,
+                type = excluded.type,
+                category = excluded.category,
+                category_label = excluded.category_label,
+                path = excluded.path,
+                size_estimate = excluded.size_estimate,
+                size_bytes = excluded.size_bytes,
+                format = excluded.format,
+                is_downloaded = excluded.is_downloaded,
+                is_active = excluded.is_active,
+                source = excluded.source,
+                license = excluded.license,
+                docs_url = excluded.docs_url,
+                tags = excluded.tags,
+                icon = excluded.icon,
+                icon_class = excluded.icon_class,
+                default_settings = excluded.default_settings,
+                features = excluded.features,
+                notes = excluded.notes,
+                has_quantized = excluded.has_quantized,
+                quantized_downloaded = excluded.quantized_downloaded,
+                last_used_at = excluded.last_used_at",
+            params![
+                model.id,
+                model.name,
+                model.description,
+                model.model_type,
+                model.category,
+                model.category_label,
+                model.path,
+                model.size_estimate,
+                model.size_bytes,
+                model.format,
+                model.is_downloaded as i32,
+                model.is_active as i32,
+                model.source,
+                model.license,
+                model.docs_url,
+                tags_json,
+                model.icon,
+                model.icon_class,
+                default_settings_json,
+                features_json,
+                model.notes,
+                model.has_quantized as i32,
+                model.quantized_downloaded as i32,
+                model.created_at,
+                model.last_used_at,
+            ],
+        )?;
+
+        Ok(())
+    }
+
+    /// Update download status for a model
+    pub fn update_model_download_status(&self, id: &str, is_downloaded: bool) -> Result<()> {
+        self.conn.execute(
+            "UPDATE models SET is_downloaded = ?1 WHERE id = ?2",
+            params![is_downloaded as i32, id],
+        )?;
+        Ok(())
+    }
+
+    /// Update quantized status for a model
+    pub fn update_model_quantized_status(&self, id: &str, quantized_downloaded: bool) -> Result<()> {
+        self.conn.execute(
+            "UPDATE models SET quantized_downloaded = ?1 WHERE id = ?2",
+            params![quantized_downloaded as i32, id],
+        )?;
+        Ok(())
+    }
+
+    /// Get count of models (for first-run detection)
+    pub fn get_model_count(&self) -> Result<i64> {
+        let count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM models",
+            [],
+            |row| row.get(0),
+        )?;
+        Ok(count)
+    }
+
+    /// Seed default models on first run
+    pub fn seed_default_models(&self) -> Result<()> {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(0);
+
+        let models = vec![
+            // FLUX.1 [schnell]
+            ModelRecord {
+                id: "schnell".to_string(),
+                name: "FLUX.1 [schnell]".to_string(),
+                description: "Fast generation model optimized for speed (4 steps)".to_string(),
+                model_type: "Diffusion Transformer".to_string(),
+                category: "generation".to_string(),
+                category_label: "Image Generation".to_string(),
+                path: None,
+                size_estimate: "~12 GB".to_string(),
+                size_bytes: None,
+                format: "Quantized (BF16)".to_string(),
+                is_downloaded: false,
+                is_active: false,
+                source: "black-forest-labs/FLUX.1-schnell".to_string(),
+                license: "Apache 2.0".to_string(),
+                docs_url: Some("https://huggingface.co/black-forest-labs/FLUX.1-schnell".to_string()),
+                tags: vec!["FLUX".to_string(), "FAST".to_string(), "QUANTIZED".to_string()],
+                icon: "image".to_string(),
+                icon_class: "icon-flux".to_string(),
+                default_settings: Some(serde_json::json!({"steps": 4, "guidance": 1.0})),
+                features: None,
+                notes: Some("Best for quick iterations and drafts. Uses less VRAM than full precision.".to_string()),
+                has_quantized: false,
+                quantized_downloaded: false,
+                created_at: now,
+                last_used_at: None,
+            },
+            // FLUX.1 [dev]
+            ModelRecord {
+                id: "dev".to_string(),
+                name: "FLUX.1 [dev]".to_string(),
+                description: "High quality generation model for detailed outputs (28+ steps)".to_string(),
+                model_type: "Diffusion Transformer".to_string(),
+                category: "generation".to_string(),
+                category_label: "Image Generation".to_string(),
+                path: None,
+                size_estimate: "~12.8 GB".to_string(),
+                size_bytes: None,
+                format: "Quantized (Q8_0)".to_string(),
+                is_downloaded: false,
+                is_active: false,
+                source: "black-forest-labs/FLUX.1-dev".to_string(),
+                license: "FLUX.1 [dev] Non-Commercial".to_string(),
+                docs_url: Some("https://huggingface.co/black-forest-labs/FLUX.1-dev".to_string()),
+                tags: vec!["FLUX".to_string(), "HQ".to_string(), "QUANTIZED".to_string()],
+                icon: "image".to_string(),
+                icon_class: "icon-flux".to_string(),
+                default_settings: Some(serde_json::json!({"steps": 28, "guidance": 3.5})),
+                features: None,
+                notes: Some("Photorealistic quality, best for final outputs. Non-commercial license.".to_string()),
+                has_quantized: false,
+                quantized_downloaded: false,
+                created_at: now,
+                last_used_at: None,
+            },
+            // Moondream 2
+            ModelRecord {
+                id: "moondream".to_string(),
+                name: "Moondream 2".to_string(),
+                description: "Compact vision-language model for image understanding".to_string(),
+                model_type: "Vision Language Model".to_string(),
+                category: "vision".to_string(),
+                category_label: "Vision & Analysis".to_string(),
+                path: None,
+                size_estimate: "~1.8 GB".to_string(),
+                size_bytes: None,
+                format: "Safetensors".to_string(),
+                is_downloaded: false,
+                is_active: false,
+                source: "vikhyatk/moondream2".to_string(),
+                license: "Apache 2.0".to_string(),
+                docs_url: Some("https://huggingface.co/vikhyatk/moondream2".to_string()),
+                tags: vec!["VISION".to_string(), "VLM".to_string()],
+                icon: "eye".to_string(),
+                icon_class: "icon-vision".to_string(),
+                default_settings: None,
+                features: Some(vec![
+                    "Automatic image tagging".to_string(),
+                    "Image description generation".to_string(),
+                    "Visual question answering".to_string(),
+                    "Runs locally on GPU".to_string(),
+                ]),
+                notes: Some("Used by the Auto-Tag feature to analyze images and generate descriptive tags.".to_string()),
+                has_quantized: false,
+                quantized_downloaded: false,
+                created_at: now,
+                last_used_at: None,
+            },
+            // VAE
+            ModelRecord {
+                id: "vae".to_string(),
+                name: "FLUX VAE".to_string(),
+                description: "Variational Autoencoder for encoding images to latent space and decoding back".to_string(),
+                model_type: "Autoencoder".to_string(),
+                category: "component".to_string(),
+                category_label: "Encoders & Components".to_string(),
+                path: None,
+                size_estimate: "~335 MB".to_string(),
+                size_bytes: None,
+                format: "Safetensors".to_string(),
+                is_downloaded: false,
+                is_active: false,
+                source: "black-forest-labs/FLUX.1-schnell".to_string(),
+                license: "Apache 2.0".to_string(),
+                docs_url: Some("https://huggingface.co/black-forest-labs/FLUX.1-schnell".to_string()),
+                tags: vec!["VAE".to_string(), "ENCODER".to_string(), "SHARED".to_string()],
+                icon: "layer-group".to_string(),
+                icon_class: "icon-vae".to_string(),
+                default_settings: None,
+                features: Some(vec![
+                    "Encodes images to 16-channel latent space".to_string(),
+                    "Decodes latents back to RGB images".to_string(),
+                    "Shared between all FLUX models".to_string(),
+                    "Optimized for high-fidelity reconstruction".to_string(),
+                ]),
+                notes: Some("Downloaded automatically with FLUX models. Required for all image generation.".to_string()),
+                has_quantized: false,
+                quantized_downloaded: false,
+                created_at: now,
+                last_used_at: None,
+            },
+            // CLIP
+            ModelRecord {
+                id: "clip".to_string(),
+                name: "CLIP Text Encoder".to_string(),
+                description: "OpenAI CLIP model for encoding text prompts into embeddings".to_string(),
+                model_type: "Text Encoder".to_string(),
+                category: "component".to_string(),
+                category_label: "Encoders & Components".to_string(),
+                path: None,
+                size_estimate: "~250 MB".to_string(),
+                size_bytes: None,
+                format: "Safetensors".to_string(),
+                is_downloaded: false,
+                is_active: false,
+                source: "openai/clip-vit-large-patch14".to_string(),
+                license: "MIT".to_string(),
+                docs_url: Some("https://huggingface.co/openai/clip-vit-large-patch14".to_string()),
+                tags: vec!["CLIP".to_string(), "TEXT".to_string(), "SHARED".to_string()],
+                icon: "file-lines".to_string(),
+                icon_class: "icon-clip".to_string(),
+                default_settings: None,
+                features: Some(vec![
+                    "Converts text prompts to 768-dim embeddings".to_string(),
+                    "Understands visual concepts from text".to_string(),
+                    "Shared between all FLUX models".to_string(),
+                    "Fast inference (~250MB model)".to_string(),
+                ]),
+                notes: Some("Downloaded automatically with FLUX models. Handles basic prompt understanding.".to_string()),
+                has_quantized: false,
+                quantized_downloaded: false,
+                created_at: now,
+                last_used_at: None,
+            },
+            // T5-XXL
+            ModelRecord {
+                id: "t5".to_string(),
+                name: "T5-XXL Text Encoder".to_string(),
+                description: "Google T5-XXL encoder for detailed text understanding and long prompts".to_string(),
+                model_type: "Text Encoder".to_string(),
+                category: "component".to_string(),
+                category_label: "Encoders & Components".to_string(),
+                path: None,
+                size_estimate: "~9 GB (full) / ~3.3 GB (quantized)".to_string(),
+                size_bytes: None,
+                format: "Safetensors".to_string(),
+                is_downloaded: false,
+                is_active: false,
+                source: "google/t5-v1_1-xxl".to_string(),
+                license: "Apache 2.0".to_string(),
+                docs_url: Some("https://huggingface.co/google/t5-v1_1-xxl".to_string()),
+                tags: vec!["T5".to_string(), "TEXT".to_string(), "SHARED".to_string()],
+                icon: "font".to_string(),
+                icon_class: "icon-t5".to_string(),
+                default_settings: None,
+                features: Some(vec![
+                    "Handles complex, detailed prompts".to_string(),
+                    "Supports long text sequences (up to 512 tokens)".to_string(),
+                    "Shared between all FLUX models".to_string(),
+                    "Quantized version available (~3.3GB vs ~9GB)".to_string(),
+                ]),
+                notes: Some("The largest component. Quantized version recommended to save VRAM. Downloaded automatically with FLUX models.".to_string()),
+                has_quantized: true,
+                quantized_downloaded: false,
+                created_at: now,
+                last_used_at: None,
+            },
+            // T5 Tokenizer
+            ModelRecord {
+                id: "t5-tokenizer".to_string(),
+                name: "T5 Tokenizer".to_string(),
+                description: "Tokenizer for converting text to tokens for T5 encoder".to_string(),
+                model_type: "Tokenizer".to_string(),
+                category: "component".to_string(),
+                category_label: "Encoders & Components".to_string(),
+                path: None,
+                size_estimate: "~2 MB".to_string(),
+                size_bytes: None,
+                format: "JSON".to_string(),
+                is_downloaded: false,
+                is_active: false,
+                source: "lmz/mt5-tokenizers".to_string(),
+                license: "Apache 2.0".to_string(),
+                docs_url: Some("https://huggingface.co/lmz/mt5-tokenizers".to_string()),
+                tags: vec!["T5".to_string(), "TOKENIZER".to_string(), "SHARED".to_string()],
+                icon: "file-lines".to_string(),
+                icon_class: "icon-t5".to_string(),
+                default_settings: None,
+                features: Some(vec![
+                    "Converts text to token IDs".to_string(),
+                    "Compatible with T5-XXL encoder".to_string(),
+                    "Supports special tokens and padding".to_string(),
+                ]),
+                notes: Some("Required for T5 text encoder. Downloaded automatically with FLUX models.".to_string()),
+                has_quantized: false,
+                quantized_downloaded: false,
+                created_at: now,
+                last_used_at: None,
+            },
+        ];
+
+        // Insert all models
+        for model in models {
+            self.upsert_model(&model)?;
         }
 
         Ok(())
