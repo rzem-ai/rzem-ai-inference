@@ -12,9 +12,6 @@
             <List class="w-5 h-5" /> Queue <Badge v-if="pendingJobCount > 0" :value="pendingJobCount" severity="info" class="ml-2" />
           </div>
         </Tab>
-        <Tab value="presets">
-          <div class="flex flex-row items-center gap-2"> <BookMarked class="w-5 h-5" /> Presets </div>
-        </Tab>
       </TabList>
 
       <TabPanels>
@@ -26,15 +23,6 @@
             </div>
             <div v-else class="flex flex-wrap gap-2">
               <QueueJobCard v-for="job in allJobs" :key="job.id" :job="job" />
-            </div>
-          </div>
-        </TabPanel>
-
-        <TabPanel value="presets">
-          <div class="h-full p-3 overflow-auto">
-            <div class="flex h-full flex-col items-center justify-center gap-2 text-(--text-secondary)">
-              <i class="text-3xl pi pi-bookmark"></i>
-              <p class="text-sm">Saved presets will appear here</p>
             </div>
           </div>
         </TabPanel>

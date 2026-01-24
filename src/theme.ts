@@ -2,7 +2,7 @@ import { definePreset } from '@primeuix/themes';
 import Aura from '@primeuix/themes/aura';
 
 /**
- * shadcn/ui inspired dark theme using Tailwind Slate palette
+ * shadcn/ui inspired dark theme using Tailwind Gray palette
  * Based on Figma: https://www.figma.com/community/file/1055912623219285224
  */
 export const AuraPlus = definePreset(Aura, {

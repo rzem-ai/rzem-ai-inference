@@ -28,28 +28,32 @@
 
     <!-- Folders Header -->
     <div class="flex items-center justify-between px-3 py-2">
-      <span class="text-xs font-semibold tracking-wide uppercase text-slate-500">Folders</span>
+      <span class="text-xs font-semibold tracking-wide uppercase text-gray-500">Folders</span>
       
     </div>
 
     <!-- Folder Tree -->
     <div v-if="foldersStore.folders.length === 0" class="flex flex-col items-center gap-3 p-4 text-center">
-      <div class="text-sm text-slate-500">No folders yet</div>
+      <div class="text-sm text-gray-500">No folders yet</div>
       <Button label="Create First Folder" size="small" @click="emit('createFolder')" />
     </div>
 
     <div v-else class="flex-1 px-2 pb-2 overflow-y-auto">
       <FolderTreeNode
-        v-for="folder in foldersStore.folders"
+        v-for="(folder, index) in foldersStore.folders"
         :key="folder.id"
         :folder="folder"
         :depth="0"
         :expanded-ids="foldersStore.expandedFolderIds"
         :active-id="foldersStore.currentFolderId"
+        :sibling-ids="foldersStore.folders.map((f) => f.id)"
+        :is-last-sibling="index === foldersStore.folders.length - 1"
+        :dragged-folder-id="draggedFolderId"
         @select="handleSelectFolder"
         @toggle-expand="handleToggleExpand"
         @context-menu="handleContextMenu"
-        @drop="handleDrop" />
+        @drop="handleDrop"
+        @folder-move="handleFolderMove" />
     </div>
 
     <!-- Context Menu -->
@@ -58,7 +62,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, provide, reactive } from 'vue';
 import { useFoldersStore, type FolderNode } from '@/stores/folders';
 import { useGalleryStore } from '@/stores/gallery';
 import { Images, Inbox, Plus, ChevronsDown, ChevronUp } from 'lucide-vue-next';
@@ -68,6 +72,11 @@ import FolderTreeNode from './FolderTreeNode.vue';
 
 const foldersStore = useFoldersStore();
 const galleryStore = useGalleryStore();
+
+// Track currently dragged folder for all descendants
+const draggedFolderState = reactive({ value: null as string | null });
+const draggedFolderId = computed(() => draggedFolderState.value);
+provide('draggedFolderId', draggedFolderState);
 
 const emit = defineEmits<{
   createFolder: [parentId?: string];
@@ -141,6 +150,43 @@ const handleContextMenu = (event: MouseEvent, folder: FolderNode) => {
 
 const handleDrop = async (data: { folderId: string; imageIds: string[] }) => {
   await galleryStore.addToFolder(data.imageIds, data.folderId);
+};
+
+const handleFolderMove = async (data: { folderId: string; targetId: string; position: 'before' | 'after' | 'into' }) => {
+  const { folderId, targetId, position } = data;
+
+  if (position === 'into') {
+    // Move folder to become a child of target
+    await foldersStore.moveFolder(folderId, targetId);
+  } else {
+    // Reorder: find target's parent and siblings, calculate new order
+    const targetFolder = foldersStore.flatFolders.find((f) => f.id === targetId);
+    if (!targetFolder) return;
+
+    // Get siblings at target's level
+    const siblings = targetFolder.parentId
+      ? foldersStore.flatFolders.find((f) => f.id === targetFolder.parentId)?.children || []
+      : foldersStore.folders;
+
+    const siblingIds = siblings.map((s) => s.id);
+    const sourceIndex = siblingIds.indexOf(folderId);
+
+    // Remove source from current position if it's in the same parent
+    if (sourceIndex !== -1) {
+      siblingIds.splice(sourceIndex, 1);
+    } else {
+      // Moving from different parent - first move to same parent
+      await foldersStore.moveFolder(folderId, targetFolder.parentId);
+    }
+
+    // Calculate new index after potential removal
+    const targetIndex = siblingIds.indexOf(targetId);
+    const insertIndex = position === 'before' ? targetIndex : targetIndex + 1;
+    siblingIds.splice(insertIndex, 0, folderId);
+
+    // Apply new order
+    await foldersStore.reorderFolders(siblingIds);
+  }
 };
 
 const toggleExpandAll = () => {

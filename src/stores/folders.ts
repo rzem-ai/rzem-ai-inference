@@ -168,6 +168,17 @@ export const useFoldersStore = defineStore('folders', () => {
     }
   }
 
+  async function reorderFolders(folderIds: string[]): Promise<boolean> {
+    try {
+      await invoke('reorder_folders', { folderIds })
+      await loadFolders() // Refresh tree
+      return true
+    } catch (error) {
+      console.error('Failed to reorder folders:', error)
+      return false
+    }
+  }
+
   function setCurrentFolder(folderId: string | null): void {
     currentFolderId.value = folderId
     currentViewType.value = folderId ? 'folder' : 'all'
@@ -236,6 +247,7 @@ export const useFoldersStore = defineStore('folders', () => {
     moveFolder,
     addImagesToFolder,
     removeImagesFromFolder,
+    reorderFolders,
     setCurrentFolder,
     setViewType,
     toggleExpanded,

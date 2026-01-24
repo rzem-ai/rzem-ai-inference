@@ -39,7 +39,7 @@
         </div>
       </div>
 
-      <div v-if="modelsStore.activeModel" class="flex flex-col gap-1 p-2 text-xs rounded bg-surface-800 text-slate-400">
+      <div v-if="modelsStore.activeModel" class="flex flex-col gap-1 p-2 text-xs rounded bg-surface-800 text-gray-400">
         <span v-if="modelsStore.activeModel.description" class="italic">
           {{ modelsStore.activeModel.description }}
         </span>

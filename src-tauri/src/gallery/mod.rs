@@ -1173,6 +1173,34 @@ impl GalleryDb {
         Ok(())
     }
 
+    /// Delete a tag completely (removes from all images)
+    pub fn delete_tag(&self, tag_id: i64) -> Result<()> {
+        // First remove all image associations (cascades via FK, but explicit is clearer)
+        self.conn.execute(
+            "DELETE FROM image_tags WHERE tag_id = ?1",
+            params![tag_id],
+        )?;
+
+        // Then delete the tag itself
+        self.conn.execute(
+            "DELETE FROM tags WHERE id = ?1",
+            params![tag_id],
+        )?;
+
+        Ok(())
+    }
+
+    /// Reorder folders within the same parent
+    pub fn reorder_folders(&self, folder_ids: &[String]) -> Result<()> {
+        for (index, folder_id) in folder_ids.iter().enumerate() {
+            self.conn.execute(
+                "UPDATE folders SET sort_order = ?1, updated_at = ?2 WHERE id = ?3",
+                params![index as i32, chrono::Utc::now().timestamp(), folder_id],
+            )?;
+        }
+        Ok(())
+    }
+
     // ========== App Settings ==========
 
     /// Get auto-tag settings from database

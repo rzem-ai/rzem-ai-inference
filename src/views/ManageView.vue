@@ -582,21 +582,21 @@ async function checkHealth() {
 
 .workspace {
   @apply flex flex-col h-full;
-  background-color: var(--color-slate-950);
+  background-color: var(--color-gray-950);
 }
 
 .workspace-header {
   @apply py-6 px-8 border-b;
-  border-color: var(--color-slate-800);
+  border-color: var(--color-gray-800);
 
   h1 {
     @apply m-0 text-2xl font-semibold;
-    color: var(--color-slate-50);
+    color: var(--color-gray-50);
   }
 
   p {
     @apply mt-1 mb-0 text-sm;
-    color: var(--color-slate-400);
+    color: var(--color-gray-400);
   }
 }
 
@@ -609,18 +609,18 @@ async function checkHealth() {
 
   h2 {
     @apply m-0 mb-4 text-lg font-semibold;
-    color: var(--color-slate-100);
+    color: var(--color-gray-100);
   }
 }
 
 .api-key-card {
   @apply p-4 mb-4 border rounded-xl;
-  border-color: var(--color-slate-700);
-  background-color: var(--color-slate-800);
+  border-color: var(--color-gray-700);
+  background-color: var(--color-gray-800);
 
   h3 {
     @apply m-0 text-base font-semibold;
-    color: var(--color-slate-50);
+    color: var(--color-gray-50);
   }
 }
 
@@ -644,7 +644,7 @@ async function checkHealth() {
 
 .api-key-description {
   @apply mb-3 text-sm;
-  color: var(--color-slate-400);
+  color: var(--color-gray-400);
 }
 
 .link {
@@ -693,18 +693,18 @@ async function checkHealth() {
 /* Cache Management Styles */
 .section-description {
   @apply mb-4 text-sm;
-  color: var(--color-slate-400);
+  color: var(--color-gray-400);
 }
 
 .stats-card,
 .config-card {
   @apply p-4 mb-4 border rounded-xl;
-  border-color: var(--color-slate-700);
-  background-color: var(--color-slate-800);
+  border-color: var(--color-gray-700);
+  background-color: var(--color-gray-800);
 
   h3 {
     @apply m-0 text-sm font-semibold;
-    color: var(--color-slate-200);
+    color: var(--color-gray-200);
   }
 }
 
@@ -718,7 +718,7 @@ async function checkHealth() {
 
 .stat-item {
   @apply flex flex-col items-center p-3 rounded-lg;
-  background-color: var(--color-slate-900);
+  background-color: var(--color-gray-900);
 
   .stat-value {
     @apply text-xl font-bold;
@@ -727,27 +727,27 @@ async function checkHealth() {
 
   .stat-label {
     @apply text-xs mt-1;
-    color: var(--color-slate-400);
+    color: var(--color-gray-400);
   }
 }
 
 .stats-footer {
   @apply flex gap-4 pt-3 border-t;
-  border-color: var(--color-slate-700);
+  border-color: var(--color-gray-700);
 }
 
 .stat-detail {
   @apply flex items-center gap-2 text-xs;
-  color: var(--color-slate-400);
+  color: var(--color-gray-400);
 
   i {
-    color: var(--color-slate-500);
+    color: var(--color-gray-500);
   }
 }
 
 .config-description {
   @apply mt-2 mb-3 text-sm;
-  color: var(--color-slate-400);
+  color: var(--color-gray-400);
 }
 
 .preset-buttons {
@@ -756,20 +756,20 @@ async function checkHealth() {
 
 .preset-hint {
   @apply block text-xs;
-  color: var(--color-slate-500);
+  color: var(--color-gray-500);
 }
 
 .config-header {
   @apply flex items-center justify-between cursor-pointer select-none;
 
   i {
-    color: var(--color-slate-400);
+    color: var(--color-gray-400);
   }
 }
 
 .advanced-settings {
   @apply mt-4 pt-4 border-t;
-  border-color: var(--color-slate-700);
+  border-color: var(--color-gray-700);
 }
 
 .toggle-row {
@@ -777,7 +777,7 @@ async function checkHealth() {
 
   &:not(:last-child) {
     @apply border-b;
-    border-color: var(--color-slate-700);
+    border-color: var(--color-gray-700);
   }
 }
 
@@ -787,12 +787,12 @@ async function checkHealth() {
 
 .toggle-label {
   @apply text-sm font-medium;
-  color: var(--color-slate-200);
+  color: var(--color-gray-200);
 }
 
 .toggle-hint {
   @apply text-xs mt-0.5;
-  color: var(--color-slate-500);
+  color: var(--color-gray-500);
 }
 
 .slider-row {
@@ -800,7 +800,7 @@ async function checkHealth() {
 
   &:not(:last-child) {
     @apply border-b;
-    border-color: var(--color-slate-700);
+    border-color: var(--color-gray-700);
   }
 }
 
@@ -810,7 +810,7 @@ async function checkHealth() {
 
 .slider-label {
   @apply text-sm font-medium;
-  color: var(--color-slate-200);
+  color: var(--color-gray-200);
 }
 
 .slider-value {
@@ -828,6 +828,6 @@ async function checkHealth() {
 
 .action-hint {
   @apply text-xs;
-  color: var(--color-slate-500);
+  color: var(--color-gray-500);
 }
 </style>

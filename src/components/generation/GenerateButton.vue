@@ -70,6 +70,6 @@ const handleClick = () => {
 
 .queue-info {
   @apply text-center text-sm;
-  color: var(--color-slate-500);
+  color: var(--color-gray-500);
 }
 </style>

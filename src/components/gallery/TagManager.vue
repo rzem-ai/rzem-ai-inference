@@ -60,6 +60,9 @@
     <!-- Context Menu -->
     <ContextMenu ref="contextMenuRef" :model="contextMenuItems" />
 
+    <!-- Delete Confirmation -->
+    <ConfirmDialog />
+
     <!-- Edit Tag Dialog -->
     <Dialog v-model:visible="editDialogVisible" header="Edit Tag" modal :style="{ width: '350px' }">
       <div v-if="editingTag" class="edit-tag-form">
@@ -100,16 +103,19 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useConfirm } from 'primevue/useconfirm'
 import { useTagsStore, type Tag } from '@/stores/tags'
 import { useGalleryStore } from '@/stores/gallery'
 import Chip from 'primevue/chip'
 import Button from 'primevue/button'
 import ContextMenu from 'primevue/contextmenu'
+import ConfirmDialog from 'primevue/confirmdialog'
 import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
 
 const tagsStore = useTagsStore()
 const galleryStore = useGalleryStore()
+const confirm = useConfirm()
 
 const contextMenuRef = ref<InstanceType<typeof ContextMenu> | null>(null)
 const contextTag = ref<Tag | null>(null)
@@ -151,6 +157,17 @@ const contextMenuItems = computed(() => [
     command: () => {
       if (contextTag.value) {
         toggleTag(contextTag.value.name)
+      }
+    },
+  },
+  { separator: true },
+  {
+    label: 'Delete Tag',
+    icon: 'pi pi-trash',
+    class: 'p-menuitem-danger',
+    command: () => {
+      if (contextTag.value) {
+        confirmDeleteTag(contextTag.value)
       }
     },
   },
@@ -205,6 +222,21 @@ const saveTagEdit = async () => {
   editDialogVisible.value = false
   editingTag.value = null
 }
+
+const confirmDeleteTag = (tag: Tag) => {
+  confirm.require({
+    message: `Are you sure you want to delete the tag "${tag.name}"?${
+      tag.usageCount > 0 ? ` It is used by ${tag.usageCount} image${tag.usageCount > 1 ? 's' : ''}.` : ''
+    }`,
+    header: 'Delete Tag',
+    icon: 'pi pi-exclamation-triangle',
+    rejectClass: 'p-button-secondary',
+    acceptClass: 'p-button-danger',
+    accept: async () => {
+      await tagsStore.deleteTag(tag.id)
+    },
+  })
+}
 </script>
 
 <style scoped>
@@ -220,12 +252,12 @@ const saveTagEdit = async () => {
 
 .section-title {
   @apply text-xs font-semibold uppercase tracking-wide;
-  color: var(--color-slate-500);
+  color: var(--color-gray-500);
 }
 
 .loading-state {
   @apply flex items-center justify-center p-4;
-  color: var(--color-slate-500);
+  color: var(--color-gray-500);
 }
 
 .empty-tags {
@@ -233,12 +265,12 @@ const saveTagEdit = async () => {
 
   p {
     @apply text-sm;
-    color: var(--color-slate-500);
+    color: var(--color-gray-500);
   }
 
   small {
     @apply text-xs;
-    color: var(--color-slate-600);
+    color: var(--color-gray-600);
   }
 }
 
@@ -248,7 +280,7 @@ const saveTagEdit = async () => {
 
 .section-label {
   @apply text-xs font-medium;
-  color: var(--color-slate-400);
+  color: var(--color-gray-400);
 }
 
 .tag-list {
@@ -257,12 +289,12 @@ const saveTagEdit = async () => {
 
 .tag-list :deep(.p-chip) {
   @apply cursor-pointer transition-all text-xs;
-  background-color: var(--color-slate-700);
-  color: var(--color-slate-300);
+  background-color: var(--color-gray-700);
+  color: var(--color-gray-300);
   border: 1px solid transparent;
 
   &:hover {
-    background-color: var(--color-slate-600);
+    background-color: var(--color-gray-600);
   }
 
   &.active {
@@ -288,7 +320,7 @@ const saveTagEdit = async () => {
 
   label {
     @apply text-sm font-medium;
-    color: var(--color-slate-300);
+    color: var(--color-gray-300);
   }
 }
 
@@ -310,8 +342,8 @@ const saveTagEdit = async () => {
 
   &.color-none {
     @apply flex items-center justify-center text-xs;
-    background-color: var(--color-slate-700);
-    color: var(--color-slate-400);
+    background-color: var(--color-gray-700);
+    color: var(--color-gray-400);
   }
 }
 </style>

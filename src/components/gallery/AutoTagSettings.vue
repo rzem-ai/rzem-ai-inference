@@ -63,7 +63,7 @@
                       <Trash2 class="w-4 h-4" />
                     </Button>
                   </div>
-                  <span v-if="lockClearMessage" class="text-xs text-slate-400">{{ lockClearMessage }}</span>
+                  <span v-if="lockClearMessage" class="text-xs text-gray-400">{{ lockClearMessage }}</span>
                 </div>
               </template>
             </div>
@@ -258,12 +258,12 @@ const handleSave = async () => {
 
 .setting-label {
   @apply text-sm font-medium;
-  color: var(--color-slate-200);
+  color: var(--color-gray-200);
 }
 
 .setting-desc {
   @apply text-xs;
-  color: var(--color-slate-400);
+  color: var(--color-gray-400);
 }
 
 .setting-section {
@@ -272,7 +272,7 @@ const handleSave = async () => {
 
 .section-title {
   @apply text-xs font-semibold uppercase tracking-wide;
-  color: var(--color-slate-400);
+  color: var(--color-gray-400);
 }
 
 .backend-options {
@@ -281,11 +281,11 @@ const handleSave = async () => {
 
 .backend-option {
   @apply flex flex-col gap-2 p-3 rounded-lg cursor-pointer transition-all;
-  background-color: var(--color-slate-800);
+  background-color: var(--color-gray-800);
   border: 2px solid transparent;
 
   &:hover:not(.disabled) {
-    background-color: var(--color-slate-700);
+    background-color: var(--color-gray-700);
   }
 
   &.active {
@@ -300,7 +300,7 @@ const handleSave = async () => {
 
 .backend-header {
   @apply flex items-center gap-2;
-  color: var(--color-slate-200);
+  color: var(--color-gray-200);
 }
 
 .backend-name {
@@ -309,7 +309,7 @@ const handleSave = async () => {
 
 .backend-desc {
   @apply text-xs;
-  color: var(--color-slate-400);
+  color: var(--color-gray-400);
 }
 
 .backend-status {

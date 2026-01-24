@@ -1,10 +1,6 @@
 <template>
   <div ref="containerRef" class="virtual-grid-container">
-    <VirtualScroller
-      :items="imageRows"
-      :itemSize="ROW_HEIGHT"
-      class="virtual-scroller"
-      :pt="{ content: { class: 'virtual-content' } }">
+    <VirtualScroller :items="imageRows" :itemSize="ROW_HEIGHT" class="virtual-scroller" :pt="{ content: { class: 'virtual-content' } }">
       <template #item="{ item: row }">
         <div class="image-row" :style="{ height: ROW_HEIGHT + 'px' }">
           <div
@@ -12,54 +8,60 @@
             :key="image.id"
             class="image-card"
             :class="{
-              'border-blue-500! bg-slate-700!': selectedIds.has(image.id),
+              'border-blue-500! bg-surface-700!': selectedIds.has(image.id),
               'opacity-50 scale-95': isDragging && draggedImageIds.has(image.id),
             }"
             draggable="true"
             @dragstart="handleDragStart($event, image)"
             @dragend="handleDragEnd">
-            <div class="absolute z-10 p-1 rounded shadow top-2 left-2 bg-slate-900">
+            <div class="absolute z-10 p-1 rounded shadow top-2 left-2">
               <Checkbox :model-value="selectedIds.has(image.id)" @change="emit('select', image.id)" binary />
             </div>
 
-            <div class="image-container" @click="emit('openDetail', image)">
-              <Image :src="getThumbnailSrc(image)" :preview-src="getImageSrc(image.filePath)" :alt="image.prompt" preview />
+            <div class="image-container" >
+              <Image :src="getImageSrc(image)" :preview-src="getThumbnailSrc(image)" :alt="image.prompt" preview />
 
               <!-- Drag overlay showing count -->
-              <div v-if="isDragging && draggedImageIds.has(image.id) && draggedImageIds.size > 1" class="absolute px-2 py-1 text-xs font-bold text-white bg-blue-600 rounded-full top-2 right-2">
+              <div
+                v-if="isDragging && draggedImageIds.has(image.id) && draggedImageIds.size > 1"
+                class="absolute px-2 py-1 text-xs font-bold text-white bg-blue-600 rounded-full top-2 right-2">
                 {{ draggedImageIds.size }}
               </div>
             </div>
 
-            <div class="flex items-center justify-between p-2 border-t border-slate-700">
-              <Button
-                :severity="image.isFavorite ? 'danger' : 'secondary'"
-                text
-                rounded
-                @click.stop="emit('toggleFavorite', image.id)"
-                :title="image.isFavorite ? 'Remove from favorites' : 'Add to favorites'">
-                <template #icon><Heart :size="14" /></template>
-              </Button>
-              <Button severity="secondary" text rounded @click.stop="emit('addToCompare', image)" title="Add to compare">
-                <template #icon><Copy :size="14" /></template>
-              </Button>
-              <span class="text-xs text-slate-400">
-                {{ new Date(image.createdAt).toLocaleDateString() }}
-              </span>
-            </div>
-
-            <div class="p-3 bg-slate-800">
-              <p class="m-0 mb-2 text-sm leading-5 text-slate-300">{{ image.prompt.substring(0, 60) }}{{ image.prompt.length > 60 ? '...' : '' }}</p>
-              <div class="flex gap-3 text-xs text-slate-400 [&_span]:flex [&_span]:items-center">
-                <span>{{ image.width }}×{{ image.height }}</span>
-                <span>{{ image.modelName }}</span>
-              </div>
-              <!-- Folder badges -->
-              <div v-if="image.folderIds && image.folderIds.length > 0" class="flex gap-1 mt-2">
-                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-slate-700 text-amber-400" :title="`In ${image.folderIds.length} folder(s)`">
-                  <Folder :size="12" />
-                  {{ image.folderIds.length }}
+            <div class="flex flex-col" @click="emit('openDetail', image)">
+              <div class="flex items-center justify-between p-2 border-t border-gray-700">
+                <Button
+                  :severity="image.isFavorite ? 'danger' : 'secondary'"
+                  text
+                  rounded
+                  @click.stop="emit('toggleFavorite', image.id)"
+                  :title="image.isFavorite ? 'Remove from favorites' : 'Add to favorites'">
+                  <template #icon><Heart :size="14" /></template>
+                </Button>
+                <Button severity="secondary" text rounded @click.stop="emit('addToCompare', image)" title="Add to compare">
+                  <template #icon><Copy :size="14" /></template>
+                </Button>
+                <span class="text-xs text-gray-400">
+                  {{ new Date(image.createdAt * 1000).toLocaleDateString() }}
                 </span>
+              </div>
+
+              <div class="p-3 bg-gray-800">
+                <p class="m-0 mb-2 text-sm leading-5 text-gray-300">{{ image.prompt.substring(0, 60) }}{{ image.prompt.length > 60 ? '...' : '' }}</p>
+                <div class="flex gap-3 text-xs text-gray-400 [&_span]:flex [&_span]:items-center">
+                  <span>{{ image.width }}×{{ image.height }}</span>
+                  <span>{{ image.modelName }}</span>
+                </div>
+                <!-- Folder badges -->
+                <div v-if="image.folderIds && image.folderIds.length > 0" class="flex gap-1 mt-2">
+                  <span
+                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-gray-700 text-amber-400"
+                    :title="`In ${image.folderIds.length} folder(s)`">
+                    <Folder :size="12" />
+                    {{ image.folderIds.length }}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -112,8 +114,9 @@ const imageRows = computed(() => {
   return rows;
 });
 
-const getImageSrc = (filePath: string) => {
-  return convertFileSrc(filePath);
+const getImageSrc = (image: GalleryImage) => {
+  const path = image.filePath || image.thumbnailPath || '';
+  return convertFileSrc(path);
 };
 
 // Get thumbnail source for gallery display (falls back to original if no thumbnail)
@@ -210,6 +213,8 @@ const handleDragEnd = () => {
 </script>
 
 <style scoped>
+@reference "tailwindcss";
+
 .virtual-grid-container {
   height: 100%;
   width: 100%;
@@ -233,19 +238,18 @@ const handleDragEnd = () => {
 }
 
 .image-card {
+  @apply bg-gray-800;
   position: relative;
   border: 2px solid transparent;
   border-radius: 8px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
   transition: all 0.2s;
   cursor: grab;
-  background-color: #1e293b;
   overflow: hidden;
 }
 
 .image-card:hover {
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
-  transform: translateY(-2px);
+  @apply shadow-2xl border border-blue-400;
 }
 
 .image-card:active {

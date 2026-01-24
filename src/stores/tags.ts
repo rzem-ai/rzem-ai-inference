@@ -98,6 +98,18 @@ export const useTagsStore = defineStore('tags', () => {
     }
   }
 
+  async function deleteTag(tagId: number): Promise<boolean> {
+    try {
+      await invoke('delete_tag', { tagId })
+      // Remove from local state
+      tags.value = tags.value.filter((t) => t.id !== tagId)
+      return true
+    } catch (error) {
+      console.error('Failed to delete tag:', error)
+      return false
+    }
+  }
+
   function getTagByName(name: string): Tag | undefined {
     return tags.value.find((t) => t.name === name)
   }
@@ -119,6 +131,7 @@ export const useTagsStore = defineStore('tags', () => {
     updateTag,
     bulkAddTag,
     bulkRemoveTag,
+    deleteTag,
     getTagByName,
     getTagColor,
   }

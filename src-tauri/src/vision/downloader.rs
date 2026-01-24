@@ -18,7 +18,7 @@ use super::models::moondream_repo_id;
 fn cleanup_stale_locks() -> Result<usize> {
     let cache_dir = dirs::cache_dir()
         .context("Could not find cache directory")?
-        .join("huggingface/hub/models--vikhyatk--moondream2");
+        .join("huggingface/hub/models--santiagomed--candle-moondream");
 
     if !cache_dir.exists() {
         return Ok(0);
@@ -86,7 +86,7 @@ fn cleanup_stale_locks() -> Result<usize> {
 pub fn force_cleanup_locks() -> Result<usize> {
     let cache_dir = dirs::cache_dir()
         .context("Could not find cache directory")?
-        .join("huggingface/hub/models--vikhyatk--moondream2");
+        .join("huggingface/hub/models--santiagomed--candle-moondream");
 
     if !cache_dir.exists() {
         return Ok(0);
@@ -115,14 +115,13 @@ pub fn force_cleanup_locks() -> Result<usize> {
     Ok(removed)
 }
 
-/// Approximate size of Moondream 2 model in bytes (~1.8GB)
-pub const MOONDREAM_SIZE_BYTES: u64 = 1_800_000_000;
+/// Approximate size of Moondream quantized model in bytes (~1.51GB)
+pub const MOONDREAM_SIZE_BYTES: u64 = 1_510_000_000;
 
-/// Files required for Moondream model
+/// Files required for Moondream quantized model (GGUF format)
 const MOONDREAM_FILES: &[&str] = &[
-    "model.safetensors",
+    "model-q4_0.gguf",
     "tokenizer.json",
-    "config.json",
 ];
 
 /// Vision model download status
@@ -176,7 +175,7 @@ fn format_bytes(bytes: u64) -> String {
 pub fn is_moondream_downloaded() -> bool {
     // First try direct filesystem check (fast, no network)
     if let Some(cache_dir) = dirs::cache_dir() {
-        let model_dir = cache_dir.join("huggingface/hub/models--vikhyatk--moondream2/snapshots");
+        let model_dir = cache_dir.join("huggingface/hub/models--santiagomed--candle-moondream/snapshots");
 
         if model_dir.exists() {
             // Find the latest snapshot directory
@@ -239,8 +238,8 @@ pub fn get_moondream_cache_path() -> Result<PathBuf> {
     let api = hf_hub::api::sync::Api::new()?;
     let repo = api.model(moondream_repo_id().to_string());
 
-    // Get the path by fetching model.safetensors (it will be in cache)
-    let model_path = repo.get("model.safetensors")
+    // Get the path by fetching model-q4_0.gguf (it will be in cache)
+    let model_path = repo.get("model-q4_0.gguf")
         .context("Moondream model not found in cache")?;
 
     // Return parent directory
@@ -354,7 +353,7 @@ pub async fn download_moondream(app_handle: Option<&AppHandle>) -> Result<PathBu
             }
         };
 
-        if *file == "model.safetensors" {
+        if *file == "model-q4_0.gguf" {
             downloaded_path = Some(path);
         }
     }
@@ -393,7 +392,7 @@ mod tests {
         assert_eq!(format_bytes(500), "500 bytes");
         assert_eq!(format_bytes(1024), "1.0 KB");
         assert_eq!(format_bytes(1_500_000), "1.4 MB");
-        assert_eq!(format_bytes(1_800_000_000), "1.7 GB");
+        assert_eq!(format_bytes(1_510_000_000), "1.4 GB");
     }
 
     #[test]

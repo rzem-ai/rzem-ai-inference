@@ -166,13 +166,13 @@ const randomizeSeed = () => {
 
 .size-btn {
   @apply py-2 px-4 rounded-lg cursor-pointer text-sm transition-all duration-200;
-  background-color: var(--color-slate-700);
-  border: 1px solid var(--color-slate-600);
-  color: var(--color-slate-200);
+  background-color: var(--color-gray-700);
+  border: 1px solid var(--color-gray-600);
+  color: var(--color-gray-200);
 
   &:hover {
-    background-color: var(--color-slate-600);
-    border-color: var(--color-slate-500);
+    background-color: var(--color-gray-600);
+    border-color: var(--color-gray-500);
   }
 }
 
@@ -182,12 +182,12 @@ const randomizeSeed = () => {
 
 .randomize-btn {
   @apply py-2 px-3 rounded-lg cursor-pointer text-xl transition-all duration-200;
-  background-color: var(--color-slate-700);
-  border: 1px solid var(--color-slate-600);
+  background-color: var(--color-gray-700);
+  border: 1px solid var(--color-gray-600);
 
   &:hover {
-    background-color: var(--color-slate-600);
-    border-color: var(--color-slate-500);
+    background-color: var(--color-gray-600);
+    border-color: var(--color-gray-500);
   }
 }
 </style>

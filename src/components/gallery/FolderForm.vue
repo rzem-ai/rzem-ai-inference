@@ -235,7 +235,7 @@ const resetForm = () => {
 
   label {
     @apply text-sm font-medium;
-    color: var(--color-slate-300);
+    color: var(--color-gray-300);
   }
 }
 
@@ -257,8 +257,8 @@ const resetForm = () => {
 
   &.color-none {
     @apply flex items-center justify-center;
-    background-color: var(--color-slate-700);
-    color: var(--color-slate-400);
+    background-color: var(--color-gray-700);
+    color: var(--color-gray-400);
   }
 }
 </style>

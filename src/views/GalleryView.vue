@@ -13,23 +13,23 @@
 
     <!-- Main Content -->
     <main class="flex flex-col flex-1 h-full overflow-hidden">
-      <div class="p-4 bg-gray-800 border-b border-gray-600">
+      <div class="p-4 border-b bg-surface-800 border-surface-600">
         <!-- Breadcrumb -->
-        <div class="breadcrumb">
+        <div class="flex items-center gap-1 mb-3 text-sm">
           <template v-if="foldersStore.currentViewType === 'all'">
-            <span class="breadcrumb-item active">All Images</span>
+            <span class="text-gray-200 active">All Images</span>
           </template>
           <template v-else-if="foldersStore.currentViewType === 'uncategorized'">
-            <span class="breadcrumb-item active">Uncategorized</span>
+            <span class="text-gray-200 active">Uncategorized</span>
           </template>
           <template v-else-if="foldersStore.currentFolder">
-            <span class="breadcrumb-item clickable" @click="handleSelectAll">All Images</span>
+            <span class="text-gray-200 clickable" @click="handleSelectAll">All Images</span>
             <i class="pi pi-chevron-right breadcrumb-separator"></i>
             <template v-for="(name, index) in foldersStore.currentBreadcrumb" :key="index">
-              <span v-if="index < foldersStore.currentBreadcrumb.length - 1" class="breadcrumb-item clickable" @click="navigateToBreadcrumb(index)">
+              <span v-if="index < foldersStore.currentBreadcrumb.length - 1" class="text-gray-200 clickable" @click="navigateToBreadcrumb(index)">
                 {{ name }}
               </span>
-              <span v-else class="breadcrumb-item active">{{ name }}</span>
+              <span v-else class="text-gray-200 active">{{ name }}</span>
               <i v-if="index < foldersStore.currentBreadcrumb.length - 1" class="pi pi-chevron-right breadcrumb-separator"></i>
             </template>
           </template>
@@ -44,6 +44,9 @@
           <div class="flex items-center gap-2 ml-auto">
             <Button :disabled="galleryStore.selectedImages.size == 0" size="small" severity="secondary" @click="showAddToFolderMenu">
               <div class="flex items-center gap-2"><Folder class="w-4 h-4" /> Add to Folder</div>
+            </Button>
+            <Button :disabled="galleryStore.selectedImages.size == 0" size="small" severity="secondary" @click="showBulkTagMenu">
+              <div class="flex items-center gap-2"><Tag class="w-4 h-4" /> Manage Tags</div>
             </Button>
             <AutoTagButton @open-settings="openAutoTagSettings" @tagging-complete="handleTaggingComplete" />
             <Button label="Select All" severity="secondary" @click="galleryStore.selectAll"><CheckSquare class="w-4 h-4" /></Button>
@@ -89,6 +92,12 @@
     <!-- Add to Folder Menu -->
     <Menu ref="addToFolderMenuRef" :model="addToFolderMenuItems" popup />
 
+    <!-- Bulk Tag Menu -->
+    <Menu ref="bulkTagMenuRef" :model="bulkTagMenuItems" popup />
+
+    <!-- Image Detail Modal -->
+    <ImageDetailModal v-model:visible="imageDetailVisible" v-model:image="selectedImage" />
+
     <!-- Delete Confirmation -->
     <ConfirmDialog />
 
@@ -115,13 +124,15 @@ import FolderForm from '@/components/gallery/FolderForm.vue';
 import TagManager from '@/components/gallery/TagManager.vue';
 import AutoTagButton from '@/components/gallery/AutoTagButton.vue';
 import AutoTagSettings from '@/components/gallery/AutoTagSettings.vue';
+import ImageDetailModal from '@/components/gallery/ImageDetailModal.vue';
 import InputText from 'primevue/inputtext';
 import Button from 'primevue/button';
 import Menu from 'primevue/menu';
 import ConfirmDialog from 'primevue/confirmdialog';
 import Toast from 'primevue/toast';
-import { CheckSquare, Folder, RefreshCw, Search, X } from 'lucide-vue-next';
+import { CheckSquare, Folder, RefreshCw, Search, X, Tag } from 'lucide-vue-next';
 import WorkspaceActions from '@/components/shared/WorkspaceActions.vue';
+import type { GalleryImage } from '@/stores/gallery';
 
 const galleryStore = useGalleryStore();
 const foldersStore = useFoldersStore();
@@ -141,6 +152,13 @@ const autoTagSettingsVisible = ref(false);
 
 // Add to folder menu
 const addToFolderMenuRef = ref<InstanceType<typeof Menu> | null>(null);
+
+// Bulk tag menu
+const bulkTagMenuRef = ref<InstanceType<typeof Menu> | null>(null);
+
+// Image detail modal
+const imageDetailVisible = ref(false);
+const selectedImage = ref<GalleryImage | null>(null);
 
 const addToFolderMenuItems = computed(() => {
   const items = foldersStore.flatFolders.map((folder) => ({
@@ -177,14 +195,44 @@ const addToFolderMenuItems = computed(() => {
   ];
 });
 
+const bulkTagMenuItems = computed(() => {
+  const popularTags = tagsStore.popularTags.slice(0, 8);
+
+  const addTagItems = popularTags.map((tag) => ({
+    label: tag.name,
+    icon: 'pi pi-plus',
+    command: () => bulkAddTag(tag.name),
+  }));
+
+  const removeTagItems = popularTags.map((tag) => ({
+    label: tag.name,
+    icon: 'pi pi-minus',
+    command: () => bulkRemoveTag(tag.name),
+  }));
+
+  return [
+    {
+      label: 'Add Tag',
+      icon: 'pi pi-plus-circle',
+      items: addTagItems.length > 0 ? addTagItems : [{ label: 'No tags available', disabled: true }],
+    },
+    {
+      label: 'Remove Tag',
+      icon: 'pi pi-minus-circle',
+      items: removeTagItems.length > 0 ? removeTagItems : [{ label: 'No tags available', disabled: true }],
+    },
+  ];
+});
+
 onMounted(async () => {
   await Promise.all([
     galleryStore.loadImages(),
     foldersStore.loadFolders(),
     tagsStore.loadTags(),
     autoTagStore.loadSettings(),
-    // Note: checkModelStatus() is deferred to settings dialog to avoid blocking
   ]);
+  // Check model status in background (don't block initial load)
+  autoTagStore.checkModelStatus();
 });
 
 const handleSearch = async () => {
@@ -210,9 +258,9 @@ const handleSelectImage = (imageId: string) => {
   galleryStore.toggleSelectImage(imageId);
 };
 
-const handleOpenDetail = (image: any) => {
-  console.log('Open detail for:', image);
-  // TODO: Open image detail modal
+const handleOpenDetail = (image: GalleryImage) => {
+  selectedImage.value = image;
+  imageDetailVisible.value = true;
 };
 
 const handleAddToCompare = (image: any) => {
@@ -272,6 +320,39 @@ const addSelectedToFolder = async (folderId: string) => {
   const imageIds = Array.from(galleryStore.selectedImages);
   await galleryStore.addToFolder(imageIds, folderId);
   await foldersStore.loadFolders(); // Refresh counts
+};
+
+// Bulk tag management
+const showBulkTagMenu = (event: Event) => {
+  bulkTagMenuRef.value?.toggle(event);
+};
+
+const bulkAddTag = async (tagName: string) => {
+  const imageIds = Array.from(galleryStore.selectedImages);
+  const success = await tagsStore.bulkAddTag(imageIds, tagName);
+  if (success) {
+    toast.add({
+      severity: 'success',
+      summary: 'Tags Added',
+      detail: `Added "${tagName}" to ${imageIds.length} image${imageIds.length > 1 ? 's' : ''}`,
+      life: 3000,
+    });
+    await galleryStore.loadImages(); // Refresh to show new tags
+  }
+};
+
+const bulkRemoveTag = async (tagName: string) => {
+  const imageIds = Array.from(galleryStore.selectedImages);
+  const success = await tagsStore.bulkRemoveTag(imageIds, tagName);
+  if (success) {
+    toast.add({
+      severity: 'success',
+      summary: 'Tags Removed',
+      detail: `Removed "${tagName}" from ${imageIds.length} image${imageIds.length > 1 ? 's' : ''}`,
+      life: 3000,
+    });
+    await galleryStore.loadImages(); // Refresh
+  }
 };
 
 // Auto-tagging handlers
