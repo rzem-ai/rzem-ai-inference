@@ -49,12 +49,12 @@ import { ref, watch } from 'vue';
 import { useToast } from 'primevue/usetoast';
 import Dialog from 'primevue/dialog';
 
-import PromptInput from '@/components/generation/PromptInput.vue';
-import ImageSettings from '@/components/generation/ImageSettings.vue';
-import GenerationSettings from '@/components/generation/GenerationSettings.vue';
-import ModelSelector from '@/components/generation/ModelSelector.vue';
-import LoraPanel from '@/components/generation/LoraPanel.vue';
-import PresetSelector from '@/components/generation/PresetSelector.vue';
+import PromptInput from '@/components/generation/actions/PromptInput.vue';
+import ImageSettings from '@/components/generation/actions/ImageSettings.vue';
+import GenerationSettings from '@/components/generation/actions/GenerationSettings.vue';
+import ModelSelector from '@/components/generation/actions/ModelSelector.vue';
+import LoraPanel from '@/components/generation/actions/LoraPanel.vue';
+import PresetSelector from '@/components/generation/actions/PresetSelector.vue';
 import { SquarePen, SlidersHorizontal, Cog, Package, Layers } from 'lucide-vue-next';
 import { useGenerationStore } from '@/stores/generation';
 import { useModelsStore } from '@/stores/models';

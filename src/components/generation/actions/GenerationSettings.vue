@@ -1,7 +1,7 @@
 <template>
   <Panel :collapsed="props.collapsed" :toggleable="props.toggleable">
     <template #header>
-      <div class="flex gap-2 px-0 py-2 text-xs font-semibold tracking-wider text-gray-300 uppercase">
+      <div class="flex gap-2 px-0 py-2 text-xs font-semibold tracking-wider uppercase text-surface-300">
         <component :is="props.icon" class="w-4 h-4" />
         {{ props.label }}
       </div>

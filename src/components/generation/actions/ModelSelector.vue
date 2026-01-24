@@ -1,7 +1,7 @@
 <template>
   <Panel :collapsed="props.collapsed" :toggleable="props.toggleable">
     <template #header>
-      <div class="flex gap-2 px-0 py-2 text-xs font-semibold tracking-wider text-gray-300 uppercase">
+      <div class="flex gap-2 px-0 py-2 text-xs font-semibold tracking-wider uppercase text-surface-300">
         <component :is="props.icon" class="w-4 h-4" />
         {{ props.label }}
       </div>
@@ -39,7 +39,7 @@
         </div>
       </div>
 
-      <div v-if="modelsStore.activeModel" class="flex flex-col gap-1 p-2 text-xs rounded bg-surface-800 text-gray-400">
+      <div v-if="modelsStore.activeModel" class="flex flex-col gap-1 p-2 text-xs text-gray-400 rounded bg-surface-800">
         <span v-if="modelsStore.activeModel.description" class="italic">
           {{ modelsStore.activeModel.description }}
         </span>

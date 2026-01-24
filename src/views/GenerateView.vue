@@ -28,7 +28,7 @@ import { useToast } from 'primevue/usetoast';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeFile, readFile } from '@tauri-apps/plugin-fs';
-import GenerateActions from '@/components/generation/GenerateActions.vue';
+import GenerateActions from '@/components/generation/actions/GenerateActions.vue';
 import BottomPanel from '@/components/generation/BottomPanel.vue';
 import GeneratedResults from '@/components/generation/GeneratedResults.vue';
 import { useQueueStore } from '@/stores/queue';

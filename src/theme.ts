@@ -479,8 +479,8 @@ export const AuraPlus = definePreset(Aura, {
       colorScheme: {
         light: {
           root: {
-            background: '{content.background}',
-            borderColor: '{content.border.color}',
+            background: '{surface.800}',
+            borderColor: '{surface.800}',
             color: '{content.color}',
           },
           content: {},
@@ -488,7 +488,7 @@ export const AuraPlus = definePreset(Aura, {
           header: {
             background: 'transparent',
             color: '{text.color}',
-            borderColor: '{content.border.color}',
+            borderColor: '{surface.800}',
           },
           title: {},
           toggleableHeader: {},

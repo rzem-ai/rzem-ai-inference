@@ -1,7 +1,7 @@
 <template>
   <Panel :collapsed="props.collapsed" :toggleable="props.toggleable">
     <template #header>
-      <div class="flex gap-2 px-0 py-2 text-xs font-semibold tracking-wider text-gray-300 uppercase">
+      <div class="flex gap-2 px-0 py-2 text-xs font-semibold tracking-wider uppercase text-surface-300">
         <component :is="props.icon" class="w-4 h-4" />
         {{ props.label }}
         <span v-if="activeLoras.length > 0" class="px-1.5 py-0.5 text-xs rounded bg-sky-500/30 text-sky-300">
@@ -13,7 +13,7 @@
     <div class="flex flex-col gap-3 px-2">
       <!-- Loading State -->
       <div v-if="modelsStore.lorasLoading" class="flex items-center justify-center py-4 text-gray-400">
-        <i class="pi pi-spin pi-spinner mr-2"></i>
+        <i class="mr-2 pi pi-spin pi-spinner"></i>
         Loading LoRAs...
       </div>
 
@@ -35,7 +35,7 @@
           <!-- Header Row -->
           <div class="flex items-center gap-2">
             <Checkbox v-model="lora.isActive" :input-id="lora.id" binary @change="handleToggle(lora.id)" />
-            <label :for="lora.id" class="flex-1 text-sm font-medium cursor-pointer text-gray-200">
+            <label :for="lora.id" class="flex-1 text-sm font-medium text-gray-200 cursor-pointer">
               {{ lora.name }}
             </label>
             <Button icon="pi pi-trash" severity="danger" text size="small" @click="handleDelete(lora.id)" />
@@ -45,13 +45,13 @@
           <div v-if="lora.isActive" class="flex items-center gap-2">
             <span class="text-xs text-gray-400 w-14">Strength</span>
             <Slider v-model="lora.strength" :min="0" :max="2" :step="0.05" class="flex-1" @change="handleStrengthChange(lora.id, lora.strength)" />
-            <InputNumber v-model="lora.strength" :min="0" :max="2" :step="0.05" size="small" input-class="w-14 text-xs" @update:model-value="(v) => handleStrengthChange(lora.id, v ?? 1)" />
+            <InputNumber v-model="lora.strength" :min="0" :max="2" :step="0.05" size="small" input-class="text-xs w-14" @update:model-value="(v) => handleStrengthChange(lora.id, v ?? 1)" />
           </div>
 
           <!-- Trigger Words -->
           <div v-if="lora.triggerWords" class="flex items-center gap-2">
             <span class="text-xs text-gray-500">Trigger:</span>
-            <code class="flex-1 px-2 py-1 text-xs rounded bg-surface-700 text-amber-300 truncate">
+            <code class="flex-1 px-2 py-1 text-xs truncate rounded bg-surface-700 text-amber-300">
               {{ lora.triggerWords }}
             </code>
             <Button icon="pi pi-copy" text size="small" v-tooltip="'Copy trigger words'" @click="copyTriggerWords(lora.triggerWords!)" />

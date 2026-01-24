@@ -14,11 +14,6 @@ const router = createRouter({
       component: () => import('@/views/GenerateView.vue')
     },
     {
-      path: '/refine',
-      name: 'refine',
-      component: () => import('@/views/RefineView.vue')
-    },
-    {
       path: '/gallery',
       name: 'gallery',
       component: () => import('@/views/GalleryView.vue'),

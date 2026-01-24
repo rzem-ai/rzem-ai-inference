@@ -1,7 +1,7 @@
 <template>
   <div class="flex flex-col">
     <button
-      class="flex items-center justify-between w-full text-xs font-medium tracking-wide text-gray-400 transition-colors cursor-pointer hover:text-gray-300">
+      class="flex items-center justify-between w-full text-xs font-medium tracking-wide transition-colors cursor-pointer text-surface-400 hover:text-surface-300">
       <span>Presets</span>
     </button>
 

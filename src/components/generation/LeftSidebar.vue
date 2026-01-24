@@ -67,7 +67,7 @@ import { useToast } from 'primevue/usetoast';
 import Dialog from 'primevue/dialog';
 
 import PromptInput from '@/components/generation/PromptInput.vue';
-import ImageSettings from '@/components/generation/ImageSettings.vue';
+import ImageSettings from '@/components/generation/actions/ImageSettings.vue';
 import GenerationSettings from '@/components/generation/GenerationSettings.vue';
 import ModelSelector from '@/components/generation/ModelSelector.vue';
 import PresetSelector from '@/components/generation/PresetSelector.vue';

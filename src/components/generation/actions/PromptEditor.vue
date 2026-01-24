@@ -2,7 +2,7 @@
   <div class="flex flex-col gap-1" :data-rows="rows">
     <label v-if="label" class="text-xs font-medium tracking-wide text-surface-300 ">{{ label }}</label>
     <div class="border rounded-lg border-surface-500 bg-surface-900 ">
-      <EditorContent :editor="editor" class="w-full editor-content" />
+      <EditorContent :editor="editor" class="w-full editor-content text-surface-300"  />
     </div>
   </div>
 </template>
@@ -104,7 +104,7 @@ onUnmounted(() => {
 
 /* TipTap editor deep selectors */
 .editor-content :deep(.tiptap) {
-  @apply max-h-48 min-h-24 overflow-y-auto p-3 text-sm text-(--text-primary);
+  @apply max-h-48 min-h-24 overflow-y-auto p-3 text-sm ;
 }
 
 .editor-content :deep(.tiptap:focus) {
@@ -117,7 +117,7 @@ onUnmounted(() => {
 
 /* Placeholder styling */
 .editor-content :deep(.tiptap.is-empty::before) {
-  @apply float-left h-0 pointer-events-none text-(--text-secondary);
+  @apply float-left h-0 pointer-events-none ;
   content: attr(data-placeholder);
 }
 
