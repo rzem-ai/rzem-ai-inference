@@ -24,9 +24,9 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "snake_case")]
 pub enum TaggingBackend {
     /// Use local Moondream model (no API costs, works offline)
-    #[default]
     Local,
     /// Use Claude Vision API (higher quality, requires API key)
+    #[default]
     Claude,
 }
 
@@ -76,7 +76,7 @@ impl Default for AutoTagSettings {
         Self {
             enabled: false,
             auto_tag_on_generation: false,
-            preferred_backend: TaggingBackend::Local,
+            preferred_backend: TaggingBackend::Claude,
             min_confidence: 0.6,
             claude_api_key: None,
         }
@@ -169,7 +169,7 @@ mod tests {
         let settings = AutoTagSettings::default();
         assert!(!settings.enabled);
         assert!(!settings.auto_tag_on_generation);
-        assert_eq!(settings.preferred_backend, TaggingBackend::Local);
+        assert_eq!(settings.preferred_backend, TaggingBackend::Claude);
         assert!(settings.min_confidence > 0.5);
     }
 }

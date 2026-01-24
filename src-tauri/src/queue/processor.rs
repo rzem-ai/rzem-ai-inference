@@ -610,11 +610,23 @@ async fn emit_job_event(
     error: Option<&str>,
 ) {
     // Emit to Tauri (for desktop UI)
-    let _ = app_handle.emit("job-update", serde_json::json!({
+    let mut event_data = serde_json::json!({
         "job_id": job_id,
         "status": status,
         "progress": progress,
-    }));
+    });
+
+    // Include result_path if provided
+    if let Some(path) = result_path {
+        event_data["result_path"] = serde_json::json!(path);
+    }
+
+    // Include error if provided
+    if let Some(err) = error {
+        event_data["error"] = serde_json::json!(err);
+    }
+
+    let _ = app_handle.emit("job-update", event_data);
 
     // Emit to WebSocket (if in server mode)
     if let Some(ws_state) = ws_state {

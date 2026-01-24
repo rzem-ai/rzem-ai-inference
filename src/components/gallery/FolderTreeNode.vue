@@ -27,14 +27,14 @@
       @drop="handleDrop">
       <!-- Expand/Collapse Toggle -->
       <button v-if="folder.children.length > 0" class="expand-btn" @click.stop="emit('toggleExpand', folder.id)">
-        <ChevronDown v-if="isExpanded" class="w-4 h-4" />
-        <ChevronUp v-else class="w-4 h-4" />
+        <fa v-if="isExpanded" :icon="['fal', 'chevron-down']" size="sm" />
+        <fa v-else :icon="['fal', 'chevron-up']" size="sm" />
       </button>
       <span v-else class="expand-spacer"></span>
 
       <!-- Folder Icon -->
-      <FolderOpen v-if="isExpanded && folder.children.length > 0" class="w-4 h-4" :style="folder.color ? { color: folder.color } : {}" />
-      <Folder v-else class="w-4 h-4" :style="folder.color ? { color: folder.color } : {}" />
+      <fa v-if="isExpanded && folder.children.length > 0" :icon="['fal', 'folder-open']" size="sm" :style="folder.color ? { color: folder.color } : {}" />
+      <fa v-else :icon="['fal', 'folder']" size="sm" :style="folder.color ? { color: folder.color } : {}" />
 
       <!-- Folder Name -->
       <span class="folder-name">{{ folder.name }}</span>
@@ -80,7 +80,6 @@
 <script setup lang="ts">
 import { ref, computed, inject } from 'vue';
 import type { FolderNode } from '@/stores/folders';
-import { ChevronDown, ChevronUp, Folder, FolderOpen } from 'lucide-vue-next';
 
 interface Props {
   folder: FolderNode;

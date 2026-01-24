@@ -31,7 +31,7 @@
               <div
                 class="flex items-center justify-center w-10 h-10 rounded-lg shrink-0"
                 :class="getIconClasses(model.iconClass)">
-                <component :is="model.icon" class="w-5 h-5" />
+                <fa :icon="['fal', model.icon]" size="lg" />
               </div>
               <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-2 text-sm font-medium text-gray-100">
@@ -53,12 +53,12 @@
                 <span
                   v-if="model.isDownloaded"
                   class="flex items-center justify-center w-6 h-6 text-green-400 rounded-full bg-green-900/50">
-                  <Check class="w-3 h-3" />
+                  <fa :icon="['fal', 'check']" size="sm" />
                 </span>
                 <span
                   v-else
                   class="flex items-center justify-center w-6 h-6 text-gray-400 bg-gray-700 rounded-full">
-                  <Download class="w-3 h-3" />
+                  <fa :icon="['fal', 'download']" size="sm" />
                 </span>
               </div>
             </div>
@@ -75,7 +75,7 @@
           <div
             class="flex items-center justify-center w-16 h-16 rounded-xl shrink-0"
             :class="getDetailIconClasses(selectedModel.iconClass)">
-            <component :is="selectedModel.icon" class="w-8 h-8" />
+            <fa :icon="['fal', selectedModel.icon]" size="2x" />
           </div>
           <div class="flex-1">
             <h2 class="m-0 text-xl font-semibold text-gray-50">{{ selectedModel.name }}</h2>
@@ -183,7 +183,7 @@
         <!-- Component Info (for shared components) -->
         <div v-if="selectedModel.category === 'component'" class="p-4 mb-6 border rounded-lg border-cyan-900/50 bg-cyan-900/10">
           <div class="flex items-start gap-2">
-            <Layers class="w-4 h-4 mt-0.5 text-cyan-400 shrink-0" />
+            <fa :icon="['fal', 'layer-group']" size="sm" class="mt-0.5 text-cyan-400 shrink-0" />
             <div>
               <p class="m-0 text-sm font-medium text-cyan-300">Shared Component</p>
               <p class="m-0 mt-1 text-xs text-gray-400">
@@ -202,7 +202,7 @@
 
       <!-- Empty State -->
       <div v-else class="flex flex-col items-center justify-center h-full gap-4 text-gray-500">
-        <Box class="w-16 h-16" />
+        <fa :icon="['fal', 'box']" size="4x" />
         <p class="m-0 text-sm">Select a model to view details</p>
       </div>
     </main>
@@ -210,13 +210,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, markRaw, type Component } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import InputText from 'primevue/inputtext';
 import Select from 'primevue/select';
 import Button from 'primevue/button';
 import ProgressBar from 'primevue/progressbar';
-import { Box, Check, Download, Image, Eye, Layers, FileText, Type } from 'lucide-vue-next';
 import { useModelsStore } from '@/stores/models';
 import { useAutoTagStore } from '@/stores/autoTag';
 
@@ -242,7 +241,7 @@ interface ModelInfo {
   license: string;
   source: string;
   tags: string[];
-  icon: Component;
+  icon: string;
   iconClass: string;
   isDownloaded: boolean;
   docsUrl?: string;
@@ -336,7 +335,7 @@ const allModels = computed<ModelInfo[]>(() => {
       license: 'Apache 2.0',
       source: 'black-forest-labs/FLUX.1-schnell',
       tags: ['FLUX', 'FAST', 'QUANTIZED'],
-      icon: markRaw(Image),
+      icon: 'image',
       iconClass: 'icon-flux',
       isDownloaded: schnellDownloaded,
       docsUrl: 'https://huggingface.co/black-forest-labs/FLUX.1-schnell',
@@ -355,7 +354,7 @@ const allModels = computed<ModelInfo[]>(() => {
       license: 'FLUX.1 [dev] Non-Commercial',
       source: 'black-forest-labs/FLUX.1-dev',
       tags: ['FLUX', 'HQ', 'QUANTIZED'],
-      icon: markRaw(Image),
+      icon: 'image',
       iconClass: 'icon-flux',
       isDownloaded: devDownloaded,
       docsUrl: 'https://huggingface.co/black-forest-labs/FLUX.1-dev',
@@ -375,7 +374,7 @@ const allModels = computed<ModelInfo[]>(() => {
       license: 'Apache 2.0',
       source: 'vikhyatk/moondream2',
       tags: ['VISION', 'VLM'],
-      icon: markRaw(Eye),
+      icon: 'eye',
       iconClass: 'icon-vision',
       isDownloaded: moondreamDownloaded,
       docsUrl: 'https://huggingface.co/vikhyatk/moondream2',
@@ -400,7 +399,7 @@ const allModels = computed<ModelInfo[]>(() => {
       license: 'Apache 2.0',
       source: 'black-forest-labs/FLUX.1-schnell',
       tags: ['VAE', 'ENCODER', 'SHARED'],
-      icon: markRaw(Layers),
+      icon: 'layer-group',
       iconClass: 'icon-vae',
       isDownloaded: vae?.is_downloaded ?? false,
       docsUrl: 'https://huggingface.co/black-forest-labs/FLUX.1-schnell',
@@ -424,7 +423,7 @@ const allModels = computed<ModelInfo[]>(() => {
       license: 'MIT',
       source: 'openai/clip-vit-large-patch14',
       tags: ['CLIP', 'TEXT', 'SHARED'],
-      icon: markRaw(FileText),
+      icon: 'file-lines',
       iconClass: 'icon-clip',
       isDownloaded: clip?.is_downloaded ?? false,
       docsUrl: 'https://huggingface.co/openai/clip-vit-large-patch14',
@@ -448,7 +447,7 @@ const allModels = computed<ModelInfo[]>(() => {
       license: 'Apache 2.0',
       source: 'google/t5-v1_1-xxl',
       tags: ['T5', 'TEXT', 'SHARED', ...(t5?.quantized_downloaded ? ['QUANTIZED'] : [])],
-      icon: markRaw(Type),
+      icon: 'font',
       iconClass: 'icon-t5',
       isDownloaded: t5?.is_downloaded ?? false,
       hasQuantized: t5?.has_quantized ?? true,
@@ -474,7 +473,7 @@ const allModels = computed<ModelInfo[]>(() => {
       license: 'Apache 2.0',
       source: 'lmz/mt5-tokenizers',
       tags: ['T5', 'TOKENIZER', 'SHARED'],
-      icon: markRaw(FileText),
+      icon: 'file-lines',
       iconClass: 'icon-t5',
       isDownloaded: t5Tokenizer?.is_downloaded ?? false,
       docsUrl: 'https://huggingface.co/lmz/mt5-tokenizers',

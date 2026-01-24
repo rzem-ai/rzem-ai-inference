@@ -1,50 +1,30 @@
 <template>
-  <div class="relative h-full overflow-hidden bg-gray-800">
-    <!-- Demo mode indicator -->
-    <div v-if="demoMode" class="absolute top-1 right-2 z-10 flex items-center gap-1 px-2 py-0.5 bg-purple-600 text-white text-xs rounded-full">
-      <span class="animate-pulse">●</span> Demo Mode (Ctrl+Shift+D to exit)
+  <div class="relative h-full p-4 overflow-hidden">
+    <div class="h-full rounded-lg bg-surface-700 border-surface-700">
+      <!-- Demo mode indicator -->
+      <div v-if="demoMode" class="absolute top-1 right-2 z-10 flex items-center gap-1 px-2 py-0.5 bg-purple-600 text-white text-xs rounded-full">
+        <span class="animate-pulse">●</span> Demo Mode (Ctrl+Shift+D to exit)
+      </div>
+
+      <div class="h-full p-3 overflow-auto">
+        <div v-if="allJobs.length === 0" class="flex flex-col items-center justify-center h-full gap-2 text-surface-100">
+          <fa :icon="['fal', 'inbox']" size="lg" />
+          <p class="text-sm">No jobs in queue</p>
+        </div>
+        <div v-else class="grid grid-cols-4 gap-4">
+          <QueueJobCard v-for="job in allJobs" :key="job.id" :job="job" />
+        </div>
+      </div>
     </div>
-
-    <Tabs v-model:value="activeTab">
-      <TabList>
-        <Tab value="queue">
-          <div class="flex flex-row items-center gap-2">
-            <List class="w-5 h-5" /> Queue <Badge v-if="pendingJobCount > 0" :value="pendingJobCount" severity="info" class="ml-2" />
-          </div>
-        </Tab>
-      </TabList>
-
-      <TabPanels>
-        <TabPanel value="queue">
-          <div class="h-full p-3 overflow-auto">
-            <div v-if="allJobs.length === 0" class="flex h-full flex-col items-center justify-center gap-2 text-(--text-secondary)">
-              <Inbox class="w-4 h-4" />
-              <p class="text-sm">No jobs in queue</p>
-            </div>
-            <div v-else class="flex flex-wrap gap-2">
-              <QueueJobCard v-for="job in allJobs" :key="job.id" :job="job" />
-            </div>
-          </div>
-        </TabPanel>
-      </TabPanels>
-    </Tabs>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import Tabs from 'primevue/tabs';
-import TabList from 'primevue/tablist';
-import Tab from 'primevue/tab';
-import TabPanels from 'primevue/tabpanels';
-import TabPanel from 'primevue/tabpanel';
-import Badge from 'primevue/badge';
 import { useQueueStore, type GenerationJob, type PipelineStage } from '@/stores/queue';
-import { BookMarked, Inbox, List } from 'lucide-vue-next';
 import QueueJobCard from './QueueJobCard.vue';
 
 const queueStore = useQueueStore();
-const activeTab = ref('queue');
 
 // Demo mode state
 const demoMode = ref(false);
@@ -82,13 +62,6 @@ const demoAllJobs = computed<GenerationJob[]>(() => {
       totalSteps: 28,
       created_at: Date.now() - 30000,
       started_at: Date.now() - 15000,
-    },
-    {
-      id: 'demo-pending-1',
-      params: { ...baseParams, prompt: 'Ancient forest with mystical fog and rays of sunlight' },
-      status: 'pending',
-      progress: 0,
-      created_at: Date.now() - 20000,
     },
     {
       id: 'demo-pending-2',
@@ -143,13 +116,13 @@ const handleKeydown = (e: KeyboardEvent) => {
   }
 };
 
-// All jobs (active queue + history)
+// All jobs (active queue only - pending and running)
 const allJobs = computed(() => {
   if (demoMode.value) {
     return demoAllJobs.value;
   }
-  // Combine current jobs and history, with active jobs first
-  return [...queueStore.jobs, ...queueStore.historyJobs];
+  // Only show active jobs (pending/running), not completed/failed ones
+  return queueStore.jobs.filter((j) => j.status === 'pending' || j.status === 'running');
 });
 
 // Count of pending/running jobs for badge

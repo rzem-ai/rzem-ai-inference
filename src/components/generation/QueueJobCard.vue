@@ -1,11 +1,11 @@
 <template>
   <div
-    class="flex min-w-62.5 max-w-75 items-start gap-3 rounded-lg border p-2"
+    class="flex min-w-62.5 items-start gap-3 rounded-lg border p-2 shadow-lg"
     :class="{
-      'border-gray-400 bg-gray-700': job.status === 'pending',
-      'border-blue-500/50 bg-gray-700': job.status === 'running',
-      'border-green-500/50 bg-gray-700': job.status === 'completed',
-      'border-red-500 bg-gray-700': job.status === 'failed',
+      'border-surface-400 bg-surface-900': job.status === 'pending',
+      'border-blue-500/50 bg-surface-900': job.status === 'running',
+      'border-green-500/50 bg-surface-900': job.status === 'completed',
+      'border-red-500 bg-red-50': job.status === 'failed',
     }">
     <!-- Status Icon -->
     <div
@@ -16,7 +16,7 @@
         'bg-green-500 text-white': job.status === 'completed',
         'bg-red-500 text-white': job.status === 'failed',
       }">
-      <component :is="statusIcon" class="w-5 h-5" :class="{ 'animate-spin': job.status === 'running' }" />
+      <fa :icon="['fal', statusIcon]" :class="{ 'fa-spin': job.status === 'running' }" />
     </div>
 
     <!-- Job Info -->
@@ -34,7 +34,7 @@
         <!-- Pipeline progress (top bar) -->
         <div class="flex items-center gap-2">
           <span class="w-12.5 shrink-0 text-xs text-(--text-primary)">Pipeline</span>
-          <ProgressBar :value="progress" :showValue="false" class="flex-1 border border-gray-400" />
+          <ProgressBar :value="progress" :showValue="false" class="flex-1 border border-surface-400" />
           <span class="w-10 shrink-0 text-right font-mono text-xs text-(--text-heading)">{{ progress }}%</span>
         </div>
         <!-- Steps progress (bottom bar) -->
@@ -53,7 +53,6 @@
 import { computed } from 'vue';
 import ProgressBar from 'primevue/progressbar';
 import { type GenerationJob } from '@/stores/queue';
-import { Clock, RefreshCw, Check, Timer, Ban, FileQuestion } from 'lucide-vue-next';
 
 interface Props {
   job: GenerationJob;
@@ -61,14 +60,14 @@ interface Props {
 
 const props = defineProps<Props>();
 
-// Computed map for status icons
+// Computed map for status icons (FontAwesome icon names)
 const statusIconMap = computed(() => ({
-  pending: Clock,
-  running: RefreshCw,
-  completed: Check,
-  failed: Timer,
-  cancelled: Ban,
-  default: FileQuestion,
+  pending: 'clock',
+  running: 'arrows-rotate',
+  completed: 'check',
+  failed: 'timer',
+  cancelled: 'ban',
+  default: 'file-question',
 }));
 
 const statusIcon = computed(() => {

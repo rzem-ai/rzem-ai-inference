@@ -1,5 +1,5 @@
 <template>
-  <div class="flex w-full h-full bg-gray-900">
+  <div class="flex w-full h-full">
     <!-- Left Sidebar -->
     <WorkspaceActions>
       <template #header>Generate Images</template>
@@ -7,17 +7,21 @@
     </WorkspaceActions>
 
     <!-- Main Content Area -->
-    <div class="flex flex-col flex-1 overflow-hidden bg-gray-950">
+    <div class="flex flex-col flex-1 overflow-hidden">
       <!-- Canvas Section -->
-      <div class="flex flex-col flex-1 p-4 overflow-hidden">
+      <div class="flex flex-1 overflow-hidden">
         <!-- Generated Results -->
         <GeneratedResults :images="generatedImages" :pending-count="pendingCount" @download="handleDownload" />
       </div>
 
       <!-- Bottom Panel -->
-      <div class="bg-gray-800 border-t border-gray-500 h-50 shrink-0">
-        <BottomPanel />
+      <div class="shrink-0">
+        <QueuePanel />
       </div>
+    </div>
+
+    <div class="flex flex-col h-full border-l bg-surface-800 border-surface-700 w-60 min-w-60">
+      <HistoryPanel/>
     </div>
   </div>
 </template>
@@ -28,14 +32,15 @@ import { useToast } from 'primevue/usetoast';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeFile, readFile } from '@tauri-apps/plugin-fs';
-import GenerateActions from '@/components/generation/actions/GenerateActions.vue';
-import BottomPanel from '@/components/generation/BottomPanel.vue';
+import GenerateActions from '@/components/generation/GenerateActions.vue';
+import QueuePanel from '@/components/generation/QueuePanel.vue';
 import GeneratedResults from '@/components/generation/GeneratedResults.vue';
 import { useQueueStore } from '@/stores/queue';
 import { useGenerationStore } from '@/stores/generation';
 import { useModelsStore } from '@/stores/models';
 import type { GenerationParams } from '@/stores/queue';
 import WorkspaceActions from '@/components/shared/WorkspaceActions.vue';
+import HistoryPanel from '@/components/generation/HistoryPanel.vue';
 
 const queueStore = useQueueStore();
 const generationStore = useGenerationStore();
@@ -104,12 +109,12 @@ const handleGenerate = async () => {
   let baseSeed: number;
   if (generationStore.randomizeSeedOnGenerate) {
     // Generate a new random seed for this generation
-    baseSeed = Math.floor(Math.random() * 2147483647);
+    baseSeed = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
     // Update the store so user can see/copy the seed that was used
     generationStore.currentParams.seed = baseSeed;
   } else {
     // Use the locked seed value
-    baseSeed = params.seed >= 0 ? params.seed : Math.floor(Math.random() * 2147483647);
+    baseSeed = params.seed >= 0 ? params.seed : Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
   }
 
   try {
@@ -119,7 +124,7 @@ const handleGenerate = async () => {
       let seedToUse: number;
       if (generationStore.randomizeSeedOnGenerate) {
         // Each image gets a unique random seed
-        seedToUse = i === 0 ? baseSeed : Math.floor(Math.random() * 2147483647);
+        seedToUse = i === 0 ? baseSeed : Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
       } else {
         // Increment seed for reproducibility (baseSeed, baseSeed+1, baseSeed+2, etc.)
         seedToUse = baseSeed + i;

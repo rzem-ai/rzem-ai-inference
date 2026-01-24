@@ -37,10 +37,10 @@
                   rounded
                   @click.stop="emit('toggleFavorite', image.id)"
                   :title="image.isFavorite ? 'Remove from favorites' : 'Add to favorites'">
-                  <template #icon><Heart :size="14" /></template>
+                  <template #icon><fa :icon="['fal', 'heart']" size="sm" /></template>
                 </Button>
                 <Button severity="secondary" text rounded @click.stop="emit('addToCompare', image)" title="Add to compare">
-                  <template #icon><Copy :size="14" /></template>
+                  <template #icon><fa :icon="['fal', 'copy']" size="sm" /></template>
                 </Button>
                 <span class="text-xs text-gray-400">
                   {{ new Date(image.createdAt * 1000).toLocaleDateString() }}
@@ -58,7 +58,7 @@
                   <span
                     class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-gray-700 text-amber-400"
                     :title="`In ${image.folderIds.length} folder(s)`">
-                    <Folder :size="12" />
+                    <fa :icon="['fal', 'folder']" size="xs" />
                     {{ image.folderIds.length }}
                   </span>
                 </div>
@@ -75,7 +75,6 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import type { GalleryImage } from '@/stores/gallery';
-import { Heart, Copy, Folder } from 'lucide-vue-next';
 import Image from 'primevue/image';
 import Checkbox from 'primevue/checkbox';
 import Button from 'primevue/button';
@@ -166,18 +165,15 @@ const handleDragStart = (event: DragEvent, image: GalleryImage) => {
   event.dataTransfer.setData('application/x-gallery-images', JSON.stringify(imageIds));
   event.dataTransfer.effectAllowed = 'copy';
 
-  // Create custom drag image showing count using safe DOM methods
-  if (imageIds.length > 1) {
-    const dragImage = document.createElement('div');
-    dragImage.className = 'custom-drag-image';
+  // Create custom drag image (thumbnail-sized)
+  const dragImage = document.createElement('div');
+  dragImage.className = 'custom-drag-image';
 
-    // Create icon element
+  if (imageIds.length > 1) {
+    // Multiple images: show icon + count
     const icon = document.createElement('i');
     icon.className = 'pi pi-images';
-
-    // Create text element
     const text = document.createTextNode(` ${imageIds.length} images`);
-
     dragImage.appendChild(icon);
     dragImage.appendChild(text);
 
@@ -196,14 +192,35 @@ const handleDragStart = (event: DragEvent, image: GalleryImage) => {
       gap: 6px;
       box-shadow: 0 4px 6px rgba(0,0,0,0.3);
     `;
-    document.body.appendChild(dragImage);
-    event.dataTransfer.setDragImage(dragImage, 40, 20);
+  } else {
+    // Single image: show small thumbnail
+    const img = document.createElement('img');
+    img.src = getThumbnailSrc(image);
+    img.style.cssText = `
+      width: 100px;
+      height: 100px;
+      object-fit: cover;
+      border-radius: 8px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    `;
+    dragImage.appendChild(img);
 
-    // Clean up after a short delay
-    setTimeout(() => {
-      document.body.removeChild(dragImage);
-    }, 0);
+    dragImage.style.cssText = `
+      position: absolute;
+      top: -1000px;
+      left: -1000px;
+      width: 100px;
+      height: 100px;
+    `;
   }
+
+  document.body.appendChild(dragImage);
+  event.dataTransfer.setDragImage(dragImage, 50, 50);
+
+  // Clean up after a short delay
+  setTimeout(() => {
+    document.body.removeChild(dragImage);
+  }, 0);
 };
 
 const handleDragEnd = () => {

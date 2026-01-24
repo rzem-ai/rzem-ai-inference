@@ -292,6 +292,14 @@ export const useGalleryStore = defineStore('gallery', () => {
     }
   }
 
+  // Update an image in the local state (used when modal edits tags/folders)
+  function updateImage(updatedImage: GalleryImage): void {
+    const index = images.value.findIndex((img) => img.id === updatedImage.id)
+    if (index !== -1) {
+      images.value[index] = updatedImage
+    }
+  }
+
   return {
     // State
     images,
@@ -321,5 +329,7 @@ export const useGalleryStore = defineStore('gallery', () => {
     loadAllImages,
     addToFolder,
     removeFromFolder,
+    // Image update
+    updateImage,
   }
 })

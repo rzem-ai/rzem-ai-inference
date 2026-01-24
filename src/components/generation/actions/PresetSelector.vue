@@ -18,7 +18,7 @@
           size="small"
           @change="handleLoadPreset" />
         <Button @click="showSaveDialog = true" title="Save current settings as preset">
-          <BookMarked class="w-4 h-4" />
+          <fa :icon="['fal', 'book-bookmark']" size="sm" />
         </Button>
       </div>
     </div>
@@ -43,7 +43,6 @@ import Select from 'primevue/select';
 import Button from 'primevue/button';
 import InputText from 'primevue/inputtext';
 import Dialog from 'primevue/dialog';
-import { BookMarked } from 'lucide-vue-next';
 
 const presetsStore = usePresetsStore();
 

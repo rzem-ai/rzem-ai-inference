@@ -3,7 +3,7 @@
   <ConfirmDialog />
 
   <div v-if="isLoading" class="flex items-center justify-center">
-    <div class="text-gray-100">Loading...</div>
+    <div class="text-surface-100">Loading...</div>
   </div>
 
   <div v-else-if="requireAuth"><!-- STUB --></div>

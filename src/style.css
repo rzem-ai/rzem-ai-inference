@@ -27,7 +27,7 @@ html {
 }
 
 body {
-  @apply p-0 m-0 text-gray-200 bg-gray-950;
+  @apply p-0 m-0 text-surface-200 bg-surface-100;
 }
 
 #app {

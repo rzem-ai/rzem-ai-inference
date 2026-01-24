@@ -1,28 +1,19 @@
 <template>
-  <Panel :collapsed="props.collapsed" :toggleable="props.toggleable">
-    <template #header>
-      <div class="flex gap-2 px-0 py-2 text-xs font-semibold tracking-wider uppercase text-surface-300">
-        <component :is="props.icon" class="w-4 h-4" />
-        {{ props.label }}
-      </div>
-    </template>
-
-    <div class="flex flex-col w-full gap-2 px-2">
-      <PromptEditor v-model="prompt" label="Prompt" placeholder="Describe the image you want to generate..." :rows="4" />
-      <Button :loading="queueStore.hasRunningJobs" fluid size="small" @click="handleGenerate" :disabled="!canGenerate">
-        {{ queueStore.queueLength > 0 ? `Generate` : 'Generate' }}
-      </Button>
-    </div>
-  </Panel>
+  <GenerationAction :collapsed="props.collapsed" :toggleable="props.toggleable" :icon="props.icon" :label="props.label">
+    <PromptEditor v-model="prompt" label="Prompt" placeholder="Describe the image you want to generate..." :rows="4" />
+    <SplitButton :loading="queueStore.hasRunningJobs" fluid size="small" @click="handleGenerate" :model="generationCounts" :disabled="!canGenerate">
+      {{ queueStore.queueLength > 0 ? `Generate` : 'Generate' }} ( {{ imageCount }} )
+    </SplitButton>
+  </GenerationAction>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useGenerationStore } from '@/stores/generation';
 import { useQueueStore } from '@/stores/queue';
-import Panel from 'primevue/panel';
+import GenerationAction from './GenerationAction.vue';
 import PromptEditor from './PromptEditor.vue';
-import Button from 'primevue/button';
+import SplitButton from 'primevue/splitbutton';
 
 const props = defineProps(['collapsed', 'icon', 'label', 'toggleable']);
 
@@ -30,19 +21,53 @@ const emit = defineEmits<{
   generate: [];
 }>();
 
-const store = useGenerationStore();
+const generationStore = useGenerationStore();
 const queueStore = useQueueStore();
 
 const prompt = computed({
-  get: () => store.currentParams.prompt,
+  get: () => generationStore.currentParams.prompt,
   set: (value: string) => {
-    store.currentParams.prompt = value;
+    generationStore.currentParams.prompt = value;
   },
 });
 
 const canGenerate = computed(() => {
-  return store.currentParams.prompt.trim().length > 0;
+  return generationStore.currentParams.prompt.trim().length > 0;
 });
+
+const imageCount = computed({
+  get: () => generationStore.currentParams.batchSize,
+  set: (value: number) => {
+    generationStore.currentParams.batchSize = value;
+  },
+});
+
+const generationCounts = [
+  {
+    label: 'Generate 1 Image',
+    command: () => {
+      imageCount.value = 1;
+    },
+  },
+  {
+    label: 'Generate 2 Images',
+    command: () => {
+      imageCount.value = 2;
+    },
+  },
+  {
+    label: 'Generate 3 Images',
+    command: () => {
+      imageCount.value = 3;
+    },
+  },
+  {
+    label: 'Generate 4 Images',
+    command: () => {
+      imageCount.value = 4;
+    },
+  },
+];
 
 const handleGenerate = () => {
   if (!canGenerate.value) return;

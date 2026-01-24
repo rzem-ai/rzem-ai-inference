@@ -8,7 +8,7 @@
         :severity="foldersStore.currentViewType === 'all' ? 'primary' : 'primary'"
         :variant="foldersStore.currentViewType === 'all' ? '' : 'outlined'"
         @click="handleSelectAll">
-        <div class="flex items-center gap-2 text-sm font-medium truncate"><Images :size="14" /> All Images</div>
+        <div class="flex items-center gap-2 text-sm font-medium truncate"><fa :icon="['fal', 'images']" size="sm" /> All Images</div>
       </Button>
       <Button
         class="w-full"
@@ -16,13 +16,13 @@
         :severity="foldersStore.currentViewType === 'uncategorized' ? 'primary' : 'primary'"
         :variant="foldersStore.currentViewType === 'uncategorized' ? '' : 'outlined'"
         @click="handleSelectUncategorized">
-        <div class="flex items-center gap-2 text-sm font-medium truncate"><Inbox :size="14" /> Uncategorized</div>
+        <div class="flex items-center gap-2 text-sm font-medium truncate"><fa :icon="['fal', 'inbox']" size="sm" /> Uncategorized</div>
       </Button>
       <Button size="small" @click="emit('createFolder')" title="Create folder" class="w-20 p-2" variant="outlined" severity="secondary">
-        <Plus class="w-4 h-4"/>
+        <fa :icon="['fal', 'plus']" size="sm" />
       </Button>
       <Button v-if="foldersStore.folders.length > 0" size="small" @click="toggleExpandAll" :title="allExpanded ? 'Collapse all' : 'Expand all'" class="w-20 p-2" variant="outlined" severity="secondary">
-        <ChevronUp v-if="allExpanded" class="w-4 h-4" /><ChevronsDown v-if="!allExpanded" class="w-4 h-4" />
+        <fa v-if="allExpanded" :icon="['fal', 'chevron-up']" size="sm" /><fa v-if="!allExpanded" :icon="['fal', 'chevrons-down']" size="sm" />
       </Button>
     </div>
 
@@ -65,7 +65,6 @@
 import { ref, computed, provide, reactive } from 'vue';
 import { useFoldersStore, type FolderNode } from '@/stores/folders';
 import { useGalleryStore } from '@/stores/gallery';
-import { Images, Inbox, Plus, ChevronsDown, ChevronUp } from 'lucide-vue-next';
 import Button from 'primevue/button';
 import ContextMenu from 'primevue/contextmenu';
 import FolderTreeNode from './FolderTreeNode.vue';

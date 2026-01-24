@@ -9,7 +9,7 @@
       @click="handleTagClick"
       v-tooltip.bottom="tooltipText">
       <div class="flex items-center gap-2">
-        <Sparkles class="w-4 h-4" />
+        <fa :icon="['fal', 'sparkles']" size="sm" />
         <span>Auto-Tag</span>
       </div>
     </Button>
@@ -24,7 +24,7 @@
       text
       @click="$emit('open-settings')"
       v-tooltip.bottom="'Auto-Tag Settings'">
-      <Settings2 class="w-4 h-4" />
+      <fa :icon="['fal', 'gears']" size="sm" />
     </Button>
   </div>
 </template>
@@ -36,7 +36,6 @@ import { useGalleryStore } from '@/stores/gallery'
 import { useTagsStore } from '@/stores/tags'
 import Button from 'primevue/button'
 import Menu from 'primevue/menu'
-import { Sparkles, Settings2 } from 'lucide-vue-next'
 
 const emit = defineEmits<{
   (e: 'open-settings'): void

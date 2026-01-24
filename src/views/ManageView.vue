@@ -1,7 +1,7 @@
 <template>
-  <div class="flex flex-col h-full bg-gray-900">
-    <div class="workspace-header">
-      <h1>Settings</h1>
+  <div class="flex flex-col h-full bg-surface-900">
+    <div class="px-8 py-6 border-b bg-surface-800">
+      <h1 class="m-0 text-2xl font-semibold text-surface-50">Settings</h1>
       <p>Configure application settings and integrations</p>
     </div>
     <div class="h-full">
@@ -55,7 +55,7 @@
                 <template #footer>
                   <div class="flex justify-end">
                     <Button :loading="apiKeys.hf.saving" :disabled="!hasChanged('hf')" size="small" @click="saveKey('hf')">
-                      <Save class="w-4 h-4" />Save
+                      <fa :icon="['fal', 'floppy-disk']" size="sm" />Save
                     </Button>
                   </div>
                 </template>
@@ -97,7 +97,7 @@
                 <template #footer>
                   <div class="flex justify-end">
                     <Button :loading="apiKeys.claude.saving" :disabled="!hasChanged('claude')" size="small" @click="saveKey('claude')">
-                      <Save class="w-4 h-4" />Save
+                      <fa :icon="['fal', 'floppy-disk']" size="sm" />Save
                     </Button>
                   </div>
                 </template>
@@ -139,7 +139,7 @@
                 <template #footer>
                   <div class="flex justify-end">
                     <Button :loading="apiKeys.fal.saving" :disabled="!hasChanged('fal')" size="small" @click="saveKey('fal')">
-                      <Save class="w-4 h-4" />Save
+                      <fa :icon="['fal', 'floppy-disk']" size="sm" />Save
                     </Button>
                   </div>
                 </template>
@@ -564,6 +564,7 @@ async function checkHealth() {
 @reference "tailwindcss";
 
 /* PrimeVue Tabs overrides */
+/*
 :deep(.p-tabs) {
   @apply flex h-full flex-col;
 }
@@ -577,26 +578,21 @@ async function checkHealth() {
 }
 
 :deep(.p-card) {
-  @apply border border-gray-600;
+  @apply border border-surface-600;
 }
+*/
 
-.workspace {
-  @apply flex flex-col h-full;
-  background-color: var(--color-gray-950);
-}
+ /*
 
 .workspace-header {
-  @apply py-6 px-8 border-b;
-  border-color: var(--color-gray-800);
+  @apply py-6 px-8 border-b bg-surface-800;
 
   h1 {
-    @apply m-0 text-2xl font-semibold;
-    color: var(--color-gray-50);
+    @apply m-0 text-2xl font-semibold text-surface-50;
   }
 
   p {
-    @apply mt-1 mb-0 text-sm;
-    color: var(--color-gray-400);
+    @apply mt-1 mb-0 text-sm text-surface-400;
   }
 }
 
@@ -608,19 +604,15 @@ async function checkHealth() {
   @apply mb-8;
 
   h2 {
-    @apply m-0 mb-4 text-lg font-semibold;
-    color: var(--color-gray-100);
+    @apply m-0 mb-4 text-lg font-semibold text-surface-100;
   }
 }
 
 .api-key-card {
-  @apply p-4 mb-4 border rounded-xl;
-  border-color: var(--color-gray-700);
-  background-color: var(--color-gray-800);
+  @apply p-4 mb-4 border rounded-xl bg-surface-800 border-surface-700;
 
   h3 {
-    @apply m-0 text-base font-semibold;
-    color: var(--color-gray-50);
+    @apply m-0 text-base font-semibold text-surface-50;
   }
 }
 
@@ -643,8 +635,7 @@ async function checkHealth() {
 }
 
 .api-key-description {
-  @apply mb-3 text-sm;
-  color: var(--color-gray-400);
+  @apply mb-3 text-sm text-surface-400;
 }
 
 .link {
@@ -690,21 +681,17 @@ async function checkHealth() {
   color: #22c55e;
 }
 
-/* Cache Management Styles */
+Cache Management Styles 
 .section-description {
-  @apply mb-4 text-sm;
-  color: var(--color-gray-400);
+  @apply mb-4 text-sm text-surface-400;
 }
 
 .stats-card,
 .config-card {
-  @apply p-4 mb-4 border rounded-xl;
-  border-color: var(--color-gray-700);
-  background-color: var(--color-gray-800);
+  @apply p-4 mb-4 border rounded-xl bg-surface-800 text-surface-700;
 
   h3 {
-    @apply m-0 text-sm font-semibold;
-    color: var(--color-gray-200);
+    @apply m-0 text-sm font-semibold text-surface-200;
   }
 }
 
@@ -717,8 +704,7 @@ async function checkHealth() {
 }
 
 .stat-item {
-  @apply flex flex-col items-center p-3 rounded-lg;
-  background-color: var(--color-gray-900);
+  @apply flex flex-col items-center p-3 rounded-lg bg-surface-900;
 
   .stat-value {
     @apply text-xl font-bold;
@@ -726,28 +712,24 @@ async function checkHealth() {
   }
 
   .stat-label {
-    @apply text-xs mt-1;
-    color: var(--color-gray-400);
+    @apply text-xs mt-1 text-surface-400;
   }
 }
 
 .stats-footer {
-  @apply flex gap-4 pt-3 border-t;
-  border-color: var(--color-gray-700);
+  @apply flex gap-4 pt-3 border-t text-surface-700;
 }
 
 .stat-detail {
-  @apply flex items-center gap-2 text-xs;
-  color: var(--color-gray-400);
+  @apply flex items-center gap-2 text-xs text-surface-400;
 
   i {
-    color: var(--color-gray-500);
+    @apply text-surface-500;
   }
 }
 
 .config-description {
-  @apply mt-2 mb-3 text-sm;
-  color: var(--color-gray-400);
+  @apply mt-2 mb-3 text-sm text-surface-400;
 }
 
 .preset-buttons {
@@ -755,29 +737,28 @@ async function checkHealth() {
 }
 
 .preset-hint {
-  @apply block text-xs;
-  color: var(--color-gray-500);
+  @apply block text-xs text-surface-500;
 }
 
 .config-header {
   @apply flex items-center justify-between cursor-pointer select-none;
 
   i {
-    color: var(--color-gray-400);
+    @apply text-surface-400;
   }
 }
 
 .advanced-settings {
-  @apply mt-4 pt-4 border-t;
-  border-color: var(--color-gray-700);
+  @apply mt-4 pt-4 border-t border-surface-700;
+
 }
 
 .toggle-row {
   @apply flex items-center justify-between py-3;
 
   &:not(:last-child) {
-    @apply border-b;
-    border-color: var(--color-gray-700);
+    @apply border-b border-surface-700;
+
   }
 }
 
@@ -786,21 +767,20 @@ async function checkHealth() {
 }
 
 .toggle-label {
-  @apply text-sm font-medium;
-  color: var(--color-gray-200);
+  @apply text-sm font-medium text-surface-200;
+
 }
 
 .toggle-hint {
-  @apply text-xs mt-0.5;
-  color: var(--color-gray-500);
+  @apply text-xs mt-0.5 text-surface-500;
+
 }
 
 .slider-row {
   @apply py-3;
 
   &:not(:last-child) {
-    @apply border-b;
-    border-color: var(--color-gray-700);
+    @apply border-b border-surface-700;
   }
 }
 
@@ -809,8 +789,8 @@ async function checkHealth() {
 }
 
 .slider-label {
-  @apply text-sm font-medium;
-  color: var(--color-gray-200);
+  @apply text-sm font-medium text-surface-200;
+
 }
 
 .slider-value {
@@ -827,7 +807,8 @@ async function checkHealth() {
 }
 
 .action-hint {
-  @apply text-xs;
-  color: var(--color-gray-500);
+  @apply text-xs text-surface-500;
+
 }
+*/
 </style>

@@ -38,6 +38,7 @@
     "interactjs": "^1.10.27",
     "lodash": "^4.17.21",
     "lucide-vue-next": "^0.562.0",
+    "ogl": "^1.0.11",
     "pinia": "^3.0.4",
     "primevue": "^4.5.4",
     "splitpanes": "^4.0.4",

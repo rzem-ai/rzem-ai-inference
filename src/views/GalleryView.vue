@@ -38,20 +38,20 @@
         <div class="flex items-center gap-4">
           <div class="flex gap-2 grow">
             <InputText v-model="galleryStore.filters.searchQuery" placeholder="Search prompts..." @keyup.enter="handleSearch" size="small" fluid />
-            <Button @click="handleSearch" :loading="galleryStore.isLoading"><Search class="w-4 h-4" /></Button>
+            <Button @click="handleSearch" :loading="galleryStore.isLoading"><fa :icon="['fal', 'magnifying-glass']" size="sm" /></Button>
           </div>
 
           <div class="flex items-center gap-2 ml-auto">
             <Button :disabled="galleryStore.selectedImages.size == 0" size="small" severity="secondary" @click="showAddToFolderMenu">
-              <div class="flex items-center gap-2"><Folder class="w-4 h-4" /> Add to Folder</div>
+              <div class="flex items-center gap-2"><fa :icon="['fal', 'folder']" size="sm" /> Add to Folder</div>
             </Button>
             <Button :disabled="galleryStore.selectedImages.size == 0" size="small" severity="secondary" @click="showBulkTagMenu">
-              <div class="flex items-center gap-2"><Tag class="w-4 h-4" /> Manage Tags</div>
+              <div class="flex items-center gap-2"><fa :icon="['fal', 'tag']" size="sm" /> Manage Tags</div>
             </Button>
             <AutoTagButton @open-settings="openAutoTagSettings" @tagging-complete="handleTaggingComplete" />
-            <Button label="Select All" severity="secondary" @click="galleryStore.selectAll"><CheckSquare class="w-4 h-4" /></Button>
+            <Button label="Select All" severity="secondary" @click="galleryStore.selectAll"><fa :icon="['fal', 'square-check']" size="sm" /></Button>
             <Button label="Clear" severity="secondary" @click="galleryStore.clearSelection" :disabled="galleryStore.selectedImages.size === 0">
-              <X class="w-4 h-4" />
+              <fa :icon="['fal', 'xmark']" size="sm" />
             </Button>
             <span class="selection-count"> {{ galleryStore.selectedImages.size }} selected </span>
           </div>
@@ -60,7 +60,7 @@
 
       <!-- Loading State:  -->
       <div v-if="galleryStore.isLoading" class="flex flex-col items-center justify-center flex-1 gap-4 text-gray-200">
-        <RefreshCw class="w-6 h-6" :class="{ 'animate-spin': galleryStore.isLoading }" />
+        <fa :icon="['fal', 'arrows-rotate']" size="lg" :class="{ 'animate-spin': galleryStore.isLoading }" />
         <p>Loading images...</p>
       </div>
 
@@ -110,7 +110,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useConfirm } from 'primevue/useconfirm';
 import { useToast } from 'primevue/usetoast';
 import { useGalleryStore } from '@/stores/gallery';
@@ -130,7 +130,6 @@ import Button from 'primevue/button';
 import Menu from 'primevue/menu';
 import ConfirmDialog from 'primevue/confirmdialog';
 import Toast from 'primevue/toast';
-import { CheckSquare, Folder, RefreshCw, Search, X, Tag } from 'lucide-vue-next';
 import WorkspaceActions from '@/components/shared/WorkspaceActions.vue';
 import type { GalleryImage } from '@/stores/gallery';
 
@@ -159,6 +158,13 @@ const bulkTagMenuRef = ref<InstanceType<typeof Menu> | null>(null);
 // Image detail modal
 const imageDetailVisible = ref(false);
 const selectedImage = ref<GalleryImage | null>(null);
+
+// Sync selectedImage changes back to gallery store (for tag/folder edits in modal)
+watch(selectedImage, (newImage) => {
+  if (newImage) {
+    galleryStore.updateImage(newImage);
+  }
+}, { deep: true });
 
 const addToFolderMenuItems = computed(() => {
   const items = foldersStore.flatFolders.map((folder) => ({

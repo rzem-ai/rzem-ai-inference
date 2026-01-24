@@ -1,79 +1,57 @@
 <template>
-  <Panel :collapsed="props.collapsed" :toggleable="props.toggleable">
-    <template #header>
-      <div class="flex gap-2 px-0 py-2 text-xs font-semibold tracking-wider uppercase text-surface-300">
-        <component :is="props.icon" class="w-4 h-4" />
-        {{ props.label }}
-      </div>
-    </template>
+  <GenerationAction :collapsed="props.collapsed" :toggleable="props.toggleable" :icon="props.icon" :label="props.label">
+    <!-- Aspect Ratio Pills -->
+    <div class="flex flex-col">
+      <label class="text-xs font-medium tracking-wide text-surface-300">Aspect Ratio</label>
+      <SelectButton
+        v-model="activeRatio"
+        :options="aspectRatios"
+        option-label="label"
+        option-value="label"
+        data-key="label"
+        size="small"
+        fluid
+        class="shaddow-xl">
+        <template #option="slotProps">
+          {{ slotProps.option.label }}
+        </template>
+      </SelectButton>
+    </div>
 
-    <div class="flex flex-col gap-2 px-2 py-1">
-      <!-- Image Count -->
-      <div class="flex flex-col gap-1">
-        <label class="text-xs font-medium tracking-wide text-surface-300">Number of Images</label>
-        <SelectButton v-model="imageCount" :options="imageCountOptions" option-label="label" option-value="value" size="small" fluid />
-      </div>
-
-      <!-- Aspect Ratio Pills -->
-      <div class="flex flex-col gap-1">
-        <label class="text-xs font-medium tracking-wide text-surface-300">Aspect Ratio</label>
-        <SelectButton v-model="activeRatio" :options="aspectRatios" option-label="label" option-value="label" data-key="label" size="small" fluid>
-          <template #option="slotProps">
-            {{ slotProps.option.label }}
-          </template>
-        </SelectButton>
-      </div>
-
-      <!-- Width/Height Sliders -->
-      <div class="grid grid-cols-2 gap-3">
-        <div class="flex flex-col gap-2">
-          <div class="flex items-center justify-between mb-1">
-            <label class="text-xs font-medium tracking-wide text-surface-300">Width</label>
-            <span class="font-mono text-xs text-blue-400">{{ width }}px</span>
-          </div>
-          <div class="pt-1">
-            <Slider v-model="width" :min="256" :max="2048" :step="64" />
-          </div>
+    <!-- Width/Height Sliders -->
+    <div class="grid grid-cols-2 gap-3">
+      <div class="flex flex-col">
+        <div class="flex items-center justify-between pr-2 mb-1">
+          <label class="text-xs font-medium tracking-wide text-surface-300">Width</label>
+          <span class="font-mono text-xs font-semibold text-blue-600">{{ width }}px</span>
         </div>
-        <div class="flex flex-col gap-2">
-          <div class="flex items-center justify-between mb-1">
-            <label class="text-xs font-medium tracking-wide text-surface-300">Height</label>
-            <span class="font-mono text-xs text-blue-400">{{ height }}px</span>
-          </div>
-          <div class="pt-1">
-            <Slider v-model="height" :min="256" :max="2048" :step="64" />
-          </div>
+        <div class="pt-1">
+          <Slider v-model="width" :min="256" :max="2048" :step="64" />
+        </div>
+      </div>
+      <div class="flex flex-col">
+        <div class="flex items-center justify-between pr-2 mb-1">
+          <label class="text-xs font-medium tracking-wide text-surface-300">Height</label>
+          <span class="font-mono text-xs font-semibold text-blue-600">{{ height }}px</span>
+        </div>
+        <div class="pt-1">
+          <Slider v-model="height" :min="256" :max="2048" :step="64" />
         </div>
       </div>
     </div>
-  </Panel>
+  </GenerationAction>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import Panel from 'primevue/panel';
 import Slider from 'primevue/slider';
 import SelectButton from 'primevue/selectbutton';
 import { useGenerationStore } from '@/stores/generation';
+import GenerationAction from './GenerationAction.vue';
 
 const props = defineProps(['collapsed', 'icon', 'label', 'toggleable']);
 
 const generationStore = useGenerationStore();
-
-// Image count options
-const imageCountOptions = [
-  { label: '1', value: 1 },
-  { label: '2', value: 2 },
-  { label: '3', value: 3 },
-  { label: '4', value: 4 },
-];
-
-const imageCount = computed({
-  get: () => generationStore.currentParams.batchSize,
-  set: (value: number) => {
-    generationStore.currentParams.batchSize = value;
-  },
-});
 
 // Aspect ratio presets
 const aspectRatios = [
@@ -97,6 +75,14 @@ watch(activeRatio, (label) => {
   }
 });
 
+// Sync active ratio when width/height change externally (e.g., from history reuse)
+watch([() => generationStore.currentParams.width, () => generationStore.currentParams.height], ([newWidth, newHeight]) => {
+  const matchingRatio = aspectRatios.find((r) => r.width === newWidth && r.height === newHeight);
+  if (matchingRatio) {
+    activeRatio.value = matchingRatio.label;
+  }
+});
+
 const width = computed({
   get: () => generationStore.currentParams.width,
   set: (value: number | null) => {
@@ -116,16 +102,4 @@ const height = computed({
 @reference "tailwindcss";
 
 /* PrimeVue Slider overrides */
-:deep(.p-slider) {
-  background: #374151;
-}
-
-:deep(.p-slider .p-slider-range) {
-  background: #3b82f6;
-}
-
-:deep(.p-slider .p-slider-handle) {
-  background: #3b82f6;
-  border-color: #3b82f6;
-}
 </style>

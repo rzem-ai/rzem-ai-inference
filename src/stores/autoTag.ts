@@ -68,7 +68,7 @@ export const useAutoTagStore = defineStore('autoTag', () => {
   const settings = ref<AutoTagSettings>({
     enabled: false,
     auto_tag_on_generation: false,
-    preferred_backend: 'local',
+    preferred_backend: 'claude',
     min_confidence: 0.6,
     claude_api_key: undefined,
   })

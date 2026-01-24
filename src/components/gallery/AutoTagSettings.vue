@@ -38,7 +38,7 @@
             }"
             @click="localSettings.preferred_backend = 'local'">
             <div class="backend-header">
-              <Monitor class="w-5 h-5" />
+              <fa :icon="['fal', 'desktop']" size="lg" />
               <span class="backend-name">Local (Moondream)</span>
             </div>
             <span class="backend-desc">Free, works offline, runs on your GPU</span>
@@ -50,7 +50,7 @@
                 <div class="flex flex-col gap-2">
                   <div class="flex items-center gap-2">
                     <Button size="small" severity="secondary" @click.stop="downloadModel">
-                      <Download class="w-4 h-4 mr-2" />
+                      <fa :icon="['fal', 'download']" size="sm" class="mr-2" />
                       Download Model (~1.8GB)
                     </Button>
                     <Button
@@ -60,7 +60,7 @@
                       :loading="isClearingLocks"
                       @click.stop="clearLocks"
                       title="Clear stale lock files from failed downloads">
-                      <Trash2 class="w-4 h-4" />
+                      <fa :icon="['fal', 'trash-can']" size="sm" />
                     </Button>
                   </div>
                   <span v-if="lockClearMessage" class="text-xs text-gray-400">{{ lockClearMessage }}</span>
@@ -68,7 +68,7 @@
               </template>
             </div>
             <div v-else class="backend-status ready">
-              <Check class="w-4 h-4" />
+              <fa :icon="['fal', 'check']" size="sm" />
               <span>Ready</span>
             </div>
           </div>
@@ -81,17 +81,17 @@
             }"
             @click="localSettings.preferred_backend = 'claude'">
             <div class="backend-header">
-              <Cloud class="w-5 h-5" />
+              <fa :icon="['fal', 'cloud']" size="lg" />
               <span class="backend-name">Claude Vision API</span>
             </div>
             <span class="backend-desc">Higher quality, requires API key, uses credits</span>
             <div class="backend-status">
               <template v-if="autoTagStore.isClaudeAvailable && !showApiKeyInput">
                 <div class="flex items-center gap-2">
-                  <Check class="w-4 h-4 text-green-400" />
+                  <fa :icon="['fal', 'check']" size="sm" class="text-green-400" />
                   <span>API Key Configured</span>
                   <Button size="small" text severity="secondary" @click.stop="showApiKeyInput = true">
-                    <Pencil class="w-3 h-3" />
+                    <fa :icon="['fal', 'pencil']" size="sm" />
                   </Button>
                 </div>
               </template>
@@ -104,7 +104,7 @@
                     size="small"
                     :fluid="true" />
                   <Button v-if="showApiKeyInput" size="small" text @click.stop="showApiKeyInput = false">
-                    <X class="w-3 h-3" />
+                    <fa :icon="['fal', 'xmark']" size="sm" />
                   </Button>
                 </div>
               </template>
@@ -127,7 +127,7 @@
 
       <!-- Error Message -->
       <div v-if="autoTagStore.lastError" class="error-message">
-        <AlertCircle class="w-4 h-4" />
+        <fa :icon="['fal', 'circle-exclamation']" size="sm" />
         <span>{{ autoTagStore.lastError }}</span>
       </div>
     </div>
@@ -148,7 +148,6 @@ import ToggleSwitch from 'primevue/toggleswitch'
 import Slider from 'primevue/slider'
 import InputText from 'primevue/inputtext'
 import ProgressBar from 'primevue/progressbar'
-import { Monitor, Cloud, Download, Check, Pencil, X, AlertCircle, Trash2 } from 'lucide-vue-next'
 
 const props = defineProps<{
   visible: boolean

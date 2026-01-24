@@ -1,23 +1,17 @@
 <template>
-  <div ref="wrapper" class="flex flex-col flex-1 overflow-hidden">
+  <div ref="wrapper" class="flex flex-col flex-1 p-2 overflow-hidden">
     <div class="flex items-center justify-between mb-3">
-      <span class="text-xs font-semibold tracking-wider text-(--text-secondary)">
-        GENERATED RESULTS
-      </span>
-      <span v-if="pendingCount && pendingCount > 0" class="text-xs text-(--accent-primary)">
-        {{ images.length }}/{{ totalSlots }} generating...
-      </span>
-      <span v-else class="text-xs text-(--accent-primary)">
-        {{ images.length }} {{ images.length === 1 ? 'image' : 'images' }}
-      </span>
+      <span class="text-xs font-semibold tracking-wider text-surface-50"> GENERATED RESULTS </span>
+      <span v-if="pendingCount && pendingCount > 0" class="text-xs text-surface-50"> {{ images.length }}/{{ totalSlots }} generating... </span>
+      <span v-else class="text-xs text-surface-50"> {{ images.length }} {{ images.length === 1 ? 'image' : 'images' }} </span>
     </div>
 
     <div v-if="totalSlots === 0" class="flex items-center justify-center flex-1">
-      <div class="flex flex-col items-center gap-3 text-(--text-secondary)">
+      <div class="flex flex-col items-center gap-3 text-surface-50">
         <i class="text-5xl pi pi-image"></i>
         <div class="text-center">
           <p class="text-sm font-medium">No images generated yet</p>
-          <p class="text-xs text-(--text-muted)">Generated images will appear here</p>
+          <p class="text-xs text-surface-500">Generated images will appear here</p>
         </div>
       </div>
     </div>
@@ -35,14 +29,14 @@
           class="w-full h-full"
           preview
           :image-class="`w-full h-full object-cover ${getObjectFitClass(index)}`"
-          @load="(e: Event) => handleImageLoad(e, index)"
-        />
+          @load="(e: Event) => handleImageLoad(e, index)" />
         <Button
           class="absolute z-10 p-4 transition-opacity duration-200 ease-in-out border-blue-800 opacity-0 right-3 top-3 backdrop-blur-lg group-hover:opacity-100 bg-blue-500/30 hover:bg-blue-500 hover:border-blue-800"
           rounded
           severity="secondary"
-          @click.stop="handleDownload(image.src, index + 1)"
-        ><Download class="w-5 h-5 text-white"/> </Button>
+          @click.stop="handleDownload(image.src, index + 1)">
+          <fa :icon="['fal', 'download']" class="text-white" size="lg" />
+        </Button>
       </div>
 
       <!-- Skeleton placeholders for pending images -->
@@ -52,7 +46,7 @@
         class="relative overflow-hidden bg-gray-800 border border-gray-600 rounded-xl"
         :style="getCellStyle(images.length + skeletonIndex - 1)">
         <div class="flex items-center justify-center w-full h-full skeleton-pulse">
-          <div class="flex flex-col items-center gap-3 text-(--text-secondary)">
+          <div class="flex flex-col items-center gap-3 text-surface-50">
             <i class="text-4xl pi pi-spin pi-spinner"></i>
             <span class="text-xs font-medium">Generating...</span>
           </div>
@@ -67,7 +61,6 @@ import { ref, computed, watch, useTemplateRef } from 'vue';
 import { useElementSize } from '@vueuse/core';
 import Image from 'primevue/image';
 import Button from 'primevue/button';
-import { Download } from 'lucide-vue-next';
 
 const wrapper = useTemplateRef('wrapper');
 const { width, height } = useElementSize(wrapper);
@@ -314,12 +307,7 @@ watch(
 @reference "tailwindcss";
 
 .skeleton-pulse {
-  background: linear-gradient(
-    90deg,
-    rgba(55, 65, 81, 0.4) 0%,
-    rgba(75, 85, 99, 0.6) 50%,
-    rgba(55, 65, 81, 0.4) 100%
-  );
+  background: linear-gradient(90deg, rgba(55, 65, 81, 0.4) 0%, rgba(75, 85, 99, 0.6) 50%, rgba(55, 65, 81, 0.4) 100%);
   background-size: 200% 100%;
   animation: skeleton-shimmer 1.5s ease-in-out infinite;
 }

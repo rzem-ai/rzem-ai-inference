@@ -4,11 +4,11 @@
       class="flex flex-col items-center justify-center gap-1 px-2 py-4"
       :class="[
         isActive
-          ? 'border-l-4 bg-surface-800 border-blue-500 text-blue-500 hover:text-surface-50'
-          : 'border-l-4 bg-surface-900 border-surface-800 text-surface-400 hover:text-surface-50 hover:border-blue-500/50',
+          ? 'border-l-4 bg-surface-800/10 border-blue-500 text-surface-900 hover:text-surface-500'
+          : 'border-l-4 bg-transparent border-surface-800/20 text-surface-600 hover:text-surface-900 hover:border-blue-500',
       ]">
-      <fa :icon="['fal', workspace.icon]" size="xl"/>
-      <div class="text-xs" >
+      <fa :icon="['fal', workspace.icon]" size="xl" />
+      <div class="text-xs">
         {{ workspace.label }}
       </div>
     </div>

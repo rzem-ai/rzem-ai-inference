@@ -2,7 +2,7 @@
   <div :style="'height: ' + windowsStore.windowsHeight + 'px'" class="flex flex-row overflow-hidden">
     <WorkspaceNav />
     <div class="flex flex-col w-full h-full">
-      <div class="w-full h-full border-l border-surface-800">
+      <div class="w-full h-full border-l border-surface-800 bg-surface-900">
         <RouterView />
       </div>
       <div class="h-10 border-t shrink max-h-10 bg-surface-900 border-surface-800"><StatusBar/></div>
