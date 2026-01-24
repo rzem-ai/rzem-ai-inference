@@ -29,11 +29,11 @@ export const slider: SliderDesignTokens = {
     light: {
       handle: {
         background: '{blue.500}',
-        hoverBackground: '{blue.800}',
+        hoverBackground: '{blue.600}',
         content: {
-          background: '{blue.800}',
-          hoverBackground: '{blue.800}',
-          shadow: '2px 2px 2px 2px rgba(0, 0, 0, 0.44)',
+          background: '{blue.500}',
+          hoverBackground: '{blue.600}',
+          shadow: '2px 2px 2px 2px rgba(0, 0, 0, 0.3)',
         },
         focusRing: {
           shadow: '0',

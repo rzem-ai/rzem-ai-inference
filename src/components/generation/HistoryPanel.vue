@@ -34,7 +34,7 @@
 
           <!-- Placeholder for failed jobs without image -->
           <div v-else class="flex items-center justify-center w-full bg-surface-950 aspect-square">
-            <XCircle class="w-8 h-8 text-red-400" />
+            <fa :icon="['fal', 'circle-xmark']" class="text-red-400" size="2x" />
           </div>
 
           <!-- Info -->
@@ -51,7 +51,7 @@
           </div>
 
           <!-- Hover Actions -->
-          <div class="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div class="absolute transition-opacity opacity-0 top-1 right-1 group-hover:opacity-100">
             <Button
               size="small"
               rounded
