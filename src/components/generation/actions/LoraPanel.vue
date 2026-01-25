@@ -1,7 +1,7 @@
 <template>
   <GenerationAction :collapsed="props.collapsed" :toggleable="props.toggleable" :icon="props.icon" :label="props.label">
     <!-- Loading State -->
-    <div v-if="modelsStore.lorasLoading" class="flex items-center justify-center py-4 text-gray-400">
+    <div v-if="modelsStore.lorasLoading" class="flex items-center justify-center py-4 text-surface-400">
       <i class="mr-2 pi pi-spin pi-spinner"></i>
       Loading LoRAs...
     </div>
@@ -12,7 +12,7 @@
     </div>
 
     <!-- Empty State -->
-    <div v-else-if="modelsStore.loras.length === 0" class="flex flex-col items-center gap-2 py-4 text-center text-gray-400">
+    <div v-else-if="modelsStore.loras.length === 0" class="flex flex-col items-center gap-2 py-4 text-center text-surface-400">
       <fa :icon="['fal', 'layer-group']" class="opacity-50" size="2x" />
       <p class="text-sm">No LoRAs imported</p>
       <Button label="Import LoRA" icon="pi pi-plus" size="small" outlined @click="showImportDialog = true" />
@@ -20,33 +20,38 @@
 
     <!-- LoRA List -->
     <template v-else>
-      <div v-for="lora in modelsStore.loras" :key="lora.id" class="flex flex-col gap-2 p-2 rounded bg-surface-800">
+      <div v-for="lora in modelsStore.loras" :key="lora.id" class="flex flex-col gap-1 p-2 rounded bg-surface-700">
         <!-- Header Row -->
-        <div class="flex items-center gap-2">
-          <Checkbox v-model="lora.isActive" :input-id="lora.id" binary @change="handleToggle(lora.id)" />
-          <label :for="lora.id" class="flex-1 text-sm font-medium text-gray-200 cursor-pointer">
+        <div class="flex flex-row gap-2">
+          <Checkbox v-model="lora.isActive" :input-id="lora.id" binary @change="handleToggle(lora.id)"  class="shrink"/>
+          <div class="text-base font-medium text-surface-200 grow line-clamp-1" :title="lora.name">
             {{ lora.name }}
-          </label>
-          <Button icon="pi pi-trash" severity="danger" text size="small" @click="handleDelete(lora.id)" />
+          </div>
+          <Button severity="danger" size="small" @click="handleDelete(lora.id)" class="shrink">
+            <fa :icon="['fal', 'layer-group']" class="opacity-50" />
+          </Button>
         </div>
 
         <!-- Strength Slider (only when active) -->
-        <div v-if="lora.isActive" class="flex items-center gap-2">
-          <span class="text-xs text-gray-400 w-14">Strength</span>
-          <Slider v-model="lora.strength" :min="0" :max="2" :step="0.05" class="flex-1" @change="handleStrengthChange(lora.id, lora.strength)" />
-          <InputNumber
-            v-model="lora.strength"
-            :min="0"
-            :max="2"
-            :step="0.05"
-            size="small"
-            input-class="text-xs w-14"
-            @update:model-value="(v) => handleStrengthChange(lora.id, v ?? 1)" />
+        <div class="flex flex-col">
+          <div class="text-xs text-surface-400">Strength</div>
+          <div class="flex items-center gap-2">
+            <Slider v-model="lora.strength" :min="0" :max="2" :step="0.05" class="flex-1" @change="handleStrengthChange(lora.id, lora.strength)" />
+            <InputNumber
+              v-model="lora.strength"
+              :min="0"
+              :max="2"
+              :step="0.05"
+              size="small"
+              input-class="text-xs "
+              :disabled="lora.isActive"
+              @update:model-value="(v) => handleStrengthChange(lora.id, v ?? 1)" />
+          </div>
         </div>
 
         <!-- Trigger Words -->
         <div v-if="lora.triggerWords" class="flex items-center gap-2">
-          <span class="text-xs text-gray-500">Trigger:</span>
+          <span class="text-xs text-surface-500">Trigger:</span>
           <code class="flex-1 px-2 py-1 text-xs truncate rounded bg-surface-700 text-amber-300">
             {{ lora.triggerWords }}
           </code>
@@ -54,7 +59,7 @@
         </div>
 
         <!-- File Size -->
-        <div class="text-xs text-gray-500">
+        <div class="text-xs text-surface-500">
           {{ formatFileSize(lora.sizeBytes) }}
         </div>
       </div>

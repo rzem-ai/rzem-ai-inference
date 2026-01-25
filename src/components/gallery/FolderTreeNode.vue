@@ -10,7 +10,7 @@
       @drop="handleFolderDrop($event, 'before')"></div>
 
     <div
-      class="folder-row"
+      class="flex items-center gap-1 py-1.5 pr-2 rounded-md cursor-pointer transition-colors text-surface-300 hover:bg-surface-700"
       :class="{
         active: activeId === folder.id,
         'drop-target': isImageDragOver,
@@ -26,21 +26,21 @@
       @dragleave="handleDragLeave"
       @drop="handleDrop">
       <!-- Expand/Collapse Toggle -->
-      <button v-if="folder.children.length > 0" class="expand-btn" @click.stop="emit('toggleExpand', folder.id)">
+      <Button v-if="folder.children.length > 0" class="expand-btn" @click.stop="emit('toggleExpand', folder.id)">
         <fa v-if="isExpanded" :icon="['fal', 'chevron-down']" size="sm" />
         <fa v-else :icon="['fal', 'chevron-up']" size="sm" />
-      </button>
-      <span v-else class="expand-spacer"></span>
+      </Button>
+      <span v-else class="w-5"></span>
 
       <!-- Folder Icon -->
       <fa v-if="isExpanded && folder.children.length > 0" :icon="['fal', 'folder-open']" size="sm" :style="folder.color ? { color: folder.color } : {}" />
       <fa v-else :icon="['fal', 'folder']" size="sm" :style="folder.color ? { color: folder.color } : {}" />
 
       <!-- Folder Name -->
-      <span class="folder-name">{{ folder.name }}</span>
+      <span class="flex-1 text-sm truncate">{{ folder.name }}</span>
 
       <!-- Image Count Badge -->
-      <span class="image-count" :title="`${folder.imageCount} direct, ${folder.totalImageCount} total`">
+      <span class="text-xs px-1.5 py-0.5 rounded-full bg-surface-600 text-surface-900" :title="`${folder.imageCount} direct, ${folder.totalImageCount} total`">
         {{ folder.totalImageCount }}
       </span>
     </div>
@@ -80,6 +80,7 @@
 <script setup lang="ts">
 import { ref, computed, inject } from 'vue';
 import type { FolderNode } from '@/stores/folders';
+import Button from 'primevue/button';
 
 interface Props {
   folder: FolderNode;
@@ -129,10 +130,13 @@ const handleDragStart = (e: DragEvent) => {
   globalDraggedFolderId.value = props.folder.id;
 
   e.dataTransfer.effectAllowed = 'move';
-  e.dataTransfer.setData('application/x-folder', JSON.stringify({
-    id: props.folder.id,
-    parentId: props.folder.parentId,
-  }));
+  e.dataTransfer.setData(
+    'application/x-folder',
+    JSON.stringify({
+      id: props.folder.id,
+      parentId: props.folder.parentId,
+    }),
+  );
 
   // Set drag image
   const target = e.target as HTMLElement;
@@ -270,8 +274,7 @@ const isDescendant = (folderId: string): boolean => {
 }
 
 .folder-row {
-  @apply flex items-center gap-1 py-1.5 pr-2 rounded-md cursor-pointer transition-colors;
-  color: var(--color-gray-300);
+  
 
   &:hover {
     background-color: var(--color-gray-800);
@@ -336,13 +339,11 @@ const isDescendant = (folderId: string): boolean => {
 }
 
 .folder-name {
-  @apply flex-1 text-sm truncate;
+ 
 }
 
 .image-count {
-  @apply text-xs px-1.5 py-0.5 rounded-full;
-  background-color: var(--color-gray-700);
-  color: var(--color-gray-400);
+ 
 }
 
 .folder-children {

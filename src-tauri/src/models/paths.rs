@@ -293,6 +293,91 @@ impl ModelPaths {
         self.quantized_dev_transformer_path().exists()
     }
 
+    // ===== Z-Image-Turbo Paths =====
+
+    /// Get Z-Image-Turbo base directory
+    pub fn zimage_dir(&self) -> PathBuf {
+        self.cache_dir.join("models--Tongyi-MAI--Z-Image-Turbo")
+    }
+
+    /// Get Z-Image-Turbo snapshot hash
+    fn get_zimage_snapshot_hash(&self) -> Result<String> {
+        let refs_main = self.zimage_dir().join("refs").join("main");
+        if refs_main.exists() {
+            let hash = std::fs::read_to_string(&refs_main)
+                .context("Failed to read Z-Image refs/main")?
+                .trim()
+                .to_string();
+            Ok(hash)
+        } else {
+            // Fallback: find first directory in snapshots/
+            let snapshots_dir = self.zimage_dir().join("snapshots");
+            if let Ok(entries) = std::fs::read_dir(&snapshots_dir) {
+                for entry in entries.flatten() {
+                    if entry.path().is_dir() {
+                        if let Some(name) = entry.file_name().to_str() {
+                            return Ok(name.to_string());
+                        }
+                    }
+                }
+            }
+            anyhow::bail!("Could not find Z-Image snapshot directory")
+        }
+    }
+
+    /// Get path to Qwen3 text encoder
+    pub fn qwen3_path(&self) -> PathBuf {
+        self.get_zimage_snapshot_hash()
+            .map(|hash| self.zimage_dir().join("snapshots").join(hash).join("text_encoder"))
+            .unwrap_or_else(|_| self.zimage_dir().join("snapshots").join("main").join("text_encoder"))
+    }
+
+    /// Get path to Qwen3 tokenizer
+    pub fn qwen3_tokenizer_path(&self) -> PathBuf {
+        self.get_zimage_snapshot_hash()
+            .map(|hash| self.zimage_dir().join("snapshots").join(hash).join("tokenizer"))
+            .unwrap_or_else(|_| self.zimage_dir().join("snapshots").join("main").join("tokenizer"))
+    }
+
+    /// Get path to Z-Image-Turbo transformer
+    pub fn zimage_transformer_path(&self) -> PathBuf {
+        self.get_zimage_snapshot_hash()
+            .map(|hash| self.zimage_dir().join("snapshots").join(hash).join("transformer"))
+            .unwrap_or_else(|_| self.zimage_dir().join("snapshots").join("main").join("transformer"))
+    }
+
+    /// Get path to Z-Image-Turbo VAE (shared with FLUX)
+    pub fn zimage_vae_path(&self) -> PathBuf {
+        self.get_zimage_snapshot_hash()
+            .map(|hash| self.zimage_dir().join("snapshots").join(hash).join("vae"))
+            .unwrap_or_else(|_| self.zimage_dir().join("snapshots").join("main").join("vae"))
+    }
+
+    /// Get path to quantized Z-Image-Turbo transformer (to be created)
+    pub fn quantized_zimage_transformer_path(&self) -> PathBuf {
+        // Placeholder for future quantized Z-Image model
+        // Format: zimage-turbo.gguf (similar to FLUX GGUF)
+        self.cache_dir
+            .join("models--lmz--candle-zimage") // Future quantized repo
+            .join("snapshots")
+            .join("main")
+            .join("zimage-turbo.gguf")
+    }
+
+    /// Check if Z-Image-Turbo model is downloaded
+    pub fn is_zimage_downloaded(&self) -> bool {
+        // Check if transformer directory exists and has the sharded safetensors files
+        let transformer_dir = self.zimage_transformer_path();
+        transformer_dir.join("diffusion_pytorch_model-00001-of-00003.safetensors").exists()
+            && transformer_dir.join("diffusion_pytorch_model-00002-of-00003.safetensors").exists()
+            && transformer_dir.join("diffusion_pytorch_model-00003-of-00003.safetensors").exists()
+    }
+
+    /// Check if quantized Z-Image-Turbo transformer is available
+    pub fn has_quantized_zimage(&self) -> bool {
+        self.quantized_zimage_transformer_path().exists()
+    }
+
     // ===== Model Type Helpers =====
 
     /// Get transformer path for a given model type
@@ -300,6 +385,7 @@ impl ModelPaths {
         match model_type {
             super::ModelType::Schnell => self.transformer_path(),
             super::ModelType::Dev => self.dev_transformer_path(),
+            super::ModelType::ZImageTurbo => self.zimage_transformer_path(),
         }
     }
 
@@ -308,6 +394,7 @@ impl ModelPaths {
         match model_type {
             super::ModelType::Schnell => self.quantized_transformer_path(),
             super::ModelType::Dev => self.quantized_dev_transformer_path(),
+            super::ModelType::ZImageTurbo => self.quantized_zimage_transformer_path(),
         }
     }
 
@@ -316,6 +403,7 @@ impl ModelPaths {
         match model_type {
             super::ModelType::Schnell => self.has_quantized_transformer(),
             super::ModelType::Dev => self.has_quantized_dev(),
+            super::ModelType::ZImageTurbo => self.has_quantized_zimage(),
         }
     }
 

@@ -21,20 +21,26 @@
       <Button size="small" @click="emit('createFolder')" title="Create folder" class="w-20 p-2" variant="outlined" severity="secondary">
         <fa :icon="['fal', 'plus']" size="sm" />
       </Button>
-      <Button v-if="foldersStore.folders.length > 0" size="small" @click="toggleExpandAll" :title="allExpanded ? 'Collapse all' : 'Expand all'" class="w-20 p-2" variant="outlined" severity="secondary">
+      <Button
+        v-if="foldersStore.folders.length > 0"
+        size="small"
+        @click="toggleExpandAll"
+        :title="allExpanded ? 'Collapse all' : 'Expand all'"
+        class="w-20 p-2"
+        variant="outlined"
+        severity="secondary">
         <fa v-if="allExpanded" :icon="['fal', 'chevron-up']" size="sm" /><fa v-if="!allExpanded" :icon="['fal', 'chevrons-down']" size="sm" />
       </Button>
     </div>
 
     <!-- Folders Header -->
     <div class="flex items-center justify-between px-3 py-2">
-      <span class="text-xs font-semibold tracking-wide uppercase text-gray-500">Folders</span>
-      
+      <span class="text-xs font-semibold tracking-wide uppercase text-surface-500">Folders</span>
     </div>
 
     <!-- Folder Tree -->
     <div v-if="foldersStore.folders.length === 0" class="flex flex-col items-center gap-3 p-4 text-center">
-      <div class="text-sm text-gray-500">No folders yet</div>
+      <div class="text-sm text-surface-500">No folders yet</div>
       <Button label="Create First Folder" size="small" @click="emit('createFolder')" />
     </div>
 
@@ -163,9 +169,7 @@ const handleFolderMove = async (data: { folderId: string; targetId: string; posi
     if (!targetFolder) return;
 
     // Get siblings at target's level
-    const siblings = targetFolder.parentId
-      ? foldersStore.flatFolders.find((f) => f.id === targetFolder.parentId)?.children || []
-      : foldersStore.folders;
+    const siblings = targetFolder.parentId ? foldersStore.flatFolders.find((f) => f.id === targetFolder.parentId)?.children || [] : foldersStore.folders;
 
     const siblingIds = siblings.map((s) => s.id);
     const sourceIndex = siblingIds.indexOf(folderId);

@@ -71,12 +71,18 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { convertFileSrc } from '@tauri-apps/api/core';
+import { useToast } from 'primevue/usetoast';
 import { useQueueStore, type GenerationJob } from '@/stores/queue';
 import { useGenerationStore } from '@/stores/generation';
 import Button from 'primevue/button';
 
 const queueStore = useQueueStore();
 const generationStore = useGenerationStore();
+const toast = useToast();
+
+const emit = defineEmits<{
+  restoreImage: [imagePath: string];
+}>();
 
 // Show all completed/failed jobs (both from active queue and history)
 // Reverse so newest appears at the top
@@ -106,12 +112,7 @@ const formatTime = (timestamp?: number) => {
   return date.toLocaleDateString();
 };
 
-const handleJobClick = (job: GenerationJob) => {
-  // TODO: Open detail modal or navigate to image in gallery
-  console.log('Clicked job:', job);
-};
-
-const handleReuse = (job: GenerationJob) => {
+const restoreParameters = (job: GenerationJob) => {
   // Copy the job's parameters to current generation settings
   generationStore.currentParams = {
     ...generationStore.currentParams,
@@ -125,6 +126,34 @@ const handleReuse = (job: GenerationJob) => {
     sampler: job.params.sampler || 'euler',
     scheduler: job.params.scheduler || 'simple',
   };
+
+  // Show confirmation toast
+  toast.add({
+    severity: 'success',
+    summary: 'Settings Restored',
+    detail: `Loaded parameters from previous generation (seed: ${job.params.seed})`,
+    life: 3000,
+  });
+};
+
+const handleJobClick = (job: GenerationJob) => {
+  // Restore generation parameters when clicking on history item
+  restoreParameters(job);
+
+  // Also restore the image to the center panel if it exists
+  if (job.result_path) {
+    emit('restoreImage', job.result_path);
+  }
+};
+
+const handleReuse = (job: GenerationJob) => {
+  // Also restore parameters when clicking the reuse button
+  restoreParameters(job);
+
+  // Also restore the image to the center panel if it exists
+  if (job.result_path) {
+    emit('restoreImage', job.result_path);
+  }
 };
 </script>
 

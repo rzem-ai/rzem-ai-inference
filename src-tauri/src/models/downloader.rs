@@ -55,6 +55,7 @@ impl ModelDownloader {
         match model_type {
             ModelType::Schnell => self.is_schnell_downloaded(),
             ModelType::Dev => self.is_dev_downloaded(),
+            ModelType::ZImageTurbo => self.paths.is_zimage_downloaded(),
         }
     }
 
@@ -122,6 +123,7 @@ impl ModelDownloader {
                 let transformer_file = match model_type {
                     ModelType::Schnell => "flux1-schnell.safetensors",
                     ModelType::Dev => "flux1-dev.safetensors",
+                    ModelType::ZImageTurbo => "transformer/", // Z-Image uses directory with sharded files
                 };
 
                 let root_files: Vec<&str> = vec![
@@ -289,6 +291,11 @@ impl ModelDownloader {
         match model_type {
             ModelType::Schnell => self.download_schnell().await,
             ModelType::Dev => self.download_dev().await,
+            ModelType::ZImageTurbo => {
+                // TODO: Implement Z-Image-Turbo download
+                // For now, model should be manually downloaded to HF cache
+                anyhow::bail!("Z-Image-Turbo download not yet implemented. Please download manually using: huggingface-cli download Tongyi-MAI/Z-Image-Turbo")
+            }
         }
     }
 }

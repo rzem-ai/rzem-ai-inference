@@ -1,13 +1,55 @@
 //! Image generation methods for FluxPipeline
 
 use anyhow::Result;
-use tracing::{debug, info, trace};
+use tracing::{debug, info, trace, warn};
 
 use crate::inference::metadata::{ImageMetadata, encode_png_with_metadata};
 use crate::inference::samplers::{SamplerType, SchedulerType};
 use crate::inference::stats::{GenerationStats, GenerationResult, Timer};
 use crate::inference::{GenerationProgress, PipelineStage};
 use super::FluxPipeline;
+
+/// Get current GPU memory stats using nvidia-smi
+fn get_gpu_memory_stats() -> Option<(u64, u64, f32)> {
+    let output = std::process::Command::new("nvidia-smi")
+        .args([
+            "--query-gpu=memory.used,memory.total",
+            "--format=csv,noheader,nounits",
+        ])
+        .output();
+
+    match output {
+        Ok(output) if output.status.success() => {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let line = stdout.lines().next().unwrap_or("");
+            let parts: Vec<&str> = line.split(',').map(|s| s.trim()).collect();
+
+            if parts.len() >= 2 {
+                let mem_used = parts[0].parse::<u64>().ok()?;
+                let mem_total = parts[1].parse::<u64>().ok()?;
+                let mem_percent = (mem_used as f64 / mem_total as f64 * 100.0) as f32;
+
+                // Return in bytes
+                return Some((mem_used * 1024 * 1024, mem_total * 1024 * 1024, mem_percent));
+            }
+        }
+        _ => {}
+    }
+
+    None
+}
+
+/// Format bytes into human-readable string
+fn format_bytes(bytes: u64) -> String {
+    const GB: u64 = 1024 * 1024 * 1024;
+    const MB: u64 = 1024 * 1024;
+
+    if bytes >= GB {
+        format!("{:.2} GB", bytes as f64 / GB as f64)
+    } else {
+        format!("{:.2} MB", bytes as f64 / MB as f64)
+    }
+}
 
 impl FluxPipeline {
     /// Generate image from text prompt
@@ -217,8 +259,32 @@ impl FluxPipeline {
             "full_precision".to_string()
         };
 
-        // Progress for denoising start
-        info!(steps = steps, model = %stats.model_type, sampler = ?sampler, scheduler = ?scheduler, "Starting denoising");
+        // Log GPU memory before denoising starts
+        if let Some((used, total, percent)) = get_gpu_memory_stats() {
+            let available = total - used;
+            info!(
+                steps = steps,
+                model = %stats.model_type,
+                sampler = ?sampler,
+                scheduler = ?scheduler,
+                gpu_used = format_bytes(used),
+                gpu_available = format_bytes(available),
+                gpu_percent = format!("{:.1}%", percent),
+                "Starting denoising"
+            );
+
+            // Warn if memory is critically low (>90% used)
+            if percent > 90.0 {
+                warn!(
+                    gpu_percent = format!("{:.1}%", percent),
+                    available = format_bytes(available),
+                    "GPU memory critically low before denoising - OOM risk"
+                );
+            }
+        } else {
+            info!(steps = steps, model = %stats.model_type, sampler = ?sampler, scheduler = ?scheduler, "Starting denoising");
+        }
+
         on_progress(GenerationProgress::denoising_step(0, steps));
 
         let denoise_timer = Timer::start();

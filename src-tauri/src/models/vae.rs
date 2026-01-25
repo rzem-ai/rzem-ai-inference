@@ -77,7 +77,7 @@ mod tests {
     use super::*;
 
     #[test]
-    #[ignore] // Requires downloaded model
+    #[ignore] // Requires downloaded FLUX model
     fn test_vae_loading() {
         use crate::models::ModelPaths;
 
@@ -85,5 +85,54 @@ mod tests {
         let device = Device::cuda_if_available(0).unwrap();
 
         let _vae = VaeDecoder::load(paths.vae_path(), device).unwrap();
+    }
+
+    #[test]
+    #[ignore] // Requires downloaded Z-Image-Turbo model
+    fn test_zimage_vae_loading() {
+        use crate::models::ModelPaths;
+
+        let paths = ModelPaths::new().unwrap();
+        let device = Device::cuda_if_available(0).unwrap();
+
+        // Z-Image uses FLUX's VAE - verify it loads with existing decoder
+        let vae_file = paths.zimage_vae_path().join("diffusion_pytorch_model.safetensors");
+
+        let vae = VaeDecoder::load(&vae_file, device);
+        assert!(vae.is_ok(), "Failed to load Z-Image VAE: {:?}", vae.err());
+
+        println!("✓ Z-Image VAE loaded successfully using FLUX VaeDecoder");
+    }
+
+    #[test]
+    #[ignore] // Requires downloaded Z-Image-Turbo model
+    fn test_zimage_vae_decode() {
+        use crate::models::ModelPaths;
+        use candle_core::Tensor;
+
+        let paths = ModelPaths::new().unwrap();
+        let device = Device::cuda_if_available(0).unwrap();
+
+        // Load Z-Image VAE
+        let vae_file = paths.zimage_vae_path().join("diffusion_pytorch_model.safetensors");
+        let vae = VaeDecoder::load(&vae_file, device.clone()).unwrap();
+
+        // Create dummy latent tensor [1, 16, 128, 128] (for 1024x1024 image)
+        let latents = Tensor::zeros((1, 16, 128, 128), DType::F32, &device).unwrap();
+
+        // Test decode
+        let decoded = vae.decode(&latents);
+        assert!(decoded.is_ok(), "Failed to decode: {:?}", decoded.err());
+
+        let image = decoded.unwrap();
+        let shape = image.dims();
+
+        // Should produce [1, 3, 1024, 1024]
+        assert_eq!(shape[0], 1, "Batch size should be 1");
+        assert_eq!(shape[1], 3, "Should have 3 RGB channels");
+        assert_eq!(shape[2], 1024, "Height should be 1024");
+        assert_eq!(shape[3], 1024, "Width should be 1024");
+
+        println!("✓ Z-Image VAE decode successful: {:?}", shape);
     }
 }

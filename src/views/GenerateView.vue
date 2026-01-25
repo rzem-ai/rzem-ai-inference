@@ -21,7 +21,7 @@
     </div>
 
     <div class="flex flex-col h-full border-l bg-surface-800 border-surface-700 w-60 min-w-60">
-      <HistoryPanel/>
+      <HistoryPanel @restore-image="handleRestoreImage" />
     </div>
   </div>
 </template>
@@ -206,6 +206,23 @@ const handleDownload = async (imageSrc: string, slotNumber: number) => {
       life: 5000,
     });
   }
+};
+
+const handleRestoreImage = (imagePath: string) => {
+  // Clear existing images and display the history item's image
+  generatedImages.value = [
+    {
+      id: `history-${Date.now()}`,
+      src: convertFileSrc(imagePath),
+    },
+  ];
+
+  // Reset pending count
+  pendingCount.value = 0;
+
+  // Clear current batch tracking
+  currentBatchJobIds.value.clear();
+  displayedJobIds.value.clear();
 };
 </script>
 
