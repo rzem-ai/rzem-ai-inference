@@ -1,5 +1,5 @@
 <template>
-  <div class="relative h-full p-4 overflow-hidden">
+  <div class="relative h-full overflow-hidden">
     <div class="h-full rounded-lg bg-surface-700 border-surface-700">
       <!-- Demo mode indicator -->
       <div v-if="demoMode" class="absolute top-1 right-2 z-10 flex items-center gap-1 px-2 py-0.5 bg-purple-600 text-white text-xs rounded-full">

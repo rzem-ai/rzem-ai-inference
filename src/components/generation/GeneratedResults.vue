@@ -1,7 +1,7 @@
 <template>
   <div ref="wrapper" class="flex flex-col flex-1 p-2 overflow-hidden">
     <div class="flex items-center justify-between mb-3">
-      <span class="text-xs font-semibold tracking-wider text-surface-50"> GENERATED RESULTS </span>
+      <span class=""> </span>
       <span v-if="pendingCount && pendingCount > 0" class="text-xs text-surface-50"> {{ images.length }}/{{ totalSlots }} generating... </span>
       <span v-else class="text-xs text-surface-50"> {{ images.length }} {{ images.length === 1 ? 'image' : 'images' }} </span>
     </div>
@@ -40,18 +40,11 @@
       </div>
 
       <!-- Skeleton placeholders for pending images -->
-      <div
-        v-for="skeletonIndex in pendingCount"
-        :key="`skeleton-${skeletonIndex}`"
-        class="relative overflow-hidden bg-gray-800 border border-gray-600 rounded-xl"
-        :style="getCellStyle(images.length + skeletonIndex - 1)">
-        <div class="flex items-center justify-center w-full h-full skeleton-pulse">
-          <div class="flex flex-col items-center gap-3 text-surface-50">
-            <i class="text-4xl pi pi-spin pi-spinner"></i>
-            <span class="text-xs font-medium">Generating...</span>
-          </div>
+      <FloatingLines v-for="skeletonIndex in pendingCount" :key="`skeleton-${skeletonIndex}`" class="" :style="getCellStyle(images.length + skeletonIndex - 1)">
+        <div class="flex flex-col items-center justify-center w-full h-full text-surface-900">
+          <div class="text-lg font-medium">Generating <fa :icon="['fas', 'ellipsis']" fade /></div>
         </div>
-      </div>
+      </FloatingLines>
     </div>
   </div>
 </template>
@@ -61,6 +54,7 @@ import { ref, computed, watch, useTemplateRef } from 'vue';
 import { useElementSize } from '@vueuse/core';
 import Image from 'primevue/image';
 import Button from 'primevue/button';
+import FloatingLines from '../shared/FloatingLines.vue';
 
 const wrapper = useTemplateRef('wrapper');
 const { width, height } = useElementSize(wrapper);

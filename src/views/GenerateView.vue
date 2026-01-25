@@ -7,16 +7,18 @@
     </WorkspaceActions>
 
     <!-- Main Content Area -->
-    <div class="flex flex-col flex-1 overflow-hidden">
-      <!-- Canvas Section -->
-      <div class="flex flex-1 overflow-hidden">
-        <!-- Generated Results -->
-        <GeneratedResults :images="generatedImages" :pending-count="pendingCount" @download="handleDownload" />
-      </div>
+    <div class="flex flex-1 p-2">
+      <div class="flex flex-col flex-1 gap-2 p-2 overflow-hidden rounded-xl bg-surface-800">
+        <!-- Canvas Section -->
+        <div class="flex flex-1 overflow-hidden">
+          <!-- Generated Results -->
+          <GeneratedResults :images="generatedImages" :pending-count="pendingCount" @download="handleDownload" />
+        </div>
 
-      <!-- Bottom Panel -->
-      <div class="shrink-0">
-        <QueuePanel />
+        <!-- Bottom Panel -->
+        <div class="shrink-0">
+          <QueuePanel />
+        </div>
       </div>
     </div>
 

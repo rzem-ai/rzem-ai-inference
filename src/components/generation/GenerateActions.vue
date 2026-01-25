@@ -97,7 +97,7 @@ const sections = [
     collapsed: false,
   },
   {
-    id: 'IMAGE SETTINGS',
+    id: 'IMAGE',
     label: 'Image Dimensions',
     icon: 'sliders',
     component: ImageDimensions,
@@ -105,8 +105,8 @@ const sections = [
     collapsed: false,
   },
   {
-    id: 'GENERATION SETTINGS',
-    label: 'GENERATION SETTINGS',
+    id: 'GENERATION',
+    label: 'Generation Settings',
     icon: 'gear',
     component: GenerationSettings,
     toggleable: false,
@@ -114,7 +114,7 @@ const sections = [
   },
   {
     id: 'MODEL',
-    label: 'MODEL',
+    label: 'Model Selection',
     icon: 'box-open',
     component: ModelSelector,
     toggleable: false,
@@ -122,7 +122,7 @@ const sections = [
   },
   {
     id: 'LORAS',
-    label: 'LORAS',
+    label: 'Style Selection',
     icon: 'layer-group',
     component: LoraPanel,
     toggleable: true,

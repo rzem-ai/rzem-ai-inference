@@ -28,22 +28,23 @@ export const slider: SliderDesignTokens = {
   colorScheme: {
     light: {
       handle: {
-        background: '{blue.500}',
-        hoverBackground: '{blue.600}',
+        background: '{blue.300}',
+        hoverBackground: '{blue.500}',
         content: {
-          background: '{blue.500}',
-          hoverBackground: '{blue.600}',
-          shadow: '2px 2px 2px 2px rgba(0, 0, 0, 0.3)',
+          background: '{blue.400}',
+          hoverBackground: '{blue.500}',
+          //shadow: '0px 1px 1px 0px rgba(0, 0, 0, 0.2)',
+          shadow: '0px',
         },
         focusRing: {
           shadow: '0',
         },
       },
       range: {
-        background: '{blue.500}',
+        background: '{blue.400}',
       },
       track: {
-        background: '{surface.600}',
+        background: '{surface.700}',
       },
     },
     dark: {

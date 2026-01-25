@@ -28,7 +28,7 @@
           <label class="text-xs font-medium tracking-wide text-surface-300">Width</label>
           <span class="font-mono text-xs font-semibold text-blue-600">{{ width }}px</span>
         </div>
-        <div class="pt-1">
+        <div class="pt-1 slider-container">
           <Slider v-model="width" :min="256" :max="2048" :step="64" />
         </div>
       </div>
@@ -37,7 +37,7 @@
           <label class="text-xs font-medium tracking-wide text-surface-300">Height</label>
           <span class="font-mono text-xs font-semibold text-blue-600">{{ height }}px</span>
         </div>
-        <div class="pt-1">
+        <div class="pt-1 slider-container">
           <Slider v-model="height" :min="256" :max="2048" :step="64" />
         </div>
       </div>
@@ -67,10 +67,12 @@ const aspectRatios = [
   { label: '2:1', width: 1024, height: 512 },
 ];
 
-const activeRatio = ref<string>('1:1');
+const activeRatio = ref<string | null>('1:1');
 
 // Update width/height when aspect ratio changes
 watch(activeRatio, (label) => {
+  if (!label) return; // Don't update if no ratio selected
+
   const ratio = aspectRatios.find((r) => r.label === label);
   if (ratio) {
     width.value = ratio.width;
@@ -78,11 +80,14 @@ watch(activeRatio, (label) => {
   }
 });
 
-// Sync active ratio when width/height change externally (e.g., from history reuse)
+// Sync active ratio when width/height change externally (e.g., from history reuse or manual slider adjustment)
 watch([() => generationStore.currentParams.width, () => generationStore.currentParams.height], ([newWidth, newHeight]) => {
   const matchingRatio = aspectRatios.find((r) => r.width === newWidth && r.height === newHeight);
   if (matchingRatio) {
     activeRatio.value = matchingRatio.label;
+  } else {
+    // Deselect if dimensions don't match any preset
+    activeRatio.value = null;
   }
 });
 
@@ -103,6 +108,5 @@ const height = computed({
 
 <style scoped>
 @reference "tailwindcss";
-
-/* PrimeVue Slider overrides */
+ 
 </style>

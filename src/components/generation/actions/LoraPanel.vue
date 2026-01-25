@@ -27,27 +27,12 @@
           <div class="text-base font-medium text-surface-200 grow line-clamp-1" :title="lora.name">
             {{ lora.name }}
           </div>
-          <Button severity="danger" size="small" @click="handleDelete(lora.id)" class="shrink" variant="outlined">
+          <Button severity="danger" size="small" @click="handleDelete(lora.id)" class="w-12" variant="outlined">
             <fa :icon="['fal', 'trash']" class="" />
           </Button>
         </div>
 
         <div class="grid grid-cols-8 gap-2">
-          <!-- Trigger Words -->
-          <div v-if="lora.triggerWords" class="content-center col-span-1">
-            <div class="text-xs font-semibold text-surface-300">Trigger:</div>
-          </div>
-          <div v-if="lora.triggerWords" class="content-center w-full col-span-6 px-2 ">
-            <div class="flex-1 w-full px-2 py-1 text-sm truncate rounded bg-surface-700">
-              {{ lora.triggerWords }}
-            </div>
-          </div>
-          <div v-if="lora.triggerWords" class="content-center col-span-1">
-            <Button size="small" v-tooltip="'Copy trigger words'" variant="outlined" @click="copyTriggerWords(lora.triggerWords!)">
-              <fa :icon="['fal', 'trash']" class="" />
-            </Button>
-          </div>
-
           <!-- Strength Slider (only when active) -->
           <div class="content-center col-span-1">
             <div class="text-xs font-semibold text-surface-300">Strength:</div>
@@ -63,9 +48,24 @@
               :step="0.05"
               size="small"
               class="shrink"
-              input-class="w-10 font-mono text-xs font-semibold text-center"
+              input-class="w-12 px-1 py-1 font-mono text-xs font-semibold text-center"
               :disabled="lora.isActive"
               @update:model-value="(v) => handleStrengthChange(lora.id, v ?? 1)" />
+          </div>
+
+          <!-- Trigger Words -->
+          <div v-if="lora.triggerWords" class="content-center col-span-1">
+            <div class="text-xs font-semibold text-surface-300">Trigger:</div>
+          </div>
+          <div v-if="lora.triggerWords" class="content-center w-full col-span-6 px-2">
+            <div class="flex-1 w-full px-2 py-1 text-sm truncate rounded bg-surface-700">
+              {{ lora.triggerWords }}
+            </div>
+          </div>
+          <div v-if="lora.triggerWords" class="content-center col-span-1">
+            <Button size="small" class="w-12" v-tooltip="'Copy trigger words'" variant="outlined" @click="copyTriggerWords(lora.triggerWords!)">
+              <fa :icon="['fal', 'trash']" class="" />
+            </Button>
           </div>
         </div>
       </div>
