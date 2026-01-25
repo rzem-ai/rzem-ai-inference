@@ -58,7 +58,7 @@ import Dialog from 'primevue/dialog';
 
 import AdvancedSettings from '@/components/generation/actions/AdvancedSettings.vue';
 import PromptInput from '@/components/generation/actions/PromptInput.vue';
-import ImageSettings from '@/components/generation/actions/ImageSettings.vue';
+import ImageDimensions from '@/components/generation/actions/ImageDimensions.vue';
 import GenerationSettings from '@/components/generation/actions/GenerationSettings.vue';
 import ModelSelector from '@/components/generation/actions/ModelSelector.vue';
 import LoraPanel from '@/components/generation/actions/LoraPanel.vue';
@@ -90,7 +90,7 @@ const showPresetModal = ref(false);
 const sections = [
   {
     id: 'PROMPT',
-    label: 'PROMPT',
+    label: 'Text Prompt',
     icon: 'pen-to-square',
     component: PromptInput,
     toggleable: false,
@@ -98,9 +98,9 @@ const sections = [
   },
   {
     id: 'IMAGE SETTINGS',
-    label: 'IMAGE SETTINGS',
+    label: 'Image Dimensions',
     icon: 'sliders',
-    component: ImageSettings,
+    component: ImageDimensions,
     toggleable: false,
     collapsed: false,
   },

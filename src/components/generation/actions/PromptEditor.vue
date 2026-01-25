@@ -1,7 +1,6 @@
 <template>
   <div class="flex flex-col gap-1" :data-rows="rows">
-    <label v-if="label" class="text-xs font-medium tracking-wide text-surface-300 ">{{ label }}</label>
-    <div class="border rounded-lg border-surface-500 bg-surface-900 ">
+    <div class="border rounded-md border-surface-700 bg-surface-800">
       <EditorContent :editor="editor" class="w-full editor-content text-surface-300"  />
     </div>
   </div>

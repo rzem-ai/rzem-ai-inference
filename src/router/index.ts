@@ -29,9 +29,9 @@ const router = createRouter({
       component: ModelsView,
     },
     {
-      path: '/manage',
-      name: 'manage',
-      component: () => import('@/views/ManageView.vue')
+      path: '/settings',
+      name: 'settings',
+      component: () => import('@/views/SettingsView.vue')
     }
   ]
 })

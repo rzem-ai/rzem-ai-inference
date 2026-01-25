@@ -2,7 +2,10 @@
   <GenerationAction :collapsed="props.collapsed" :toggleable="props.toggleable" :icon="props.icon" :label="props.label">
     <!-- Aspect Ratio Pills -->
     <div class="flex flex-col">
-      <label class="text-xs font-medium tracking-wide text-surface-300">Aspect Ratio</label>
+      <div class="flex items-center gap-1 text-surface-300">
+        <fa :icon="['fal', 'mobile-rotate']" size="sm" />
+        <div class="text-sm font-medium tracking-wide">Aspect Ratio</div>
+      </div>
       <SelectButton
         v-model="activeRatio"
         :options="aspectRatios"

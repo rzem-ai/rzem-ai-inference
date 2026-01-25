@@ -1,7 +1,7 @@
 <template>
-  <aside class="flex flex-col h-full border-r bg-surface-800 border-surface-700 w-120 min-w-120">
+  <aside class="flex flex-col h-full w-120 min-w-120">
     <div v-if="$slots.header" class="shrink">
-      <div class="flex items-start justify-between px-4 py-4 border-b border-surface-700">
+      <div class="flex items-start justify-between px-4 pt-6 pb-0">
         <div class="flex flex-col gap-y-1">
           <h2 class="text-xl font-medium text-surface-50"><slot name="header"> </slot></h2>
         </div>

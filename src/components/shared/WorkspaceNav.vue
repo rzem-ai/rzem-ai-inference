@@ -12,7 +12,16 @@
         <WorkspaceNavItem v-for="(workspace, index) in workspaces" :key="workspace.path" :id="'nav_' + index" :workspace="workspace" />
       </div>
       <div class="flex items-center justify-center h-16 min-h-16 shrink">
-
+        <RouterLink :to="settingsWorkspace.path" v-slot="{ isActive }" class="w-full">
+          <div
+            class="flex flex-col items-center justify-center gap-1 px-2 py-4"
+            :class="[isActive ? ' text-surface-900 hover:text-surface-500' : ' text-surface-600 hover:text-surface-900 ']">
+            <fa :icon="['fal', settingsWorkspace.icon]" size="xl" />
+            <div class="text-xs">
+              {{ settingsWorkspace.label }}
+            </div>
+          </div>
+        </RouterLink>
       </div>
     </div>
   </div>
@@ -27,8 +36,9 @@ const workspaces: Workspace[] = [
   { label: 'Gallery', path: '/gallery', icon: 'images' },
   { label: 'Compare', path: '/compare', icon: 'code-compare' },
   { label: 'Models', path: '/models', icon: 'database' },
-  { label: 'Settings', path: '/manage', icon: 'gear' }
 ];
+
+const settingsWorkspace: Workspace = { label: 'Settings', path: '/settings', icon: 'gear' };
 
 // Pixel effect implementation
 class Pixel {
