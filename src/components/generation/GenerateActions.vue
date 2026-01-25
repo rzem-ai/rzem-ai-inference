@@ -6,7 +6,7 @@
     @dragleave.prevent="handleDragLeave"
     @drop.prevent="handleDrop">
     <!-- Scrollable Content -->
-    <div class="flex flex-col gap-2 px-2 py-2 overflow-y-auto">
+    <div class="flex flex-col gap-4 px-2 py-2 overflow-y-auto">
       <!-- Preset Section -->
 
       <component

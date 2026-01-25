@@ -10,7 +10,8 @@
     <div class="flex flex-col gap-4 px-2">
       <div class="flex flex-col gap-1">
         <div class="flex items-center justify-between">
-          <label class="text-xs font-medium tracking-wide text-surface-300">Seed</label>
+          <label class="text-xs font-medium tracking-wide text-surface-300">Lock Seed</label>
+          <ToggleSwitch v-model="seedLocked" v-tooltip.top="seedLocked ? 'Locked' : 'Random'" />
         </div>
         <div class="flex gap-2">
           <InputNumber
@@ -25,9 +26,6 @@
           <Button @click="randomizeSeed" :disabled="!seedLocked" v-tooltip.top="'Generate new random seed'">
             <fa :icon="['fal', 'seedling']" size="sm" />
           </Button>
-          <Button @click="toggleSeedLock" v-tooltip.top="seedLocked ? 'Locked' : 'Random'">
-            <fa :icon="['fal', seedLocked ? 'lock' : 'unlock']" size="sm" />
-          </Button>
         </div>
       </div>
 
@@ -41,35 +39,23 @@
           <Select v-model="scheduler" :options="schedulerOptions" optionLabel="label" optionValue="value" size="small" fluid />
         </div>
       </div>
-
-      <div v-if="modelsStore.activeModel" class="flex flex-col gap-1 p-2 text-xs text-gray-400 rounded bg-surface-800">
-        <span v-if="modelsStore.activeModel.description" class="italic">
-          {{ modelsStore.activeModel.description }}
-        </span>
-        <div class="flex gap-3 text-sky-400">
-          <span>{{ modelsStore.activeModel.defaultSteps }} steps</span>
-          <span>CFG {{ modelsStore.activeModel.defaultGuidance }}</span>
-        </div>
-      </div>
     </div>
   </Panel>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { useModelsStore } from '@/stores/models';
 import { useGenerationStore } from '@/stores/generation';
 import Button from 'primevue/button';
 import Panel from 'primevue/panel';
 import Select from 'primevue/select';
 import InputNumber from 'primevue/inputnumber';
+import ToggleSwitch from 'primevue/toggleswitch';
 import type { Sampler, Scheduler } from '@/types';
 
 const props = defineProps(['collapsed', 'icon', 'label', 'toggleable']);
 
-const modelsStore = useModelsStore();
 const generationStore = useGenerationStore();
-
 
 const seed = computed({
   get: () => generationStore.currentParams.seed,
@@ -84,16 +70,12 @@ const seedLocked = computed({
   get: () => !generationStore.randomizeSeedOnGenerate,
   set: (value: boolean) => {
     generationStore.randomizeSeedOnGenerate = !value;
+    // When locking, ensure we have a valid seed
+    if (value && (seed.value < 0 || seed.value === null)) {
+      seed.value = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
+    }
   },
 });
-
-const toggleSeedLock = () => {
-  seedLocked.value = !seedLocked.value;
-  // When locking, ensure we have a valid seed
-  if (seedLocked.value && (seed.value < 0 || seed.value === null)) {
-    seed.value = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
-  }
-};
 
 const randomizeSeed = () => {
   seed.value = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);

@@ -1,4 +1,6 @@
-export const selectbutton = {
+import type { SelectButtonDesignTokens } from '@primeuix/themes/types/selectbutton';
+
+export const selectbutton: SelectButtonDesignTokens = {
   root: {
     borderRadius: '{border.radius.md}',
   },

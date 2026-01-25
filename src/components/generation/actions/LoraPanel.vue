@@ -20,47 +20,53 @@
 
     <!-- LoRA List -->
     <template v-else>
-      <div v-for="lora in modelsStore.loras" :key="lora.id" class="flex flex-col gap-1 p-2 rounded bg-surface-700">
+      <div v-for="lora in modelsStore.loras" :key="lora.id" class="flex flex-col gap-1 p-2 border rounded bg-surface-800 border-surface-700">
         <!-- Header Row -->
         <div class="flex flex-row gap-2">
-          <Checkbox v-model="lora.isActive" :input-id="lora.id" binary @change="handleToggle(lora.id)"  class="shrink"/>
+          <Checkbox v-model="lora.isActive" :input-id="lora.id" binary @change="handleToggle(lora.id)" class="shrink" />
           <div class="text-base font-medium text-surface-200 grow line-clamp-1" :title="lora.name">
             {{ lora.name }}
           </div>
-          <Button severity="danger" size="small" @click="handleDelete(lora.id)" class="shrink">
-            <fa :icon="['fal', 'layer-group']" class="opacity-50" />
+          <Button severity="danger" size="small" @click="handleDelete(lora.id)" class="shrink" variant="outlined">
+            <fa :icon="['fal', 'trash']" class="" />
           </Button>
         </div>
 
-        <!-- Strength Slider (only when active) -->
-        <div class="flex flex-col">
-          <div class="text-xs text-surface-400">Strength</div>
-          <div class="flex items-center gap-2">
-            <Slider v-model="lora.strength" :min="0" :max="2" :step="0.05" class="flex-1" @change="handleStrengthChange(lora.id, lora.strength)" />
+        <div class="grid grid-cols-8 gap-2">
+          <!-- Trigger Words -->
+          <div v-if="lora.triggerWords" class="content-center col-span-1">
+            <div class="text-xs font-semibold text-surface-300">Trigger:</div>
+          </div>
+          <div v-if="lora.triggerWords" class="content-center w-full col-span-6 px-2 ">
+            <div class="flex-1 w-full px-2 py-1 text-sm truncate rounded bg-surface-700">
+              {{ lora.triggerWords }}
+            </div>
+          </div>
+          <div v-if="lora.triggerWords" class="content-center col-span-1">
+            <Button size="small" v-tooltip="'Copy trigger words'" variant="outlined" @click="copyTriggerWords(lora.triggerWords!)">
+              <fa :icon="['fal', 'trash']" class="" />
+            </Button>
+          </div>
+
+          <!-- Strength Slider (only when active) -->
+          <div class="content-center col-span-1">
+            <div class="text-xs font-semibold text-surface-300">Strength:</div>
+          </div>
+          <div class="content-center col-span-6 px-2">
+            <Slider v-model="lora.strength" :min="0" :max="2" :step="0.05" class="" @change="handleStrengthChange(lora.id, lora.strength)" />
+          </div>
+          <div class="content-center col-span-1">
             <InputNumber
               v-model="lora.strength"
               :min="0"
               :max="2"
               :step="0.05"
               size="small"
-              input-class="text-xs "
+              class="shrink"
+              input-class="w-10 font-mono text-xs font-semibold text-center"
               :disabled="lora.isActive"
               @update:model-value="(v) => handleStrengthChange(lora.id, v ?? 1)" />
           </div>
-        </div>
-
-        <!-- Trigger Words -->
-        <div v-if="lora.triggerWords" class="flex items-center gap-2">
-          <span class="text-xs text-surface-500">Trigger:</span>
-          <code class="flex-1 px-2 py-1 text-xs truncate rounded bg-surface-700 text-amber-300">
-            {{ lora.triggerWords }}
-          </code>
-          <Button icon="pi pi-copy" text size="small" v-tooltip="'Copy trigger words'" @click="copyTriggerWords(lora.triggerWords!)" />
-        </div>
-
-        <!-- File Size -->
-        <div class="text-xs text-surface-500">
-          {{ formatFileSize(lora.sizeBytes) }}
         </div>
       </div>
 

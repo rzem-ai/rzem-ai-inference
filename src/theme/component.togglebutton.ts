@@ -35,10 +35,10 @@ export const togglebutton = {
   colorScheme: {
     light: {
       root: {
-        background: '{surface.900}',
-        borderColor: '{surface.900}',
-        checkedBackground: '{surface.900}',
-        checkedBorderColor: '{surface.900}',
+        background: '{surface.800}',
+        borderColor: '{surface.700}',
+        checkedBackground: '{surface.800}',
+        checkedBorderColor: '{surface.700}',
         checkedColor: '{surface.950}',
         color: '{surface.100}',
         disabledBackground: '{form.field.disabled.background}',

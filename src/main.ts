@@ -22,7 +22,7 @@ import { fat } from '@fortawesome/pro-thin-svg-icons';
 /* add icons to the library */
 library.add(fal, far, fas, fat);
 
-import { AuraPlus } from './components/theme';
+import { AuraPlus } from './theme';
 import './style.css';
 
 const app = createApp(App);

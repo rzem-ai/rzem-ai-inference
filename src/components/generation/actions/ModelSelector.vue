@@ -16,6 +16,15 @@
         </div>
       </template>
     </Select>
+    <div v-if="modelsStore.activeModel" class="flex flex-col gap-1 p-2 text-xs text-gray-400 rounded bg-surface-800">
+      <span v-if="modelsStore.activeModel.description" class="italic">
+        {{ modelsStore.activeModel.description }}
+      </span>
+      <div class="flex gap-3 text-sky-400">
+        <span>{{ modelsStore.activeModel.defaultSteps }} steps</span>
+        <span>CFG {{ modelsStore.activeModel.defaultGuidance }}</span>
+      </div>
+    </div>
   </GenerationAction>
 </template>
 
