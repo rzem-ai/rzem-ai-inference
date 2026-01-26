@@ -6,21 +6,19 @@
     header="Batch Script Generation"
     :style="{ width: '900px', maxWidth: '95vw' }"
     :dismissableMask="true">
-
     <!-- Stepper Component -->
-    <Stepper v-model="currentStep" linear>
+    <Stepper value="1" linear>
       <!-- Step Headers -->
       <StepList>
-        <Step :value="0">Load Data</Step>
-        <Step :value="1">Template</Step>
-        <Step :value="2">Confirm & Submit</Step>
+        <Step value="1">Load Data</Step>
+        <Step value="2">Template</Step>
+        <Step value="3">Confirm & Submit</Step>
       </StepList>
 
       <!-- Step Content -->
       <StepPanels>
         <!-- Step 1: Load Data -->
-        <StepPanel :value="0">
-          <template #default>
+        <StepPanel value="1">
           <div class="flex flex-col gap-4 p-4">
             <FileInputSection @data-loaded="handleDataLoaded" />
 
@@ -30,38 +28,34 @@
               <div class="flex gap-4">
                 <label class="flex items-center gap-2">
                   <input type="radio" value="as-is" v-model="batchMode" />
-                  <span>Use data as-is
-                    <span v-if="sourceData">
-                      ({{ sourceData.rows.length }} images)
-                    </span>
+                  <span
+                    >Use data as-is
+                    <span v-if="sourceData"> ({{ sourceData.rows.length }} images) </span>
                   </span>
                 </label>
                 <label class="flex items-center gap-2">
                   <input type="radio" value="combinatorial" v-model="batchMode" />
-                  <span>Generate all combinations
-                    <span v-if="batchMode === 'combinatorial' && processedData">
-                      ({{ processedData.rows.length }} images)
-                    </span>
+                  <span
+                    >Generate all combinations
+                    <span v-if="batchMode === 'combinatorial' && processedData"> ({{ processedData.rows.length }} images) </span>
                   </span>
                 </label>
               </div>
             </div>
 
             <!-- Loading Indicator -->
-            <div v-if="isProcessing" class="flex items-center gap-2 p-4 bg-surface-ground rounded">
+            <div v-if="isProcessing" class="flex items-center gap-2 p-4 rounded bg-surface-ground">
               <ProgressSpinner style="width: 24px; height: 24px" />
               <span>Processing combinations...</span>
             </div>
 
             <!-- Preview table -->
             <div v-if="processedData" class="mt-4">
-              <h3 class="text-lg font-semibold mb-2">Data Preview</h3>
+              <h3 class="mb-2 text-lg font-semibold">Data Preview</h3>
               <DataTable :value="processedData.rows.slice(0, 10)" scrollable scrollHeight="200px">
                 <Column v-for="col in processedData.columns" :key="col" :field="col" :header="col" />
               </DataTable>
-              <p v-if="processedData.rows.length > 10" class="text-sm text-gray-400 mt-2">
-                Showing 10 of {{ processedData.rows.length }} rows
-              </p>
+              <p v-if="processedData.rows.length > 10" class="mt-2 text-sm text-gray-400"> Showing 10 of {{ processedData.rows.length }} rows </p>
             </div>
 
             <!-- Navigation -->
@@ -75,18 +69,15 @@
                 :title="!step1Valid ? 'Load data to continue' : ''" />
             </div>
           </div>
-        </template>
-      </StepPanel>
+        </StepPanel>
 
-      <!-- Step 2: Template -->
-      <StepPanel header="Template" :value="1">
-        <template #default>
+        <!-- Step 2: Template -->
+        <StepPanel header="Template" value="2">
           <div class="flex flex-col gap-4 p-4">
-
             <!-- Recent Templates -->
             <div v-if="templateHistory.length > 0" class="flex flex-col gap-2">
               <h3 class="text-lg font-semibold">Recent Templates</h3>
-              <div class="flex gap-2 flex-wrap">
+              <div class="flex flex-wrap gap-2">
                 <Button
                   v-for="entry in templateHistory"
                   :key="entry.id"
@@ -99,10 +90,7 @@
             </div>
 
             <!-- Template Editor -->
-            <TemplateEditor
-              ref="templateEditorRef"
-              :available-columns="availableColumns"
-              @template-change="handleTemplateChange" />
+            <TemplateEditor ref="templateEditorRef" :available-columns="availableColumns" @template-change="handleTemplateChange" />
 
             <!-- Preview Table -->
             <div v-if="previewRows.length > 0" class="mt-4">
@@ -110,17 +98,15 @@
             </div>
 
             <!-- Rendering indicator -->
-            <div v-if="isRendering" class="flex items-center gap-2 p-4 bg-surface-ground rounded">
+            <div v-if="isRendering" class="flex items-center gap-2 p-4 rounded bg-surface-ground">
               <ProgressSpinner style="width: 24px; height: 24px" />
               <span>Rendering template...</span>
             </div>
 
             <!-- Error count indicator -->
-            <div v-if="previewData && hasErrors" class="flex items-center gap-2 p-3 bg-red-900/20 border border-red-700 rounded">
-              <i class="pi pi-exclamation-triangle text-red-400"></i>
-              <span class="text-red-200">
-                {{ previewData.errors.length }} rendering error(s) detected. Fix template before proceeding.
-              </span>
+            <div v-if="previewData && hasErrors" class="flex items-center gap-2 p-3 border border-red-700 rounded bg-red-900/20">
+              <i class="text-red-400 pi pi-exclamation-triangle"></i>
+              <span class="text-red-200"> {{ previewData.errors.length }} rendering error(s) detected. Fix template before proceeding. </span>
             </div>
 
             <!-- Navigation -->
@@ -135,16 +121,13 @@
                 :title="!step2Valid ? (templateString.trim() === '' ? 'Enter a template' : 'Fix template errors') : ''" />
             </div>
           </div>
-        </template>
-      </StepPanel>
+        </StepPanel>
 
-      <!-- Step 3: Confirm & Submit -->
-      <StepPanel header="Confirm & Submit" :value="2">
-        <template #default>
+        <!-- Step 3: Confirm & Submit -->
+        <StepPanel header="Confirm & Submit" value="3">
           <div class="flex flex-col gap-6 p-4">
-
             <!-- Summary Card -->
-            <div class="flex flex-col gap-4 p-6 bg-surface-800 rounded-xl border border-surface-700">
+            <div class="flex flex-col gap-4 p-6 border bg-surface-800 rounded-xl border-surface-700">
               <h3 class="text-xl font-semibold text-primary-400">Batch Generation Summary</h3>
 
               <div class="grid grid-cols-2 gap-4">
@@ -166,23 +149,21 @@
                 <!-- Template -->
                 <div class="col-span-2">
                   <p class="text-sm text-gray-400">Template</p>
-                  <p class="text-base font-mono bg-surface-900 p-3 rounded mt-1 overflow-x-auto">
+                  <p class="p-3 mt-1 overflow-x-auto font-mono text-base rounded bg-surface-900">
                     {{ templateString }}
                   </p>
                 </div>
 
                 <!-- Generation Settings -->
                 <div class="col-span-2">
-                  <p class="text-sm text-gray-400 mb-2">Generation Settings</p>
+                  <p class="mb-2 text-sm text-gray-400">Generation Settings</p>
                   <div class="grid grid-cols-2 gap-2 text-sm">
                     <div><span class="text-gray-400">Steps:</span> {{ generationStore.currentParams.steps }}</div>
                     <div><span class="text-gray-400">CFG Scale:</span> {{ generationStore.currentParams.cfgScale }}</div>
                     <div><span class="text-gray-400">Size:</span> {{ generationStore.currentParams.width }}×{{ generationStore.currentParams.height }}</div>
                     <div><span class="text-gray-400">Seed:</span> {{ displaySeed }}</div>
                     <div class="col-span-2"><span class="text-gray-400">Model:</span> {{ generationStore.currentParams.model }}</div>
-                    <div v-if="activeLorasCount > 0" class="col-span-2">
-                      <span class="text-gray-400">LoRAs:</span> {{ activeLorasCount }} active
-                    </div>
+                    <div v-if="activeLorasCount > 0" class="col-span-2"> <span class="text-gray-400">LoRAs:</span> {{ activeLorasCount }} active </div>
                   </div>
                 </div>
               </div>
@@ -192,9 +173,7 @@
             <div class="flex flex-col gap-2">
               <h3 class="text-lg font-semibold">Preview ({{ previewRows.length }} images will be generated)</h3>
               <PreviewTable :rows="previewRows" :max-display-rows="5" />
-              <p v-if="previewRows.length > 5" class="text-sm text-gray-400">
-                Showing 5 of {{ previewRows.length }} prompts
-              </p>
+              <p v-if="previewRows.length > 5" class="text-sm text-gray-400"> Showing 5 of {{ previewRows.length }} prompts </p>
             </div>
 
             <!-- Navigation -->
@@ -209,10 +188,8 @@
                 :disabled="!canGenerate" />
             </div>
           </div>
-        </template>
-      </StepPanel>
+        </StepPanel>
       </StepPanels>
-
     </Stepper>
   </Dialog>
 </template>
@@ -255,12 +232,12 @@ const generationStore = useGenerationStore();
 const modelsStore = useModelsStore();
 
 // Stepper state
-const currentStep = ref(0);
+const currentStep = ref('0');
 
 // Navigation functions
 function nextStep() {
   // Validate current step before advancing
-  if (currentStep.value === 0 && !step1Valid.value) {
+  if (currentStep.value === '0' && !step1Valid.value) {
     toast.add({
       severity: 'warn',
       summary: 'Data Required',
@@ -270,7 +247,7 @@ function nextStep() {
     return;
   }
 
-  if (currentStep.value === 1 && !step2Valid.value) {
+  if (currentStep.value === '1' && !step2Valid.value) {
     let detail = 'Please enter a valid template before proceeding.';
     if (templateString.value.trim() === '') {
       detail = 'Template cannot be empty.';
@@ -288,12 +265,36 @@ function nextStep() {
   }
 
   // Advance to next step
-  currentStep.value++;
+  switch (currentStep.value) {
+    case '0':
+      currentStep.value = '1';
+      break;
+    case '1':
+      currentStep.value = '2';
+      break;
+    case '2':
+      currentStep.value = '3';
+      break;
+    default:
+      currentStep.value = '0';
+      break;
+  }
 }
 
 function prevStep() {
-  if (currentStep.value > 0) {
-    currentStep.value--;
+  switch (currentStep.value) {
+    case '0':
+      currentStep.value = '0';
+      break;
+    case '1':
+      currentStep.value = '0';
+      break;
+    case '2':
+      currentStep.value = '2';
+      break;
+    default:
+      currentStep.value = '0';
+      break;
   }
 }
 
@@ -350,9 +351,7 @@ const hasErrors = computed(() => {
 });
 
 const step2Valid = computed(() => {
-  return templateString.value.trim() !== '' &&
-         previewData.value !== null &&
-         !hasErrors.value;
+  return templateString.value.trim() !== '' && previewData.value !== null && !hasErrors.value;
 });
 
 const displaySeed = computed(() => {
@@ -365,10 +364,7 @@ const activeLorasCount = computed(() => {
 });
 
 const canGenerate = computed(() => {
-  return previewData.value !== null &&
-         !hasErrors.value &&
-         !isGenerating.value &&
-         previewRows.value.length > 0;
+  return previewData.value !== null && !hasErrors.value && !isGenerating.value && previewRows.value.length > 0;
 });
 
 // Data source name tracking
@@ -439,9 +435,7 @@ async function generateBatch() {
     const baseParams = generationStore.currentParams;
 
     // Freeze seed (use current seed if set, otherwise generate random)
-    const frozenSeed = baseParams.seed >= 0
-      ? baseParams.seed
-      : Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
+    const frozenSeed = baseParams.seed >= 0 ? baseParams.seed : Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
 
     let successCount = 0;
 
@@ -559,26 +553,43 @@ watch([templateString, processedData], async () => {
 });
 
 // Load history when dialog opens
-watch(() => props.visible, (newVal) => {
-  if (newVal) {
-    loadTemplateHistory();
-  } else {
-    // Reset state
-    currentStep.value = 0;
-    sourceData.value = null;
-    processedData.value = null;
-    batchMode.value = 'as-is';
-    templateString.value = '';
-    previewData.value = null;
-    templateHistory.value = [];
-    dataSourceName.value = 'Unknown';
-    isProcessing.value = false;
-    isRendering.value = false;
-    isGenerating.value = false;
-  }
-});
+watch(
+  () => props.visible,
+  (newVal) => {
+    if (newVal) {
+      loadTemplateHistory();
+    } else {
+      // Reset state
+      currentStep.value = 0;
+      sourceData.value = null;
+      processedData.value = null;
+      batchMode.value = 'as-is';
+      templateString.value = '';
+      previewData.value = null;
+      templateHistory.value = [];
+      dataSourceName.value = 'Unknown';
+      isProcessing.value = false;
+      isRendering.value = false;
+      isGenerating.value = false;
+    }
+  },
+);
 </script>
 
 <style scoped>
-/* Minimal styles - most styling via TailwindCSS */
+/* Ensure dialog content has solid opaque background */
+:deep(.p-dialog-content) {
+  background: var(--surface-ground) !important;
+  padding: 0 !important;
+}
+
+/* Ensure stepper has solid background */
+:deep(.p-stepper) {
+  background: var(--surface-ground);
+}
+
+/* Ensure step panels have solid background */
+:deep(.p-steppanels) {
+  background: var(--surface-ground);
+}
 </style>
