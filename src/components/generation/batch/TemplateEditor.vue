@@ -4,10 +4,10 @@ import AccordionTab from 'primevue/accordiontab';
 import Button from 'primevue/button';
 import Chip from 'primevue/chip';
 import Textarea from 'primevue/textarea';
-import { ref, computed } from 'vue';
+import { ref } from 'vue';
 
 // Props
-const props = defineProps<{
+defineProps<{
   availableColumns: string[];
 }>();
 
@@ -24,6 +24,14 @@ const showHelp = ref(false);
 function handleTemplateChange() {
   emit('templateChange', template.value);
 }
+
+// Expose setTemplate method for parent to call
+defineExpose({
+  setTemplate(newTemplate: string) {
+    template.value = newTemplate;
+    emit('templateChange', newTemplate);
+  },
+});
 
 // Insert variable at cursor
 function insertVariable(column: string) {
