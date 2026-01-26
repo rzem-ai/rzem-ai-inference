@@ -1763,6 +1763,40 @@ impl GalleryDb {
 
         Ok(())
     }
+
+    // ========== Template History Operations ==========
+
+    /// Get recent template history (last 5 used templates)
+    pub fn get_recent_template_history(&self) -> Result<Vec<crate::batch::TemplateHistoryEntry>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, template, used_at, image_count FROM batch_template_history ORDER BY used_at DESC LIMIT 5"
+        )?;
+
+        let entries = stmt.query_map([], |row| {
+            Ok(crate::batch::TemplateHistoryEntry {
+                id: row.get(0)?,
+                template: row.get(1)?,
+                used_at: row.get(2)?,
+                image_count: row.get(3)?,
+            })
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(entries)
+    }
+
+    /// Save a template to history after generation
+    pub fn save_template_to_history(&self, template: &str, image_count: i64) -> Result<()> {
+        use chrono::Utc;
+        let now = Utc::now().to_rfc3339();
+
+        self.conn.execute(
+            "INSERT INTO batch_template_history (template, used_at, image_count) VALUES (?1, ?2, ?3)",
+            params![template, now, image_count],
+        )?;
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]

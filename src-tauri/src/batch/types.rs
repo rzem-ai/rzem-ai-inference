@@ -31,3 +31,12 @@ pub struct RenderError {
     /// Error message
     pub error: String,
 }
+
+/// Template history entry from database
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TemplateHistoryEntry {
+    pub id: i64,
+    pub template: String,
+    pub used_at: String,  // ISO 8601 timestamp
+    pub image_count: i64,
+}

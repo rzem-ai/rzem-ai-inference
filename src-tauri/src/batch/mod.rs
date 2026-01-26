@@ -8,9 +8,11 @@ mod tests;
 
 pub use parser::{parse_csv, parse_json};
 pub use renderer::render_template;
-pub use types::{BatchData, RenderError, RenderResult};
+pub use types::{BatchData, RenderError, RenderResult, TemplateHistoryEntry};
 
 use std::collections::HashMap;
+use tauri::State;
+use crate::AppState;
 
 /// Tauri command: Parse CSV or JSON data
 /// Format: "csv" or "json"
@@ -38,4 +40,37 @@ pub fn batch_render_template(
     }
 
     Ok(render_template(&template, rows))
+}
+
+/// Tauri command: Generate combinatorial batch data from input
+#[tauri::command]
+pub fn batch_generate_combinations(data: BatchData) -> Result<BatchData, String> {
+    combinatorial::generate_combinations(data)
+        .map_err(|e| format!("Failed to generate combinations: {}", e))
+}
+
+/// Tauri command: Get recent template history (last 5 used templates)
+#[tauri::command]
+pub async fn batch_get_recent_templates(
+    app_state: State<'_, AppState>,
+) -> Result<Vec<TemplateHistoryEntry>, String> {
+    let db = app_state.gallery_db.lock().await;
+    let db = db.as_ref().ok_or("Database not initialized")?;
+
+    db.get_recent_template_history()
+        .map_err(|e| format!("Failed to get recent templates: {}", e))
+}
+
+/// Tauri command: Save a template to history after generation
+#[tauri::command]
+pub async fn batch_save_template(
+    app_state: State<'_, AppState>,
+    template: String,
+    image_count: i64,
+) -> Result<(), String> {
+    let db = app_state.gallery_db.lock().await;
+    let db = db.as_ref().ok_or("Database not initialized")?;
+
+    db.save_template_to_history(&template, image_count)
+        .map_err(|e| format!("Failed to save template: {}", e))
 }
