@@ -188,7 +188,7 @@ function clearData() {
 
     <!-- Loading indicator -->
     <div v-if="isLoading" class="loading-indicator">
-      <ProgressSpinner style="width: 30px; height: 30px" />
+      <ProgressSpinner class="w-8 h-8" />
       <span>Parsing data...</span>
     </div>
 
