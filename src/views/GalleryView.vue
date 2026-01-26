@@ -13,24 +13,25 @@
 
     <!-- Main Content -->
     <main class="flex flex-col flex-1 h-full overflow-hidden">
-      <div class="p-4 border-b bg-surface-800 border-surface-600">
+      <div class="p-4">
         <!-- Breadcrumb -->
         <div class="flex items-center gap-1 mb-3 text-sm">
           <template v-if="foldersStore.currentViewType === 'all'">
-            <span class="text-gray-200 active">All Images</span>
+            <span class="text-surface-200 active">All Images</span>
           </template>
           <template v-else-if="foldersStore.currentViewType === 'uncategorized'">
-            <span class="text-gray-200 active">Uncategorized</span>
+            <span class="text-surface-200 active">Uncategorized</span>
           </template>
           <template v-else-if="foldersStore.currentFolder">
-            <span class="text-gray-200 clickable" @click="handleSelectAll">All Images</span>
-            <i class="pi pi-chevron-right breadcrumb-separator"></i>
+            <span class="text-surface-200 clickable" @click="handleSelectAll">All Images</span>
+
+            <fa :icon="['fal', 'chevron-right']" size="lg" class="mx-1 text-xs text-surface-200" />
             <template v-for="(name, index) in foldersStore.currentBreadcrumb" :key="index">
-              <span v-if="index < foldersStore.currentBreadcrumb.length - 1" class="text-gray-200 clickable" @click="navigateToBreadcrumb(index)">
+              <span v-if="index < foldersStore.currentBreadcrumb.length - 1" class="text-surface-200 clickable" @click="navigateToBreadcrumb(index)">
                 {{ name }}
               </span>
-              <span v-else class="text-gray-200 active">{{ name }}</span>
-              <i v-if="index < foldersStore.currentBreadcrumb.length - 1" class="pi pi-chevron-right breadcrumb-separator"></i>
+              <span v-else class="text-surface-200 active">{{ name }}</span>
+              <fa v-if="index < foldersStore.currentBreadcrumb.length - 1" :icon="['fal', 'chevron-right']" size="lg" class="mx-1 text-xs text-surface-200" />
             </template>
           </template>
         </div>
@@ -53,22 +54,22 @@
             <Button label="Clear" severity="secondary" @click="galleryStore.clearSelection" :disabled="galleryStore.selectedImages.size === 0">
               <fa :icon="['fal', 'xmark']" size="sm" />
             </Button>
-            <span class="selection-count"> {{ galleryStore.selectedImages.size }} selected </span>
+            <span class="text-sm text-surface-200"> {{ galleryStore.selectedImages.size }} selected </span>
           </div>
         </div>
       </div>
 
       <!-- Loading State:  -->
-      <div v-if="galleryStore.isLoading" class="flex flex-col items-center justify-center flex-1 gap-4 text-gray-200">
+      <div v-if="galleryStore.isLoading" class="flex flex-col items-center justify-center flex-1 gap-4 text-surface-200">
         <fa :icon="['fal', 'arrows-rotate']" size="lg" :class="{ 'animate-spin': galleryStore.isLoading }" />
         <p>Loading images...</p>
       </div>
 
       <!-- Empty State -->
-      <div v-else-if="galleryStore.filteredImages.length === 0" class="empty-state">
-        <i class="pi pi-images" style="font-size: 3rem; color: #9ca3af"></i>
+      <div v-else-if="galleryStore.filteredImages.length === 0" class="flex flex-col items-center justify-center flex-1 gap-4 text-surface-200">
+        <fa :icon="['fal', 'image']" size="lg" />
         <p>No images found</p>
-        <p class="empty-hint">
+        <p class="text-sm text-surface-200">
           <template v-if="foldersStore.currentViewType === 'folder'"> Drag images here to add them to this folder </template>
           <template v-else-if="foldersStore.currentViewType === 'uncategorized'"> All images have been organized into folders </template>
           <template v-else> Generate some images to see them here! </template>
@@ -160,11 +161,15 @@ const imageDetailVisible = ref(false);
 const selectedImage = ref<GalleryImage | null>(null);
 
 // Sync selectedImage changes back to gallery store (for tag/folder edits in modal)
-watch(selectedImage, (newImage) => {
-  if (newImage) {
-    galleryStore.updateImage(newImage);
-  }
-}, { deep: true });
+watch(
+  selectedImage,
+  (newImage) => {
+    if (newImage) {
+      galleryStore.updateImage(newImage);
+    }
+  },
+  { deep: true },
+);
 
 const addToFolderMenuItems = computed(() => {
   const items = foldersStore.flatFolders.map((folder) => ({
@@ -231,12 +236,7 @@ const bulkTagMenuItems = computed(() => {
 });
 
 onMounted(async () => {
-  await Promise.all([
-    galleryStore.loadImages(),
-    foldersStore.loadFolders(),
-    tagsStore.loadTags(),
-    autoTagStore.loadSettings(),
-  ]);
+  await Promise.all([galleryStore.loadImages(), foldersStore.loadFolders(), tagsStore.loadTags(), autoTagStore.loadSettings()]);
   // Check model status in background (don't block initial load)
   autoTagStore.checkModelStatus();
 });
@@ -394,41 +394,4 @@ const handleTaggingComplete = (results: { total: number; success: number }) => {
 
 <style scoped>
 @reference "tailwindcss";
-
-.breadcrumb {
-  @apply flex items-center gap-1 mb-3 text-sm;
-}
-
-.breadcrumb-item {
-  @apply text-gray-200;
-
-  &.active {
-    @apply text-gray-200 font-medium;
-  }
-
-  &.clickable {
-    @apply cursor-pointer;
-
-    &:hover {
-      @apply text-gray-200;
-    }
-  }
-}
-
-.breadcrumb-separator {
-  @apply text-xs mx-1 text-gray-200;
-}
-
-.selection-count {
-  @apply text-sm text-gray-200;
-}
-
-.loading-state,
-.empty-state {
-  @apply flex flex-col items-center justify-center flex-1 gap-4 text-gray-200;
-}
-
-.empty-hint {
-  @apply text-sm text-gray-200;
-}
 </style>

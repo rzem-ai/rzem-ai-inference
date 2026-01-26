@@ -1,0 +1,5 @@
+{
+  "style": ["watercolor", "oil painting", "digital art", "pencil sketch", "acrylic"],
+  "subject": ["cat", "dog", "bird", "horse", "fish"],
+  "lighting": ["soft", "dramatic", "natural", "ambient", "underwater"]
+}

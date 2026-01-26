@@ -1,6 +1,6 @@
 <template>
-  <div class="flex flex-col h-full bg-gray-900">
-    <div class="bg-gray-900">
+  <div class="flex flex-col h-full ">
+    <div class="">
       <h1>Compare Images</h1>
       <div class="compare-actions">
         <span class="compare-count"> {{ compareStore.compareCount }} / {{ compareStore.maxCompareImages }} images </span>
@@ -8,58 +8,58 @@
       </div>
     </div>
 
-    <div v-if="compareStore.compareCount === 0" class="bg-gray-700 empty-state">
+    <div v-if="compareStore.compareCount === 0" class="flex flex-col items-center justify-center flex-1 gap-4 bg-surface-700 text-surface-500">
       <i class="pi pi-images" style="font-size: 3rem; color: #9ca3af"></i>
       <p>No images to compare</p>
-      <p class="empty-hint">Add images from the gallery to compare them side by side</p>
+      <p class="text-sm text-surface-400">Add images from the gallery to compare them side by side</p>
     </div>
 
-    <div v-else class="bg-gray-700 compare-grid" :style="{ gridTemplateColumns: `repeat(${compareStore.compareCount}, 1fr)` }">
-      <div v-for="(image, index) in compareStore.compareImages" :key="image.id" class="compare-item">
-        <div class="compare-image-header">
-          <span class="compare-index">#{{ index + 1 }}</span>
+    <div v-else class="bg-surface-700 compare-grid" :style="{ gridTemplateColumns: `repeat(${compareStore.compareCount}, 1fr)` }">
+      <div v-for="(image, index) in compareStore.compareImages" :key="image.id" class="flex flex-col overflow-hidden bg-white border rounded-lg border-surface-200">
+        <div class="flex items-center justify-between p-2 border-b bg-surface-50 border-surface-200">
+          <span class="font-semibold text-surface-700">#{{ index + 1 }}</span>
           <Button icon="pi pi-times" severity="danger" text rounded size="small" @click="handleRemove(image.id)" />
         </div>
 
-        <div class="compare-image-container">
+        <div class="overflow-hidden aspect-square bg-surface-100">
           <Image :src="getImageSrc(image.filePath)" :alt="image.prompt" preview />
         </div>
 
         <div class="compare-metadata">
           <div class="metadata-item">
-            <span class="metadata-label">Prompt:</span>
-            <span class="metadata-value">{{ image.prompt }}</span>
+            <span class="text-xs font-semibold uppercase text-surface-500">Prompt:</span>
+            <span class="text-sm break-words text-surface-700">{{ image.prompt }}</span>
           </div>
 
           <div class="metadata-item">
-            <span class="metadata-label">Model:</span>
-            <span class="metadata-value" :class="getParameterDiff(image, compareStore.compareImages[0], 'modelName')">
+            <span class="text-xs font-semibold uppercase text-surface-500">Model:</span>
+            <span class="text-sm break-words text-surface-700" :class="getParameterDiff(image, compareStore.compareImages[0], 'modelName')">
               {{ image.modelName }}
             </span>
           </div>
 
           <div class="metadata-item">
-            <span class="metadata-label">Steps:</span>
-            <span class="metadata-value" :class="getParameterDiff(image, compareStore.compareImages[0], 'steps')">
+            <span class="text-xs font-semibold uppercase text-surface-500">Steps:</span>
+            <span class="text-sm break-words text-surface-700" :class="getParameterDiff(image, compareStore.compareImages[0], 'steps')">
               {{ image.steps ?? 'N/A' }}
             </span>
           </div>
 
           <div class="metadata-item">
-            <span class="metadata-label">CFG:</span>
-            <span class="metadata-value" :class="getParameterDiff(image, compareStore.compareImages[0], 'cfgScale')">
+            <span class="text-xs font-semibold uppercase text-surface-500">CFG:</span>
+            <span class="text-sm break-words text-surface-700" :class="getParameterDiff(image, compareStore.compareImages[0], 'cfgScale')">
               {{ image.cfgScale ?? 'N/A' }}
             </span>
           </div>
 
           <div class="metadata-item">
-            <span class="metadata-label">Size:</span>
-            <span class="metadata-value" :class="getSizeDiff(image)"> {{ image.width }}×{{ image.height }} </span>
+            <span class="text-xs font-semibold uppercase text-surface-500">Size:</span>
+            <span class="text-sm break-words text-surface-700" :class="getSizeDiff(image)"> {{ image.width }}×{{ image.height }} </span>
           </div>
 
           <div class="metadata-item">
-            <span class="metadata-label">Seed:</span>
-            <span class="metadata-value" :class="getParameterDiff(image, compareStore.compareImages[0], 'seed')">
+            <span class="text-xs font-semibold uppercase text-surface-500">Seed:</span>
+            <span class="text-sm break-words text-surface-700" :class="getParameterDiff(image, compareStore.compareImages[0], 'seed')">
               {{ image.seed ?? 'N/A' }}
             </span>
           </div>
@@ -111,48 +111,29 @@ const getSizeDiff = (image: GalleryImage): string => {
   @apply flex flex-col h-full overflow-hidden;
 }
 
-.compare-header {
-  @apply p-6 border-b border-gray-200 bg-white flex justify-between items-center;
-
-  h1 {
-    @apply m-0 text-2xl font-semibold;
-  }
-}
+ 
 
 .compare-actions {
   @apply flex gap-4 items-center;
 }
 
-.compare-count {
-  @apply text-sm text-gray-500;
-}
+ 
 
-.empty-state {
-  @apply flex flex-col items-center justify-center flex-1 gap-4 text-gray-500;
-}
+ 
 
-.empty-hint {
-  @apply text-sm text-gray-400;
-}
+ 
 
 .compare-grid {
   @apply grid gap-4 p-4 overflow-y-auto flex-1;
 }
 
-.compare-item {
-  @apply flex flex-col bg-white border border-gray-200 rounded-lg overflow-hidden;
-}
+ 
 
-.compare-image-header {
-  @apply flex justify-between items-center p-2 bg-gray-50 border-b border-gray-200;
-}
-
-.compare-index {
-  @apply font-semibold text-gray-700;
-}
+ 
+ 
 
 .compare-image-container {
-  @apply aspect-square overflow-hidden bg-gray-100;
+   
 
   :deep(img) {
     @apply w-full h-full object-contain;
@@ -167,12 +148,9 @@ const getSizeDiff = (image: GalleryImage): string => {
   @apply flex flex-col gap-1;
 }
 
-.metadata-label {
-  @apply text-xs font-semibold text-gray-500 uppercase;
-}
-
+ 
 .metadata-value {
-  @apply text-sm text-gray-700 break-words;
+ 
 
   &.different {
     @apply text-red-600 font-semibold;

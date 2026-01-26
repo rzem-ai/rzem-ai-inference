@@ -1,19 +1,35 @@
 <template>
   <GenerationAction :collapsed="props.collapsed" :toggleable="props.toggleable" :icon="props.icon" :label="props.label">
     <PromptEditor v-model="prompt" label="Prompt" placeholder="Describe the image you want to generate..." :rows="4" />
-    <SplitButton :loading="queueStore.hasRunningJobs" fluid size="small" @click="handleGenerate" :model="generationCounts" :disabled="!canGenerate">
-      {{ queueStore.queueLength > 0 ? `Generate` : 'Generate' }} ( {{ imageCount }} )
-    </SplitButton>
+    <div class="flex flex-col gap-2">
+      <SplitButton :loading="queueStore.hasRunningJobs" fluid size="small" @click="handleGenerate" :model="generationCounts" :disabled="!canGenerate">
+        {{ queueStore.queueLength > 0 ? `Generate` : 'Generate' }} ( {{ imageCount }} )
+      </SplitButton>
+      <Button
+        label="Batch Script"
+        icon="pi pi-list"
+        severity="secondary"
+        size="small"
+        outlined
+        fluid
+        @click="showBatchDialog = true"
+      />
+    </div>
+
+    <!-- Batch Script Dialog -->
+    <BatchScriptDialog v-model:visible="showBatchDialog" />
   </GenerationAction>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { ref, computed } from 'vue';
 import { useGenerationStore } from '@/stores/generation';
 import { useQueueStore } from '@/stores/queue';
 import GenerationAction from './GenerationAction.vue';
 import PromptEditor from './PromptEditor.vue';
 import SplitButton from 'primevue/splitbutton';
+import Button from 'primevue/button';
+import BatchScriptDialog from '@/components/generation/batch/BatchScriptDialog.vue';
 
 const props = defineProps(['collapsed', 'icon', 'label', 'toggleable']);
 
@@ -23,6 +39,9 @@ const emit = defineEmits<{
 
 const generationStore = useGenerationStore();
 const queueStore = useQueueStore();
+
+// Batch dialog visibility
+const showBatchDialog = ref(false);
 
 const prompt = computed({
   get: () => generationStore.currentParams.prompt,

@@ -1,10 +1,12 @@
 <template>
   <div class="flex flex-col h-full">
     <!-- Header -->
-    <div class="p-3 border-b bg-surface-800 border-surface-700">
-      <div class="flex items-center justify-between">
-        <span class="text-xs font-semibold tracking-wider uppercase text-surface-50">History</span>
-        <span class="text-xs text-surface-400">{{ reversedHistoryJobs.length }}</span>
+    <div class="shrink">
+      <div class="flex items-start justify-between px-4 pt-6 pb-0">
+        <div class="flex flex-col gap-y-1">
+          <h2 class="text-xl font-medium text-surface-50">History</h2>
+        </div>
+        <div class="">{{ reversedHistoryJobs.length }}</div>
       </div>
     </div>
 

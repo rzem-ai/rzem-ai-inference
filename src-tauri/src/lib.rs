@@ -10,6 +10,7 @@ pub mod vision;
 pub mod server;
 pub mod shared;
 pub mod client;
+mod batch;
 
 pub use logging::init_logging;
 
@@ -1750,6 +1751,9 @@ pub fn run_with_config(runtime_config: shared::protocol::RuntimeConfig, port: Op
             remove_lora,
             update_lora,
             get_lora_file_info,
+            // Batch scripting commands
+            batch::batch_parse_data,
+            batch::batch_render_template,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -22,7 +22,7 @@
       </div>
     </div>
 
-    <div class="flex flex-col h-full border-l bg-surface-800 border-surface-700 w-60 min-w-60">
+    <div class="flex flex-col h-full w-60 min-w-60">
       <HistoryPanel @restore-image="handleRestoreImage" />
     </div>
   </div>
