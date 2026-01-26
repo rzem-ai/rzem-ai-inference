@@ -16,19 +16,33 @@
           <div class="flex flex-col gap-4 p-4">
             <FileInputSection @data-loaded="handleDataLoaded" />
 
-            <!-- Mode Selector (placeholder for Task 7) -->
+            <!-- Mode Selector -->
             <div class="flex flex-col gap-2">
               <h3 class="text-lg font-semibold">Processing Mode</h3>
               <div class="flex gap-4">
                 <label class="flex items-center gap-2">
                   <input type="radio" value="as-is" v-model="batchMode" />
-                  <span>Use data as-is ({{ sourceData?.rows.length || 0 }} images)</span>
+                  <span>Use data as-is
+                    <span v-if="sourceData">
+                      ({{ sourceData.rows.length }} images)
+                    </span>
+                  </span>
                 </label>
                 <label class="flex items-center gap-2">
                   <input type="radio" value="combinatorial" v-model="batchMode" />
-                  <span>Generate all combinations</span>
+                  <span>Generate all combinations
+                    <span v-if="batchMode === 'combinatorial' && processedData">
+                      ({{ processedData.rows.length }} images)
+                    </span>
+                  </span>
                 </label>
               </div>
+            </div>
+
+            <!-- Loading Indicator -->
+            <div v-if="isProcessing" class="flex items-center gap-2 p-4 bg-surface-ground rounded">
+              <ProgressSpinner style="width: 24px; height: 24px" />
+              <span>Processing combinations...</span>
             </div>
 
             <!-- Preview table -->
@@ -99,6 +113,7 @@ import Button from 'primevue/button';
 import Dialog from 'primevue/dialog';
 import DataTable from 'primevue/datatable';
 import Column from 'primevue/column';
+import ProgressSpinner from 'primevue/progressspinner';
 
 // Props
 const props = defineProps<{
@@ -117,6 +132,7 @@ const currentStep = ref(0);
 const sourceData = ref<BatchData | null>(null);
 const processedData = ref<BatchData | null>(null);
 const batchMode = ref<BatchMode>('as-is');
+const isProcessing = ref(false);
 
 // Toast
 const toast = useToast();
@@ -129,9 +145,43 @@ const step1Valid = computed(() => {
 // Handlers
 function handleDataLoaded(data: BatchData) {
   sourceData.value = data;
-  // For now, just copy as-is (Task 7 will add combinatorial processing)
-  processedData.value = data;
+  // processedData will be set by the watch
 }
+
+// Auto-process data when mode or source changes
+watch([batchMode, sourceData], async () => {
+  if (!sourceData.value) {
+    processedData.value = null;
+    return;
+  }
+
+  isProcessing.value = true;
+
+  if (batchMode.value === 'as-is') {
+    // As-is mode: use source data directly
+    processedData.value = sourceData.value;
+  } else {
+    // Combinatorial mode: generate all combinations
+    try {
+      const result = await invoke<BatchData>('batch_generate_combinations', {
+        data: sourceData.value,
+      });
+      processedData.value = result;
+    } catch (error) {
+      toast.add({
+        severity: 'error',
+        summary: 'Combinatorial Generation Failed',
+        detail: String(error),
+        life: 5000,
+      });
+      console.error('Combinatorial error:', error);
+      // Fallback to as-is on error
+      processedData.value = sourceData.value;
+    }
+  }
+
+  isProcessing.value = false;
+});
 
 // Reset on dialog close
 watch(() => props.visible, (newVal) => {
@@ -140,6 +190,7 @@ watch(() => props.visible, (newVal) => {
     sourceData.value = null;
     processedData.value = null;
     batchMode.value = 'as-is';
+    isProcessing.value = false;
   }
 });
 </script>
