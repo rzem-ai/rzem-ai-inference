@@ -418,6 +418,25 @@ impl GalleryDb {
             [],
         )?;
 
+        // Create batch_template_history table
+        self.conn.execute(
+            "CREATE TABLE IF NOT EXISTS batch_template_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                template TEXT NOT NULL,
+                used_at TEXT NOT NULL,
+                image_count INTEGER NOT NULL,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )",
+            [],
+        )?;
+
+        // Create index for batch template history
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_batch_template_history_used_at
+             ON batch_template_history(used_at DESC)",
+            [],
+        )?;
+
         // Run migrations for existing databases
         self.run_migrations()?;
 
