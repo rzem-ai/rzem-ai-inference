@@ -1,0 +1,27 @@
+[
+  {
+    "style": "watercolor",
+    "subject": "cat",
+    "mood": "peaceful"
+  },
+  {
+    "style": "oil painting",
+    "subject": "dog",
+    "mood": "energetic"
+  },
+  {
+    "style": "digital art",
+    "subject": "bird",
+    "mood": "mysterious"
+  },
+  {
+    "style": "pencil sketch",
+    "subject": "horse",
+    "mood": "serene"
+  },
+  {
+    "style": "acrylic",
+    "subject": "rabbit",
+    "mood": "playful"
+  }
+]
