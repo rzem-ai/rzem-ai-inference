@@ -120,15 +120,75 @@
         </template>
       </StepPanel>
 
-      <!-- Step 3: Confirm (placeholder) -->
+      <!-- Step 3: Confirm & Submit -->
       <StepPanel header="Confirm & Submit">
         <template #default>
-          <div class="flex flex-col gap-4 p-4">
-            <p class="text-gray-400">Step 3: Summary and confirmation (Task 9)</p>
+          <div class="flex flex-col gap-6 p-4">
 
+            <!-- Summary Card -->
+            <div class="flex flex-col gap-4 p-6 bg-surface-800 rounded-xl border border-surface-700">
+              <h3 class="text-xl font-semibold text-primary-400">Batch Generation Summary</h3>
+
+              <div class="grid grid-cols-2 gap-4">
+                <!-- Data Source -->
+                <div>
+                  <p class="text-sm text-gray-400">Data Source</p>
+                  <p class="text-lg font-medium">{{ dataSourceName || 'Unknown' }}</p>
+                </div>
+
+                <!-- Processing Mode -->
+                <div>
+                  <p class="text-sm text-gray-400">Processing Mode</p>
+                  <p class="text-lg font-medium">
+                    {{ batchMode === 'as-is' ? 'As-Is' : 'Combinatorial' }}
+                    <span class="text-primary-400">({{ processedData?.rows.length || 0 }} images)</span>
+                  </p>
+                </div>
+
+                <!-- Template -->
+                <div class="col-span-2">
+                  <p class="text-sm text-gray-400">Template</p>
+                  <p class="text-base font-mono bg-surface-900 p-3 rounded mt-1 overflow-x-auto">
+                    {{ templateString }}
+                  </p>
+                </div>
+
+                <!-- Generation Settings -->
+                <div class="col-span-2">
+                  <p class="text-sm text-gray-400 mb-2">Generation Settings</p>
+                  <div class="grid grid-cols-2 gap-2 text-sm">
+                    <div><span class="text-gray-400">Steps:</span> {{ generationStore.currentParams.steps }}</div>
+                    <div><span class="text-gray-400">CFG Scale:</span> {{ generationStore.currentParams.cfgScale }}</div>
+                    <div><span class="text-gray-400">Size:</span> {{ generationStore.currentParams.width }}×{{ generationStore.currentParams.height }}</div>
+                    <div><span class="text-gray-400">Seed:</span> {{ displaySeed }}</div>
+                    <div class="col-span-2"><span class="text-gray-400">Model:</span> {{ generationStore.currentParams.model }}</div>
+                    <div v-if="activeLorasCount > 0" class="col-span-2">
+                      <span class="text-gray-400">LoRAs:</span> {{ activeLorasCount }} active
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Final Preview -->
+            <div class="flex flex-col gap-2">
+              <h3 class="text-lg font-semibold">Preview ({{ previewRows.length }} images will be generated)</h3>
+              <PreviewTable :rows="previewRows" :max-display-rows="5" />
+              <p v-if="previewRows.length > 5" class="text-sm text-gray-400">
+                Showing 5 of {{ previewRows.length }} prompts
+              </p>
+            </div>
+
+            <!-- Navigation -->
             <div class="flex justify-between mt-4">
-              <Button label="Back" icon="pi pi-arrow-left" @click="prevStep" severity="secondary" />
-              <Button label="Generate" icon="pi pi-check" iconPos="right" />
+              <Button label="Back" icon="pi pi-arrow-left" @click="prevStep" severity="secondary" :disabled="isGenerating" />
+              <Button
+                :label="`Generate ${previewRows.length} Images`"
+                icon="pi pi-check"
+                iconPos="right"
+                @click="generateBatch"
+                :loading="isGenerating"
+                :disabled="!canGenerate" />
             </div>
           </div>
         </template>
@@ -142,6 +202,9 @@
 import { ref, computed, watch } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { useToast } from 'primevue/usetoast';
+import { useQueueStore } from '@/stores/queue';
+import { useGenerationStore } from '@/stores/generation';
+import { useModelsStore } from '@/stores/models';
 import FileInputSection from './FileInputSection.vue';
 import TemplateEditor from './TemplateEditor.vue';
 import PreviewTable from './PreviewTable.vue';
@@ -163,6 +226,11 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:visible': [value: boolean];
 }>();
+
+// Initialize stores
+const queueStore = useQueueStore();
+const generationStore = useGenerationStore();
+const modelsStore = useModelsStore();
 
 // Stepper state
 const currentStep = ref(0);
@@ -186,6 +254,7 @@ const isProcessing = ref(false);
 const templateString = ref('');
 const previewData = ref<RenderResult | null>(null);
 const isRendering = ref(false);
+const isGenerating = ref(false);
 const templateHistory = ref<TemplateHistoryEntry[]>([]);
 
 // Toast
@@ -231,6 +300,27 @@ const step2Valid = computed(() => {
   return templateString.value.trim() !== '' &&
          previewData.value !== null &&
          !hasErrors.value;
+});
+
+const displaySeed = computed(() => {
+  const seed = generationStore.currentParams.seed;
+  return seed >= 0 ? seed : 'Random (will freeze for batch)';
+});
+
+const activeLorasCount = computed(() => {
+  return modelsStore.getActiveLoraConfigs().length;
+});
+
+const canGenerate = computed(() => {
+  return previewData.value !== null &&
+         !hasErrors.value &&
+         !isGenerating.value &&
+         previewRows.value.length > 0;
+});
+
+// Add for data source tracking (Task 12 will improve this)
+const dataSourceName = computed(() => {
+  return 'batch_data.csv'; // Placeholder - Task 12 will add real filename tracking
 });
 
 // Handlers
@@ -286,6 +376,80 @@ async function renderTemplate() {
     console.error('Render error:', error);
   } finally {
     isRendering.value = false;
+  }
+}
+
+// Generate batch
+async function generateBatch() {
+  if (!canGenerate.value || !previewData.value) return;
+
+  isGenerating.value = true;
+
+  try {
+    const baseParams = generationStore.currentParams;
+
+    // Freeze seed (use current seed if set, otherwise generate random)
+    const frozenSeed = baseParams.seed >= 0
+      ? baseParams.seed
+      : Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
+
+    let successCount = 0;
+
+    // Queue each prompt
+    for (const prompt of previewData.value.rendered) {
+      if (!prompt) continue; // Skip empty prompts (errors)
+
+      try {
+        await queueStore.addToQueue({
+          prompt,
+          negative_prompt: baseParams.negativePrompt,
+          steps: baseParams.steps,
+          cfg_scale: baseParams.cfgScale,
+          width: baseParams.width,
+          height: baseParams.height,
+          seed: frozenSeed, // SAME SEED FOR ALL ROWS
+          model: baseParams.model,
+          sampler: baseParams.sampler,
+          scheduler: baseParams.scheduler,
+          loras: modelsStore.getActiveLoraConfigs(),
+        });
+
+        successCount++;
+      } catch (error) {
+        console.error('Failed to queue job:', error);
+      }
+    }
+
+    // Save template to history
+    try {
+      await invoke('batch_save_template', {
+        template: templateString.value,
+        imageCount: successCount,
+      });
+    } catch (error) {
+      console.warn('Failed to save template to history:', error);
+      // Non-critical error - don't block success
+    }
+
+    toast.add({
+      severity: 'success',
+      summary: 'Batch Queued',
+      detail: `${successCount} images queued with seed ${frozenSeed}`,
+      life: 5000,
+    });
+
+    // Close dialog
+    emit('update:visible', false);
+  } catch (error) {
+    toast.add({
+      severity: 'error',
+      summary: 'Batch Generation Failed',
+      detail: String(error),
+      life: 5000,
+    });
+    console.error('Batch generation error:', error);
+  } finally {
+    isGenerating.value = false;
   }
 }
 
