@@ -49,3 +49,38 @@ export interface PreviewRow {
   /** Error message if rendering failed */
   error?: string;
 }
+
+/**
+ * Batch processing mode
+ * Rust: BatchMode
+ */
+export type BatchMode = 'as-is' | 'combinatorial';
+
+/**
+ * Complete batch configuration state for stepper
+ */
+export interface BatchConfig {
+  /** Processing mode (as-is or combinatorial) */
+  mode: BatchMode;
+  /** Original source data from file */
+  sourceData: BatchData;
+  /** Processed data after mode transformation */
+  processedData: BatchData;
+  /** Template string for rendering prompts */
+  template: string;
+}
+
+/**
+ * Template history entry
+ * Rust: TemplateHistoryEntry
+ */
+export interface TemplateHistoryEntry {
+  /** Unique ID */
+  id: number;
+  /** Template string */
+  template: string;
+  /** ISO 8601 timestamp when template was last used */
+  used_at: string;
+  /** Number of images generated with this template */
+  image_count: number;
+}
