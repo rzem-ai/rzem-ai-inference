@@ -45,7 +45,7 @@
 
             <!-- Loading Indicator -->
             <div v-if="isProcessing" class="flex items-center gap-2 p-4 rounded bg-surface-ground">
-              <ProgressSpinner style="width: 24px; height: 24px" />
+              <ProgressSpinner class="w-6 h-6" />
               <span>Processing combinations...</span>
             </div>
 
@@ -99,7 +99,7 @@
 
             <!-- Rendering indicator -->
             <div v-if="isRendering" class="flex items-center gap-2 p-4 rounded bg-surface-ground">
-              <ProgressSpinner style="width: 24px; height: 24px" />
+              <ProgressSpinner class="w-6 h-6" />
               <span>Rendering template...</span>
             </div>
 
@@ -560,7 +560,7 @@ watch(
       loadTemplateHistory();
     } else {
       // Reset state
-      currentStep.value = 0;
+      currentStep.value = '0';
       sourceData.value = null;
       processedData.value = null;
       batchMode.value = 'as-is';

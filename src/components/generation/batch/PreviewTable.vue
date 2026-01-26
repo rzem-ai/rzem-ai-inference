@@ -44,9 +44,9 @@ function getRowClass(row: PreviewRow) {
 </script>
 
 <template>
-  <div class="preview-table">
-    <div class="preview-header">
-      <h3 class="section-title">
+  <div class="flex flex-col gap-3">
+    <div class="flex items-center justify-between">
+      <h3 class="m-0 text-lg font-semibold">
         Preview ({{ rows.length }} image{{ rows.length !== 1 ? 's' : '' }} will be generated)
       </h3>
     </div>
@@ -76,11 +76,11 @@ function getRowClass(row: PreviewRow) {
 
       <Column field="prompt" header="Rendered Prompt" :style="{ minWidth: '300px' }">
         <template #body="{ data }">
-          <div v-if="data.error" class="error-cell">
-            <i class="pi pi-exclamation-triangle error-icon"></i>
-            <span class="error-message">{{ data.error }}</span>
+          <div v-if="data.error" class="flex items-center gap-2 text-red-500">
+            <i class="pi pi-exclamation-triangle text-base shrink-0"></i>
+            <span class="text-sm italic">{{ data.error }}</span>
           </div>
-          <div v-else class="prompt-cell">
+          <div v-else class="leading-normal">
             {{ data.prompt }}
           </div>
         </template>
@@ -105,94 +105,16 @@ function getRowClass(row: PreviewRow) {
     </DataTable>
 
     <!-- Empty state -->
-    <div v-if="rows.length === 0" class="empty-state">
-      <i class="pi pi-inbox empty-state__icon"></i>
-      <p class="empty-state__text">No preview available. Load data and enter a template.</p>
+    <div v-if="rows.length === 0" class="text-center py-12 px-4 text-gray-400">
+      <i class="pi pi-inbox text-5xl block mb-4 opacity-50"></i>
+      <p class="m-0 text-base">No preview available. Load data and enter a template.</p>
     </div>
   </div>
 </template>
 
 <style scoped>
-.preview-table {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.preview-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.section-title {
-  margin: 0;
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: var(--text-color);
-}
-
+/* Error row highlighting for PrimeVue DataTable */
 .preview-datatable :deep(.error-row) {
   background-color: rgba(239, 68, 68, 0.1) !important;
-}
-
-.error-cell {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: var(--red-500);
-}
-
-.error-icon {
-  font-size: 1rem;
-  flex-shrink: 0;
-}
-
-.error-message {
-  font-size: 0.9rem;
-  font-style: italic;
-}
-
-.prompt-cell {
-  line-height: 1.4;
-}
-
-.data-overlay {
-  max-width: 400px;
-  max-height: 300px;
-  overflow-y: auto;
-}
-
-.data-row {
-  padding: 0.5rem 0;
-  border-bottom: 1px solid var(--surface-border);
-  font-size: 0.9rem;
-}
-
-.data-row:last-child {
-  border-bottom: none;
-}
-
-.data-row strong {
-  color: var(--text-color);
-  margin-right: 0.5rem;
-}
-
-.empty-state {
-  text-align: center;
-  padding: 3rem 1rem;
-  color: var(--text-color-secondary);
-}
-
-.empty-state__icon {
-  font-size: 3rem;
-  display: block;
-  margin-bottom: 1rem;
-  opacity: 0.5;
-}
-
-.empty-state__text {
-  margin: 0;
-  font-size: 0.95rem;
 }
 </style>

@@ -67,9 +67,9 @@ const examples = [
 </script>
 
 <template>
-  <div class="template-editor">
-    <div class="editor-header">
-      <h3 class="section-title">Template</h3>
+  <div class="flex flex-col gap-3">
+    <div class="flex items-center justify-between">
+      <h3 class="m-0 text-lg font-semibold">Template</h3>
       <Button
         icon="pi pi-question-circle"
         text
@@ -83,40 +83,40 @@ const examples = [
     <Textarea
       v-model="template"
       @input="handleTemplateChange"
-      class="template-textarea"
+      class="font-mono text-base"
       rows="3"
       placeholder="Enter template using {{ variable }} syntax..."
     />
 
     <!-- Available variables -->
-    <div v-if="availableColumns.length > 0" class="variables-section">
-      <span class="variables-label">Available variables:</span>
-      <div class="variables-chips">
+    <div v-if="availableColumns.length > 0" class="flex flex-col gap-2">
+      <span class="text-sm font-medium text-gray-400">Available variables:</span>
+      <div class="flex flex-wrap gap-2">
         <Chip
           v-for="col in availableColumns"
           :key="col"
           :label="`{{ ${col} }}`"
           @click="insertVariable(col)"
-          class="variable-chip"
+          class="cursor-pointer transition-transform hover:scale-105"
         />
       </div>
     </div>
 
     <!-- Help section -->
-    <Accordion v-if="showHelp" class="help-accordion">
+    <Accordion v-if="showHelp" class="mt-2">
       <AccordionTab header="Template Syntax Help">
-        <div class="help-content">
-          <h4>Basic Syntax</h4>
-          <ul>
-            <li><code>&#123;&#123; "&#123;&#123; variable &#125;&#125;" &#125;&#125;</code> - Insert variable value</li>
-            <li><code>&#123;&#123; "&#123;&#123; variable | upper &#125;&#125;" &#125;&#125;</code> - Uppercase filter</li>
-            <li><code>&#123;&#123; "&#123;&#123; variable | lower &#125;&#125;" &#125;&#125;</code> - Lowercase filter</li>
-            <li><code>&#123;&#123; '&#123;&#123; variable | default("fallback") &#125;&#125;' &#125;&#125;</code> - Default value if empty</li>
+        <div class="text-sm">
+          <h4 class="mt-4 mb-2 text-base first:mt-0">Basic Syntax</h4>
+          <ul class="my-2 pl-6">
+            <li class="mb-1"><code class="px-1.5 py-0.5 rounded bg-surface-ground font-mono text-[0.85rem]">&#123;&#123; "&#123;&#123; variable &#125;&#125;" &#125;&#125;</code> - Insert variable value</li>
+            <li class="mb-1"><code class="px-1.5 py-0.5 rounded bg-surface-ground font-mono text-[0.85rem]">&#123;&#123; "&#123;&#123; variable | upper &#125;&#125;" &#125;&#125;</code> - Uppercase filter</li>
+            <li class="mb-1"><code class="px-1.5 py-0.5 rounded bg-surface-ground font-mono text-[0.85rem]">&#123;&#123; "&#123;&#123; variable | lower &#125;&#125;" &#125;&#125;</code> - Lowercase filter</li>
+            <li class="mb-1"><code class="px-1.5 py-0.5 rounded bg-surface-ground font-mono text-[0.85rem]">&#123;&#123; '&#123;&#123; variable | default("fallback") &#125;&#125;' &#125;&#125;</code> - Default value if empty</li>
           </ul>
 
-          <h4>Examples</h4>
-          <div v-for="example in examples" :key="example" class="example">
-            <code>&#123;&#123; example &#125;&#125;</code>
+          <h4 class="mt-4 mb-2 text-base">Examples</h4>
+          <div v-for="example in examples" :key="example" class="flex items-center gap-2 my-2 p-2 rounded bg-surface-ground">
+            <code class="flex-1 font-mono text-[0.85rem]">&#123;&#123; example &#125;&#125;</code>
             <Button
               icon="pi pi-copy"
               text
@@ -125,13 +125,13 @@ const examples = [
             />
           </div>
 
-          <h4>Supported Filters</h4>
-          <ul>
-            <li><code>upper</code> - Convert to uppercase</li>
-            <li><code>lower</code> - Convert to lowercase</li>
-            <li><code>trim</code> - Remove whitespace</li>
-            <li><code>title</code> - Title case</li>
-            <li><code>default("value")</code> - Fallback value</li>
+          <h4 class="mt-4 mb-2 text-base">Supported Filters</h4>
+          <ul class="my-2 pl-6">
+            <li class="mb-1"><code class="px-1.5 py-0.5 rounded bg-surface-ground font-mono text-[0.85rem]">upper</code> - Convert to uppercase</li>
+            <li class="mb-1"><code class="px-1.5 py-0.5 rounded bg-surface-ground font-mono text-[0.85rem]">lower</code> - Convert to lowercase</li>
+            <li class="mb-1"><code class="px-1.5 py-0.5 rounded bg-surface-ground font-mono text-[0.85rem]">trim</code> - Remove whitespace</li>
+            <li class="mb-1"><code class="px-1.5 py-0.5 rounded bg-surface-ground font-mono text-[0.85rem]">title</code> - Title case</li>
+            <li class="mb-1"><code class="px-1.5 py-0.5 rounded bg-surface-ground font-mono text-[0.85rem]">default("value")</code> - Fallback value</li>
           </ul>
         </div>
       </AccordionTab>
@@ -140,102 +140,8 @@ const examples = [
 </template>
 
 <style scoped>
-.template-editor {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.editor-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.section-title {
-  margin: 0;
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: var(--text-color);
-}
-
+/* querySelector reference for insertVariable functionality */
 .template-textarea {
-  font-family: 'Courier New', monospace;
-  font-size: 0.95rem;
-}
-
-.variables-section {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.variables-label {
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: var(--text-color-secondary);
-}
-
-.variables-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.variable-chip {
-  cursor: pointer;
-  transition: transform 0.2s;
-}
-
-.variable-chip:hover {
-  transform: scale(1.05);
-}
-
-.help-accordion {
-  margin-top: 0.5rem;
-}
-
-.help-content {
-  font-size: 0.9rem;
-}
-
-.help-content h4 {
-  margin-top: 1rem;
-  margin-bottom: 0.5rem;
-  font-size: 0.95rem;
-  color: var(--text-color);
-}
-
-.help-content ul {
-  margin: 0.5rem 0;
-  padding-left: 1.5rem;
-}
-
-.help-content li {
-  margin-bottom: 0.25rem;
-}
-
-.help-content code {
-  background: var(--surface-ground);
-  padding: 0.125rem 0.375rem;
-  border-radius: 3px;
-  font-family: 'Courier New', monospace;
-  font-size: 0.85rem;
-}
-
-.example {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin: 0.5rem 0;
-  padding: 0.5rem;
-  background: var(--surface-ground);
-  border-radius: var(--border-radius);
-}
-
-.example code {
-  flex: 1;
-  background: transparent;
-  padding: 0;
+  /* Intentionally empty - class used for DOM selection only */
 }
 </style>
