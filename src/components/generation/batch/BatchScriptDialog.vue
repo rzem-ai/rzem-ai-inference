@@ -8,10 +8,10 @@
     :dismissableMask="true">
 
     <!-- Stepper Component -->
-    <Stepper v-model:activeStep="currentStep" linear>
+    <Stepper v-model="currentStep" linear>
 
       <!-- Step 1: Load Data -->
-      <StepPanel header="Load Data">
+      <StepPanel header="Load Data" :value="0">
         <template #default>
           <div class="flex flex-col gap-4 p-4">
             <FileInputSection @data-loaded="handleDataLoaded" />
@@ -71,7 +71,7 @@
       </StepPanel>
 
       <!-- Step 2: Template -->
-      <StepPanel header="Template">
+      <StepPanel header="Template" :value="1">
         <template #default>
           <div class="flex flex-col gap-4 p-4">
 
@@ -131,7 +131,7 @@
       </StepPanel>
 
       <!-- Step 3: Confirm & Submit -->
-      <StepPanel header="Confirm & Submit">
+      <StepPanel header="Confirm & Submit" :value="2">
         <template #default>
           <div class="flex flex-col gap-6 p-4">
 
