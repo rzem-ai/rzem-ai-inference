@@ -84,3 +84,13 @@ export interface TemplateHistoryEntry {
   /** Number of images generated with this template */
   image_count: number;
 }
+
+/**
+ * Payload emitted when data is loaded from FileInputSection
+ */
+export interface DataLoadedEvent {
+  /** Parsed batch data */
+  data: BatchData;
+  /** Name of the data source (filename or "Pasted Data") */
+  filename: string;
+}

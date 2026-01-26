@@ -3,7 +3,7 @@ import { ref } from 'vue';
 import { open } from '@tauri-apps/plugin-dialog';
 import { readTextFile } from '@tauri-apps/plugin-fs';
 import { invoke } from '@tauri-apps/api/core';
-import type { BatchData } from './types';
+import type { BatchData, DataLoadedEvent } from './types';
 import ProgressSpinner from 'primevue/progressspinner';
 import Message from 'primevue/message';
 import Button from 'primevue/button';
@@ -11,7 +11,7 @@ import Textarea from 'primevue/textarea';
 
 // Emits
 const emit = defineEmits<{
-  dataLoaded: [data: BatchData];
+  dataLoaded: [payload: DataLoadedEvent];
 }>();
 
 // State
@@ -24,7 +24,7 @@ const pasteText = ref('');
 const isDragging = ref(false);
 
 // Parse data (CSV or JSON)
-async function parseData(content: string, format: string) {
+async function parseData(content: string, format: string, filename: string) {
   isLoading.value = true;
   parseError.value = null;
 
@@ -32,7 +32,7 @@ async function parseData(content: string, format: string) {
     const data = await invoke<BatchData>('batch_parse_data', { content, format });
     rowCount.value = data.rows.length;
     columnCount.value = data.columns.length;
-    emit('dataLoaded', data);
+    emit('dataLoaded', { data, filename });
   } catch (error) {
     parseError.value = String(error);
     console.error('Parse error:', error);
@@ -61,11 +61,12 @@ async function handleFilePicker() {
 async function loadFile(filePath: string) {
   try {
     const content = await readTextFile(filePath);
-    fileName.value = filePath.split('/').pop() || filePath;
+    const fileNameFromPath = filePath.split('/').pop() || filePath;
+    fileName.value = fileNameFromPath;
 
     // Detect format by extension
     const format = filePath.endsWith('.json') ? 'json' : 'csv';
-    await parseData(content, format);
+    await parseData(content, format, fileNameFromPath);
   } catch (error) {
     parseError.value = `Failed to read file: ${error}`;
     console.error('File read error:', error);
@@ -79,13 +80,14 @@ async function handlePaste() {
     return;
   }
 
-  fileName.value = 'Pasted data';
+  const pastedDataName = 'Pasted Data';
+  fileName.value = pastedDataName;
 
   // Try to detect format (JSON starts with [ or {)
   const trimmed = pasteText.value.trim();
   const format = trimmed.startsWith('[') || trimmed.startsWith('{') ? 'json' : 'csv';
 
-  await parseData(pasteText.value, format);
+  await parseData(pasteText.value, format, pastedDataName);
 }
 
 // Drag-drop handlers
@@ -118,7 +120,7 @@ async function handleDrop(e: DragEvent) {
 
       // Detect format by extension
       const format = file.name.endsWith('.json') ? 'json' : 'csv';
-      await parseData(content, format);
+      await parseData(content, format, file.name);
     };
 
     reader.readAsText(file);

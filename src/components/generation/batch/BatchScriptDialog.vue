@@ -218,7 +218,7 @@ import { useModelsStore } from '@/stores/models';
 import FileInputSection from './FileInputSection.vue';
 import TemplateEditor from './TemplateEditor.vue';
 import PreviewTable from './PreviewTable.vue';
-import type { BatchData, BatchMode, RenderResult, TemplateHistoryEntry, PreviewRow } from './types';
+import type { BatchData, BatchMode, RenderResult, TemplateHistoryEntry, PreviewRow, DataLoadedEvent } from './types';
 import Stepper from 'primevue/stepper';
 import StepPanel from 'primevue/steppanel';
 import Button from 'primevue/button';
@@ -359,14 +359,13 @@ const canGenerate = computed(() => {
          previewRows.value.length > 0;
 });
 
-// Add for data source tracking (Task 12 will improve this)
-const dataSourceName = computed(() => {
-  return 'batch_data.csv'; // Placeholder - Task 12 will add real filename tracking
-});
+// Data source name tracking
+const dataSourceName = ref('Unknown');
 
 // Handlers
-function handleDataLoaded(data: BatchData) {
-  sourceData.value = data;
+function handleDataLoaded(payload: DataLoadedEvent) {
+  sourceData.value = payload.data;
+  dataSourceName.value = payload.filename;
   // processedData will be set by the watch
 }
 
@@ -550,6 +549,7 @@ watch(() => props.visible, (newVal) => {
     templateString.value = '';
     previewData.value = null;
     templateHistory.value = [];
+    dataSourceName.value = 'Unknown';
     isProcessing.value = false;
     isRendering.value = false;
   }
