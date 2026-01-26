@@ -9,10 +9,18 @@
 
     <!-- Stepper Component -->
     <Stepper v-model="currentStep" linear>
+      <!-- Step Headers -->
+      <StepList>
+        <Step :value="0">Load Data</Step>
+        <Step :value="1">Template</Step>
+        <Step :value="2">Confirm & Submit</Step>
+      </StepList>
 
-      <!-- Step 1: Load Data -->
-      <StepPanel header="Load Data" :value="0">
-        <template #default>
+      <!-- Step Content -->
+      <StepPanels>
+        <!-- Step 1: Load Data -->
+        <StepPanel :value="0">
+          <template #default>
           <div class="flex flex-col gap-4 p-4">
             <FileInputSection @data-loaded="handleDataLoaded" />
 
@@ -203,6 +211,7 @@
           </div>
         </template>
       </StepPanel>
+      </StepPanels>
 
     </Stepper>
   </Dialog>
@@ -220,6 +229,9 @@ import TemplateEditor from './TemplateEditor.vue';
 import PreviewTable from './PreviewTable.vue';
 import type { BatchData, BatchMode, RenderResult, TemplateHistoryEntry, PreviewRow, DataLoadedEvent } from './types';
 import Stepper from 'primevue/stepper';
+import StepList from 'primevue/steplist';
+import Step from 'primevue/step';
+import StepPanels from 'primevue/steppanels';
 import StepPanel from 'primevue/steppanel';
 import Button from 'primevue/button';
 import Dialog from 'primevue/dialog';
