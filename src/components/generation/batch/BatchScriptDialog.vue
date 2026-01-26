@@ -82,7 +82,7 @@
                 <Button
                   v-for="entry in templateHistory"
                   :key="entry.id"
-                  :label="`${entry.template.substring(0, 40)}... (${entry.image_count} images)`"
+                  :label="`${entry.template.length > 40 ? entry.template.substring(0, 40) + '...' : entry.template} (${entry.image_count} images)`"
                   severity="secondary"
                   size="small"
                   @click="loadTemplate(entry.template)"
@@ -510,6 +510,16 @@ watch([batchMode, sourceData], async () => {
         data: sourceData.value,
       });
       processedData.value = result;
+
+      // Warn if no combinations generated
+      if (result.rows.length === 0) {
+        toast.add({
+          severity: 'warn',
+          summary: 'No Combinations Generated',
+          detail: 'The data produced no combinations. Check your input data.',
+          life: 4000,
+        });
+      }
     } catch (error) {
       toast.add({
         severity: 'error',
@@ -552,6 +562,7 @@ watch(() => props.visible, (newVal) => {
     dataSourceName.value = 'Unknown';
     isProcessing.value = false;
     isRendering.value = false;
+    isGenerating.value = false;
   }
 });
 </script>
