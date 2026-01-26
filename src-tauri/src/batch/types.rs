@@ -1,6 +1,9 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+/// Type alias for a single row of batch data
+pub type BatchRow = HashMap<String, String>;
+
 /// Parsed data from CSV or JSON file
 /// Contains column names and rows of data
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -8,7 +11,7 @@ pub struct BatchData {
     /// Column names (from CSV headers or JSON object keys)
     pub columns: Vec<String>,
     /// Rows of data, each row is a map of column_name -> value
-    pub rows: Vec<HashMap<String, String>>,
+    pub rows: Vec<BatchRow>,
 }
 
 /// Result of template rendering
