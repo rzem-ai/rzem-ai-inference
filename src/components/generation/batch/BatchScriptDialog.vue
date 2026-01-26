@@ -63,7 +63,8 @@
                 icon="pi pi-arrow-right"
                 iconPos="right"
                 @click="nextStep"
-                :disabled="!step1Valid" />
+                :disabled="!step1Valid"
+                :title="!step1Valid ? 'Load data to continue' : ''" />
             </div>
           </div>
         </template>
@@ -106,6 +107,14 @@
               <span>Rendering template...</span>
             </div>
 
+            <!-- Error count indicator -->
+            <div v-if="previewData && hasErrors" class="flex items-center gap-2 p-3 bg-red-900/20 border border-red-700 rounded">
+              <i class="pi pi-exclamation-triangle text-red-400"></i>
+              <span class="text-red-200">
+                {{ previewData.errors.length }} rendering error(s) detected. Fix template before proceeding.
+              </span>
+            </div>
+
             <!-- Navigation -->
             <div class="flex justify-between mt-4">
               <Button label="Back" icon="pi pi-arrow-left" @click="prevStep" severity="secondary" />
@@ -114,7 +123,8 @@
                 icon="pi pi-arrow-right"
                 iconPos="right"
                 @click="nextStep"
-                :disabled="!step2Valid" />
+                :disabled="!step2Valid"
+                :title="!step2Valid ? (templateString.trim() === '' ? 'Enter a template' : 'Fix template errors') : ''" />
             </div>
           </div>
         </template>
@@ -237,11 +247,42 @@ const currentStep = ref(0);
 
 // Navigation functions
 function nextStep() {
+  // Validate current step before advancing
+  if (currentStep.value === 0 && !step1Valid.value) {
+    toast.add({
+      severity: 'warn',
+      summary: 'Data Required',
+      detail: 'Please load data before proceeding to template editing.',
+      life: 3000,
+    });
+    return;
+  }
+
+  if (currentStep.value === 1 && !step2Valid.value) {
+    let detail = 'Please enter a valid template before proceeding.';
+    if (templateString.value.trim() === '') {
+      detail = 'Template cannot be empty.';
+    } else if (hasErrors.value) {
+      detail = 'Template has rendering errors. Please fix them before proceeding.';
+    }
+
+    toast.add({
+      severity: 'warn',
+      summary: 'Invalid Template',
+      detail,
+      life: 3000,
+    });
+    return;
+  }
+
+  // Advance to next step
   currentStep.value++;
 }
 
 function prevStep() {
-  currentStep.value--;
+  if (currentStep.value > 0) {
+    currentStep.value--;
+  }
 }
 
 // Data state
