@@ -1754,6 +1754,9 @@ pub fn run_with_config(runtime_config: shared::protocol::RuntimeConfig, port: Op
             // Batch scripting commands
             batch::batch_parse_data,
             batch::batch_render_template,
+            batch::batch_generate_combinations,
+            batch::batch_get_recent_templates,
+            batch::batch_save_template,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
