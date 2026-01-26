@@ -54,7 +54,7 @@ import { ref, computed, watch, useTemplateRef } from 'vue';
 import { useElementSize } from '@vueuse/core';
 import Image from 'primevue/image';
 import Button from 'primevue/button';
-import FloatingLines from '../shared/FloatingLines.vue';
+import FloatingLines from '../shared/animated/FloatingLines.vue';
 
 const wrapper = useTemplateRef('wrapper');
 const { width, height } = useElementSize(wrapper);

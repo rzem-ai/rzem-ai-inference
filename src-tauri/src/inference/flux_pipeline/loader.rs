@@ -1,6 +1,8 @@
 //! Model loading logic for FluxPipeline
 
 use anyhow::Result;
+
+#[allow(unused_imports)]
 use tracing::{debug, info, warn};
 
 use crate::models::{ClipTextEncoder, FluxTransformer, ModelPaths, ModelType, T5TextEncoder, VaeDecoder};

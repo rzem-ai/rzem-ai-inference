@@ -32,7 +32,7 @@
 </template>
 
 <script setup>
-import FloatingLines from '../FloatingLines.vue';
+import FloatingLines from '../animated/FloatingLines.vue';
 </script>
 
 <style scoped>

@@ -49,6 +49,7 @@ pub fn init_logging(default_level: &str) {
 /// Initialize logging with verbose output (for CLI)
 ///
 /// Includes file and line numbers for easier debugging.
+#[allow(dead_code)]
 pub fn init_logging_verbose(default_level: &str) {
     let filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new(default_level));

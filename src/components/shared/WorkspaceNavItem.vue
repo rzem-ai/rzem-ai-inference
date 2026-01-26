@@ -4,8 +4,8 @@
       class="flex flex-col items-center justify-center gap-1 px-2 py-4"
       :class="[
         isActive
-          ? 'border-l-4 bg-surface-800/10 border-blue-500 text-surface-900 hover:text-surface-500'
-          : 'border-l-4 bg-transparent border-surface-800/20 text-surface-600 hover:text-surface-900 hover:border-blue-500',
+          ? 'border-l-4 bg-surface-800/10 border-blue-500 text-surface-900 hover:text-surface-950'
+          : 'border-l-4 bg-transparent border-surface-800/20 text-surface-700 hover:text-surface-950 hover:border-blue-500',
       ]">
       <fa :icon="['fal', workspace.icon]" size="xl" />
       <div class="text-xs">

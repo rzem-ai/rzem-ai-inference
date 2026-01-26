@@ -15,7 +15,7 @@
         <RouterLink :to="settingsWorkspace.path" v-slot="{ isActive }" class="w-full">
           <div
             class="flex flex-col items-center justify-center gap-1 px-2 py-4"
-            :class="[isActive ? ' text-surface-900 hover:text-surface-500' : ' text-surface-600 hover:text-surface-900 ']">
+            :class="[isActive ? ' text-blue-300 hover:text-surface-950' : ' text-surface-700 hover:text-surface-950 ']">
             <fa :icon="['fal', settingsWorkspace.icon]" size="xl" />
             <div class="text-xs">
               {{ settingsWorkspace.label }}
