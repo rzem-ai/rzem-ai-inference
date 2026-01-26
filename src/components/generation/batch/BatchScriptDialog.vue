@@ -349,8 +349,6 @@ async function loadTemplateHistory() {
 }
 
 // Render template with current data
-// TODO: Task 10 will add auto-render watch that uses this function
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function renderTemplate() {
   if (!processedData.value || !templateString.value.trim()) {
     previewData.value = null;
@@ -486,6 +484,16 @@ watch([batchMode, sourceData], async () => {
   }
 
   isProcessing.value = false;
+});
+
+// Watch template changes and re-render
+watch([templateString, processedData], async () => {
+  if (!processedData.value || !templateString.value.trim()) {
+    previewData.value = null;
+    return;
+  }
+
+  await renderTemplate();
 });
 
 // Load history when dialog opens
