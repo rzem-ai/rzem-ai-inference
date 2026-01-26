@@ -1,18 +1,104 @@
+<template>
+  <Dialog
+    :visible="visible"
+    @update:visible="emit('update:visible', $event)"
+    modal
+    header="Batch Script Generation"
+    :style="{ width: '900px', maxWidth: '95vw' }"
+    :dismissableMask="true">
+
+    <!-- Stepper Component -->
+    <Stepper v-model:activeStep="currentStep" linear>
+
+      <!-- Step 1: Load Data -->
+      <StepperPanel header="Load Data">
+        <template #content="{ nextCallback }">
+          <div class="flex flex-col gap-4 p-4">
+            <FileInputSection @data-loaded="handleDataLoaded" />
+
+            <!-- Mode Selector (placeholder for Task 7) -->
+            <div class="flex flex-col gap-2">
+              <h3 class="text-lg font-semibold">Processing Mode</h3>
+              <div class="flex gap-4">
+                <label class="flex items-center gap-2">
+                  <input type="radio" value="as-is" v-model="batchMode" />
+                  <span>Use data as-is ({{ sourceData?.rows.length || 0 }} images)</span>
+                </label>
+                <label class="flex items-center gap-2">
+                  <input type="radio" value="combinatorial" v-model="batchMode" />
+                  <span>Generate all combinations</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Preview table -->
+            <div v-if="processedData" class="mt-4">
+              <h3 class="text-lg font-semibold mb-2">Data Preview</h3>
+              <DataTable :value="processedData.rows.slice(0, 10)" scrollable scrollHeight="200px">
+                <Column v-for="col in processedData.columns" :key="col" :field="col" :header="col" />
+              </DataTable>
+              <p v-if="processedData.rows.length > 10" class="text-sm text-gray-400 mt-2">
+                Showing 10 of {{ processedData.rows.length }} rows
+              </p>
+            </div>
+
+            <!-- Navigation -->
+            <div class="flex justify-end mt-4">
+              <Button
+                label="Next: Template"
+                icon="pi pi-arrow-right"
+                iconPos="right"
+                @click="nextCallback"
+                :disabled="!step1Valid" />
+            </div>
+          </div>
+        </template>
+      </StepperPanel>
+
+      <!-- Step 2: Template (placeholder) -->
+      <StepperPanel header="Template">
+        <template #content="{ prevCallback, nextCallback }">
+          <div class="flex flex-col gap-4 p-4">
+            <p class="text-gray-400">Step 2: Template editor (Task 8)</p>
+
+            <div class="flex justify-between mt-4">
+              <Button label="Back" icon="pi pi-arrow-left" @click="prevCallback" severity="secondary" />
+              <Button label="Next: Confirm" icon="pi pi-arrow-right" iconPos="right" @click="nextCallback" />
+            </div>
+          </div>
+        </template>
+      </StepperPanel>
+
+      <!-- Step 3: Confirm (placeholder) -->
+      <StepperPanel header="Confirm & Submit">
+        <template #content="{ prevCallback }">
+          <div class="flex flex-col gap-4 p-4">
+            <p class="text-gray-400">Step 3: Summary and confirmation (Task 9)</p>
+
+            <div class="flex justify-between mt-4">
+              <Button label="Back" icon="pi pi-arrow-left" @click="prevCallback" severity="secondary" />
+              <Button label="Generate" icon="pi pi-check" iconPos="right" />
+            </div>
+          </div>
+        </template>
+      </StepperPanel>
+
+    </Stepper>
+  </Dialog>
+</template>
+
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { useToast } from 'primevue/usetoast';
-import { useQueueStore } from '@/stores/queue';
-import { useGenerationStore } from '@/stores/generation';
-import { useModelsStore } from '@/stores/models';
 import FileInputSection from './FileInputSection.vue';
-import TemplateEditor from './TemplateEditor.vue';
-import PreviewTable from './PreviewTable.vue';
-import type { BatchData, RenderResult, PreviewRow } from './types';
-import Divider from 'primevue/divider';
-import ProgressSpinner from 'primevue/progressspinner';
+import type { BatchData, BatchMode } from './types';
+import Stepper from 'primevue/stepper';
+import StepperPanel from 'primevue/stepperpanel';
 import Button from 'primevue/button';
 import Dialog from 'primevue/dialog';
+import DataTable from 'primevue/datatable';
+import Column from 'primevue/column';
 
 // Props
 const props = defineProps<{
@@ -24,256 +110,40 @@ const emit = defineEmits<{
   'update:visible': [value: boolean];
 }>();
 
-// Stores
-const queueStore = useQueueStore();
-const generationStore = useGenerationStore();
-const modelsStore = useModelsStore();
+// Stepper state
+const currentStep = ref(0);
+
+// Data state
+const sourceData = ref<BatchData | null>(null);
+const processedData = ref<BatchData | null>(null);
+const batchMode = ref<BatchMode>('as-is');
+
+// Toast
 const toast = useToast();
 
-// State
-const fileData = ref<BatchData | null>(null);
-const templateString = ref('');
-const previewData = ref<RenderResult | null>(null);
-const isRendering = ref(false);
-const isGenerating = ref(false);
-
-// Computed
-const availableColumns = computed(() => {
-  return fileData.value?.columns || [];
+// Computed validations
+const step1Valid = computed(() => {
+  return sourceData.value !== null && processedData.value !== null;
 });
 
-const previewRows = computed<PreviewRow[]>(() => {
-  if (!previewData.value || !fileData.value) return [];
-
-  const result: PreviewRow[] = [];
-  const { rendered, errors } = previewData.value;
-
-  for (let i = 0; i < rendered.length; i++) {
-    const errorForRow = errors.find((e) => e.row === i);
-
-    result.push({
-      rowNumber: i + 1,
-      prompt: rendered[i],
-      data: fileData.value.rows[i] || {},
-      error: errorForRow?.error,
-    });
-  }
-
-  return result;
-});
-
-const hasErrors = computed(() => {
-  return previewData.value?.errors && previewData.value.errors.length > 0;
-});
-
-const canGenerate = computed(() => {
-  return (
-    fileData.value !== null &&
-    templateString.value.trim() !== '' &&
-    previewData.value !== null &&
-    !hasErrors.value &&
-    !isGenerating.value
-  );
-});
-
-// Watch template changes and re-render
-watch([templateString, fileData], async () => {
-  if (!fileData.value || !templateString.value.trim()) {
-    previewData.value = null;
-    return;
-  }
-
-  await renderTemplate();
-});
-
-// Handle data loaded from file
+// Handlers
 function handleDataLoaded(data: BatchData) {
-  fileData.value = data;
+  sourceData.value = data;
+  // For now, just copy as-is (Task 7 will add combinatorial processing)
+  processedData.value = data;
 }
 
-// Handle template change
-function handleTemplateChange(template: string) {
-  templateString.value = template;
-}
-
-// Render template with current data
-async function renderTemplate() {
-  if (!fileData.value || !templateString.value.trim()) return;
-
-  isRendering.value = true;
-
-  try {
-    const result = await invoke<RenderResult>('batch_render_template', {
-      template: templateString.value,
-      rows: fileData.value.rows,
-    });
-
-    previewData.value = result;
-  } catch (error) {
-    toast.add({
-      severity: 'error',
-      summary: 'Render Error',
-      detail: String(error),
-      life: 5000,
-    });
-    console.error('Render error:', error);
-  } finally {
-    isRendering.value = false;
+// Reset on dialog close
+watch(() => props.visible, (newVal) => {
+  if (!newVal) {
+    currentStep.value = 0;
+    sourceData.value = null;
+    processedData.value = null;
+    batchMode.value = 'as-is';
   }
-}
-
-// Generate batch
-async function generateBatch() {
-  if (!canGenerate.value || !previewData.value) return;
-
-  isGenerating.value = true;
-
-  try {
-    const baseParams = generationStore.currentParams;
-
-    // Freeze seed (use current seed if set, otherwise generate random)
-    const frozenSeed =
-      baseParams.seed >= 0 ? baseParams.seed : Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
-
-    let successCount = 0;
-
-    // Queue each prompt
-    for (const prompt of previewData.value.rendered) {
-      if (!prompt) continue; // Skip empty prompts (errors)
-
-      try {
-        await queueStore.addToQueue({
-          prompt,
-          negative_prompt: baseParams.negativePrompt,
-          steps: baseParams.steps,
-          cfg_scale: baseParams.cfgScale,
-          width: baseParams.width,
-          height: baseParams.height,
-          seed: frozenSeed, // SAME SEED FOR ALL ROWS
-          model: baseParams.model,
-          sampler: baseParams.sampler,
-          scheduler: baseParams.scheduler,
-          loras: modelsStore.getActiveLoraConfigs(),
-        });
-
-        successCount++;
-      } catch (error) {
-        console.error('Failed to queue job:', error);
-      }
-    }
-
-    toast.add({
-      severity: 'success',
-      summary: 'Batch Queued',
-      detail: `${successCount} images queued with seed ${frozenSeed}`,
-      life: 5000,
-    });
-
-    // Close dialog
-    emit('update:visible', false);
-
-    // Reset state
-    fileData.value = null;
-    templateString.value = '';
-    previewData.value = null;
-  } catch (error) {
-    toast.add({
-      severity: 'error',
-      summary: 'Batch Generation Failed',
-      detail: String(error),
-      life: 5000,
-    });
-    console.error('Batch generation error:', error);
-  } finally {
-    isGenerating.value = false;
-  }
-}
-
-// Close dialog
-function handleClose() {
-  emit('update:visible', false);
-}
+});
 </script>
 
-<template>
-  <Dialog
-    :visible="visible"
-    @update:visible="emit('update:visible', $event)"
-    modal
-    header="Batch Script Generation"
-    :style="{ width: '900px', maxWidth: '95vw' }"
-    :dismissableMask="true"
-  >
-    <div class="batch-dialog-content">
-      <!-- File Input Section -->
-      <FileInputSection @data-loaded="handleDataLoaded" />
-
-      <Divider />
-
-      <!-- Template Editor -->
-      <TemplateEditor
-        :available-columns="availableColumns"
-        @template-change="handleTemplateChange"
-      />
-
-      <Divider />
-
-      <!-- Preview Table -->
-      <div class="preview-section">
-        <PreviewTable :rows="previewRows" :max-display-rows="100" />
-
-        <!-- Rendering indicator -->
-        <div v-if="isRendering" class="rendering-indicator">
-          <ProgressSpinner style="width: 24px; height: 24px" />
-          <span>Rendering template...</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Footer -->
-    <template #footer>
-      <div class="dialog-footer">
-        <Button label="Cancel" severity="secondary" @click="handleClose" :disabled="isGenerating" />
-        <Button
-          :label="`Generate ${previewRows.length} Images`"
-          icon="pi pi-arrow-right"
-          iconPos="right"
-          @click="generateBatch"
-          :disabled="!canGenerate"
-          :loading="isGenerating"
-        />
-      </div>
-    </template>
-  </Dialog>
-</template>
-
 <style scoped>
-.batch-dialog-content {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-  padding: 0.5rem 0;
-}
-
-.preview-section {
-  position: relative;
-}
-
-.rendering-indicator {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem;
-  background: var(--surface-ground);
-  border-radius: var(--border-radius);
-  margin-top: 0.5rem;
-  font-size: 0.9rem;
-  color: var(--text-color-secondary);
-}
-
-.dialog-footer {
-  display: flex;
-  justify-content: space-between;
-  width: 100%;
-}
+/* Minimal styles - most styling via TailwindCSS */
 </style>
