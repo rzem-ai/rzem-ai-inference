@@ -116,10 +116,13 @@
         v-else
         :images="galleryStore.filteredImages"
         :selected-ids="galleryStore.selectedImages"
+        :folders="folderOptions"
         @select="handleSelectImage"
         @open-detail="handleOpenDetail"
         @toggle-favorite="handleToggleFavorite"
         @add-to-compare="handleAddToCompare"
+        @add-to-folder="handleAddToFolder"
+        @add-to-new-folder="handleAddToNewFolder"
         @delete="handleDeleteImage" />
     </main>
 
@@ -182,6 +185,7 @@ const toast = useToast();
 const folderFormVisible = ref(false);
 const editingFolder = ref<FolderNode | null>(null);
 const defaultParentId = ref<string | null>(null);
+const pendingImageIds = ref<string[]>([]); // Images to add after folder creation
 
 // Auto-tag settings dialog
 const autoTagSettingsVisible = ref(false);
@@ -205,6 +209,32 @@ watch(
     }
   },
   { deep: true },
+);
+
+// Watch for folder creation when there are pending images
+watch(
+  () => foldersStore.folders.length,
+  async (newLength, oldLength) => {
+    // If a new folder was added and we have pending images, add them to the newly created folder
+    if (pendingImageIds.value.length > 0 && newLength > oldLength) {
+      // Get the most recently created folder (last one in flatFolders sorted by createdAt)
+      const sortedFolders = [...foldersStore.flatFolders].sort((a, b) => b.createdAt - a.createdAt);
+      const newestFolder = sortedFolders[0];
+
+      if (newestFolder) {
+        await addImagesToFolder(pendingImageIds.value, newestFolder.id);
+        pendingImageIds.value = [];
+      }
+    }
+  }
+);
+
+const folderOptions = computed(() =>
+  foldersStore.flatFolders.map((folder) => ({
+    id: folder.id,
+    name: folder.name,
+    path: folder.path,
+  }))
 );
 
 const addToFolderMenuItems = computed(() => {
@@ -433,6 +463,29 @@ const addSelectedToFolder = async (folderId: string) => {
   const imageIds = Array.from(galleryStore.selectedImages);
   await galleryStore.addToFolder(imageIds, folderId);
   await foldersStore.loadFolders(); // Refresh counts
+};
+
+const addImagesToFolder = async (imageIds: string[], folderId: string) => {
+  await galleryStore.addToFolder(imageIds, folderId);
+  await foldersStore.loadFolders(); // Refresh counts
+  toast.add({
+    severity: 'success',
+    summary: 'Added to Folder',
+    detail: `Added ${imageIds.length} image${imageIds.length > 1 ? 's' : ''} to folder`,
+    life: 3000,
+  });
+};
+
+const handleAddToFolder = async (imageIds: string[], folderId: string) => {
+  // Directly add images to the selected folder
+  await addImagesToFolder(imageIds, folderId);
+};
+
+const handleAddToNewFolder = (imageIds: string[]) => {
+  // Store the images to add after folder creation
+  pendingImageIds.value = imageIds;
+  // Open the folder form dialog
+  openCreateFolderDialog();
 };
 
 // Bulk tag management

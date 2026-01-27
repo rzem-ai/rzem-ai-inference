@@ -1,6 +1,6 @@
 <template>
   <div class="flex flex-col gap-1" :data-rows="rows">
-    <div class="border rounded-md border-surface-700 bg-surface-800">
+    <div class="border rounded-md border-surface-700 bg-surface-950">
       <EditorContent :editor="editor" class="w-full editor-content text-surface-300"  />
     </div>
   </div>

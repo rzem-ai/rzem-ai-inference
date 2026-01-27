@@ -63,7 +63,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, withDefaults } from 'vue';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import type { GalleryImage } from '@/stores/gallery';
 import Image from 'primevue/image';
@@ -75,14 +75,23 @@ import ContextMenu from 'primevue/contextmenu';
 const CARD_MIN_WIDTH = 280;
 const CARD_GAP = 16;
 const CONTAINER_PADDING = 16;
-const ROW_HEIGHT = 400; // Approximate height of each card
+const ROW_HEIGHT = 320; // Approximate height of each card
+
+interface FolderOption {
+  id: string;
+  name: string;
+  path: string[];
+}
 
 interface Props {
   images: GalleryImage[];
   selectedIds: Set<string>;
+  folders?: FolderOption[];
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  folders: () => [],
+});
 
 const emit = defineEmits<{
   select: [imageId: string];
@@ -90,45 +99,90 @@ const emit = defineEmits<{
   toggleFavorite: [imageId: string];
   addToCompare: [image: GalleryImage];
   delete: [imageId: string];
+  addToFolder: [imageIds: string[], folderId: string];
+  addToNewFolder: [imageIds: string[]];
 }>();
 
 const contextMenuRef = ref<InstanceType<typeof ContextMenu> | null>(null);
 const contextMenuImageId = ref<string | null>(null);
 
-const contextMenuItems = [
-  {
-    label: 'Open',
-    icon: 'pi pi-eye',
+const getImageIds = () => {
+  if (!contextMenuImageId.value) return [];
+  // If clicked image is selected, use all selected images; otherwise just this image
+  return props.selectedIds.has(contextMenuImageId.value)
+    ? Array.from(props.selectedIds)
+    : [contextMenuImageId.value];
+};
+
+const contextMenuItems = computed(() => {
+  const folderItems = props.folders.map((folder) => ({
+    label: folder.path.length > 0 ? `${folder.path.join(' / ')} / ${folder.name}` : folder.name,
+    icon: 'pi pi-folder',
     command: () => {
-      const image = props.images.find((img) => img.id === contextMenuImageId.value);
-      if (image) emit('openDetail', image);
+      const imageIds = getImageIds();
+      emit('addToFolder', imageIds, folder.id);
     },
-  },
-  {
-    label: 'Add to Compare',
-    icon: 'pi pi-copy',
-    command: () => {
-      const image = props.images.find((img) => img.id === contextMenuImageId.value);
-      if (image) emit('addToCompare', image);
+  }));
+
+  const addToFolderSubmenu =
+    folderItems.length > 0
+      ? folderItems
+      : [
+          {
+            label: 'No folders available',
+            disabled: true,
+          },
+        ];
+
+  return [
+    {
+      label: 'Open',
+      icon: 'pi pi-eye',
+      command: () => {
+        const image = props.images.find((img) => img.id === contextMenuImageId.value);
+        if (image) emit('openDetail', image);
+      },
     },
-  },
-  {
-    label: 'Toggle Favorite',
-    icon: 'pi pi-heart',
-    command: () => {
-      if (contextMenuImageId.value) emit('toggleFavorite', contextMenuImageId.value);
+    {
+      label: 'Add to Compare',
+      icon: 'pi pi-copy',
+      command: () => {
+        const image = props.images.find((img) => img.id === contextMenuImageId.value);
+        if (image) emit('addToCompare', image);
+      },
     },
-  },
-  { separator: true },
-  {
-    label: 'Delete',
-    icon: 'pi pi-trash',
-    class: 'text-red-400',
-    command: () => {
-      if (contextMenuImageId.value) emit('delete', contextMenuImageId.value);
+    {
+      label: 'Toggle Favorite',
+      icon: 'pi pi-heart',
+      command: () => {
+        if (contextMenuImageId.value) emit('toggleFavorite', contextMenuImageId.value);
+      },
     },
-  },
-];
+    { separator: true },
+    {
+      label: 'Add to Folder',
+      icon: 'pi pi-folder',
+      items: addToFolderSubmenu,
+    },
+    {
+      label: 'Add to New Folder',
+      icon: 'pi pi-folder-plus',
+      command: () => {
+        const imageIds = getImageIds();
+        emit('addToNewFolder', imageIds);
+      },
+    },
+    { separator: true },
+    {
+      label: 'Delete',
+      icon: 'pi pi-trash',
+      class: 'text-red-400',
+      command: () => {
+        if (contextMenuImageId.value) emit('delete', contextMenuImageId.value);
+      },
+    },
+  ];
+});
 
 function handleContextMenu(event: MouseEvent, image: GalleryImage) {
   contextMenuImageId.value = image.id;

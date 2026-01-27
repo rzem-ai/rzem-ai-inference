@@ -10,7 +10,6 @@
         icon="pi pi-list"
         severity="secondary"
         size="small"
-        outlined
         fluid
         @click="showBatchDialog = true"
       />

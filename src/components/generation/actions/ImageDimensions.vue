@@ -15,7 +15,9 @@
         fluid
         class="shaddow-xl">
         <template #option="slotProps">
-          {{ slotProps.option.label }}
+          <div class="flex flex-col p-0 m-0 align-baseline leading-2 place-content-center-safe">
+            {{ slotProps.option.label }}
+          </div>
         </template>
       </SelectButton>
     </div>
@@ -128,5 +130,13 @@ const height = computed({
 
 :deep(.p-inputtext) {
   @apply px-2 py-1 h-9;
+}
+
+:deep(.p-togglebutton) {
+  @apply p-0 flex justify-center items-center;
+}
+
+:deep(.p-togglebutton-content) {
+  @apply p-0 rounded-none! align-text-bottom h-8;
 }
 </style>

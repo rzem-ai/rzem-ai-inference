@@ -25,7 +25,7 @@ export const togglebutton: ToggleButtonDesignTokens = {
   content: {
     padding: '0.25rem 0.25rem',
     borderRadius: '{border.radius.sm}',
-    checkedShadow: '',
+    checkedShadow: 'none',
     sm: {
       padding: '0.15rem',
     },
@@ -37,10 +37,10 @@ export const togglebutton: ToggleButtonDesignTokens = {
   colorScheme: {
     light: {
       root: {
-        background: '{surface.800}',
-        borderColor: '{surface.700}',
+        background: '{surface.900}',
+        borderColor: '{surface.600}',
         checkedBackground: '{surface.800}',
-        checkedBorderColor: '{surface.700}',
+        checkedBorderColor: '{surface.600}',
         checkedColor: '{surface.950}',
         color: '{surface.100}',
         disabledBackground: '{form.field.disabled.background}',
