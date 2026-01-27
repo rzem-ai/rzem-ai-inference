@@ -1,4 +1,6 @@
-export const tabs = {
+import type { TabsDesignTokens } from '@primeuix/themes/types/tabs';
+
+export const tabs: TabsDesignTokens = {
   /* Used to pass tokens of the root section */
   root: {},
   /* Used to pass tokens of the tablist section */

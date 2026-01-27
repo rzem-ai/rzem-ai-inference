@@ -3,8 +3,7 @@
     <!-- Aspect Ratio Pills -->
     <div class="flex flex-col">
       <div class="flex items-center gap-1 text-surface-300">
-        <fa :icon="['fal', 'mobile-rotate']" size="sm" />
-        <div class="text-sm font-medium tracking-wide">Aspect Ratio</div>
+        <div class="text-xs font-medium tracking-wide">Aspect Ratio</div>
       </div>
       <SelectButton
         v-model="activeRatio"
@@ -21,25 +20,41 @@
       </SelectButton>
     </div>
 
-    <!-- Width/Height Sliders -->
+    <!-- Width/Height Input Fields -->
     <div class="grid grid-cols-2 gap-3">
       <div class="flex flex-col">
-        <div class="flex items-center justify-between pr-2 mb-1">
-          <label class="text-xs font-medium tracking-wide text-surface-300">Width</label>
-          <span class="font-mono text-xs font-semibold text-blue-600">{{ width }}px</span>
-        </div>
-        <div class="pt-1 slider-container">
-          <Slider v-model="width" :min="256" :max="2048" :step="64" />
-        </div>
+        <label class="mb-1 text-xs font-medium tracking-wide text-surface-300">Width</label>
+        <InputGroup>
+          <InputGroupAddon>
+            <fa :icon="['fal', 'arrows-left-right']" size="sm" />
+          </InputGroupAddon>
+          <InputNumber
+            v-model="width"
+            :use-grouping="false"
+            :min="256"
+            :max="2048"
+            :step="64"
+            fluid
+            input-class="flex items-center font-mono leading-none text-center" />
+          <InputGroupAddon>px</InputGroupAddon>
+        </InputGroup>
       </div>
       <div class="flex flex-col">
-        <div class="flex items-center justify-between pr-2 mb-1">
-          <label class="text-xs font-medium tracking-wide text-surface-300">Height</label>
-          <span class="font-mono text-xs font-semibold text-blue-600">{{ height }}px</span>
-        </div>
-        <div class="pt-1 slider-container">
-          <Slider v-model="height" :min="256" :max="2048" :step="64" />
-        </div>
+        <label class="mb-1 text-xs text-base font-medium tracking-wide text-surface-300">Height</label>
+        <InputGroup>
+          <InputGroupAddon>
+            <fa :icon="['fal', 'arrows-up-down']" size="sm" />
+          </InputGroupAddon>
+          <InputNumber
+            v-model="height"
+            :use-grouping="false"
+            :min="256"
+            :max="2048"
+            :step="64"
+            fluid
+            input-class="flex items-center font-mono text-base leading-none text-center" />
+          <InputGroupAddon>px</InputGroupAddon>
+        </InputGroup>
       </div>
     </div>
   </GenerationAction>
@@ -47,7 +62,9 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import Slider from 'primevue/slider';
+import InputNumber from 'primevue/inputnumber';
+import InputGroup from 'primevue/inputgroup';
+import InputGroupAddon from 'primevue/inputgroupaddon';
 import SelectButton from 'primevue/selectbutton';
 import { useGenerationStore } from '@/stores/generation';
 import GenerationAction from './GenerationAction.vue';
@@ -108,5 +125,8 @@ const height = computed({
 
 <style scoped>
 @reference "tailwindcss";
- 
+
+:deep(.p-inputtext) {
+  @apply px-2 py-1 h-9;
+}
 </style>

@@ -1,4 +1,6 @@
-export const card = {
+import type { CardDesignTokens } from '@primeuix/themes/types/card';
+
+export const card: CardDesignTokens = {
   root: {
     background: '{surface-700}',
     borderRadius: '{content.border.radius}',

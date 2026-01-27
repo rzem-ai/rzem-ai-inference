@@ -20,56 +20,55 @@
 
     <!-- LoRA List -->
     <template v-else>
-      <div v-for="lora in modelsStore.loras" :key="lora.id" class="flex flex-col gap-1 p-2 border rounded bg-surface-800 border-surface-700">
-        <!-- Header Row -->
-        <div class="flex flex-row gap-2">
-          <Checkbox v-model="lora.isActive" :input-id="lora.id" binary @change="handleToggle(lora.id)" class="shrink" />
-          <div class="text-base font-medium text-surface-200 grow line-clamp-1" :title="lora.name">
-            {{ lora.name }}
-          </div>
-          <Button severity="danger" size="small" @click="handleDelete(lora.id)" class="w-12" variant="outlined">
-            <fa :icon="['fal', 'trash']" class="" />
-          </Button>
-        </div>
-
-        <div class="grid grid-cols-8 gap-2">
-          <!-- Strength Slider (only when active) -->
-          <div class="content-center col-span-1">
-            <div class="text-xs font-semibold text-surface-300">Strength:</div>
-          </div>
-          <div class="content-center col-span-6 px-2">
-            <Slider v-model="lora.strength" :min="0" :max="2" :step="0.05" class="" @change="handleStrengthChange(lora.id, lora.strength)" />
-          </div>
-          <div class="content-center col-span-1">
-            <InputNumber
-              v-model="lora.strength"
-              :min="0"
-              :max="2"
-              :step="0.05"
-              size="small"
-              class="shrink"
-              input-class="w-12 px-1 py-1 font-mono text-xs font-semibold text-center"
-              :disabled="lora.isActive"
-              @update:model-value="(v) => handleStrengthChange(lora.id, v ?? 1)" />
-          </div>
-
-          <!-- Trigger Words -->
-          <div v-if="lora.triggerWords" class="content-center col-span-1">
-            <div class="text-xs font-semibold text-surface-300">Trigger:</div>
-          </div>
-          <div v-if="lora.triggerWords" class="content-center w-full col-span-6 px-2">
-            <div class="flex-1 w-full px-2 py-1 text-sm truncate rounded bg-surface-700">
-              {{ lora.triggerWords }}
+      <ul role="list" class="divide-y divide-surface-600">
+        <li v-for="lora in modelsStore.loras" :key="lora.id" class="flex flex-col gap-1 p-2">
+          <!-- Header Row -->
+          <div class="flex flex-row items-center gap-2">
+            <ToggleSwitch v-model="lora.isActive" :input-id="lora.id" binary @change="handleToggle(lora.id)" class="shrink" />
+            <div class="text-base font-medium text-surface-200 grow line-clamp-1" :title="lora.name">
+              {{ lora.name }}
             </div>
-          </div>
-          <div v-if="lora.triggerWords" class="content-center col-span-1">
-            <Button size="small" class="w-12" v-tooltip="'Copy trigger words'" variant="outlined" @click="copyTriggerWords(lora.triggerWords!)">
-              <fa :icon="['fal', 'trash']" class="" />
+            <Button severity="danger" @click="handleDelete(lora.id)" variant="outlined">
+              <fa :icon="['fal', 'trash']" />
             </Button>
           </div>
-        </div>
-      </div>
 
+          <div class="grid grid-cols-8 gap-2">
+            <!-- Strength Slider (only when active) -->
+            <div class="flex flex-col col-span-8">
+              <label class="mb-1 text-xs font-medium tracking-wide text-surface-300">Strength</label>
+              <InputGroup>
+                <InputGroupAddon>
+                  <fa :icon="['fal', 'dial']" size="lg" />
+                </InputGroupAddon>
+                <InputNumber
+                  v-model="lora.strength"
+                  :use-grouping="false"
+                  :min="0"
+                  :max="2"
+                  :step="0.1"
+                  fluid
+                  input-class="flex items-center font-mono text-base leading-none text-center" />
+                <InputGroupAddon><fa :icon="['fal', 'rotate-left']" class="cursor-pointer" v-tooltip="'Reset'" @click="lora.strength = 1" /></InputGroupAddon>
+              </InputGroup>
+            </div>
+
+            <!-- Trigger Words -->
+            <div class="flex flex-col col-span-8">
+              <label class="mb-1 text-xs font-medium tracking-wide text-surface-300">Trigger</label>
+              <InputGroup>
+                <InputGroupAddon>
+                  <fa :icon="['fal', 'tag']" />
+                </InputGroupAddon>
+                <InputText v-model="lora.triggerWords" :readonly="true" fluid class="flex items-center font-mono text-base leading-none text-center" />
+                <InputGroupAddon>
+                  <fa :icon="['fal', 'trash']" class="cursor-pointer" v-tooltip="'Copy trigger words'" @click="copyTriggerWords(lora.triggerWords!)" />
+                </InputGroupAddon>
+              </InputGroup>
+            </div>
+          </div>
+        </li>
+      </ul>
       <!-- Import Button -->
       <Button label="Import LoRA" icon="pi pi-plus" size="small" outlined class="mt-2" @click="showImportDialog = true" />
     </template>
@@ -82,13 +81,16 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useToast } from 'primevue/usetoast';
+import InputGroup from 'primevue/inputgroup';
+import InputGroupAddon from 'primevue/inputgroupaddon';
 import GenerationAction from './GenerationAction.vue';
 import Checkbox from 'primevue/checkbox';
-import Slider from 'primevue/slider';
+import ToggleSwitch from 'primevue/toggleswitch';
 import InputNumber from 'primevue/inputnumber';
 import Button from 'primevue/button';
 import { useModelsStore } from '@/stores/models';
 import LoraImportDialog from './LoraImportDialog.vue';
+import InputText from 'primevue/inputtext';
 
 const props = defineProps(['collapsed', 'icon', 'label', 'toggleable']);
 
@@ -161,3 +163,11 @@ const formatFileSize = (bytes: number): string => {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 };
 </script>
+
+<style scoped>
+@reference "tailwindcss";
+
+:deep(.p-inputtext) {
+  @apply px-2 py-1 h-9;
+}
+</style>

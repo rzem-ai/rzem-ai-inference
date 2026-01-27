@@ -1,4 +1,6 @@
-export const inputnumber = {
+import type { InputNumberDesignTokens } from '@primeuix/themes/types/inputnumber';
+
+export const inputnumber: InputNumberDesignTokens = {
   root: {
     transitionDuration: '{transition.duration}',
   },

@@ -1,4 +1,6 @@
-export const panel = {
+import type { PanelDesignTokens } from '@primeuix/themes/types/panel';
+
+export const panel: PanelDesignTokens = {
   root: {
     borderRadius: '0rem',
   },

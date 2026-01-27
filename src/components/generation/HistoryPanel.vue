@@ -27,11 +27,9 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { convertFileSrc } from '@tauri-apps/api/core';
 import { useToast } from 'primevue/usetoast';
 import { useQueueStore, type GenerationJob } from '@/stores/queue';
 import { useGenerationStore } from '@/stores/generation';
-import Button from 'primevue/button';
 import HistoryPanelItem from './HistoryPanelItem.vue';
 
 const queueStore = useQueueStore();

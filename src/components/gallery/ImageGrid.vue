@@ -6,20 +6,33 @@
           <div
             v-for="image in row"
             :key="image.id"
-            class="image-card"
+            class="border-2 border-blue-500 rounded-xl image-card bg-surface-800 shaddow-xl"
             :class="{
-              'border-blue-500! bg-surface-700!': selectedIds.has(image.id),
+              'border-blue-500! ': selectedIds.has(image.id),
               'opacity-50 scale-95': isDragging && draggedImageIds.has(image.id),
             }"
             draggable="true"
             @dragstart="handleDragStart($event, image)"
             @dragend="handleDragEnd">
-            <div class="absolute z-10 p-1 rounded shadow top-2 left-2">
+            <div class="absolute z-10 p-1 top-2 left-2">
               <Checkbox :model-value="selectedIds.has(image.id)" @change="emit('select', image.id)" binary />
             </div>
 
-            <div class="image-container" >
-              <Image :src="getImageSrc(image)" :preview-src="getThumbnailSrc(image)" :alt="image.prompt" preview />
+            <div class="absolute z-10 flex gap-1 p-1 top-2 right-2">
+              <Button
+                :severity="image.isFavorite ? 'danger' : 'primary'"
+                variant="outlined"
+                @click.stop="emit('toggleFavorite', image.id)"
+                :title="image.isFavorite ? 'Remove from favorites' : 'Add to favorites'">
+                <template #icon><fa :icon="['fal', 'heart']" size="sm" /></template>
+              </Button>
+              <Button severity="primary" variant="outlined" @click.stop="emit('addToCompare', image)" title="Add to compare">
+                <template #icon><fa :icon="['fal', 'copy']" size="sm" /></template>
+              </Button>
+            </div>
+
+            <div class="image-container">
+              <Image :src="getImageSrc(image)" :preview-src="getThumbnailSrc(image)" :alt="image.prompt" preview  />
 
               <!-- Drag overlay showing count -->
               <div
@@ -30,33 +43,17 @@
             </div>
 
             <div class="flex flex-col" @click="emit('openDetail', image)">
-              <div class="flex items-center justify-between p-2 border-t border-gray-700">
-                <Button
-                  :severity="image.isFavorite ? 'danger' : 'secondary'"
-                  text
-                  rounded
-                  @click.stop="emit('toggleFavorite', image.id)"
-                  :title="image.isFavorite ? 'Remove from favorites' : 'Add to favorites'">
-                  <template #icon><fa :icon="['fal', 'heart']" size="sm" /></template>
-                </Button>
-                <Button severity="secondary" text rounded @click.stop="emit('addToCompare', image)" title="Add to compare">
-                  <template #icon><fa :icon="['fal', 'copy']" size="sm" /></template>
-                </Button>
-                <span class="text-xs text-gray-400">
-                  {{ new Date(image.createdAt * 1000).toLocaleDateString() }}
-                </span>
-              </div>
-
-              <div class="p-3 bg-gray-800">
-                <p class="m-0 mb-2 text-sm leading-5 text-gray-300">{{ image.prompt.substring(0, 60) }}{{ image.prompt.length > 60 ? '...' : '' }}</p>
-                <div class="flex gap-3 text-xs text-gray-400 [&_span]:flex [&_span]:items-center">
+              <div class="p-3 ">
+                <p class="m-0 mb-2 text-sm leading-5 text-surface-300">{{ image.prompt.substring(0, 60) }}{{ image.prompt.length > 60 ? '...' : '' }}</p>
+                <div class="flex gap-3 text-xs text-surface-400 [&_span]:flex [&_span]:items-center">
                   <span>{{ image.width }}×{{ image.height }}</span>
                   <span>{{ image.modelName }}</span>
+                  <span class="text-xs text-surface-400">{{ new Date(image.createdAt * 1000).toLocaleDateString() }}</span>
                 </div>
                 <!-- Folder badges -->
                 <div v-if="image.folderIds && image.folderIds.length > 0" class="flex gap-1 mt-2">
                   <span
-                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-gray-700 text-amber-400"
+                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-surface-700 text-amber-400"
                     :title="`In ${image.folderIds.length} folder(s)`">
                     <fa :icon="['fal', 'folder']" size="xs" />
                     {{ image.folderIds.length }}
@@ -83,7 +80,7 @@ import VirtualScroller from 'primevue/virtualscroller';
 const CARD_MIN_WIDTH = 280;
 const CARD_GAP = 16;
 const CONTAINER_PADDING = 16;
-const ROW_HEIGHT = 420; // Approximate height of each card
+const ROW_HEIGHT = 400; // Approximate height of each card
 
 interface Props {
   images: GalleryImage[];
@@ -255,11 +252,8 @@ const handleDragEnd = () => {
 }
 
 .image-card {
-  @apply bg-gray-800;
+  
   position: relative;
-  border: 2px solid transparent;
-  border-radius: 8px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
   transition: all 0.2s;
   cursor: grab;
   overflow: hidden;
@@ -277,7 +271,7 @@ const handleDragEnd = () => {
   position: relative;
   cursor: pointer;
   overflow: hidden;
-  background-color: #334155;
+ 
   aspect-ratio: 1;
   min-height: 200px;
 }

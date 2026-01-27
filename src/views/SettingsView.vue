@@ -303,7 +303,6 @@ import TabPanels from 'primevue/tabpanels';
 import TabPanel from 'primevue/tabpanel';
 import Slider from 'primevue/slider';
 import Card from 'primevue/card';
-import { Save } from 'lucide-vue-next';
 
 const healthStatus = ref<string>('');
 

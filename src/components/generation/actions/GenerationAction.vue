@@ -1,8 +1,7 @@
 <template>
   <div>
     <div>
-      <div class="flex items-center gap-1 px-0 py-2 text-base font-semibold tracking-wider text-surface-300">
-        <fa :icon="['fal', props.icon]" size="sm" />
+      <div class="flex items-center gap-1 px-0 py-2 text-sm font-semibold tracking-wider text-surface-300">
         {{ props.label }}
       </div>
     </div>

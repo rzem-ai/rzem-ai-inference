@@ -5,19 +5,19 @@
  * and server URLs for client mode.
  */
 
-import { ref, readonly } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
+import { ref, readonly } from 'vue';
+import { invoke } from '@tauri-apps/api/core';
 
 export interface RuntimeConfig {
-  mode: 'local' | 'server' | 'client'
-  server_url?: string
-  ws_url?: string
+  mode: 'local' | 'server' | 'client';
+  server_url?: string;
+  ws_url?: string;
 }
 
 // Cached runtime config (fetched once at startup)
-const config = ref<RuntimeConfig | null>(null)
-const loading = ref(true)
-const error = ref<string | null>(null)
+const config = ref<RuntimeConfig>({ mode: 'local', server_url: '', ws_url: '' });
+const loading = ref(true);
+const error = ref<string | null>(null);
 
 /**
  * Get the runtime configuration
@@ -34,22 +34,22 @@ export async function useRuntimeConfig() {
       isLocal: config.value.mode === 'local',
       isServer: config.value.mode === 'server',
       isClient: config.value.mode === 'client',
-      refresh: fetchConfig
-    }
+      refresh: fetchConfig,
+    };
   }
 
   // Fetch config on first call
-  await fetchConfig()
+  await fetchConfig();
 
   return {
     config: readonly(config),
     loading: readonly(loading),
     error: readonly(error),
-    isLocal: config.value?.mode === 'local',
-    isServer: config.value?.mode === 'server',
-    isClient: config.value?.mode === 'client',
-    refresh: fetchConfig
-  }
+    isLocal: config.value.mode === 'local',
+    isServer: config.value.mode === 'server',
+    isClient: config.value.mode === 'client',
+    refresh: fetchConfig,
+  };
 }
 
 /**
@@ -57,23 +57,23 @@ export async function useRuntimeConfig() {
  */
 async function fetchConfig() {
   try {
-    loading.value = true
-    error.value = null
+    loading.value = true;
+    error.value = null;
 
-    const result = await invoke<RuntimeConfig>('get_runtime_config')
-    config.value = result
+    const result = await invoke<RuntimeConfig>('get_runtime_config');
+    config.value = result;
 
-    console.log('Runtime mode:', result.mode)
+    console.log('Runtime mode:', result.mode);
     if (result.mode === 'client') {
-      console.log('Server URL:', result.server_url)
+      console.log('Server URL:', result.server_url);
     }
   } catch (e) {
-    error.value = `Failed to get runtime config: ${e}`
-    console.error(error.value)
+    error.value = `Failed to get runtime config: ${e}`;
+    console.error(error.value);
     // Default to local mode on error
-    config.value = { mode: 'local' }
+    config.value = { mode: 'local' };
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
@@ -82,7 +82,7 @@ async function fetchConfig() {
  */
 export async function initRuntimeConfig() {
   if (!config.value) {
-    await fetchConfig()
+    await fetchConfig();
   }
 }
 
@@ -92,26 +92,26 @@ export async function initRuntimeConfig() {
  * Returns null if config hasn't been loaded yet
  */
 export function getRuntimeMode(): 'local' | 'server' | 'client' | null {
-  return config.value?.mode || null
+  return config.value?.mode || null;
 }
 
 /**
  * Check if in client mode (without async)
  */
 export function isClientMode(): boolean {
-  return config.value?.mode === 'client'
+  return config.value?.mode === 'client';
 }
 
 /**
  * Check if in server mode (without async)
  */
 export function isServerMode(): boolean {
-  return config.value?.mode === 'server'
+  return config.value?.mode === 'server';
 }
 
 /**
  * Check if in local mode (without async)
  */
 export function isLocalMode(): boolean {
-  return config.value?.mode === 'local' || config.value === null
+  return config.value?.mode === 'local' || !config.value;
 }

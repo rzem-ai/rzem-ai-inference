@@ -1,4 +1,6 @@
-export const togglebutton = {
+import type { ToggleButtonDesignTokens } from '@primeuix/themes/types/togglebutton';
+
+export const togglebutton: ToggleButtonDesignTokens = {
   root: {
     padding: '0.25rem',
     borderRadius: '{border.radius.md}',

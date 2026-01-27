@@ -1,5 +1,5 @@
 <template>
-  <div class="flex w-full">
+  <div class="">
     <!-- Left Sidebar -->
     <WorkspaceActions>
       <template #toolbar>
@@ -39,7 +39,7 @@
     </WorkspaceActions>
 
     <!-- Main Content Area -->
-    <div class="flex flex-1 p-2 grow">
+    <div class="flex flex-1 p-2">
       <div class="flex flex-col flex-1 gap-2 p-2 overflow-hidden rounded-xl bg-surface-800">
         <!-- Canvas Section -->
         <div class="flex flex-1 overflow-hidden">
@@ -54,7 +54,7 @@
       </div>
     </div>
 
-    <div class="flex flex-col h-full w-60 min-w-60 shrink">
+    <div class="flex flex-col h-full w-60 min-w-60">
       <HistoryPanel @restore-image="handleRestoreImage" />
     </div>
   </div>

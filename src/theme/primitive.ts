@@ -1,4 +1,6 @@
-export const primitive = {
+import type { AuraBaseTokenSections } from '@primeuix/themes/aura/base';
+
+export const primitive: AuraBaseTokenSections.Primitive = {
   gray: {
     50: '#fafafa',
     100: '#f5f5f5',

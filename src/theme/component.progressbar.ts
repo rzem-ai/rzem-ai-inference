@@ -1,4 +1,6 @@
-export const progressbar = {
+import type { ProgressBarDesignTokens } from '@primeuix/themes/types/progressbar';
+
+export const progressbar: ProgressBarDesignTokens = {
   root: {
     background: '{surface.900}',
     borderRadius: '{content.border.radius}',

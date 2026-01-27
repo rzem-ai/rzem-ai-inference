@@ -6,7 +6,7 @@
  * - Client mode: Connects to remote WebSocket server
  */
 
-import { ref, onUnmounted } from 'vue'
+import { ref } from 'vue'
 import { listen, UnlistenFn } from '@tauri-apps/api/event'
 import { getRuntimeMode, isClientMode } from './useRuntimeConfig'
 

@@ -1,5 +1,5 @@
 <template>
-  <div class="flex items-center h-10 gap-3 px-4 border-t bg-surface-900 shrink max-h-10 min-h-10 border-surface-800">
+  <div class="flex items-center h-10 gap-3 px-4 border-t bg-surface-800 shrink border-surface-700">
     <!-- Demo mode indicator -->
     <div v-if="demoMode" class="absolute top-1 right-2 z-10 flex items-center gap-1 px-2 py-0.5 bg-purple-600 text-white text-xs rounded-full">
       <span class="animate-pulse">●</span> Demo Mode (Ctrl+Shift+D to exit)
@@ -21,10 +21,7 @@
       <fa :icon="['fal', 'microchip']" class="text-surface-400" size="sm" />
       <div class="flex items-center gap-2">
         <span class="w-8 text-xs stat-label text-surface-200">CPU</span>
-        <div class="stat-bar-container">
-          <div class="stat-bar" :style="{ width: `${currentStats?.cpu_usage ?? 0}%` }" :class="getCpuBarClass()" />
-        </div>
-        <span class="font-mono text-xs text-right min-w-14" :class="getCpuTextClass()">{{ formatPercent(currentStats?.cpu_usage) }}</span>
+        <ProgressBar class="w-20 border border-surface-700" :value="cpuUsage" :show-value="false" :dt="cpuProgressBarDt" v-tooltip.top="cpuUsageTip" />
       </div>
     </div>
 
@@ -35,12 +32,7 @@
       <fa :icon="['fal', 'memory']" class="text-surface-400" size="sm" />
       <div class="flex items-center gap-2">
         <span class="w-8 text-xs stat-label text-surface-200">RAM</span>
-        <div class="stat-bar-container">
-          <div class="stat-bar" :style="{ width: `${currentStats?.memory_percent ?? 0}%` }" :class="getMemBarClass()" />
-        </div>
-        <span class="font-mono text-xs text-right min-w-14" :class="getMemTextClass()">
-          {{ formatBytes(currentStats?.memory_used) }} / {{ formatBytes(currentStats?.memory_total) }}
-        </span>
+        <ProgressBar class="w-20 border border-surface-700" :value="ramUsage" :show-value="false" :dt="ramProgressBarDt" v-tooltip.top="ramUsageTip" />
       </div>
     </div>
 
@@ -51,27 +43,19 @@
       <div class="flex items-center gap-2 gpu">
         <fa :icon="['fal', 'display']" class="text-surface-400" size="sm" />
         <div class="flex items-center gap-2">
-          <span class="w-8 text-xs stat-label text-surface-200 gpu-name" :title="currentStats.gpu_name">{{ truncateGpuName(currentStats.gpu_name) }}</span>
-          <div class="stat-bar-container">
-            <div class="stat-bar" :style="{ width: `${currentStats?.gpu_usage_percent ?? 0}%` }" :class="getGpuBarClass()" />
-          </div>
-          <span class="font-mono text-xs text-right min-w-14" :class="getGpuTextClass()">
-            {{ formatPercent(currentStats?.gpu_usage_percent) }}
-          </span>
+          <span class="w-8 text-xs stat-label text-surface-200 gpu-name" :title="gpuNameTip">{{ gpuName }}</span>
+          <ProgressBar class="w-20 border border-surface-700" :value="gpuUsage" :show-value="false" :dt="gpuProgressBarDt" v-tooltip.top="gpuUsageTip" />
         </div>
       </div>
+
+      <div class="w-px h-4 bg-surface-700" />
 
       <!-- GPU VRAM -->
       <div class="flex items-center gap-2">
         <fa :icon="['fal', 'layer-group']" class="text-surface-400" size="sm" />
         <div class="flex items-center gap-2">
           <span class="w-8 text-xs stat-label text-surface-200">VRAM</span>
-          <div class="stat-bar-container">
-            <div class="stat-bar" :style="{ width: `${gpuMemPercent}%` }" :class="getVramBarClass()" />
-          </div>
-          <span class="font-mono text-xs text-right min-w-14" :class="getVramTextClass()">
-            {{ formatBytes(currentStats?.gpu_memory_used) }} / {{ formatBytes(currentStats?.gpu_memory_total) }}
-          </span>
+          <ProgressBar class="w-20 border border-surface-700" :value="vramUsage" :show-value="false" :dt="vramProgressBarDt" v-tooltip.top="vramUsageTip" />
         </div>
       </div>
     </template>
@@ -83,7 +67,10 @@
 
     <!-- Refresh indicator -->
     <div class="flex items-center gap-2">
-      <fa :icon="['fal', 'arrows-rotate']" class="text-surface-500" :class="{ 'fa-spin': isRefreshing }" size="sm" />
+      <fa v-if="false" :icon="['fal', 'arrows-rotate']" class="text-surface-500" :class="{ 'fa-spin': isRefreshing }" size="sm" />
+      <RouterLink :to="{ name: 'settings' }" class="w-full">
+          <fa :icon="['fal', 'gear']" />
+      </RouterLink>
     </div>
   </div>
 </template>
@@ -92,20 +79,34 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import ConnectionStatus from './ConnectionStatus.vue';
+import ProgressBar from 'primevue/progressbar';
+import { ProgressBarDesignTokens } from '@primeuix/themes/types/progressbar';
 
 interface SystemStats {
   cpu_usage: number;
   memory_used: number;
   memory_total: number;
   memory_percent: number;
-  gpu_memory_used: number | null;
-  gpu_memory_total: number | null;
-  gpu_usage_percent: number | null;
-  gpu_name: string | null;
+  gpu_memory_used: number;
+  gpu_memory_total: number;
+  gpu_usage_percent: number;
+  gpu_name: string;
   is_generating: boolean;
 }
 
-const stats = ref<SystemStats | null>(null);
+const BLANK_SYSTEM_STATUS: SystemStats = {
+  cpu_usage: 0,
+  memory_used: 0,
+  memory_total: 0,
+  memory_percent: 0,
+  gpu_memory_used: 0,
+  gpu_memory_total: 0,
+  gpu_usage_percent: 0,
+  gpu_name: 'RTX 5090',
+  is_generating: false,
+};
+
+const stats = ref<SystemStats>(BLANK_SYSTEM_STATUS);
 const isRefreshing = ref(false);
 let pollInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -125,7 +126,7 @@ const demoStats = computed<SystemStats>(() => {
       memory_used: 8_589_934_592, // 8 GB
       memory_total: 32_212_254_720, // 30 GB
       memory_percent: 26.7,
-      gpu_memory_used: 2_147_483_648, // 2 GB
+      gpu_memory_used: 9_147_483_648, // 2 GB
       gpu_memory_total: 12_884_901_888, // 12 GB
       gpu_usage_percent: 5 + Math.random() * 5,
       gpu_name: 'RTX 4090',
@@ -185,9 +186,151 @@ const currentStats = computed(() => {
   return demoMode.value ? demoStats.value : stats.value;
 });
 
-const gpuMemPercent = computed(() => {
-  if (!currentStats.value?.gpu_memory_total || !currentStats.value?.gpu_memory_used) return 0;
-  return (currentStats.value.gpu_memory_used / currentStats.value.gpu_memory_total) * 100;
+const cpuUsage = computed(() => {
+  return Math.floor(currentStats.value.cpu_usage);
+});
+
+const cpuUsageTip = computed(() => {
+  return formatPercent(cpuUsage.value);
+});
+
+const cpuProgressBarDt = computed(() => {
+  const usage = cpuUsage.value;
+
+  let barColor = '';
+  if (usage >= 90) {
+    barColor = 'rgb(239, 68, 68)'; // red-500
+  } else if (usage >= 70) {
+    barColor = 'rgb(245, 158, 11)'; // amber-500
+  } else {
+    barColor = 'rgb(34, 197, 94)'; // green-500
+  }
+
+  return {
+    label: {
+      fontSize: '0.55rem',
+      fontWeight: '400',
+    },
+    value: {
+      background: barColor,
+    } as ProgressBarDesignTokens,
+  };
+});
+
+const ramUsage = computed(() => {
+  return Math.floor(currentStats.value.memory_percent);
+});
+
+const ramUsageTip = computed(() => {
+  return `${formatBytes(Math.floor(currentStats.value.memory_used))} / ${formatBytes(Math.floor(currentStats.value.memory_total))}`;
+});
+
+const ramProgressBarDt = computed(() => {
+  const usage = ramUsage.value;
+
+  let barColor = '';
+  if (usage >= 90) {
+    barColor = 'rgb(239, 68, 68)'; // red-500
+  } else if (usage >= 70) {
+    barColor = 'rgb(245, 158, 11)'; // amber-500
+  } else {
+    barColor = 'oklch(62.3% 0.214 259.815)'; // blue-500
+  }
+
+  return {
+    label: {
+      fontSize: '0.55rem',
+      fontWeight: '400',
+    },
+    value: {
+      background: barColor,
+    } as ProgressBarDesignTokens,
+  };
+});
+
+const gpuName = computed(() => {
+  return truncateGpuName(currentStats.value.gpu_name);
+});
+
+const gpuNameTip = computed(() => {
+  return currentStats.value.gpu_name;
+});
+
+const gpuUsage = computed(() => {
+  return Math.floor(currentStats.value.gpu_usage_percent);
+});
+
+const gpuUsageTip = computed(() => {
+  return formatPercent(gpuUsage.value);
+});
+
+const gpuProgressBarDt = computed(() => {
+  const usage = gpuUsage.value;
+
+  let barColor = '';
+  if (usage >= 90) {
+    barColor = 'rgb(239, 68, 68)'; // red-500
+  } else if (usage >= 70) {
+    barColor = 'rgb(245, 158, 11)'; // amber-500
+  } else {
+    barColor = 'rgb(34, 197, 94)'; // green-500
+  }
+
+  return {
+    label: {
+      fontSize: '0.55rem',
+      fontWeight: '400',
+    },
+    value: {
+      background: barColor,
+    } as ProgressBarDesignTokens,
+  };
+});
+
+const vramUsage = computed(() => {
+  let usage = 0;
+  if (currentStats.value?.gpu_memory_total && currentStats.value?.gpu_memory_used) {
+    usage = Math.floor((currentStats.value.gpu_memory_used / currentStats.value.gpu_memory_total) * 100);
+  }
+
+  return usage;
+});
+
+const vramUsageTip = computed(() => {
+  let used = '0';
+  if (currentStats.value?.gpu_memory_total && currentStats.value?.gpu_memory_used) {
+    used = formatBytes(Math.floor(currentStats.value.gpu_memory_used));
+  }
+
+  let total = '0';
+  if (currentStats.value?.gpu_memory_total && currentStats.value?.gpu_memory_used) {
+    total = formatBytes(Math.floor(currentStats.value.gpu_memory_total));
+  }
+
+  return `${used} / ${total}`;
+});
+
+const vramProgressBarDt = computed(() => {
+  const usage = Math.floor(vramUsage.value);
+
+  let barColor = '';
+  if (usage >= 95) {
+    barColor = 'rgb(239, 68, 68)'; // red-500
+  } else if (usage >= 80) {
+    barColor = 'rgb(245, 158, 11)'; // amber-500
+  } else {
+    barColor = 'oklch(62.7% 0.265 303.9)'; // blue-500
+  }
+
+  return {
+    label: {
+      fontSize: '0.55rem',
+      fontWeight: '400',
+    },
+    value: {
+      background: barColor,
+    } as ProgressBarDesignTokens,
+  };
 });
 
 const fetchStats = async () => {
@@ -250,63 +393,6 @@ const handleKeydown = (e: KeyboardEvent) => {
   }
 };
 
-// Color classes based on usage levels
-const getCpuBarClass = () => {
-  const usage = currentStats.value?.cpu_usage ?? 0;
-  if (usage >= 90) return 'bg-status-red';
-  if (usage >= 70) return 'bg-status-yellow';
-  return 'bg-status-green';
-};
-
-const getCpuTextClass = () => {
-  const usage = currentStats.value?.cpu_usage ?? 0;
-  if (usage >= 90) return 'text-status-red';
-  if (usage >= 70) return 'text-status-yellow';
-  return 'text-status-gray';
-};
-
-const getMemBarClass = () => {
-  const usage = currentStats.value?.memory_percent ?? 0;
-  if (usage >= 90) return 'bg-status-red';
-  if (usage >= 75) return 'bg-status-yellow';
-  return 'bg-status-blue';
-};
-
-const getMemTextClass = () => {
-  const usage = currentStats.value?.memory_percent ?? 0;
-  if (usage >= 90) return 'text-status-red';
-  if (usage >= 75) return 'text-status-yellow';
-  return 'text-status-gray';
-};
-
-const getGpuBarClass = () => {
-  const usage = currentStats.value?.gpu_usage_percent ?? 0;
-  if (usage >= 95) return 'bg-status-red';
-  if (usage >= 80) return 'bg-status-purple';
-  return 'bg-status-green';
-};
-
-const getGpuTextClass = () => {
-  const usage = currentStats.value?.gpu_usage_percent ?? 0;
-  if (usage >= 95) return 'text-status-red';
-  if (usage >= 80) return 'text-status-purple';
-  return 'text-status-gray';
-};
-
-const getVramBarClass = () => {
-  const usage = gpuMemPercent.value;
-  if (usage >= 95) return 'bg-status-red';
-  if (usage >= 80) return 'bg-status-purple';
-  return 'bg-status-blue';
-};
-
-const getVramTextClass = () => {
-  const usage = gpuMemPercent.value;
-  if (usage >= 95) return 'text-status-red';
-  if (usage >= 80) return 'text-status-purple';
-  return 'text-status-gray';
-};
-
 onMounted(() => {
   fetchStats();
 
@@ -348,42 +434,6 @@ let lastIdleUpdate = 0;
 <style scoped>
 @reference 'tailwindcss';
 
-.bg-status-red {
-  @apply bg-red-500;
-}
-
-.bg-status-yellow {
-  @apply bg-amber-500;
-}
-
-.bg-status-green {
-  @apply bg-emerald-500;
-}
-
-.bg-status-blue {
-  @apply bg-blue-500;
-}
-
-.bg-status-purple {
-  @apply bg-purple-500;
-}
-
-.text-status-red {
-  @apply bg-red-500;
-}
-
-.text-status-yellow {
-  @apply bg-amber-500;
-}
-
-.text-status-green {
-  @apply bg-emerald-500;
-}
-
-.text-status-gray {
-  @apply bg-gray-200;
-}
-
 .flex items-center gap-2 {
   &.active {
     color: green; /* @apply text-emerald-400; */
@@ -404,9 +454,7 @@ let lastIdleUpdate = 0;
   }
 }
 
-.stat-label  {
-
-
+.stat-label {
   &.gpu-name {
     @apply w-auto max-w-20 truncate;
   }

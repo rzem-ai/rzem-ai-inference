@@ -1,4 +1,6 @@
-export const inputtext = {
+import type { InputTextDesignTokens } from '@primeuix/themes/types/inputtext';
+
+export const inputtext: InputTextDesignTokens = {
   root: {
     paddingX: '{form.field.padding.x}',
     paddingY: '{form.field.padding.y}',

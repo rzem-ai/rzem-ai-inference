@@ -1,28 +1,16 @@
 <template>
-  <div ref="containerRef" class="relative flex flex-col w-20 h-full overflow-hidden bg-surface-200 min-w-20">
-    <!-- Pixel effect background -->
-    <canvas ref="canvasRef" class="absolute inset-0 block w-full h-full" />
-
+  <div ref="containerRef" class="relative flex flex-col w-20 h-full overflow-hidden min-w-20">
     <!-- Content (z-index to stay above canvas) -->
     <div class="relative z-10 flex flex-col h-full">
       <div class="flex items-center justify-center h-16 p-2 min-h-16 shrink">
-        <div class="flex items-center justify-center w-full h-full border rounded border-surface-600"> rz.ai </div>
+        <div class="flex items-center justify-center w-12 h-12 text-lg font-medium rounded bg-linear-to-br from-blue-400 to-blue-600 text-surface-800">
+          rz.ai
+        </div>
       </div>
       <div class="flex flex-col items-center justify-start py-4 grow">
         <WorkspaceNavItem v-for="(workspace, index) in workspaces" :key="workspace.path" :id="'nav_' + index" :workspace="workspace" />
       </div>
-      <div class="flex items-center justify-center h-16 min-h-16 shrink">
-        <RouterLink :to="settingsWorkspace.path" v-slot="{ isActive }" class="w-full">
-          <div
-            class="flex flex-col items-center justify-center gap-1 px-2 py-4"
-            :class="[isActive ? ' text-blue-300 hover:text-surface-950' : ' text-surface-700 hover:text-surface-950 ']">
-            <fa :icon="['fal', settingsWorkspace.icon]" size="xl" />
-            <div class="text-xs">
-              {{ settingsWorkspace.label }}
-            </div>
-          </div>
-        </RouterLink>
-      </div>
+      <div class="flex items-center justify-center h-16 min-h-16 shrink"> </div>
     </div>
   </div>
 </template>
@@ -37,8 +25,6 @@ const workspaces: Workspace[] = [
   { label: 'Compare', path: '/compare', icon: 'code-compare' },
   { label: 'Models', path: '/models', icon: 'database' },
 ];
-
-const settingsWorkspace: Workspace = { label: 'Settings', path: '/settings', icon: 'gear' };
 
 // Pixel effect implementation
 class Pixel {
