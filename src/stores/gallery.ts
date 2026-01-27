@@ -170,7 +170,7 @@ export const useGalleryStore = defineStore('gallery', () => {
     }
   }
 
-  async function deleteImages(imageId: string): Promise<boolean> {
+  async function deleteImage(imageId: string): Promise<boolean> {
     try {
       await invoke('delete_gallery_image', { imageId })
       images.value = images.value.filter((img) => img.id !== imageId)
@@ -181,6 +181,23 @@ export const useGalleryStore = defineStore('gallery', () => {
       console.error('Failed to delete image:', error)
       return false
     }
+  }
+
+  async function deleteSelectedImages(): Promise<{ success: number; failed: number }> {
+    const imageIds = Array.from(selectedImages.value)
+    let success = 0
+    let failed = 0
+
+    for (const imageId of imageIds) {
+      const result = await deleteImage(imageId)
+      if (result) {
+        success++
+      } else {
+        failed++
+      }
+    }
+
+    return { success, failed }
   }
 
   function toggleSelectImage(imageId: string): void {
@@ -317,7 +334,8 @@ export const useGalleryStore = defineStore('gallery', () => {
     toggleFavorite,
     addTag,
     removeTag,
-    deleteImages,
+    deleteImage,
+    deleteSelectedImages,
     toggleSelectImage,
     clearSelection,
     selectAll,

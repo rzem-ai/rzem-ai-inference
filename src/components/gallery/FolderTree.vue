@@ -1,38 +1,5 @@
 <template>
   <div class="flex flex-col h-full overflow-hidden">
-    <!-- Special Views -->
-    <div class="flex gap-2 px-2">
-      <Button
-        class="w-full"
-        size="small"
-        :severity="foldersStore.currentViewType === 'all' ? 'primary' : 'primary'"
-        :variant="foldersStore.currentViewType === 'all' ? '' : 'outlined'"
-        @click="handleSelectAll">
-        <div class="flex items-center gap-2 text-sm font-medium truncate"><fa :icon="['fal', 'images']" size="sm" /> All Images</div>
-      </Button>
-      <Button
-        class="w-full"
-        size="small"
-        :severity="foldersStore.currentViewType === 'uncategorized' ? 'primary' : 'primary'"
-        :variant="foldersStore.currentViewType === 'uncategorized' ? '' : 'outlined'"
-        @click="handleSelectUncategorized">
-        <div class="flex items-center gap-2 text-sm font-medium truncate"><fa :icon="['fal', 'inbox']" size="sm" /> Uncategorized</div>
-      </Button>
-      <Button size="small" @click="emit('createFolder')" title="Create folder" class="w-20 p-2" variant="outlined" severity="secondary">
-        <fa :icon="['fal', 'plus']" size="sm" />
-      </Button>
-      <Button
-        v-if="foldersStore.folders.length > 0"
-        size="small"
-        @click="toggleExpandAll"
-        :title="allExpanded ? 'Collapse all' : 'Expand all'"
-        class="w-20 p-2"
-        variant="outlined"
-        severity="secondary">
-        <fa v-if="allExpanded" :icon="['fal', 'chevron-up']" size="sm" /><fa v-if="!allExpanded" :icon="['fal', 'chevrons-down']" size="sm" />
-      </Button>
-    </div>
-
     <!-- Folders Header -->
     <div class="flex items-center justify-between px-3 py-2">
       <span class="text-xs font-semibold tracking-wide uppercase text-surface-500">Folders</span>

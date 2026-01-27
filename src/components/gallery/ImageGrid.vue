@@ -1,19 +1,20 @@
 <template>
-  <div ref="containerRef" class="virtual-grid-container">
+  <div ref="containerRef" class="w-full h-full overflow-hidden">
     <VirtualScroller :items="imageRows" :itemSize="ROW_HEIGHT" class="virtual-scroller" :pt="{ content: { class: 'virtual-content' } }">
       <template #item="{ item: row }">
         <div class="image-row" :style="{ height: ROW_HEIGHT + 'px' }">
           <div
             v-for="image in row"
             :key="image.id"
-            class="border-2 border-blue-500 rounded-xl image-card bg-surface-800 shaddow-xl"
+            class="border rounded-xl image-card bg-surface-800 shaddow hover:shadow-lg hover:border-blue-400 active:cursor-grabbing;"
             :class="{
               'border-blue-500! ': selectedIds.has(image.id),
               'opacity-50 scale-95': isDragging && draggedImageIds.has(image.id),
             }"
             draggable="true"
             @dragstart="handleDragStart($event, image)"
-            @dragend="handleDragEnd">
+            @dragend="handleDragEnd"
+            @contextmenu.prevent="handleContextMenu($event, image)">
             <div class="absolute z-10 p-1 top-2 left-2">
               <Checkbox :model-value="selectedIds.has(image.id)" @change="emit('select', image.id)" binary />
             </div>
@@ -32,7 +33,7 @@
             </div>
 
             <div class="image-container">
-              <Image :src="getImageSrc(image)" :preview-src="getThumbnailSrc(image)" :alt="image.prompt" preview  />
+              <Image :src="getImageSrc(image)" :preview-src="getThumbnailSrc(image)" :alt="image.prompt" preview />
 
               <!-- Drag overlay showing count -->
               <div
@@ -42,29 +43,22 @@
               </div>
             </div>
 
-            <div class="flex flex-col" @click="emit('openDetail', image)">
-              <div class="p-3 ">
-                <p class="m-0 mb-2 text-sm leading-5 text-surface-300">{{ image.prompt.substring(0, 60) }}{{ image.prompt.length > 60 ? '...' : '' }}</p>
-                <div class="flex gap-3 text-xs text-surface-400 [&_span]:flex [&_span]:items-center">
-                  <span>{{ image.width }}×{{ image.height }}</span>
-                  <span>{{ image.modelName }}</span>
-                  <span class="text-xs text-surface-400">{{ new Date(image.createdAt * 1000).toLocaleDateString() }}</span>
-                </div>
-                <!-- Folder badges -->
-                <div v-if="image.folderIds && image.folderIds.length > 0" class="flex gap-1 mt-2">
-                  <span
-                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-surface-700 text-amber-400"
-                    :title="`In ${image.folderIds.length} folder(s)`">
-                    <fa :icon="['fal', 'folder']" size="xs" />
-                    {{ image.folderIds.length }}
-                  </span>
-                </div>
+            <div class="image-details-container" @click="emit('openDetail', image)">
+              <p class="m-0 mb-1 text-sm leading-5 text-white line-clamp-2">{{ image.prompt }}</p>
+              <div class="flex gap-3 text-xs text-surface-300 [&_span]:flex [&_span]:items-center">
+                <span>{{ image.width }}×{{ image.height }}</span>
+                <span>{{ image.modelName }}</span>
+                <span>{{ new Date(image.createdAt * 1000).toLocaleDateString() }}</span>
+                <span v-if="image.folderIds && image.folderIds.length > 0" class="text-amber-400">
+                  <fa :icon="['fal', 'folder']" size="xs" class="mr-1" />{{ image.folderIds.length }}
+                </span>
               </div>
             </div>
           </div>
         </div>
       </template>
     </VirtualScroller>
+    <ContextMenu ref="contextMenuRef" :model="contextMenuItems" />
   </div>
 </template>
 
@@ -76,6 +70,7 @@ import Image from 'primevue/image';
 import Checkbox from 'primevue/checkbox';
 import Button from 'primevue/button';
 import VirtualScroller from 'primevue/virtualscroller';
+import ContextMenu from 'primevue/contextmenu';
 
 const CARD_MIN_WIDTH = 280;
 const CARD_GAP = 16;
@@ -94,7 +89,51 @@ const emit = defineEmits<{
   openDetail: [image: GalleryImage];
   toggleFavorite: [imageId: string];
   addToCompare: [image: GalleryImage];
+  delete: [imageId: string];
 }>();
+
+const contextMenuRef = ref<InstanceType<typeof ContextMenu> | null>(null);
+const contextMenuImageId = ref<string | null>(null);
+
+const contextMenuItems = [
+  {
+    label: 'Open',
+    icon: 'pi pi-eye',
+    command: () => {
+      const image = props.images.find((img) => img.id === contextMenuImageId.value);
+      if (image) emit('openDetail', image);
+    },
+  },
+  {
+    label: 'Add to Compare',
+    icon: 'pi pi-copy',
+    command: () => {
+      const image = props.images.find((img) => img.id === contextMenuImageId.value);
+      if (image) emit('addToCompare', image);
+    },
+  },
+  {
+    label: 'Toggle Favorite',
+    icon: 'pi pi-heart',
+    command: () => {
+      if (contextMenuImageId.value) emit('toggleFavorite', contextMenuImageId.value);
+    },
+  },
+  { separator: true },
+  {
+    label: 'Delete',
+    icon: 'pi pi-trash',
+    class: 'text-red-400',
+    command: () => {
+      if (contextMenuImageId.value) emit('delete', contextMenuImageId.value);
+    },
+  },
+];
+
+function handleContextMenu(event: MouseEvent, image: GalleryImage) {
+  contextMenuImageId.value = image.id;
+  contextMenuRef.value?.show(event);
+}
 
 const isDragging = ref(false);
 const draggedImageIds = ref<Set<string>>(new Set());
@@ -252,28 +291,22 @@ const handleDragEnd = () => {
 }
 
 .image-card {
-  
   position: relative;
   transition: all 0.2s;
   cursor: grab;
   overflow: hidden;
+  aspect-ratio: 1;
 }
 
-.image-card:hover {
-  @apply shadow-2xl border border-blue-400;
-}
 
-.image-card:active {
-  cursor: grabbing;
-}
+
 
 .image-container {
   position: relative;
   cursor: pointer;
   overflow: hidden;
- 
-  aspect-ratio: 1;
-  min-height: 200px;
+  width: 100%;
+  height: 100%;
 }
 
 /* Fix PrimeVue Image component wrapper sizing */
@@ -293,5 +326,16 @@ const handleDragEnd = () => {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.image-details-container {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 2.5rem 0.75rem 0.75rem;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.85) 0%, rgba(0, 0, 0, 0.6) 60%, transparent 100%);
+  cursor: pointer;
+  z-index: 5;
 }
 </style>

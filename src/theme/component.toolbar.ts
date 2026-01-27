@@ -9,7 +9,7 @@ export const toolbar: ToolbarDesignTokens = {
   colorScheme: {
     light: {
       root: {
-        background: '{surface.800}',
+        background: '{surface.950}',
         borderColor: '{surface.700}',
         borderRadius: '{content.border.radius}',
         color: '{surface.200}',

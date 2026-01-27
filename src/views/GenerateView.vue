@@ -1,38 +1,34 @@
 <template>
   <div class="flex w-full">
-    <!-- Left Sidebar -->
+    <!-- Sidebar -->
     <WorkspaceActions>
       <template #toolbar>
-        <Button severity="secondary" size="small">
-          <div class="content-center">
-            <fa :icon="['fal', 'sliders']" size="sm" />
-            Size
-          </div>
-        </Button>
-        <Button severity="secondary" size="small">
-          <div class="content-center">
-            <fa :icon="['fal', 'star']" size="sm" />
-            Quality
-          </div>
-        </Button>
-        <Button severity="secondary" size="small">
-          <div class="content-center">
-            <fa :icon="['fal', 'box-open']" size="sm" />
-            Model
-          </div>
-        </Button>
-        <Button severity="secondary" size="small">
-          <div class="content-center">
-            <fa :icon="['fal', 'layer-group']" size="sm" />
-            Style
-          </div>
-        </Button>
-        <Button severity="secondary" size="small">
-          <div class="content-center">
-            <fa :icon="['fal', 'gear']" size="sm" />
-            Advanced
-          </div>
-        </Button>
+        <div class="grid w-full grid-cols-4 border rounded-md shadow-xs border-surface-600">
+          <Button severity="secondary" size="small" class="border-0 rounded-none rounded-l-md">
+            <div class="content-center">
+              <fa :icon="['fal', 'star']" size="sm" />
+              Quality
+            </div>
+          </Button>
+          <Button severity="secondary" size="small" class="border-0 rounded-none rounded-l-md">
+            <div class="content-center">
+              <fa :icon="['fal', 'box-open']" size="sm" />
+              Model
+            </div>
+          </Button>
+          <Button severity="secondary" size="small" class="border-0 rounded-none rounded-l-md">
+            <div class="content-center">
+              <fa :icon="['fal', 'layer-group']" size="sm" />
+              Style
+            </div>
+          </Button>
+          <Button severity="secondary" size="small" class="border-0 rounded-none rounded-l-md">
+            <div class="content-center">
+              <fa :icon="['fal', 'gear']" size="sm" />
+              Advanced
+            </div>
+          </Button>
+        </div>
       </template>
       <template #header>Generate Images</template>
       <template #body><GenerateActions @generate="handleGenerate" /></template>

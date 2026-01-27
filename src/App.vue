@@ -8,7 +8,7 @@
 
   <div v-else-if="requireAuth"><!-- STUB --></div>
 
-  <Layout v-else><RouterView /> </Layout>
+  <Layout v-else><RouterView /></Layout>
 </template>
 
 <script setup lang="ts">

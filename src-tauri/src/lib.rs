@@ -245,9 +245,13 @@ async fn delete_gallery_image(
         .map_err(|e| format!("Failed to get image: {}", e))?
         .ok_or_else(|| "Image not found".to_string())?;
 
-    // Delete file from filesystem
-    std::fs::remove_file(&image.file_path)
-        .map_err(|e| format!("Failed to delete file: {}", e))?;
+    // Delete file from filesystem (proceed even if file is missing)
+    if let Err(e) = std::fs::remove_file(&image.file_path) {
+        if e.kind() != std::io::ErrorKind::NotFound {
+            return Err(format!("Failed to delete file: {}", e));
+        }
+        // File already gone - continue with database cleanup
+    }
 
     // Delete from database (this will cascade to image_tags)
     db.delete_gallery_image(&image_id)

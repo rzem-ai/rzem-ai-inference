@@ -1,7 +1,39 @@
 <template>
-  <div class="flex w-full h-full">
+  <div class="flex w-full">
     <!-- Sidebar -->
     <WorkspaceActions>
+      <template #toolbar>
+        <div class="grid w-full grid-cols-3 border rounded-md shadow-xs border-surface-600">
+          <Button
+            :severity="foldersStore.currentViewType === 'all' ? 'primary' : 'secondary'"
+            :variant="foldersStore.currentViewType === 'all' ? '' : ''"
+            @click="handleSelectAll"
+            size="small"
+            class="border-0 rounded-none rounded-l-md">
+            <div class="content-center">
+              <fa :icon="['fal', 'images']" size="sm" />
+              All Images
+            </div>
+          </Button>
+          <Button
+            :severity="foldersStore.currentViewType === 'uncategorized' ? 'primary' : 'secondary'"
+            :variant="foldersStore.currentViewType === 'uncategorized' ? '' : ''"
+            @click="handleSelectUncategorized"
+            size="small"
+            class="border-0 rounded-none">
+            <div class="content-center">
+              <fa :icon="['fal', 'folder']" size="sm" />
+              Uncategorized
+            </div>
+          </Button>
+          <Button @click="openCreateFolderDialog()" severity="secondary" size="small" class="border-0 rounded-none rounded-r-md">
+            <div class="content-center">
+              <fa :icon="['fal', 'plus']" size="sm" />
+              Create Folder
+            </div>
+          </Button>
+        </div>
+      </template>
       <template #header>Image Gallery</template>
       <template #body>
         <FolderTree @create-folder="openCreateFolderDialog" @edit-folder="openEditFolderDialog" @delete-folder="confirmDeleteFolder" />
@@ -49,6 +81,9 @@
             <Button :disabled="galleryStore.selectedImages.size == 0" size="small" severity="secondary" @click="showBulkTagMenu">
               <div class="flex items-center gap-2"><fa :icon="['fal', 'tag']" size="sm" /> Manage Tags</div>
             </Button>
+            <Button :disabled="galleryStore.selectedImages.size == 0" size="small" severity="danger" @click="confirmDeleteSelected">
+              <div class="flex items-center gap-2"><fa :icon="['fal', 'trash']" size="sm" /> Delete</div>
+            </Button>
             <AutoTagButton @open-settings="openAutoTagSettings" @tagging-complete="handleTaggingComplete" />
             <Button label="Select All" severity="secondary" @click="galleryStore.selectAll"><fa :icon="['fal', 'square-check']" size="sm" /></Button>
             <Button label="Clear" severity="secondary" @click="galleryStore.clearSelection" :disabled="galleryStore.selectedImages.size === 0">
@@ -84,7 +119,8 @@
         @select="handleSelectImage"
         @open-detail="handleOpenDetail"
         @toggle-favorite="handleToggleFavorite"
-        @add-to-compare="handleAddToCompare" />
+        @add-to-compare="handleAddToCompare"
+        @delete="handleDeleteImage" />
     </main>
 
     <!-- Folder Form Dialog -->
@@ -276,9 +312,43 @@ const handleAddToCompare = (image: any) => {
   }
 };
 
+const handleDeleteImage = (imageId: string) => {
+  confirm.require({
+    message: 'Are you sure you want to delete this image? This action cannot be undone.',
+    header: 'Delete Image',
+    icon: 'pi pi-exclamation-triangle',
+    rejectClass: 'p-button-secondary',
+    acceptClass: 'p-button-danger',
+    accept: () => {
+      galleryStore.deleteImage(imageId).then((success) => {
+        if (success) {
+          toast.add({
+            severity: 'success',
+            summary: 'Image Deleted',
+            detail: 'Image has been deleted',
+            life: 3000,
+          });
+        } else {
+          toast.add({
+            severity: 'error',
+            summary: 'Deletion Failed',
+            detail: 'Failed to delete image',
+            life: 5000,
+          });
+        }
+      });
+    },
+  });
+};
+
 const handleSelectAll = () => {
   foldersStore.setViewType('all');
   galleryStore.loadAllImages();
+};
+
+const handleSelectUncategorized = () => {
+  foldersStore.setViewType('uncategorized');
+  galleryStore.loadUncategorizedImages();
 };
 
 const navigateToBreadcrumb = (index: number) => {
@@ -314,6 +384,43 @@ const confirmDeleteFolder = (folder: FolderNode) => {
     acceptClass: 'p-button-danger',
     accept: async () => {
       await foldersStore.deleteFolder(folder.id);
+    },
+  });
+};
+
+const confirmDeleteSelected = () => {
+  const count = galleryStore.selectedImages.size;
+  confirm.require({
+    message: `Are you sure you want to delete ${count} image${count > 1 ? 's' : ''}? This action cannot be undone.`,
+    header: 'Delete Images',
+    icon: 'pi pi-exclamation-triangle',
+    rejectClass: 'p-button-secondary',
+    acceptClass: 'p-button-danger',
+    accept: () => {
+      galleryStore.deleteSelectedImages().then((result) => {
+        if (result.failed === 0) {
+          toast.add({
+            severity: 'success',
+            summary: 'Images Deleted',
+            detail: `Successfully deleted ${result.success} image${result.success > 1 ? 's' : ''}`,
+            life: 3000,
+          });
+        } else if (result.success > 0) {
+          toast.add({
+            severity: 'warn',
+            summary: 'Partial Deletion',
+            detail: `Deleted ${result.success} image${result.success > 1 ? 's' : ''}, ${result.failed} failed`,
+            life: 5000,
+          });
+        } else {
+          toast.add({
+            severity: 'error',
+            summary: 'Deletion Failed',
+            detail: 'Failed to delete images',
+            life: 5000,
+          });
+        }
+      });
     },
   });
 };

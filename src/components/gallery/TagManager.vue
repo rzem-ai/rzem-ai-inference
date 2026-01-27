@@ -2,7 +2,7 @@
   <div class="tag-manager">
     <!-- Header -->
     <div class="tag-header">
-      <span class="section-title">Tags</span>
+      
       <Button
         v-if="selectedTags.length > 0"
         label="Clear"

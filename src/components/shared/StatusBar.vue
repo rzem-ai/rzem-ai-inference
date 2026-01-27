@@ -1,5 +1,5 @@
 <template>
-  <div class="flex items-center h-10 gap-3 px-4 border-t bg-surface-800 shrink border-surface-700">
+  <div class="flex items-center h-10 gap-3 px-4 border-t bg-surface-900 shrink border-surface-700">
     <!-- Demo mode indicator -->
     <div v-if="demoMode" class="absolute top-1 right-2 z-10 flex items-center gap-1 px-2 py-0.5 bg-purple-600 text-white text-xs rounded-full">
       <span class="animate-pulse">●</span> Demo Mode (Ctrl+Shift+D to exit)
