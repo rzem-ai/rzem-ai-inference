@@ -3,7 +3,7 @@
     <!-- Sidebar -->
     <WorkspaceActions>
       <template #toolbar>
-        <div class="grid w-full grid-cols-3 border rounded-md shadow-xs border-surface-600">
+        <div class="w-full grid grid-cols-3 border rounded-md shadow-xs border-surface-600">
           <Button
             :severity="foldersStore.currentViewType === 'all' ? 'primary' : 'secondary'"
             :variant="foldersStore.currentViewType === 'all' ? '' : ''"
@@ -150,7 +150,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useConfirm } from 'primevue/useconfirm';
 import { useToast } from 'primevue/usetoast';
 import { useGalleryStore } from '@/stores/gallery';
@@ -226,7 +226,7 @@ watch(
         pendingImageIds.value = [];
       }
     }
-  }
+  },
 );
 
 const folderOptions = computed(() =>
@@ -234,7 +234,7 @@ const folderOptions = computed(() =>
     id: folder.id,
     name: folder.name,
     path: folder.path,
-  }))
+  })),
 );
 
 const addToFolderMenuItems = computed(() => {
@@ -302,9 +302,17 @@ const bulkTagMenuItems = computed(() => {
 });
 
 onMounted(async () => {
+  // Initialize event listeners for auto-tagging events
+  await autoTagStore.initializeEventListeners();
+
   await Promise.all([galleryStore.loadImages(), foldersStore.loadFolders(), tagsStore.loadTags(), autoTagStore.loadSettings()]);
   // Check model status in background (don't block initial load)
   autoTagStore.checkModelStatus();
+});
+
+onUnmounted(() => {
+  // Cleanup event listeners
+  autoTagStore.cleanupEventListeners();
 });
 
 const handleSearch = async () => {

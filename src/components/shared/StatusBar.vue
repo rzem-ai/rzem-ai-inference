@@ -11,7 +11,7 @@
         <fa v-if="currentStats?.is_generating" :icon="['fal', 'spinner-third']" class="fa-spin" size="sm" />
         <fa v-else :icon="['fal', 'circle']" size="sm" />
       </div>
-      <span class="text-xs font-medium text-surface-300">{{ currentStats?.is_generating ? 'Generating' : 'Idle' }}</span>
+      <span class="text-xs font-medium text-surface-300">{{ currentStats?.is_generating ? 'Drawing' : 'Idle' }}</span>
     </div>
 
     <div class="w-px h-4 bg-surface-700" />

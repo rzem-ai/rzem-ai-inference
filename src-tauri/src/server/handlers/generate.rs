@@ -29,7 +29,8 @@ pub async fn generate(
 ) -> Result<Json<GenerateResponse>, StatusCode> {
     info!(
         prompt = %params.prompt,
-        model = %params.model,
+        bundle_id = ?params.bundle_id,
+        model_component = %params.model_component_id,
         "Received generation request"
     );
 

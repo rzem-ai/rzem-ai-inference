@@ -1,5 +1,32 @@
 # CLAUDE.md - AI Assistant Guide
 
+## ⚠️ CRITICAL: NO BACKWARD COMPATIBILITY
+
+**HIGHEST PRIORITY RULE:**
+
+This application has NOT been released to users. There are NO production deployments. As such, **backward compatibility is NOT required and should NOT be implemented.**
+
+**DO NOT:**
+- ❌ Keep old code paths "for compatibility"
+- ❌ Add fallback logic for legacy behavior
+- ❌ Maintain deprecated fields or methods
+- ❌ Write migration code for unreleased features
+- ❌ Preserve old APIs "just in case"
+- ❌ Add conditional logic like `if old_field exists... else new_field`
+
+**DO:**
+- ✅ Delete old code completely when replacing it
+- ✅ Update all references to use new approach
+- ✅ Break things if needed to move forward
+- ✅ Refactor aggressively
+- ✅ Simplify without legacy concerns
+
+**If you find backward compatibility code: REMOVE IT.**
+
+This rule overrides all other considerations. Clean, simple code is more valuable than compatibility that no users need.
+
+---
+
 ## Purpose
 This document helps Claude Code work effectively with the rzem-ai-inference codebase. It documents architectural patterns, conventions, and critical areas specific to this project.
 
@@ -14,7 +41,9 @@ This document helps Claude Code work effectively with the rzem-ai-inference code
 ## Vue 3 Coding Standards
 
 ### Core Principles
-- **Composition API ONLY**: Always use `<script setup>`, NEVER Options API
+- **Composition API for Components**: Always use `<script setup>` for Vue components
+- **Options API for Stores**: Use Options API (`state`, `getters`, `actions`) for Pinia stores
+- **Component Order**: Always order component blocks as `<template>`, `<script>`, `<style>`
 - **TypeScript First**: All components must use TypeScript with proper type definitions
 - **Prefer `interface` over `type`**: For object shapes (easier to extend, better errors)
 - **Named Exports**: Prefer named exports over default exports
@@ -24,6 +53,11 @@ This document helps Claude Code work effectively with the rzem-ai-inference code
 ### Component Patterns
 
 ```vue
+<template>
+  <!-- Use kebab-case in templates -->
+  <ImageCard @image-click="handleImageClick" :image-id />
+</template>
+
 <script setup lang="ts">
 // ✅ Props: TypeScript interface, no `const props =`
 defineProps<{
@@ -48,10 +82,9 @@ function handleClick() {
 }
 </script>
 
-<template>
-  <!-- Use kebab-case in templates -->
-  <ImageCard @image-click="handleImageClick" :image-id />
-</template>
+<style scoped>
+/* Component-specific styles */
+</style>
 ```
 
 ### Styling
@@ -61,18 +94,27 @@ function handleClick() {
 
 ### State Management (Pinia)
 
+**Use Options API for all Pinia stores:**
+
 ```typescript
 // src/stores/queue.ts
-export const useQueueStore = defineStore('queue', () => {
-  const jobs = ref<GenerationJob[]>([]);
-  const pendingJobs = computed(() => jobs.value.filter(j => j.status === 'pending'));
+export const useQueueStore = defineStore('queue', {
+  state: () => ({
+    jobs: [] as GenerationJob[],
+  }),
 
-  async function loadJobs() {
-    jobs.value = await invoke('get_all_jobs');
-  }
+  getters: {
+    pendingJobs(state): GenerationJob[] {
+      return state.jobs.filter(j => j.status === 'pending')
+    },
+  },
 
-  return { jobs, pendingJobs, loadJobs };
-});
+  actions: {
+    async loadJobs() {
+      this.jobs = await invoke('get_all_jobs')
+    },
+  },
+})
 ```
 
 **Usage:**
@@ -83,6 +125,12 @@ const { jobs } = storeToRefs(queueStore);  // Reactive refs
 await queueStore.loadJobs();  // Call actions directly
 </script>
 ```
+
+**Key Points:**
+- Use `state()` function returning an object for state
+- Use `getters` object for computed properties (receive `state` as first param)
+- Use `actions` object for methods (access state via `this`)
+- Event listeners should be initialized/cleaned up in actions (call from components)
 
 ### TypeScript Patterns
 
@@ -162,10 +210,11 @@ onJobProgress((update) => {
 ```
 
 **State Sync Pattern:**
-1. Initial load from backend (`invoke()`)
-2. Subscribe to events for real-time updates
+1. Initial load from backend (`invoke()` in actions)
+2. Initialize event listeners via explicit actions (call from components on mount)
 3. Store maintains single source of truth
-4. Components use reactive refs from store
+4. Components use reactive refs from store (`storeToRefs()`)
+5. Cleanup listeners when store/component unmounts
 
 ---
 
@@ -223,30 +272,45 @@ User prompt → invoke('queue_generation') → QueueManager.add_job()
 **Pattern: Initial Load + Event Updates**
 
 ```typescript
-export const useQueueStore = defineStore('queue', () => {
-  const jobs = ref<GenerationJob[]>([]);
+export const useQueueStore = defineStore('queue', {
+  state: () => ({
+    jobs: [] as GenerationJob[],
+    jobUpdates: null as ReturnType<typeof useJobUpdates> | null,
+  }),
 
-  async function loadJobs() {
-    jobs.value = await invoke('get_all_jobs');
-  }
+  actions: {
+    async loadJobs() {
+      this.jobs = await invoke('get_all_jobs')
+    },
 
-  const { onJobProgress } = useJobUpdates();
-  onJobProgress((update) => {
-    const job = jobs.value.find(j => j.id === update.job_id);
-    if (job) {
-      job.progress = update.progress;
-      job.currentStage = update.stage;
-    }
-  });
+    initializeEventListeners() {
+      if (this.jobUpdates) return // Already initialized
 
-  return { jobs, loadJobs };
-});
+      this.jobUpdates = useJobUpdates()
+      this.jobUpdates.onJobProgress((update) => {
+        const job = this.jobs.find(j => j.id === update.job_id)
+        if (job) {
+          job.progress = update.progress
+          job.currentStage = update.stage
+        }
+      })
+    },
+
+    cleanupEventListeners() {
+      if (this.jobUpdates) {
+        this.jobUpdates.cleanup()
+        this.jobUpdates = null
+      }
+    },
+  },
+})
 ```
 
 **Common Issues:**
-- ❌ Calling `invoke()` in computed → use reactive state
-- ❌ Forgetting to unsubscribe → use composables
-- ❌ Mutating store state directly → use actions
+- ❌ Calling `invoke()` in getters → load data in actions, store in state
+- ❌ Forgetting to cleanup event listeners → create explicit cleanup actions
+- ❌ Mutating store state from components → always use store actions
+- ❌ Initializing listeners in state → initialize in actions, call from components
 
 **Type Safety: Rust ↔ TypeScript**
 

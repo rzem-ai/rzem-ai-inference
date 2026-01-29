@@ -3,40 +3,39 @@
     <!-- Sidebar -->
     <WorkspaceActions>
       <template #toolbar>
-        <div class="grid w-full grid-cols-4 border rounded-md shadow-xs border-surface-600">
-          <Button severity="secondary" size="small" class="border-0 rounded-none rounded-l-md">
+        <div class="w-full grid grid-cols-3 border rounded-md shadow-xs border-surface-600">
+          <ToggleButton :model-value="showQuality" severity="secondary" size="small" class="border-0 rounded-none rounded-l-md" @change="handleToggleQuality()">
             <div class="content-center">
               <fa :icon="['fal', 'star']" size="sm" />
               Quality
             </div>
-          </Button>
-          <Button severity="secondary" size="small" class="border-0 rounded-none rounded-l-md">
-            <div class="content-center">
-              <fa :icon="['fal', 'box-open']" size="sm" />
-              Model
-            </div>
-          </Button>
-          <Button severity="secondary" size="small" class="border-0 rounded-none rounded-l-md">
+          </ToggleButton>
+          <ToggleButton :model-value="showStyle" severity="secondary" size="small" class="border-0 rounded-none" @change="handleToggleStyle()">
             <div class="content-center">
               <fa :icon="['fal', 'layer-group']" size="sm" />
               Style
             </div>
-          </Button>
-          <Button severity="secondary" size="small" class="border-0 rounded-none rounded-l-md">
+          </ToggleButton>
+          <ToggleButton
+            :model-value="showAdvanced"
+            severity="secondary"
+            size="small"
+            class="border-0 rounded-none rounded-r-md"
+            @change="handleToggleAdvanced()">
             <div class="content-center">
               <fa :icon="['fal', 'gear']" size="sm" />
               Advanced
             </div>
-          </Button>
+          </ToggleButton>
         </div>
       </template>
       <template #header>Generate Images</template>
-      <template #body><GenerateActions @generate="handleGenerate" /></template>
+      <template #body><GenerateActions @generate="handleGenerate" :showQuality="showQuality" :showStyle="showStyle" :showAdvanced="showAdvanced" /></template>
     </WorkspaceActions>
 
     <!-- Main Content Area -->
     <div class="flex flex-1 p-2 grow">
-      <div class="flex flex-col flex-1 gap-2 p-2 overflow-hidden rounded-xl bg-surface-800">
+      <div class="flex flex-col flex-1 gap-2 p-2 overflow-hidden border rounded-lg border-surface-700 bg-surface-950">
         <!-- Canvas Section -->
         <div class="flex flex-1 overflow-hidden">
           <!-- Generated Results -->
@@ -57,7 +56,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, watch, onMounted, onUnmounted } from 'vue';
 import { useToast } from 'primevue/usetoast';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { save } from '@tauri-apps/plugin-dialog';
@@ -71,7 +70,7 @@ import { useModelsStore } from '@/stores/models';
 import type { GenerationParams } from '@/stores/queue';
 import WorkspaceActions from '@/components/shared/WorkspaceActions.vue';
 import HistoryPanel from '@/components/generation/HistoryPanel.vue';
-import Button from 'primevue/button';
+import ToggleButton from 'primevue/togglebutton';
 
 const queueStore = useQueueStore();
 const generationStore = useGenerationStore();
@@ -94,6 +93,26 @@ const currentBatchJobIds = ref<Set<string>>(new Set());
 
 // Track pending image count for skeleton placeholders
 const pendingCount = ref(0);
+
+// Track pending image count for skeleton placeholders
+const showQuality = ref(true);
+const showStyle = ref(false);
+const showAdvanced = ref(false);
+
+const handleToggleQuality = () => {
+  showQuality.value = !showQuality.value;
+  console.log('showQuality: ', showQuality.value);
+};
+
+const handleToggleStyle = () => {
+  showStyle.value = !showStyle.value;
+  console.log('showStyle: ', showStyle.value);
+};
+
+const handleToggleAdvanced = () => {
+  showAdvanced.value = !showAdvanced.value;
+  console.log('showAdvanced: ', showAdvanced.value);
+};
 
 // Watch for completed jobs - only show jobs from current batch
 watch(
@@ -171,12 +190,19 @@ const handleGenerate = async () => {
         width: params.width,
         height: params.height,
         seed: seedToUse,
-        model: params.model,
+        bundle_id: params.bundleId,
+        model_component_id: params.modelComponentId,
+        clip_component_id: params.clipComponentId,
+        t5_component_id: params.t5ComponentId,
+        vae_component_id: params.vaeComponentId,
         sampler: params.sampler,
         scheduler: params.scheduler,
         // Include active LoRAs if any
         ...(activeLoraConfigs.length > 0 && { loras: activeLoraConfigs }),
+        //loras: [{ id: '098df4c8-384b-426d-a257-20bae1dc9327', strength: 1 }],
       };
+
+      console.log(queueParams)
 
       const jobId = await queueStore.addToQueue(queueParams);
       currentBatchJobIds.value.add(jobId);
@@ -255,6 +281,16 @@ const handleRestoreImage = (imagePath: string) => {
   currentBatchJobIds.value.clear();
   displayedJobIds.value.clear();
 };
+
+// Initialize automatic localStorage persistence
+onMounted(() => {
+  generationStore.initializePersistence();
+  modelsStore.loadModels();
+});
+
+onUnmounted(() => {
+  generationStore.cleanupPersistence();
+});
 </script>
 
 <style scoped>
@@ -276,5 +312,9 @@ const handleRestoreImage = (imagePath: string) => {
 :deep(.p-image-toolbar) {
   background: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(10px);
+}
+
+:deep(.p-togglebutton-content:hover) {
+  @apply bg-blue-500 text-white;
 }
 </style>

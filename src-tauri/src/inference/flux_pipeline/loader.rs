@@ -54,24 +54,44 @@ fn format_bytes(bytes: u64) -> String {
 impl FluxPipeline {
     /// Load models if not already loaded, returning timing stats
     /// Each model is checked individually - only missing models are loaded
-    pub(crate) fn ensure_models_loaded(&mut self, stats: &mut GenerationStats) -> Result<()> {
+    /// Accepts optional custom ModelPaths for bundle/component override
+    pub(crate) fn ensure_models_loaded_with_paths(&mut self, stats: &mut GenerationStats, custom_paths: Option<ModelPaths>) -> Result<()> {
         // Quick return if all models are already loaded
         if self.t5.is_some() && self.clip.is_some() && self.vae.is_some() && self.flux.is_some() {
             debug!("All models already loaded, skipping load");
             return Ok(());
         }
 
-        let paths = ModelPaths::new()?;
+        let paths = if let Some(paths) = custom_paths {
+            paths
+        } else {
+            ModelPaths::new()?
+        };
 
-        // Check if base models are downloaded (shared components)
-        if !paths.all_files_exist() {
-            return Err(anyhow::anyhow!(
-                "FLUX base models not downloaded. Run model downloader first."
-            ));
+        // Log whether we're in bundle mode or legacy mode
+        if paths.is_bundle_mode() {
+            info!(bundle_id = ?paths.bundle_id(), "Loading models from active bundle");
+        } else {
+            debug!("Loading models from legacy hardcoded paths");
         }
 
-        // Check if the specific model (Dev) is downloaded if needed
-        if self.model_type == ModelType::Dev && !paths.is_dev_downloaded() {
+        // Validate model files exist
+        if !paths.all_files_exist() {
+            if paths.is_bundle_mode() {
+                return Err(anyhow::anyhow!(
+                    "Active bundle '{}' has missing components. Please scan for models or activate a different bundle.",
+                    paths.bundle_id().unwrap_or("unknown")
+                ));
+            } else {
+                return Err(anyhow::anyhow!(
+                    "Required model files not found. Download models or activate a bundle.\n\
+                     Missing files can be downloaded from Settings or by running 'rzem-cli models download'."
+                ));
+            }
+        }
+
+        // Check if the specific model (Dev) is downloaded if needed (only in legacy mode)
+        if !paths.is_bundle_mode() && self.model_type.id() == "dev" && !paths.is_dev_downloaded() {
             return Err(anyhow::anyhow!(
                 "FLUX Dev model not downloaded. Download it from Settings or use 'rzem-cli models download dev'."
             ));
@@ -112,10 +132,49 @@ impl FluxPipeline {
         if any_loaded {
             stats.model_load_ms = Some(total_load_timer.stop());
             self.models_loaded_this_session = true;
-            info!(model = %self.model_type, "Models ready");
         }
 
         Ok(())
+    }
+
+    /// Load models using bundle context
+    pub(crate) fn ensure_models_loaded(&mut self, stats: &mut GenerationStats) -> Result<()> {
+        // Get context (clone to avoid borrow issues)
+        let context = self.bundle_context.clone()
+            .ok_or_else(|| anyhow::anyhow!("No bundle context set - component IDs required"))?;
+
+        // Create ModelPaths from bundle or individual components
+        let paths = if let Some(bundle_id) = context.bundle_id {
+            // Use bundle
+            let db_path = ModelPaths::get_db_path()?;
+            let db = crate::gallery::GalleryDb::new(&db_path)?;
+            let bundle_info = db.get_bundle(&bundle_id)?;
+            info!(bundle_id = %bundle_id, "Loading models from bundle");
+            ModelPaths::from_bundle_info(&bundle_info)?
+        } else {
+            // Use individual component IDs
+            let model_id = context.model_component_id.as_deref()
+                .ok_or_else(|| anyhow::anyhow!("model_component_id required"))?;
+            let t5_id = context.t5_component_id.as_deref()
+                .ok_or_else(|| anyhow::anyhow!("t5_component_id required"))?;
+            let clip_id = context.clip_component_id.as_deref()
+                .ok_or_else(|| anyhow::anyhow!("clip_component_id required"))?;
+            let vae_id = context.vae_component_id.as_deref()
+                .ok_or_else(|| anyhow::anyhow!("vae_component_id required"))?;
+
+            info!(
+                model = model_id,
+                t5 = t5_id,
+                clip = clip_id,
+                vae = vae_id,
+                "Loading models from individual components"
+            );
+
+            ModelPaths::from_component_ids(model_id, Some(t5_id), Some(clip_id), Some(vae_id))?
+        };
+
+        // Load models with resolved paths
+        self.ensure_models_loaded_with_paths(stats, Some(paths))
     }
 
     /// Ensure models are ready for generation (reload if unloaded)
@@ -132,17 +191,29 @@ impl FluxPipeline {
         let mem_before = get_gpu_memory_stats();
 
         if paths.has_quantized_t5() {
-            info!("Loading T5 encoder (quantized Q5_K_M ~3.3GB)");
+            let model_path = paths.quantized_t5_path();
+            let tokenizer_path = paths.t5_tokenizer_path();
+            info!(
+                model = %model_path.display(),
+                tokenizer = %tokenizer_path.display(),
+                "Loading T5 encoder (quantized Q5_K_M ~3.3GB)"
+            );
             self.t5 = Some(T5TextEncoder::load_quantized(
-                paths.quantized_t5_path(),
-                paths.t5_tokenizer_path(),
+                model_path,
+                tokenizer_path,
                 self.device.clone(),
             )?);
         } else {
-            info!("Loading T5 encoder (full precision BF16 ~9GB)");
+            let model_path = paths.t5_path();
+            let tokenizer_path = paths.t5_tokenizer_path();
+            info!(
+                model = %model_path.display(),
+                tokenizer = %tokenizer_path.display(),
+                "Loading T5 encoder (full precision BF16 ~9GB)"
+            );
             self.t5 = Some(T5TextEncoder::load(
-                paths.t5_path(),
-                paths.t5_tokenizer_path(),
+                model_path,
+                tokenizer_path,
                 self.device.clone(),
             )?);
         }
@@ -180,13 +251,19 @@ impl FluxPipeline {
 
     /// Load CLIP text encoder
     fn load_clip_encoder(&mut self, paths: &ModelPaths, stats: &mut GenerationStats) -> Result<()> {
-        info!("Loading CLIP encoder");
+        let model_path = paths.clip_path().join("model.safetensors");
+        let tokenizer_path = paths.tokenizer_path();
+        info!(
+            model = %model_path.display(),
+            tokenizer = %tokenizer_path.display(),
+            "Loading CLIP encoder"
+        );
         let clip_timer = Timer::start();
         let mem_before = get_gpu_memory_stats();
 
         self.clip = Some(ClipTextEncoder::load(
-            paths.clip_path().join("model.safetensors"),
-            paths.tokenizer_path(),
+            model_path,
+            tokenizer_path,
             self.device.clone(),
         )?);
 
@@ -223,12 +300,16 @@ impl FluxPipeline {
 
     /// Load VAE decoder
     fn load_vae_decoder(&mut self, paths: &ModelPaths, stats: &mut GenerationStats) -> Result<()> {
-        info!("Loading VAE decoder");
+        let model_path = paths.vae_path();
+        info!(
+            model = %model_path.display(),
+            "Loading VAE decoder"
+        );
         let vae_timer = Timer::start();
         let mem_before = get_gpu_memory_stats();
 
         self.vae = Some(VaeDecoder::load(
-            paths.vae_path(),
+            model_path,
             self.device.clone(),
         )?);
 
@@ -271,38 +352,54 @@ impl FluxPipeline {
         // Check if LoRAs are active
         let has_loras = !self.active_loras.is_empty();
 
-        if paths.has_quantized_for(self.model_type) {
+        if paths.has_quantized_for(self.model_type.clone()) {
+            let model_path = paths.quantized_transformer_path_for(self.model_type.clone());
             if has_loras {
                 // LoRAs not yet supported with quantized models
                 // Fall back to loading without LoRAs and log a warning
                 info!(
                     model = %self.model_type,
+                    path = %model_path.display(),
                     lora_count = self.active_loras.len(),
                     "Loading quantized transformer (LoRAs not supported with GGUF, ignoring)"
                 );
             } else {
-                info!(model = %self.model_type, "Loading transformer (quantized GGUF)");
+                info!(
+                    model = %self.model_type,
+                    path = %model_path.display(),
+                    "Loading transformer (quantized GGUF)"
+                );
             }
             self.flux = Some(FluxTransformer::load_quantized(
-                paths.quantized_transformer_path_for(self.model_type),
+                model_path,
                 self.device.clone(),
+                self.model_type.clone(),
             )?);
         } else if has_loras {
+            let model_path = paths.transformer_path_for(self.model_type.clone());
             info!(
                 model = %self.model_type,
+                path = %model_path.display(),
                 lora_count = self.active_loras.len(),
                 "Loading transformer with LoRAs (full precision)"
             );
             self.flux = Some(FluxTransformer::load_with_loras(
-                paths.transformer_path_for(self.model_type),
+                model_path,
                 self.device.clone(),
+                self.model_type.clone(),
                 &self.active_loras,
             )?);
         } else {
-            info!(model = %self.model_type, "Loading transformer (full precision)");
+            let model_path = paths.transformer_path_for(self.model_type.clone());
+            info!(
+                model = %self.model_type,
+                path = %model_path.display(),
+                "Loading transformer (full precision)"
+            );
             self.flux = Some(FluxTransformer::load(
-                paths.transformer_path_for(self.model_type),
+                model_path,
                 self.device.clone(),
+                self.model_type.clone(),
             )?);
         }
 

@@ -1,5 +1,4 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 
 export interface Tag {
@@ -10,129 +9,114 @@ export interface Tag {
   usageCount: number
 }
 
-export const useTagsStore = defineStore('tags', () => {
-  // State
-  const tags = ref<Tag[]>([])
-  const isLoading = ref(false)
+export const useTagsStore = defineStore('tags', {
+  state: () => ({
+    tags: [] as Tag[],
+    isLoading: false,
+  }),
 
-  // Getters
-  const tagsByCategory = computed(() => {
-    const groups: Record<string, Tag[]> = { uncategorized: [] }
+  getters: {
+    tagsByCategory(state): Record<string, Tag[]> {
+      const groups: Record<string, Tag[]> = { uncategorized: [] }
 
-    for (const tag of tags.value) {
-      const category = tag.category || 'uncategorized'
-      if (!groups[category]) {
-        groups[category] = []
+      for (const tag of state.tags) {
+        const category = tag.category || 'uncategorized'
+        if (!groups[category]) {
+          groups[category] = []
+        }
+        groups[category].push(tag)
       }
-      groups[category].push(tag)
-    }
 
-    return groups
-  })
+      return groups
+    },
 
-  const categories = computed(() => {
-    const cats = new Set<string>()
-    for (const tag of tags.value) {
-      if (tag.category) {
-        cats.add(tag.category)
+    categories(state): string[] {
+      const cats = new Set<string>()
+      for (const tag of state.tags) {
+        if (tag.category) {
+          cats.add(tag.category)
+        }
       }
-    }
-    return Array.from(cats).sort()
-  })
+      return Array.from(cats).sort()
+    },
 
-  const popularTags = computed(() => {
-    return [...tags.value].sort((a, b) => b.usageCount - a.usageCount).slice(0, 10)
-  })
+    popularTags(state): Tag[] {
+      return [...state.tags].sort((a, b) => b.usageCount - a.usageCount).slice(0, 10)
+    },
+  },
 
-  // Actions
-  async function loadTags(): Promise<void> {
-    isLoading.value = true
-    try {
-      const result = await invoke<Tag[]>('get_all_tags')
-      tags.value = result
-    } catch (error) {
-      console.error('Failed to load tags:', error)
-    } finally {
-      isLoading.value = false
-    }
-  }
+  actions: {
+    async loadTags(): Promise<void> {
+      this.isLoading = true
+      try {
+        const result = await invoke<Tag[]>('get_all_tags')
+        this.tags = result
+      } catch (error) {
+        console.error('Failed to load tags:', error)
+      } finally {
+        this.isLoading = false
+      }
+    },
 
-  async function updateTag(
-    id: number,
-    updates: { name?: string; color?: string; category?: string }
-  ): Promise<boolean> {
-    try {
-      await invoke('update_tag', {
-        id,
-        name: updates.name,
-        color: updates.color,
-        category: updates.category,
-      })
-      await loadTags() // Refresh
-      return true
-    } catch (error) {
-      console.error('Failed to update tag:', error)
-      return false
-    }
-  }
+    async updateTag(
+      id: number,
+      updates: { name?: string; color?: string; category?: string }
+    ): Promise<boolean> {
+      try {
+        await invoke('update_tag', {
+          id,
+          name: updates.name,
+          color: updates.color,
+          category: updates.category,
+        })
+        await this.loadTags() // Refresh
+        return true
+      } catch (error) {
+        console.error('Failed to update tag:', error)
+        return false
+      }
+    },
 
-  async function bulkAddTag(imageIds: string[], tagName: string): Promise<boolean> {
-    try {
-      await invoke('bulk_add_tag', { imageIds, tag: tagName })
-      await loadTags() // Refresh counts
-      return true
-    } catch (error) {
-      console.error('Failed to bulk add tag:', error)
-      return false
-    }
-  }
+    async bulkAddTag(imageIds: string[], tagName: string): Promise<boolean> {
+      try {
+        await invoke('bulk_add_tag', { imageIds, tag: tagName })
+        await this.loadTags() // Refresh counts
+        return true
+      } catch (error) {
+        console.error('Failed to bulk add tag:', error)
+        return false
+      }
+    },
 
-  async function bulkRemoveTag(imageIds: string[], tagName: string): Promise<boolean> {
-    try {
-      await invoke('bulk_remove_tag', { imageIds, tag: tagName })
-      await loadTags() // Refresh counts
-      return true
-    } catch (error) {
-      console.error('Failed to bulk remove tag:', error)
-      return false
-    }
-  }
+    async bulkRemoveTag(imageIds: string[], tagName: string): Promise<boolean> {
+      try {
+        await invoke('bulk_remove_tag', { imageIds, tag: tagName })
+        await this.loadTags() // Refresh counts
+        return true
+      } catch (error) {
+        console.error('Failed to bulk remove tag:', error)
+        return false
+      }
+    },
 
-  async function deleteTag(tagId: number): Promise<boolean> {
-    try {
-      await invoke('delete_tag', { tagId })
-      // Remove from local state
-      tags.value = tags.value.filter((t) => t.id !== tagId)
-      return true
-    } catch (error) {
-      console.error('Failed to delete tag:', error)
-      return false
-    }
-  }
+    async deleteTag(tagId: number): Promise<boolean> {
+      try {
+        await invoke('delete_tag', { tagId })
+        // Remove from local state
+        this.tags = this.tags.filter((t) => t.id !== tagId)
+        return true
+      } catch (error) {
+        console.error('Failed to delete tag:', error)
+        return false
+      }
+    },
 
-  function getTagByName(name: string): Tag | undefined {
-    return tags.value.find((t) => t.name === name)
-  }
+    getTagByName(name: string): Tag | undefined {
+      return this.tags.find((t) => t.name === name)
+    },
 
-  function getTagColor(name: string): string | undefined {
-    return getTagByName(name)?.color
-  }
-
-  return {
-    // State
-    tags,
-    isLoading,
-    // Getters
-    tagsByCategory,
-    categories,
-    popularTags,
-    // Actions
-    loadTags,
-    updateTag,
-    bulkAddTag,
-    bulkRemoveTag,
-    deleteTag,
-    getTagByName,
-    getTagColor,
-  }
+    getTagColor(name: string): string | undefined {
+      return this.getTagByName(name)?.color
+    },
+  },
 })

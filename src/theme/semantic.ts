@@ -26,7 +26,7 @@ export const semantic: AuraBaseTokenSections.Semantic = {
     900: '{blue.900}',
     950: '{blue.950}',
   },
-
+  
   formField: {
     paddingX: '0.75rem',
     paddingY: '0.5rem',

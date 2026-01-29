@@ -62,6 +62,16 @@ pub struct ImageMetadata {
     pub thumbnail_path: Option<String>,
     pub prompt: String,
     pub created_at: i64,
+    pub width: i32,
+    pub height: i32,
+    pub file_size: i64,
+    pub model_name: String,
+    pub negative_prompt: Option<String>,
+    pub steps: Option<i32>,
+    pub cfg_scale: Option<f64>,
+    pub seed: Option<i64>,
+    pub sampler: Option<String>,
+    pub generation_time_ms: Option<i64>,
 }
 
 /// Image metadata for frontend API (camelCase)
@@ -140,9 +150,110 @@ pub struct ModelRecord {
 
     pub has_quantized: bool,
     pub quantized_downloaded: bool,
+    pub supports_loras: bool,
+
+    // Model configuration fields
+    pub repo_id: Option<String>,
+    pub transformer_filename: Option<String>,
+    pub quantized_filename: Option<String>,
+    pub quantized_repos: Option<serde_json::Value>,
+    pub step_min: Option<i32>,
+    pub step_max: Option<i32>,
+    pub vram_full: Option<i32>,
+    pub vram_quantized: Option<i32>,
+    pub model_family: Option<String>,
+    pub component_type: Option<String>,
 
     pub created_at: i64,
     pub last_used_at: Option<i64>,
+}
+
+// ========== Model Bundle System Types ==========
+
+/// Physical model component file
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ComponentRecord {
+    pub id: String,
+    pub component_type: String,
+    pub format: String,
+    pub file_path: String,
+    pub file_size: i64,
+    pub file_hash: Option<String>,
+    pub name: String,
+    pub repo_id: Option<String>,
+    pub repo_snapshot: Option<String>,
+    pub architecture: Option<String>,
+    pub quantization: Option<String>,
+    pub supports_loras: bool,
+    pub is_sharded: bool,
+    pub shard_count: Option<i32>,
+    pub vram_mb: Option<i32>,
+    pub discovered_at: i64,
+    pub last_verified_at: Option<i64>,
+    pub is_available: bool,
+    pub metadata: Option<serde_json::Value>,
+}
+
+/// Logical model bundle grouping components
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BundleRecord {
+    pub id: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub bundle_type: String,
+    pub model_family: String,
+    pub default_steps: Option<i32>,
+    pub default_guidance: Option<f64>,
+    pub step_min: Option<i32>,
+    pub step_max: Option<i32>,
+    pub total_vram_mb: Option<i32>,
+    pub is_complete: bool,
+    pub is_active: bool,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub validation_errors: Option<String>,
+}
+
+/// Component role in a bundle with metadata
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ComponentInfo {
+    pub id: String,
+    pub role: String,
+    pub name: String,
+    pub component_type: String,
+    pub format: String,
+    pub file_path: String,
+    pub file_size: i64,
+    pub quantization: Option<String>,
+    pub vram_mb: Option<i32>,
+    pub is_available: bool,
+    pub is_required: bool,
+    pub priority: i32,
+}
+
+/// Bundle with full component details
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BundleInfo {
+    pub id: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub bundle_type: String,
+    pub model_family: String,
+    pub default_steps: Option<i32>,
+    pub default_guidance: Option<f64>,
+    pub step_min: Option<i32>,
+    pub step_max: Option<i32>,
+    pub total_vram_mb: Option<i32>,
+    pub is_complete: bool,
+    pub is_active: bool,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub validation_errors: Option<String>,
+    pub components: Vec<ComponentInfo>,
 }
 
 pub struct GalleryDb {
@@ -182,6 +293,18 @@ impl GalleryDb {
         // Migrate models table to include new fields
         self.migrate_models_table()?;
 
+        // Migrate models table to add config fields
+        self.migrate_models_table_v2()?;
+
+        // Add supports_loras column
+        self.migrate_models_table_v3()?;
+
+        // Convert source field from repo_id to URL
+        self.migrate_source_to_urls()?;
+
+        // Rebuild FTS table if corrupted
+        self.rebuild_fts_if_needed()?;
+
         Ok(())
     }
 
@@ -219,6 +342,119 @@ impl GalleryDb {
                 // Try to add column, ignore if already exists
                 let _ = self.conn.execute(&format!("ALTER TABLE models ADD COLUMN {}", column), []);
             }
+        }
+
+        Ok(())
+    }
+
+    /// Migrate models table to add config fields
+    fn migrate_models_table_v2(&self) -> Result<()> {
+        // Check if repo_id column exists
+        let has_repo_id: bool = self.conn.query_row(
+            "SELECT COUNT(*) > 0 FROM pragma_table_info('models') WHERE name = 'repo_id'",
+            [],
+            |row| row.get(0),
+        ).unwrap_or(false);
+
+        if !has_repo_id {
+            // Add all new configuration columns
+            let new_columns = vec![
+                "repo_id TEXT",
+                "transformer_filename TEXT",
+                "quantized_filename TEXT",
+                "quantized_repos TEXT DEFAULT '[]'",
+                "step_min INTEGER DEFAULT 1",
+                "step_max INTEGER DEFAULT 100",
+                "vram_full INTEGER DEFAULT 24000",
+                "vram_quantized INTEGER DEFAULT 12000",
+                "model_family TEXT DEFAULT 'flux'",
+                "component_type TEXT DEFAULT 'transformer'",
+            ];
+
+            for column in new_columns {
+                // Try to add column, ignore if already exists
+                let _ = self.conn.execute(&format!("ALTER TABLE models ADD COLUMN {}", column), []);
+            }
+
+            tracing::info!("Added model configuration columns to models table");
+        }
+
+        Ok(())
+    }
+
+    /// Migrate models table to add LoRA support column
+    fn migrate_models_table_v3(&self) -> Result<()> {
+        // Check if supports_loras column exists
+        let has_supports_loras: bool = self.conn.query_row(
+            "SELECT COUNT(*) > 0 FROM pragma_table_info('models') WHERE name = 'supports_loras'",
+            [],
+            |row| row.get(0),
+        ).unwrap_or(false);
+
+        if !has_supports_loras {
+            self.conn.execute("ALTER TABLE models ADD COLUMN supports_loras INTEGER DEFAULT 0", [])?;
+            tracing::info!("Added supports_loras column to models table");
+        }
+
+        Ok(())
+    }
+
+    /// Migrate source field from repo_id format to URLs
+    fn migrate_source_to_urls(&self) -> Result<()> {
+        // Check if any source field needs migration (doesn't start with http)
+        let needs_migration: bool = self.conn.query_row(
+            "SELECT COUNT(*) > 0 FROM models WHERE source IS NOT NULL AND source NOT LIKE 'http%'",
+            [],
+            |row| row.get(0),
+        ).unwrap_or(false);
+
+        if needs_migration {
+            tracing::info!("Migrating source fields to URLs");
+
+            // Update all source fields that look like repo IDs
+            self.conn.execute(
+                "UPDATE models
+                 SET source = 'https://huggingface.co/' || source
+                 WHERE source IS NOT NULL AND source NOT LIKE 'http%'",
+                [],
+            )?;
+
+            tracing::info!("Migrated source fields to URLs");
+        }
+
+        Ok(())
+    }
+
+    /// Rebuild FTS table if it's corrupted or needs updating
+    fn rebuild_fts_if_needed(&self) -> Result<()> {
+        // Try to query the FTS table - if it fails, it's corrupted
+        let is_corrupted = self.conn
+            .query_row("SELECT COUNT(*) FROM images_fts", [], |_row| Ok(()))
+            .is_err();
+
+        if is_corrupted {
+            tracing::warn!("FTS table is corrupted, rebuilding...");
+
+            // Drop and recreate FTS table
+            self.conn.execute("DROP TABLE IF EXISTS images_fts", [])?;
+
+            self.conn.execute(
+                "CREATE VIRTUAL TABLE images_fts USING fts5(
+                    image_id UNINDEXED,
+                    prompt,
+                    negative_prompt
+                )",
+                [],
+            )?;
+
+            // Repopulate from existing images
+            self.conn.execute(
+                "INSERT INTO images_fts (image_id, prompt, negative_prompt)
+                 SELECT id, prompt, COALESCE(negative_prompt, '') FROM images",
+                [],
+            )?;
+
+            tracing::info!("FTS table rebuilt successfully");
         }
 
         Ok(())
@@ -437,6 +673,106 @@ impl GalleryDb {
             [],
         )?;
 
+        // ===== Model Bundle System Tables =====
+
+        // Create model_components table - physical model files
+        self.conn.execute(
+            "CREATE TABLE IF NOT EXISTS model_components (
+                id TEXT PRIMARY KEY,
+                component_type TEXT NOT NULL,
+                format TEXT NOT NULL,
+                file_path TEXT NOT NULL UNIQUE,
+                file_size INTEGER NOT NULL,
+                file_hash TEXT,
+                name TEXT NOT NULL,
+                repo_id TEXT,
+                repo_snapshot TEXT,
+                architecture TEXT,
+                quantization TEXT,
+                supports_loras INTEGER DEFAULT 0,
+                is_sharded INTEGER DEFAULT 0,
+                shard_count INTEGER,
+                vram_mb INTEGER,
+                discovered_at INTEGER NOT NULL,
+                last_verified_at INTEGER,
+                is_available INTEGER DEFAULT 1,
+                metadata TEXT
+            )",
+            [],
+        )?;
+
+        // Create model_bundles table - logical groupings
+        self.conn.execute(
+            "CREATE TABLE IF NOT EXISTS model_bundles (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                description TEXT,
+                bundle_type TEXT NOT NULL,
+                model_family TEXT NOT NULL,
+                default_steps INTEGER,
+                default_guidance REAL,
+                step_min INTEGER,
+                step_max INTEGER,
+                total_vram_mb INTEGER,
+                is_complete INTEGER DEFAULT 0,
+                is_active INTEGER DEFAULT 0,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL,
+                validation_errors TEXT
+            )",
+            [],
+        )?;
+
+        // Create bundle_components table - many-to-many relationships
+        self.conn.execute(
+            "CREATE TABLE IF NOT EXISTS bundle_components (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                bundle_id TEXT NOT NULL,
+                component_id TEXT NOT NULL,
+                component_role TEXT NOT NULL,
+                is_required INTEGER DEFAULT 1,
+                priority INTEGER DEFAULT 0,
+                FOREIGN KEY (bundle_id) REFERENCES model_bundles(id) ON DELETE CASCADE,
+                FOREIGN KEY (component_id) REFERENCES model_components(id) ON DELETE CASCADE,
+                UNIQUE (bundle_id, component_role, component_id)
+            )",
+            [],
+        )?;
+
+        // Create indexes for model bundle system
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_components_type ON model_components(component_type)",
+            [],
+        )?;
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_components_repo ON model_components(repo_id)",
+            [],
+        )?;
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_components_available ON model_components(is_available)",
+            [],
+        )?;
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_components_hash ON model_components(file_hash)",
+            [],
+        )?;
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_bundles_family ON model_bundles(model_family)",
+            [],
+        )?;
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_bundles_active ON model_bundles(is_active)",
+            [],
+        )?;
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_bundle_components_bundle ON bundle_components(bundle_id)",
+            [],
+        )?;
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_bundle_components_component ON bundle_components(component_id)",
+            [],
+        )?;
+
         // Run migrations for existing databases
         self.run_migrations()?;
 
@@ -444,11 +780,31 @@ impl GalleryDb {
     }
 
     pub fn insert_image(&self, metadata: &ImageMetadata) -> Result<()> {
-        // Insert into images table with hardcoded defaults
+        // Insert into images table with all metadata
         self.conn.execute(
-            "INSERT INTO images (id, file_path, thumbnail_path, prompt, created_at, width, height, file_size, model_name)
-             VALUES (?1, ?2, ?3, ?4, ?5, 1024, 1024, 0, 'flux-schnell')",
-            params![metadata.id, metadata.file_path, metadata.thumbnail_path, metadata.prompt, metadata.created_at],
+            "INSERT INTO images (
+                id, file_path, thumbnail_path, prompt, created_at,
+                width, height, file_size, model_name, negative_prompt,
+                steps, cfg_scale, seed, sampler, generation_time_ms
+             )
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+            params![
+                metadata.id,
+                metadata.file_path,
+                metadata.thumbnail_path,
+                metadata.prompt,
+                metadata.created_at,
+                metadata.width,
+                metadata.height,
+                metadata.file_size,
+                metadata.model_name,
+                metadata.negative_prompt,
+                metadata.steps,
+                metadata.cfg_scale,
+                metadata.seed,
+                metadata.sampler,
+                metadata.generation_time_ms,
+            ],
         )?;
 
         // Insert into FTS table
@@ -458,7 +814,7 @@ impl GalleryDb {
             params![
                 metadata.id,
                 metadata.prompt,
-                ""
+                metadata.negative_prompt.as_deref().unwrap_or("")
             ],
         )?;
 
@@ -467,7 +823,9 @@ impl GalleryDb {
 
     pub fn get_recent_images(&self, limit: usize) -> Result<Vec<ImageMetadata>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, file_path, thumbnail_path, prompt, created_at
+            "SELECT id, file_path, thumbnail_path, prompt, created_at,
+                    width, height, file_size, model_name, negative_prompt,
+                    steps, cfg_scale, seed, sampler, generation_time_ms
              FROM images
              ORDER BY created_at DESC
              LIMIT ?1"
@@ -480,6 +838,16 @@ impl GalleryDb {
                 thumbnail_path: row.get(2)?,
                 prompt: row.get(3)?,
                 created_at: row.get(4)?,
+                width: row.get(5)?,
+                height: row.get(6)?,
+                file_size: row.get(7)?,
+                model_name: row.get(8)?,
+                negative_prompt: row.get(9)?,
+                steps: row.get(10)?,
+                cfg_scale: row.get(11)?,
+                seed: row.get(12)?,
+                sampler: row.get(13)?,
+                generation_time_ms: row.get(14)?,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
@@ -605,7 +973,9 @@ impl GalleryDb {
 
     pub fn search_gallery_images(&self, query: &str) -> Result<Vec<ImageMetadata>> {
         let mut stmt = self.conn.prepare(
-            "SELECT i.id, i.file_path, i.thumbnail_path, i.prompt, i.created_at
+            "SELECT i.id, i.file_path, i.thumbnail_path, i.prompt, i.created_at,
+                    i.width, i.height, i.file_size, i.model_name, i.negative_prompt,
+                    i.steps, i.cfg_scale, i.seed, i.sampler, i.generation_time_ms
              FROM images i
              JOIN images_fts fts ON i.id = fts.image_id
              WHERE images_fts MATCH ?1
@@ -620,6 +990,16 @@ impl GalleryDb {
                 thumbnail_path: row.get(2)?,
                 prompt: row.get(3)?,
                 created_at: row.get(4)?,
+                width: row.get(5)?,
+                height: row.get(6)?,
+                file_size: row.get(7)?,
+                model_name: row.get(8)?,
+                negative_prompt: row.get(9)?,
+                steps: row.get(10)?,
+                cfg_scale: row.get(11)?,
+                seed: row.get(12)?,
+                sampler: row.get(13)?,
+                generation_time_ms: row.get(14)?,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
@@ -670,7 +1050,9 @@ impl GalleryDb {
 
     pub fn get_image_by_id(&self, image_id: &str) -> Result<Option<ImageMetadata>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, file_path, thumbnail_path, prompt, created_at
+            "SELECT id, file_path, thumbnail_path, prompt, created_at,
+                    width, height, file_size, model_name, negative_prompt,
+                    steps, cfg_scale, seed, sampler, generation_time_ms
              FROM images
              WHERE id = ?1"
         )?;
@@ -684,6 +1066,16 @@ impl GalleryDb {
                 thumbnail_path: row.get(2)?,
                 prompt: row.get(3)?,
                 created_at: row.get(4)?,
+                width: row.get(5)?,
+                height: row.get(6)?,
+                file_size: row.get(7)?,
+                model_name: row.get(8)?,
+                negative_prompt: row.get(9)?,
+                steps: row.get(10)?,
+                cfg_scale: row.get(11)?,
+                seed: row.get(12)?,
+                sampler: row.get(13)?,
+                generation_time_ms: row.get(14)?,
             }))
         } else {
             Ok(None)
@@ -717,18 +1109,18 @@ impl GalleryDb {
             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)",
             params![
                 image_id,
-                stats.model_load_ms,
-                stats.t5_load_ms,
-                stats.clip_load_ms,
-                stats.vae_load_ms,
-                stats.flux_load_ms,
-                stats.t5_encode_ms,
-                stats.clip_encode_ms,
-                stats.denoise_ms,
-                stats.vae_decode_ms,
-                stats.png_encode_ms,
-                stats.total_ms,
-                stats.steps,
+                stats.model_load_ms.map(|v| v as i64),
+                stats.t5_load_ms.map(|v| v as i64),
+                stats.clip_load_ms.map(|v| v as i64),
+                stats.vae_load_ms.map(|v| v as i64),
+                stats.flux_load_ms.map(|v| v as i64),
+                stats.t5_encode_ms as i64,
+                stats.clip_encode_ms as i64,
+                stats.denoise_ms as i64,
+                stats.vae_decode_ms as i64,
+                stats.png_encode_ms as i64,
+                stats.total_ms as i64,
+                stats.steps as i64,
                 stats.model_type,
                 serde_json::to_string(&stats.t5_embedding_shape).ok(),
                 serde_json::to_string(&stats.clip_embedding_shape).ok(),
@@ -761,18 +1153,18 @@ impl GalleryDb {
 
         if let Some(row) = rows.next()? {
             Ok(Some(GenerationStats {
-                model_load_ms: row.get(0)?,
-                t5_load_ms: row.get(1)?,
-                clip_load_ms: row.get(2)?,
-                vae_load_ms: row.get(3)?,
-                flux_load_ms: row.get(4)?,
-                t5_encode_ms: row.get(5)?,
-                clip_encode_ms: row.get(6)?,
-                denoise_ms: row.get(7)?,
-                vae_decode_ms: row.get(8)?,
-                png_encode_ms: row.get(9)?,
-                total_ms: row.get(10)?,
-                steps: row.get(11)?,
+                model_load_ms: row.get::<_, Option<i64>>(0)?.map(|v| v as u64),
+                t5_load_ms: row.get::<_, Option<i64>>(1)?.map(|v| v as u64),
+                clip_load_ms: row.get::<_, Option<i64>>(2)?.map(|v| v as u64),
+                vae_load_ms: row.get::<_, Option<i64>>(3)?.map(|v| v as u64),
+                flux_load_ms: row.get::<_, Option<i64>>(4)?.map(|v| v as u64),
+                t5_encode_ms: row.get::<_, i64>(5)? as u64,
+                clip_encode_ms: row.get::<_, i64>(6)? as u64,
+                denoise_ms: row.get::<_, i64>(7)? as u64,
+                vae_decode_ms: row.get::<_, i64>(8)? as u64,
+                png_encode_ms: row.get::<_, i64>(9)? as u64,
+                total_ms: row.get::<_, i64>(10)? as u64,
+                steps: row.get::<_, i64>(11)? as usize,
                 model_type: row.get(12)?,
                 t5_embedding_shape: row.get::<_, Option<String>>(13)?
                     .and_then(|s| serde_json::from_str(&s).ok())
@@ -1375,8 +1767,11 @@ impl GalleryDb {
                     source, license, docs_url,
                     tags, icon, icon_class,
                     default_settings, features, notes,
-                    has_quantized, quantized_downloaded,
-                    created_at, last_used_at
+                    has_quantized, quantized_downloaded, supports_loras,
+                    created_at, last_used_at,
+                    repo_id, transformer_filename, quantized_filename, quantized_repos,
+                    step_min, step_max, vram_full, vram_quantized,
+                    model_family, component_type
              FROM models
              ORDER BY category, name"
         )?;
@@ -1411,8 +1806,21 @@ impl GalleryDb {
                 notes: row.get(20)?,
                 has_quantized: row.get::<_, i32>(21)? != 0,
                 quantized_downloaded: row.get::<_, i32>(22)? != 0,
-                created_at: row.get(23)?,
-                last_used_at: row.get(24)?,
+                supports_loras: row.get::<_, i32>(23)? != 0,
+                created_at: row.get(24)?,
+                last_used_at: row.get(25)?,
+                // Model configuration fields
+                repo_id: row.get(26)?,
+                transformer_filename: row.get(27)?,
+                quantized_filename: row.get(28)?,
+                quantized_repos: row.get::<_, Option<String>>(29)?
+                    .and_then(|s| serde_json::from_str(&s).ok()),
+                step_min: row.get(30)?,
+                step_max: row.get(31)?,
+                vram_full: row.get(32)?,
+                vram_quantized: row.get(33)?,
+                model_family: row.get(34)?,
+                component_type: row.get(35)?,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
@@ -1429,6 +1837,9 @@ impl GalleryDb {
         let features_json = model.features.as_ref()
             .map(|f| serde_json::to_string(f))
             .transpose()?;
+        let quantized_repos_json = model.quantized_repos.as_ref()
+            .map(|q| serde_json::to_string(q))
+            .transpose()?;
 
         self.conn.execute(
             "INSERT INTO models (
@@ -1438,10 +1849,14 @@ impl GalleryDb {
                 source, license, docs_url,
                 tags, icon, icon_class,
                 default_settings, features, notes,
-                has_quantized, quantized_downloaded,
-                created_at, last_used_at, metadata
+                has_quantized, quantized_downloaded, supports_loras,
+                created_at, last_used_at,
+                repo_id, transformer_filename, quantized_filename, quantized_repos,
+                step_min, step_max, vram_full, vram_quantized,
+                model_family, component_type
             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15,
-                      ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, NULL)
+                      ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26,
+                      ?27, ?28, ?29, ?30, ?31, ?32, ?33, ?34, ?35, ?36)
             ON CONFLICT(id) DO UPDATE SET
                 name = excluded.name,
                 description = excluded.description,
@@ -1465,7 +1880,18 @@ impl GalleryDb {
                 notes = excluded.notes,
                 has_quantized = excluded.has_quantized,
                 quantized_downloaded = excluded.quantized_downloaded,
-                last_used_at = excluded.last_used_at",
+                last_used_at = excluded.last_used_at,
+                repo_id = excluded.repo_id,
+                transformer_filename = excluded.transformer_filename,
+                quantized_filename = excluded.quantized_filename,
+                quantized_repos = excluded.quantized_repos,
+                step_min = excluded.step_min,
+                step_max = excluded.step_max,
+                vram_full = excluded.vram_full,
+                vram_quantized = excluded.vram_quantized,
+                model_family = excluded.model_family,
+                component_type = excluded.component_type,
+                supports_loras = excluded.supports_loras",
             params![
                 model.id,
                 model.name,
@@ -1490,8 +1916,19 @@ impl GalleryDb {
                 model.notes,
                 model.has_quantized as i32,
                 model.quantized_downloaded as i32,
+                model.supports_loras as i32,
                 model.created_at,
                 model.last_used_at,
+                model.repo_id,
+                model.transformer_filename,
+                model.quantized_filename,
+                quantized_repos_json,
+                model.step_min,
+                model.step_max,
+                model.vram_full,
+                model.vram_quantized,
+                model.model_family,
+                model.component_type,
             ],
         )?;
 
@@ -1526,6 +1963,85 @@ impl GalleryDb {
         Ok(count)
     }
 
+    /// Save discovered models to database
+    pub fn save_discovered_models(&self, models: &[crate::models::DiscoveredModel]) -> Result<()> {
+        use crate::models::ModelFormat;
+
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(0);
+
+        for model in models {
+            // Use the hub directory-based ID directly
+            let id = &model.id;
+
+            // Generate HuggingFace URL from repo_id
+            let source_url = format!("https://huggingface.co/{}", model.repo_id);
+
+            // Check if model already exists
+            let exists: bool = self.conn
+                .query_row(
+                    "SELECT COUNT(*) > 0 FROM models WHERE id = ?1",
+                    params![id],
+                    |row| row.get(0),
+                )
+                .unwrap_or(false);
+
+            if exists {
+                // Update path, format, source URL, repo_id, and supports_loras
+                self.conn.execute(
+                    "UPDATE models SET path = ?1, supports_loras = ?2, format = ?3, source = ?4, repo_id = ?5, is_downloaded = 1 WHERE id = ?6",
+                    params![
+                        model.path.to_string_lossy().as_ref(),
+                        model.supports_loras as i32,
+                        match model.format {
+                            ModelFormat::Safetensors => "Safetensors",
+                            ModelFormat::Gguf => "GGUF",
+                            ModelFormat::Json => "JSON",
+                        },
+                        &source_url,
+                        &model.repo_id,
+                        id
+                    ],
+                )?;
+            } else {
+                // Insert new model
+                self.conn.execute(
+                    "INSERT INTO models (
+                        id, name, description, type, category, category_label,
+                        path, size_estimate, format, source, repo_id,
+                        vram_full, supports_loras,
+                        is_downloaded, created_at
+                    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+                    params![
+                        id,
+                        &model.display_name,
+                        format!("Discovered in HuggingFace cache"),
+                        "Diffusion Transformer",
+                        "generation",
+                        "Image Generation",
+                        model.path.to_string_lossy().as_ref(),
+                        format!("{} MB", model.vram_mb),
+                        match model.format {
+                            ModelFormat::Safetensors => "Safetensors",
+                            ModelFormat::Gguf => "GGUF",
+                            ModelFormat::Json => "JSON",
+                        },
+                        &source_url,
+                        &model.repo_id,
+                        model.vram_mb as i64,
+                        model.supports_loras as i32,
+                        1i32, // is_downloaded (it's in cache!)
+                        now,
+                    ],
+                )?;
+            }
+        }
+
+        Ok(())
+    }
+
     /// Seed default models on first run
     pub fn seed_default_models(&self) -> Result<()> {
         let now = std::time::SystemTime::now()
@@ -1548,17 +2064,29 @@ impl GalleryDb {
                 format: "Quantized (BF16)".to_string(),
                 is_downloaded: false,
                 is_active: false,
-                source: "black-forest-labs/FLUX.1-schnell".to_string(),
+                source: "https://huggingface.co/black-forest-labs/FLUX.1-schnell".to_string(),
                 license: "Apache 2.0".to_string(),
                 docs_url: Some("https://huggingface.co/black-forest-labs/FLUX.1-schnell".to_string()),
                 tags: vec!["FLUX".to_string(), "FAST".to_string(), "QUANTIZED".to_string()],
                 icon: "image".to_string(),
                 icon_class: "icon-flux".to_string(),
-                default_settings: Some(serde_json::json!({"steps": 4, "guidance": 1.0})),
+                default_settings: Some(serde_json::json!({"steps": 4, "guidance": 4.0})),
                 features: None,
                 notes: Some("Best for quick iterations and drafts. Uses less VRAM than full precision.".to_string()),
                 has_quantized: false,
                 quantized_downloaded: false,
+                supports_loras: false, // Quantized GGUF doesn't support LoRAs
+                // Model configuration fields
+                repo_id: Some("black-forest-labs/FLUX.1-schnell".to_string()),
+                transformer_filename: Some("flux1-schnell.safetensors".to_string()),
+                quantized_filename: Some("flux1-schnell.gguf".to_string()),
+                quantized_repos: Some(serde_json::json!(["lmz/candle-flux"])),
+                step_min: Some(1),
+                step_max: Some(8),
+                vram_full: Some(23000),
+                vram_quantized: Some(12000),
+                model_family: Some("flux".to_string()),
+                component_type: Some("transformer".to_string()),
                 created_at: now,
                 last_used_at: None,
             },
@@ -1576,7 +2104,7 @@ impl GalleryDb {
                 format: "Quantized (Q8_0)".to_string(),
                 is_downloaded: false,
                 is_active: false,
-                source: "black-forest-labs/FLUX.1-dev".to_string(),
+                source: "https://huggingface.co/black-forest-labs/FLUX.1-dev".to_string(),
                 license: "FLUX.1 [dev] Non-Commercial".to_string(),
                 docs_url: Some("https://huggingface.co/black-forest-labs/FLUX.1-dev".to_string()),
                 tags: vec!["FLUX".to_string(), "HQ".to_string(), "QUANTIZED".to_string()],
@@ -1587,6 +2115,18 @@ impl GalleryDb {
                 notes: Some("Photorealistic quality, best for final outputs. Non-commercial license.".to_string()),
                 has_quantized: false,
                 quantized_downloaded: false,
+                supports_loras: false, // Quantized GGUF doesn't support LoRAs
+                // Model configuration fields
+                repo_id: Some("black-forest-labs/FLUX.1-dev".to_string()),
+                transformer_filename: Some("flux1-dev.safetensors".to_string()),
+                quantized_filename: Some("flux1-dev.gguf".to_string()),
+                quantized_repos: Some(serde_json::json!(["city96/FLUX.1-dev-gguf", "lmz/candle-flux"])),
+                step_min: Some(20),
+                step_max: Some(100),
+                vram_full: Some(24000),
+                vram_quantized: Some(12000),
+                model_family: Some("flux".to_string()),
+                component_type: Some("transformer".to_string()),
                 created_at: now,
                 last_used_at: None,
             },
@@ -1604,7 +2144,7 @@ impl GalleryDb {
                 format: "Safetensors".to_string(),
                 is_downloaded: false,
                 is_active: false,
-                source: "vikhyatk/moondream2".to_string(),
+                source: "https://huggingface.co/vikhyatk/moondream2".to_string(),
                 license: "Apache 2.0".to_string(),
                 docs_url: Some("https://huggingface.co/vikhyatk/moondream2".to_string()),
                 tags: vec!["VISION".to_string(), "VLM".to_string()],
@@ -1620,6 +2160,18 @@ impl GalleryDb {
                 notes: Some("Used by the Auto-Tag feature to analyze images and generate descriptive tags.".to_string()),
                 has_quantized: false,
                 quantized_downloaded: false,
+                supports_loras: false, // Vision model doesn't support LoRAs
+                // Not a transformer model, so these are None
+                repo_id: None,
+                transformer_filename: None,
+                quantized_filename: None,
+                quantized_repos: None,
+                step_min: None,
+                step_max: None,
+                vram_full: None,
+                vram_quantized: None,
+                model_family: None,
+                component_type: Some("vision".to_string()),
                 created_at: now,
                 last_used_at: None,
             },
@@ -1637,7 +2189,7 @@ impl GalleryDb {
                 format: "Safetensors".to_string(),
                 is_downloaded: false,
                 is_active: false,
-                source: "black-forest-labs/FLUX.1-schnell".to_string(),
+                source: "https://huggingface.co/black-forest-labs/FLUX.1-schnell".to_string(),
                 license: "Apache 2.0".to_string(),
                 docs_url: Some("https://huggingface.co/black-forest-labs/FLUX.1-schnell".to_string()),
                 tags: vec!["VAE".to_string(), "ENCODER".to_string(), "SHARED".to_string()],
@@ -1653,6 +2205,18 @@ impl GalleryDb {
                 notes: Some("Downloaded automatically with FLUX models. Required for all image generation.".to_string()),
                 has_quantized: false,
                 quantized_downloaded: false,
+                supports_loras: false, // VAE doesn't support LoRAs
+                // VAE component
+                repo_id: None,
+                transformer_filename: None,
+                quantized_filename: None,
+                quantized_repos: None,
+                step_min: None,
+                step_max: None,
+                vram_full: Some(160),
+                vram_quantized: None,
+                model_family: Some("flux".to_string()),
+                component_type: Some("vae".to_string()),
                 created_at: now,
                 last_used_at: None,
             },
@@ -1670,7 +2234,7 @@ impl GalleryDb {
                 format: "Safetensors".to_string(),
                 is_downloaded: false,
                 is_active: false,
-                source: "openai/clip-vit-large-patch14".to_string(),
+                source: "https://huggingface.co/openai/clip-vit-large-patch14".to_string(),
                 license: "MIT".to_string(),
                 docs_url: Some("https://huggingface.co/openai/clip-vit-large-patch14".to_string()),
                 tags: vec!["CLIP".to_string(), "TEXT".to_string(), "SHARED".to_string()],
@@ -1686,6 +2250,18 @@ impl GalleryDb {
                 notes: Some("Downloaded automatically with FLUX models. Handles basic prompt understanding.".to_string()),
                 has_quantized: false,
                 quantized_downloaded: false,
+                supports_loras: false, // CLIP doesn't support LoRAs
+                // CLIP component
+                repo_id: None,
+                transformer_filename: None,
+                quantized_filename: None,
+                quantized_repos: None,
+                step_min: None,
+                step_max: None,
+                vram_full: Some(250),
+                vram_quantized: None,
+                model_family: Some("flux".to_string()),
+                component_type: Some("clip".to_string()),
                 created_at: now,
                 last_used_at: None,
             },
@@ -1703,7 +2279,7 @@ impl GalleryDb {
                 format: "Safetensors".to_string(),
                 is_downloaded: false,
                 is_active: false,
-                source: "google/t5-v1_1-xxl".to_string(),
+                source: "https://huggingface.co/google/t5-v1_1-xxl".to_string(),
                 license: "Apache 2.0".to_string(),
                 docs_url: Some("https://huggingface.co/google/t5-v1_1-xxl".to_string()),
                 tags: vec!["T5".to_string(), "TEXT".to_string(), "SHARED".to_string()],
@@ -1719,6 +2295,18 @@ impl GalleryDb {
                 notes: Some("The largest component. Quantized version recommended to save VRAM. Downloaded automatically with FLUX models.".to_string()),
                 has_quantized: true,
                 quantized_downloaded: false,
+                supports_loras: false, // T5 doesn't support LoRAs
+                // T5 component
+                repo_id: None,
+                transformer_filename: None,
+                quantized_filename: None,
+                quantized_repos: None,
+                step_min: None,
+                step_max: None,
+                vram_full: Some(9000),
+                vram_quantized: Some(3300),
+                model_family: Some("flux".to_string()),
+                component_type: Some("t5".to_string()),
                 created_at: now,
                 last_used_at: None,
             },
@@ -1736,7 +2324,7 @@ impl GalleryDb {
                 format: "JSON".to_string(),
                 is_downloaded: false,
                 is_active: false,
-                source: "lmz/mt5-tokenizers".to_string(),
+                source: "https://huggingface.co/lmz/mt5-tokenizers".to_string(),
                 license: "Apache 2.0".to_string(),
                 docs_url: Some("https://huggingface.co/lmz/mt5-tokenizers".to_string()),
                 tags: vec!["T5".to_string(), "TOKENIZER".to_string(), "SHARED".to_string()],
@@ -1751,6 +2339,18 @@ impl GalleryDb {
                 notes: Some("Required for T5 text encoder. Downloaded automatically with FLUX models.".to_string()),
                 has_quantized: false,
                 quantized_downloaded: false,
+                supports_loras: false, // Tokenizer doesn't support LoRAs
+                // Tokenizer component
+                repo_id: None,
+                transformer_filename: None,
+                quantized_filename: None,
+                quantized_repos: None,
+                step_min: None,
+                step_max: None,
+                vram_full: None,
+                vram_quantized: None,
+                model_family: Some("flux".to_string()),
+                component_type: Some("tokenizer".to_string()),
                 created_at: now,
                 last_used_at: None,
             },
@@ -1797,6 +2397,599 @@ impl GalleryDb {
 
         Ok(())
     }
+
+    // ========== Settings Operations ==========
+
+    /// Get a setting value
+    pub fn get_setting(&self, key: &str) -> Result<Option<String>> {
+        let result = self.conn.query_row(
+            "SELECT value FROM app_settings WHERE key = ?1",
+            params![key],
+            |row| row.get(0),
+        );
+
+        match result {
+            Ok(value) => Ok(Some(value)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    /// Set a setting value
+    pub fn set_setting(&self, key: &str, value: &str) -> Result<()> {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(0);
+
+        self.conn.execute(
+            "INSERT INTO app_settings (key, value, updated_at) VALUES (?1, ?2, ?3)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
+            params![key, value, now],
+        )?;
+
+        Ok(())
+    }
+
+    /// Delete a setting
+    pub fn delete_setting(&self, key: &str) -> Result<()> {
+        self.conn.execute("DELETE FROM app_settings WHERE key = ?1", params![key])?;
+        Ok(())
+    }
+
+    /// Get all settings as key-value pairs
+    pub fn get_all_settings(&self) -> Result<std::collections::HashMap<String, String>> {
+        let mut stmt = self.conn.prepare("SELECT key, value FROM app_settings")?;
+        let settings = stmt.query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })?
+        .collect::<Result<std::collections::HashMap<_, _>, _>>()?;
+
+        Ok(settings)
+    }
+
+    // ========== LoRA Operations ==========
+
+    /// Get all LoRAs from database
+    pub fn get_all_loras(&self) -> Result<Vec<crate::models::LoraInfo>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, name, path, trigger_words, base_model, size_bytes, created_at, metadata
+             FROM loras ORDER BY name"
+        )?;
+
+        let loras = stmt.query_map([], |row| {
+            let metadata_json: Option<String> = row.get(7)?;
+            let metadata = metadata_json
+                .and_then(|s| serde_json::from_str(&s).ok())
+                .unwrap_or_default();
+
+            Ok(crate::models::LoraInfo {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                path: row.get(2)?,
+                trigger_words: row.get(3)?,
+                base_model: row.get(4)?,
+                size_bytes: row.get(5)?,
+                created_at: row.get(6)?,
+                metadata,
+            })
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(loras)
+    }
+
+    /// Insert or update a LoRA
+    pub fn upsert_lora(&self, lora: &crate::models::LoraInfo) -> Result<()> {
+        let metadata_json = serde_json::to_string(&lora.metadata)?;
+
+        self.conn.execute(
+            "INSERT INTO loras (id, name, path, trigger_words, base_model, size_bytes, created_at, metadata)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+             ON CONFLICT(id) DO UPDATE SET
+                name = excluded.name,
+                path = excluded.path,
+                trigger_words = excluded.trigger_words,
+                base_model = excluded.base_model,
+                size_bytes = excluded.size_bytes,
+                metadata = excluded.metadata",
+            params![
+                lora.id,
+                lora.name,
+                lora.path,
+                lora.trigger_words,
+                lora.base_model,
+                lora.size_bytes as i64,
+                lora.created_at,
+                metadata_json,
+            ],
+        )?;
+
+        Ok(())
+    }
+
+    /// Delete a LoRA by ID
+    pub fn delete_lora(&self, id: &str) -> Result<()> {
+        self.conn.execute("DELETE FROM loras WHERE id = ?1", params![id])?;
+        Ok(())
+    }
+
+    /// Get a LoRA by ID
+    pub fn get_lora(&self, id: &str) -> Result<Option<crate::models::LoraInfo>> {
+        let result = self.conn.query_row(
+            "SELECT id, name, path, trigger_words, base_model, size_bytes, created_at, metadata
+             FROM loras WHERE id = ?1",
+            params![id],
+            |row| {
+                let metadata_json: Option<String> = row.get(7)?;
+                let metadata = metadata_json
+                    .and_then(|s| serde_json::from_str(&s).ok())
+                    .unwrap_or_default();
+
+                Ok(crate::models::LoraInfo {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    path: row.get(2)?,
+                    trigger_words: row.get(3)?,
+                    base_model: row.get(4)?,
+                    size_bytes: row.get(5)?,
+                    created_at: row.get(6)?,
+                    metadata,
+                })
+            },
+        );
+
+        match result {
+            Ok(lora) => Ok(Some(lora)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    // ========== Model Bundle System Operations ==========
+
+    // --- Component Operations ---
+
+    /// Insert a model component
+    pub fn insert_component(&self, comp: &ComponentRecord) -> Result<()> {
+        let metadata_json = comp.metadata.as_ref()
+            .map(|m| serde_json::to_string(m).ok())
+            .flatten();
+
+        self.conn.execute(
+            "INSERT INTO model_components (
+                id, component_type, format, file_path, file_size, file_hash, name,
+                repo_id, repo_snapshot, architecture, quantization, supports_loras,
+                is_sharded, shard_count, vram_mb, discovered_at, last_verified_at,
+                is_available, metadata
+             )
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)
+             ON CONFLICT(file_path) DO UPDATE SET
+                name = excluded.name,
+                component_type = excluded.component_type,
+                format = excluded.format,
+                file_size = excluded.file_size,
+                last_verified_at = excluded.last_verified_at,
+                is_available = excluded.is_available",
+            params![
+                comp.id,
+                comp.component_type,
+                comp.format,
+                comp.file_path,
+                comp.file_size,
+                comp.file_hash,
+                comp.name,
+                comp.repo_id,
+                comp.repo_snapshot,
+                comp.architecture,
+                comp.quantization,
+                comp.supports_loras as i32,
+                comp.is_sharded as i32,
+                comp.shard_count,
+                comp.vram_mb,
+                comp.discovered_at,
+                comp.last_verified_at,
+                comp.is_available as i32,
+                metadata_json,
+            ],
+        )?;
+
+        Ok(())
+    }
+
+    /// Get component by ID
+    pub fn get_component(&self, id: &str) -> Result<ComponentRecord> {
+        self.conn.query_row(
+            "SELECT id, component_type, format, file_path, file_size, file_hash, name,
+                    repo_id, repo_snapshot, architecture, quantization, supports_loras,
+                    is_sharded, shard_count, vram_mb, discovered_at, last_verified_at,
+                    is_available, metadata
+             FROM model_components WHERE id = ?1",
+            params![id],
+            |row| {
+                let metadata_json: Option<String> = row.get(18)?;
+                let metadata = metadata_json.and_then(|s| serde_json::from_str(&s).ok());
+
+                Ok(ComponentRecord {
+                    id: row.get(0)?,
+                    component_type: row.get(1)?,
+                    format: row.get(2)?,
+                    file_path: row.get(3)?,
+                    file_size: row.get(4)?,
+                    file_hash: row.get(5)?,
+                    name: row.get(6)?,
+                    repo_id: row.get(7)?,
+                    repo_snapshot: row.get(8)?,
+                    architecture: row.get(9)?,
+                    quantization: row.get(10)?,
+                    supports_loras: row.get::<_, i32>(11)? != 0,
+                    is_sharded: row.get::<_, i32>(12)? != 0,
+                    shard_count: row.get(13)?,
+                    vram_mb: row.get(14)?,
+                    discovered_at: row.get(15)?,
+                    last_verified_at: row.get(16)?,
+                    is_available: row.get::<_, i32>(17)? != 0,
+                    metadata,
+                })
+            },
+        ).map_err(Into::into)
+    }
+
+    /// Get all components
+    pub fn get_all_components(&self) -> Result<Vec<ComponentRecord>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, component_type, format, file_path, file_size, file_hash, name,
+                    repo_id, repo_snapshot, architecture, quantization, supports_loras,
+                    is_sharded, shard_count, vram_mb, discovered_at, last_verified_at,
+                    is_available, metadata
+             FROM model_components ORDER BY name"
+        )?;
+
+        let components = stmt.query_map([], |row| {
+            let metadata_json: Option<String> = row.get(18)?;
+            let metadata = metadata_json.and_then(|s| serde_json::from_str(&s).ok());
+
+            Ok(ComponentRecord {
+                id: row.get(0)?,
+                component_type: row.get(1)?,
+                format: row.get(2)?,
+                file_path: row.get(3)?,
+                file_size: row.get(4)?,
+                file_hash: row.get(5)?,
+                name: row.get(6)?,
+                repo_id: row.get(7)?,
+                repo_snapshot: row.get(8)?,
+                architecture: row.get(9)?,
+                quantization: row.get(10)?,
+                supports_loras: row.get::<_, i32>(11)? != 0,
+                is_sharded: row.get::<_, i32>(12)? != 0,
+                shard_count: row.get(13)?,
+                vram_mb: row.get(14)?,
+                discovered_at: row.get(15)?,
+                last_verified_at: row.get(16)?,
+                is_available: row.get::<_, i32>(17)? != 0,
+                metadata,
+            })
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(components)
+    }
+
+    /// Get components by type
+    pub fn get_components_by_type(&self, comp_type: &str) -> Result<Vec<ComponentRecord>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, component_type, format, file_path, file_size, file_hash, name,
+                    repo_id, repo_snapshot, architecture, quantization, supports_loras,
+                    is_sharded, shard_count, vram_mb, discovered_at, last_verified_at,
+                    is_available, metadata
+             FROM model_components WHERE component_type = ?1 ORDER BY name"
+        )?;
+
+        let components = stmt.query_map(params![comp_type], |row| {
+            let metadata_json: Option<String> = row.get(18)?;
+            let metadata = metadata_json.and_then(|s| serde_json::from_str(&s).ok());
+
+            Ok(ComponentRecord {
+                id: row.get(0)?,
+                component_type: row.get(1)?,
+                format: row.get(2)?,
+                file_path: row.get(3)?,
+                file_size: row.get(4)?,
+                file_hash: row.get(5)?,
+                name: row.get(6)?,
+                repo_id: row.get(7)?,
+                repo_snapshot: row.get(8)?,
+                architecture: row.get(9)?,
+                quantization: row.get(10)?,
+                supports_loras: row.get::<_, i32>(11)? != 0,
+                is_sharded: row.get::<_, i32>(12)? != 0,
+                shard_count: row.get(13)?,
+                vram_mb: row.get(14)?,
+                discovered_at: row.get(15)?,
+                last_verified_at: row.get(16)?,
+                is_available: row.get::<_, i32>(17)? != 0,
+                metadata,
+            })
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(components)
+    }
+
+    /// Update component availability
+    pub fn update_component_availability(&self, id: &str, available: bool) -> Result<()> {
+        self.conn.execute(
+            "UPDATE model_components SET is_available = ?1, last_verified_at = ?2 WHERE id = ?3",
+            params![available as i32, chrono::Utc::now().timestamp(), id],
+        )?;
+        Ok(())
+    }
+
+    // --- Bundle Operations ---
+
+    /// Insert a model bundle
+    pub fn insert_bundle(&self, bundle: &BundleRecord) -> Result<()> {
+        self.conn.execute(
+            "INSERT INTO model_bundles (
+                id, name, description, bundle_type, model_family, default_steps,
+                default_guidance, step_min, step_max, total_vram_mb, is_complete,
+                is_active, created_at, updated_at, validation_errors
+             )
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+            params![
+                bundle.id,
+                bundle.name,
+                bundle.description,
+                bundle.bundle_type,
+                bundle.model_family,
+                bundle.default_steps,
+                bundle.default_guidance,
+                bundle.step_min,
+                bundle.step_max,
+                bundle.total_vram_mb,
+                bundle.is_complete as i32,
+                bundle.is_active as i32,
+                bundle.created_at,
+                bundle.updated_at,
+                bundle.validation_errors,
+            ],
+        )?;
+
+        Ok(())
+    }
+
+    /// Get bundle by ID with all component details
+    pub fn get_bundle(&self, id: &str) -> Result<BundleInfo> {
+        // Get bundle record
+        let bundle: BundleRecord = self.conn.query_row(
+            "SELECT id, name, description, bundle_type, model_family, default_steps,
+                    default_guidance, step_min, step_max, total_vram_mb, is_complete,
+                    is_active, created_at, updated_at, validation_errors
+             FROM model_bundles WHERE id = ?1",
+            params![id],
+            |row| {
+                Ok(BundleRecord {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    description: row.get(2)?,
+                    bundle_type: row.get(3)?,
+                    model_family: row.get(4)?,
+                    default_steps: row.get(5)?,
+                    default_guidance: row.get(6)?,
+                    step_min: row.get(7)?,
+                    step_max: row.get(8)?,
+                    total_vram_mb: row.get(9)?,
+                    is_complete: row.get::<_, i32>(10)? != 0,
+                    is_active: row.get::<_, i32>(11)? != 0,
+                    created_at: row.get(12)?,
+                    updated_at: row.get(13)?,
+                    validation_errors: row.get(14)?,
+                })
+            },
+        )?;
+
+        // Get associated components
+        let components = self.get_bundle_components(&bundle.id)?;
+
+        Ok(BundleInfo {
+            id: bundle.id,
+            name: bundle.name,
+            description: bundle.description,
+            bundle_type: bundle.bundle_type,
+            model_family: bundle.model_family,
+            default_steps: bundle.default_steps,
+            default_guidance: bundle.default_guidance,
+            step_min: bundle.step_min,
+            step_max: bundle.step_max,
+            total_vram_mb: bundle.total_vram_mb,
+            is_complete: bundle.is_complete,
+            is_active: bundle.is_active,
+            created_at: bundle.created_at,
+            updated_at: bundle.updated_at,
+            validation_errors: bundle.validation_errors,
+            components,
+        })
+    }
+
+    /// Get all bundles with component details
+    pub fn get_all_bundles(&self) -> Result<Vec<BundleInfo>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, name, description, bundle_type, model_family, default_steps,
+                    default_guidance, step_min, step_max, total_vram_mb, is_complete,
+                    is_active, created_at, updated_at, validation_errors
+             FROM model_bundles ORDER BY name"
+        )?;
+
+        let bundle_records: Vec<BundleRecord> = stmt.query_map([], |row| {
+            Ok(BundleRecord {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                description: row.get(2)?,
+                bundle_type: row.get(3)?,
+                model_family: row.get(4)?,
+                default_steps: row.get(5)?,
+                default_guidance: row.get(6)?,
+                step_min: row.get(7)?,
+                step_max: row.get(8)?,
+                total_vram_mb: row.get(9)?,
+                is_complete: row.get::<_, i32>(10)? != 0,
+                is_active: row.get::<_, i32>(11)? != 0,
+                created_at: row.get(12)?,
+                updated_at: row.get(13)?,
+                validation_errors: row.get(14)?,
+            })
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+
+        // Load components for each bundle
+        let mut bundles = Vec::new();
+        for bundle in bundle_records {
+            let components = self.get_bundle_components(&bundle.id)?;
+            bundles.push(BundleInfo {
+                id: bundle.id,
+                name: bundle.name,
+                description: bundle.description,
+                bundle_type: bundle.bundle_type,
+                model_family: bundle.model_family,
+                default_steps: bundle.default_steps,
+                default_guidance: bundle.default_guidance,
+                step_min: bundle.step_min,
+                step_max: bundle.step_max,
+                total_vram_mb: bundle.total_vram_mb,
+                is_complete: bundle.is_complete,
+                is_active: bundle.is_active,
+                created_at: bundle.created_at,
+                updated_at: bundle.updated_at,
+                validation_errors: bundle.validation_errors,
+                components,
+            });
+        }
+
+        Ok(bundles)
+    }
+
+    /// Update bundle
+    pub fn update_bundle(&self, id: &str, name: Option<&str>, description: Option<&str>) -> Result<()> {
+        let now = chrono::Utc::now().timestamp();
+
+        if let Some(n) = name {
+            self.conn.execute(
+                "UPDATE model_bundles SET name = ?1, updated_at = ?2 WHERE id = ?3",
+                params![n, now, id],
+            )?;
+        }
+
+        if let Some(d) = description {
+            self.conn.execute(
+                "UPDATE model_bundles SET description = ?1, updated_at = ?2 WHERE id = ?3",
+                params![d, now, id],
+            )?;
+        }
+
+        Ok(())
+    }
+
+    /// Delete bundle
+    pub fn delete_bundle(&self, id: &str) -> Result<()> {
+        self.conn.execute("DELETE FROM model_bundles WHERE id = ?1", params![id])?;
+        Ok(())
+    }
+
+    /// Set bundle as active (deactivates all others)
+    pub fn set_bundle_active(&self, id: &str, active: bool) -> Result<()> {
+        if active {
+            // Deactivate all bundles first
+            self.conn.execute("UPDATE model_bundles SET is_active = 0", [])?;
+        }
+
+        // Activate the specified bundle
+        self.conn.execute(
+            "UPDATE model_bundles SET is_active = ?1, updated_at = ?2 WHERE id = ?3",
+            params![active as i32, chrono::Utc::now().timestamp(), id],
+        )?;
+
+        Ok(())
+    }
+
+    /// Deactivate all bundles
+    pub fn deactivate_all_bundles(&self) -> Result<()> {
+        self.conn.execute("UPDATE model_bundles SET is_active = 0", [])?;
+        Ok(())
+    }
+
+    /// Get active bundle
+    pub fn get_active_bundle(&self) -> Result<Option<BundleInfo>> {
+        let result = self.conn.query_row(
+            "SELECT id FROM model_bundles WHERE is_active = 1 LIMIT 1",
+            [],
+            |row| row.get::<_, String>(0),
+        );
+
+        match result {
+            Ok(id) => Ok(Some(self.get_bundle(&id)?)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    // --- Bundle Component Relationships ---
+
+    /// Add component to bundle
+    pub fn add_component_to_bundle(&self, bundle_id: &str, comp_id: &str, role: &str, is_required: bool, priority: i32) -> Result<()> {
+        self.conn.execute(
+            "INSERT INTO bundle_components (bundle_id, component_id, component_role, is_required, priority)
+             VALUES (?1, ?2, ?3, ?4, ?5)
+             ON CONFLICT(bundle_id, component_role, component_id) DO UPDATE SET
+                is_required = excluded.is_required,
+                priority = excluded.priority",
+            params![bundle_id, comp_id, role, is_required as i32, priority],
+        )?;
+        Ok(())
+    }
+
+    /// Remove component from bundle by role
+    pub fn remove_component_from_bundle(&self, bundle_id: &str, role: &str) -> Result<()> {
+        self.conn.execute(
+            "DELETE FROM bundle_components WHERE bundle_id = ?1 AND component_role = ?2",
+            params![bundle_id, role],
+        )?;
+        Ok(())
+    }
+
+    /// Get components for a bundle (with details)
+    pub fn get_bundle_components(&self, bundle_id: &str) -> Result<Vec<ComponentInfo>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT
+                c.id, bc.component_role, c.name, c.component_type, c.format,
+                c.file_path, c.file_size, c.quantization, c.vram_mb, c.is_available,
+                bc.is_required, bc.priority
+             FROM bundle_components bc
+             JOIN model_components c ON bc.component_id = c.id
+             WHERE bc.bundle_id = ?1
+             ORDER BY bc.priority DESC, c.component_type"
+        )?;
+
+        let components = stmt.query_map(params![bundle_id], |row| {
+            Ok(ComponentInfo {
+                id: row.get(0)?,
+                role: row.get(1)?,
+                name: row.get(2)?,
+                component_type: row.get(3)?,
+                format: row.get(4)?,
+                file_path: row.get(5)?,
+                file_size: row.get(6)?,
+                quantization: row.get(7)?,
+                vram_mb: row.get(8)?,
+                is_available: row.get::<_, i32>(9)? != 0,
+                is_required: row.get::<_, i32>(10)? != 0,
+                priority: row.get(11)?,
+            })
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(components)
+    }
 }
 
 #[cfg(test)]
@@ -1818,6 +3011,16 @@ mod tests {
             thumbnail_path: None,
             prompt: "test prompt".to_string(),
             created_at: 1234567890,
+            width: 1024,
+            height: 1024,
+            file_size: 123456,
+            model_name: "flux-schnell".to_string(),
+            negative_prompt: None,
+            steps: Some(4),
+            cfg_scale: Some(3.5),
+            seed: Some(42),
+            sampler: Some("Euler".to_string()),
+            generation_time_ms: Some(5000),
         };
         db.insert_image(&test_metadata).unwrap();
 

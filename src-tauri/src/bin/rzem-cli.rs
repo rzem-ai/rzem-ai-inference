@@ -142,8 +142,7 @@ fn cmd_generate(
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
 
-    let model_type: ModelType = model.parse()
-        .map_err(|e: String| anyhow::anyhow!(e))?;
+    let model_type: ModelType = model.parse().unwrap();
 
     let steps = steps.unwrap_or_else(|| model_type.default_steps());
     let guidance = guidance.unwrap_or_else(|| model_type.default_guidance());
@@ -185,7 +184,7 @@ fn cmd_generate(
 
     for batch_idx in 0..batch {
         // Create fresh pipeline for each image (models get unloaded during generation)
-        let mut pipeline = FluxPipeline::with_model_type(device.clone(), model_type)?;
+        let mut pipeline = FluxPipeline::with_model_type(device.clone(), model_type.clone())?;
 
         // Determine output filename for this batch item
         let output_path = if batch > 1 {
@@ -361,8 +360,7 @@ fn cmd_models_list() -> Result<()> {
 }
 
 fn cmd_models_download(model: String) -> Result<()> {
-    let model_type: ModelType = model.parse()
-        .map_err(|e: String| anyhow::anyhow!(e))?;
+    let model_type: ModelType = model.parse().unwrap();
 
     println!("Downloading {}...", model_type);
     println!("(Download not yet implemented - use the GUI or huggingface-cli)");
@@ -371,8 +369,7 @@ fn cmd_models_download(model: String) -> Result<()> {
 }
 
 fn cmd_models_info(model: String) -> Result<()> {
-    let model_type: ModelType = model.parse()
-        .map_err(|e: String| anyhow::anyhow!(e))?;
+    let model_type: ModelType = model.parse().unwrap();
 
     println!("{}", model_type.display_name());
     println!("════════════════════════════════════════");

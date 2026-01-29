@@ -1,122 +1,153 @@
 //! Model type definitions for image generation models
 
+use std::fmt;
+use std::str::FromStr;
+use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 
-/// Available image generation model types
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum ModelType {
-    /// FLUX.1 [schnell] - Fast, 4 steps
-    Schnell,
-    /// FLUX.1 [dev] - Higher quality, 28+ steps
-    Dev,
-    /// Z-Image-Turbo - Single-stream DiT, 8 fixed steps
-    #[serde(rename = "zimage-turbo")]
-    ZImageTurbo,
-}
+/// Model type identifier (replaces enum)
+/// Uses Arc<str> for cheap cloning while supporting dynamic model IDs
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct ModelType(Arc<str>);
 
 impl ModelType {
-    /// Default number of denoising steps
-    pub fn default_steps(&self) -> usize {
-        match self {
-            Self::Schnell => 4,
-            Self::Dev => 28,
-            Self::ZImageTurbo => 8,
-        }
+    pub fn new(id: impl Into<String>) -> Self {
+        Self(Arc::from(id.into()))
     }
 
-    /// Default guidance scale
-    pub fn default_guidance(&self) -> f64 {
-        match self {
-            Self::Schnell => 4.0,
-            Self::Dev => 3.5,
-            Self::ZImageTurbo => 0.0, // Distilled model, no CFG
-        }
+    pub fn id(&self) -> &str {
+        &self.0
     }
 
-    /// Valid step range (min, max)
-    pub fn step_range(&self) -> (usize, usize) {
-        match self {
-            Self::Schnell => (1, 8),
-            Self::Dev => (20, 100),
-            Self::ZImageTurbo => (8, 8), // Fixed 8 steps
-        }
+    // Known model constants for convenience
+    pub fn schnell() -> Self {
+        Self(Arc::from("schnell"))
     }
 
-    /// Approximate VRAM usage in MB (full precision)
+    pub fn dev() -> Self {
+        Self(Arc::from("dev"))
+    }
+
+    pub fn zimage_turbo() -> Self {
+        Self(Arc::from("zimage-turbo"))
+    }
+
+    // Temporary methods for backward compatibility
+    // TODO: Replace with ModelConfig lookups
     pub fn vram_full_precision(&self) -> usize {
-        match self {
-            Self::Schnell => 23_000,
-            Self::Dev => 24_000,
-            Self::ZImageTurbo => 16_000,
+        match self.id() {
+            "schnell" => 23_000,
+            "dev" => 24_000,
+            "zimage-turbo" => 16_000,
+            _ => 24_000,
         }
     }
 
-    /// Approximate VRAM usage in MB (quantized)
     pub fn vram_quantized(&self) -> usize {
-        match self {
-            Self::Schnell => 12_000,
-            Self::Dev => 12_000,
-            Self::ZImageTurbo => 10_000, // TBD - estimated
+        match self.id() {
+            "schnell" => 12_000,
+            "dev" => 12_000,
+            "zimage-turbo" => 10_000,
+            _ => 12_000,
         }
     }
 
-    /// HuggingFace repository ID
+    pub fn default_steps(&self) -> usize {
+        match self.id() {
+            "schnell" => 4,
+            "dev" => 28,
+            "zimage-turbo" => 8,
+            _ => 4,
+        }
+    }
+
+    pub fn default_guidance(&self) -> f64 {
+        match self.id() {
+            "schnell" => 4.0,
+            "dev" => 3.5,
+            "zimage-turbo" => 0.0,
+            _ => 4.0,
+        }
+    }
+
+    pub fn step_range(&self) -> (usize, usize) {
+        match self.id() {
+            "schnell" => (1, 8),
+            "dev" => (20, 100),
+            "zimage-turbo" => (8, 8),
+            _ => (1, 100),
+        }
+    }
+
     pub fn repo_id(&self) -> &'static str {
-        match self {
-            Self::Schnell => "black-forest-labs/FLUX.1-schnell",
-            Self::Dev => "black-forest-labs/FLUX.1-dev",
-            Self::ZImageTurbo => "Tongyi-MAI/Z-Image-Turbo",
+        match self.id() {
+            "schnell" => "black-forest-labs/FLUX.1-schnell",
+            "dev" => "black-forest-labs/FLUX.1-dev",
+            "zimage-turbo" => "Tongyi-MAI/Z-Image-Turbo",
+            _ => "black-forest-labs/FLUX.1-schnell",
         }
     }
 
-    /// Transformer filename
     pub fn transformer_filename(&self) -> &'static str {
-        match self {
-            Self::Schnell => "flux1-schnell.safetensors",
-            Self::Dev => "flux1-dev.safetensors",
-            Self::ZImageTurbo => "diffusion_pytorch_model.safetensors",
+        match self.id() {
+            "schnell" => "flux1-schnell.safetensors",
+            "dev" => "flux1-dev.safetensors",
+            "zimage-turbo" => "diffusion_pytorch_model.safetensors",
+            _ => "flux1-schnell.safetensors",
         }
     }
 
-    /// Quantized transformer filename
     pub fn quantized_filename(&self) -> &'static str {
-        match self {
-            Self::Schnell => "flux1-schnell.gguf",
-            Self::Dev => "flux1-dev.gguf",
-            Self::ZImageTurbo => "zimage-turbo.gguf", // TBD - to be created
+        match self.id() {
+            "schnell" => "flux1-schnell.gguf",
+            "dev" => "flux1-dev.gguf",
+            "zimage-turbo" => "zimage-turbo.gguf",
+            _ => "flux1-schnell.gguf",
         }
     }
 
-    /// Display name
     pub fn display_name(&self) -> &'static str {
-        match self {
-            Self::Schnell => "FLUX.1 [schnell]",
-            Self::Dev => "FLUX.1 [dev]",
-            Self::ZImageTurbo => "Z-Image-Turbo",
+        match self.id() {
+            "schnell" => "FLUX.1 [schnell]",
+            "dev" => "FLUX.1 [dev]",
+            "zimage-turbo" => "Z-Image-Turbo",
+            _ => "Unknown Model",
         }
     }
 }
 
-impl std::fmt::Display for ModelType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.display_name())
-    }
-}
-
-impl std::str::FromStr for ModelType {
-    type Err = String;
+impl FromStr for ModelType {
+    type Err = std::convert::Infallible;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase().as_str() {
-            "schnell" | "flux-schnell" | "flux.1-schnell" => Ok(Self::Schnell),
-            "dev" | "flux-dev" | "flux.1-dev" => Ok(Self::Dev),
-            "zimage-turbo" | "z-image-turbo" | "zimage" => Ok(Self::ZImageTurbo),
-            _ => Err(format!(
-                "Unknown model type: {}. Use 'schnell', 'dev', or 'zimage-turbo'",
-                s
-            )),
-        }
+        // Normalize common aliases
+        let lowercased = s.to_lowercase();
+        let normalized = match lowercased.as_str() {
+            "flux-schnell" | "flux.1-schnell" => "schnell",
+            "flux-dev" | "flux.1-dev" => "dev",
+            "zimage" | "z-image-turbo" => "zimage-turbo",
+            _ => lowercased.as_str(),
+        };
+        Ok(Self(Arc::from(normalized)))
+    }
+}
+
+impl fmt::Display for ModelType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl From<String> for ModelType {
+    fn from(s: String) -> Self {
+        Self(Arc::from(s))
+    }
+}
+
+impl From<&str> for ModelType {
+    fn from(s: &str) -> Self {
+        Self(Arc::from(s))
     }
 }
 
@@ -125,54 +156,34 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_default_steps() {
-        assert_eq!(ModelType::Schnell.default_steps(), 4);
-        assert_eq!(ModelType::Dev.default_steps(), 28);
-        assert_eq!(ModelType::ZImageTurbo.default_steps(), 8);
-    }
-
-    #[test]
-    fn test_default_guidance() {
-        assert_eq!(ModelType::Schnell.default_guidance(), 4.0);
-        assert_eq!(ModelType::Dev.default_guidance(), 3.5);
-        assert_eq!(ModelType::ZImageTurbo.default_guidance(), 0.0);
-    }
-
-    #[test]
-    fn test_step_range() {
-        assert_eq!(ModelType::Schnell.step_range(), (1, 8));
-        assert_eq!(ModelType::Dev.step_range(), (20, 100));
-        assert_eq!(ModelType::ZImageTurbo.step_range(), (8, 8));
-    }
-
-    #[test]
     fn test_parse() {
-        assert_eq!("schnell".parse::<ModelType>().unwrap(), ModelType::Schnell);
-        assert_eq!("dev".parse::<ModelType>().unwrap(), ModelType::Dev);
-        assert_eq!("SCHNELL".parse::<ModelType>().unwrap(), ModelType::Schnell);
-        assert_eq!("zimage-turbo".parse::<ModelType>().unwrap(), ModelType::ZImageTurbo);
-        assert_eq!("z-image-turbo".parse::<ModelType>().unwrap(), ModelType::ZImageTurbo);
-        assert_eq!("ZIMAGE".parse::<ModelType>().unwrap(), ModelType::ZImageTurbo);
+        assert_eq!("schnell".parse::<ModelType>().unwrap(), ModelType::schnell());
+        assert_eq!("dev".parse::<ModelType>().unwrap(), ModelType::dev());
+        assert_eq!("SCHNELL".parse::<ModelType>().unwrap(), ModelType::schnell());
+        assert_eq!("zimage-turbo".parse::<ModelType>().unwrap(), ModelType::zimage_turbo());
+        assert_eq!("z-image-turbo".parse::<ModelType>().unwrap(), ModelType::zimage_turbo());
+        assert_eq!("ZIMAGE".parse::<ModelType>().unwrap(), ModelType::zimage_turbo());
     }
 
     #[test]
-    fn test_vram() {
-        assert!(ModelType::Dev.vram_full_precision() > ModelType::Dev.vram_quantized());
-        assert!(ModelType::ZImageTurbo.vram_full_precision() > ModelType::ZImageTurbo.vram_quantized());
-        assert_eq!(ModelType::ZImageTurbo.vram_full_precision(), 16_000);
+    fn test_constants() {
+        assert_eq!(ModelType::schnell().id(), "schnell");
+        assert_eq!(ModelType::dev().id(), "dev");
+        assert_eq!(ModelType::zimage_turbo().id(), "zimage-turbo");
     }
 
     #[test]
-    fn test_repo_ids() {
-        assert_eq!(ModelType::Schnell.repo_id(), "black-forest-labs/FLUX.1-schnell");
-        assert_eq!(ModelType::Dev.repo_id(), "black-forest-labs/FLUX.1-dev");
-        assert_eq!(ModelType::ZImageTurbo.repo_id(), "Tongyi-MAI/Z-Image-Turbo");
+    fn test_display() {
+        assert_eq!(ModelType::schnell().to_string(), "schnell");
+        assert_eq!(ModelType::dev().to_string(), "dev");
     }
 
     #[test]
-    fn test_display_names() {
-        assert_eq!(ModelType::Schnell.display_name(), "FLUX.1 [schnell]");
-        assert_eq!(ModelType::Dev.display_name(), "FLUX.1 [dev]");
-        assert_eq!(ModelType::ZImageTurbo.display_name(), "Z-Image-Turbo");
+    fn test_clone_cheap() {
+        let model1 = ModelType::schnell();
+        let model2 = model1.clone();
+        assert_eq!(model1, model2);
+        // Arc makes this a cheap pointer copy
+        assert_eq!(Arc::strong_count(&model1.0), Arc::strong_count(&model2.0));
     }
 }

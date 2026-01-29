@@ -3,7 +3,7 @@
 pub mod cache;
 mod embedding_cache;
 mod engine;
-mod flux_pipeline;
+pub mod flux_pipeline;
 pub mod metadata;
 mod progress;
 pub mod samplers;
@@ -13,7 +13,7 @@ mod zindex_pipeline;
 pub use cache::{CacheStats, ModelCache, ModelCacheConfig, ModelsLoaded};
 pub use embedding_cache::{CachedEmbedding, EmbeddingCache};
 pub use engine::InferenceEngine;
-pub use flux_pipeline::FluxPipeline;
+pub use flux_pipeline::{BundleContext, FluxPipeline};
 pub use metadata::{ImageMetadata, encode_png_with_metadata, read_png_metadata};
 pub use progress::{GenerationProgress, PipelineStage, ProgressCallback};
 pub use samplers::{SamplerType, SchedulerType, get_timesteps};

@@ -1,5 +1,5 @@
 <template>
-  <GenerationAction :collapsed="props.collapsed" :toggleable="props.toggleable" :icon="props.icon" :label="props.label">
+  <GenerationAction :collapsed="false" :toggleable="true" icon="layer-group" label="Style Selection">
     <!-- Loading State -->
     <div v-if="modelsStore.lorasLoading" class="flex items-center justify-center py-4 text-surface-400">
       <i class="mr-2 pi pi-spin pi-spinner"></i>
@@ -15,16 +15,23 @@
     <div v-else-if="modelsStore.loras.length === 0" class="flex flex-col items-center gap-2 py-4 text-center text-surface-400">
       <fa :icon="['fal', 'layer-group']" class="opacity-50" size="2x" />
       <p class="text-sm">No LoRAs imported</p>
-      <Button label="Import LoRA" icon="pi pi-plus" size="small" outlined @click="showImportDialog = true" />
+      <Button label="Import LoRA" size="small" severity="info" @click="showImportDialog = true" />
     </div>
 
     <!-- LoRA List -->
     <template v-else>
+      <!-- Import Button -->
+      <Button label="Import LoRA" severity="info" size="small"  @click="showImportDialog = true" />
+
       <ul role="list" class="divide-y divide-surface-600">
-        <li v-for="lora in modelsStore.loras" :key="lora.id" class="flex flex-col gap-1 p-2">
+        <li
+          v-for="lora in modelsStore.loras"
+          :key="lora.id"
+          class="flex flex-col gap-1 p-2 border rounded-lg bg-surface-950"
+          :class="lora.isActive ? 'border-blue-600' : 'border-surface-600'">
           <!-- Header Row -->
           <div class="flex flex-row items-center gap-2">
-            <ToggleSwitch v-model="lora.isActive" :input-id="lora.id" binary @change="handleToggle(lora.id)" class="shrink" />
+            <Checkbox :value="isLoraActive(lora.id)" :input-id="lora.id" binary @change="handleToggle(lora)" class="shrink" />
             <div class="text-base font-medium text-surface-200 grow line-clamp-1" :title="lora.name">
               {{ lora.name }}
             </div>
@@ -36,26 +43,27 @@
           <div class="grid grid-cols-8 gap-2">
             <!-- Strength Slider (only when active) -->
             <div class="flex flex-col col-span-8">
-              <label class="mb-1 text-xs font-medium tracking-wide text-surface-300">Strength</label>
               <InputGroup>
                 <InputGroupAddon>
                   <fa :icon="['fal', 'dial']" size="lg" />
                 </InputGroupAddon>
                 <InputNumber
                   v-model="lora.strength"
-                  :use-grouping="false"
+                  :use-grouping="true"
                   :min="0"
                   :max="2"
+                  :minFractionDigits="2" :maxFractionDigits="2"
                   :step="0.1"
                   fluid
                   input-class="flex items-center font-mono text-base leading-none text-center" />
-                <InputGroupAddon><fa :icon="['fal', 'rotate-left']" class="cursor-pointer" v-tooltip="'Reset'" @click="lora.strength = 1" /></InputGroupAddon>
+                <InputGroupAddon
+                  ><fa :icon="['fal', 'rotate-left']" class="cursor-pointer" v-tooltip="'Reset'" @click="handleResetStrengthChange(lora)"
+                /></InputGroupAddon>
               </InputGroup>
             </div>
 
             <!-- Trigger Words -->
             <div class="flex flex-col col-span-8">
-              <label class="mb-1 text-xs font-medium tracking-wide text-surface-300">Trigger</label>
               <InputGroup>
                 <InputGroupAddon>
                   <fa :icon="['fal', 'tag']" />
@@ -69,8 +77,6 @@
           </div>
         </li>
       </ul>
-      <!-- Import Button -->
-      <Button label="Import LoRA" icon="pi pi-plus" size="small" outlined class="mt-2" @click="showImportDialog = true" />
     </template>
 
     <!-- Import Dialog -->
@@ -85,12 +91,12 @@ import InputGroup from 'primevue/inputgroup';
 import InputGroupAddon from 'primevue/inputgroupaddon';
 import GenerationAction from './GenerationAction.vue';
 import Checkbox from 'primevue/checkbox';
-import ToggleSwitch from 'primevue/toggleswitch';
 import InputNumber from 'primevue/inputnumber';
 import Button from 'primevue/button';
 import { useModelsStore } from '@/stores/models';
 import LoraImportDialog from './LoraImportDialog.vue';
 import InputText from 'primevue/inputtext';
+import { LoRA } from '@/types';
 
 const props = defineProps(['collapsed', 'icon', 'label', 'toggleable']);
 
@@ -101,17 +107,28 @@ const showImportDialog = ref(false);
 
 const activeLoras = computed(() => modelsStore.loras.filter((l) => l.isActive));
 
+const isLoraActive = (id: string): boolean => {
+  return activeLoras.value.some((l) => l.id === id);
+};
+
 // Load LoRAs on mount
 onMounted(() => {
   modelsStore.loadLoras();
 });
 
-const handleToggle = (id: string) => {
-  modelsStore.toggleLora(id);
+const handleToggle = (lora: LoRA) => {
+  lora.isActive = !lora.isActive;
+  modelsStore.toggleLora(lora.id);
 };
 
-const handleStrengthChange = (id: string, strength: number) => {
-  modelsStore.updateLoraStrength(id, strength);
+const handleStrengthChange = (lora: LoRA, strength: number) => {
+  lora.strength = strength;
+  modelsStore.updateLoraStrength(lora.id, strength);
+};
+
+const handleResetStrengthChange = (lora: LoRA) => {
+  lora.strength = 1;
+  modelsStore.updateLoraStrength(lora.id, 1);
 };
 
 const handleDelete = async (id: string) => {

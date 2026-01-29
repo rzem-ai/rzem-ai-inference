@@ -1,18 +1,11 @@
 <template>
-  <GenerationAction :collapsed="props.collapsed" :toggleable="props.toggleable" :icon="props.icon" :label="props.label">
+  <GenerationAction :collapsed="false" :toggleable="false" icon="pen-to-square" label="Image Description">
     <PromptEditor v-model="prompt" label="Prompt" placeholder="Describe the image you want to generate..." :rows="4" />
     <div class="flex flex-col gap-2">
       <SplitButton :loading="queueStore.hasRunningJobs" fluid size="small" @click="handleGenerate" :model="generationCounts" :disabled="!canGenerate">
         {{ queueStore.queueLength > 0 ? `Generate` : 'Generate' }} ( {{ imageCount }} )
       </SplitButton>
-      <Button
-        label="Batch Script"
-        icon="pi pi-list"
-        severity="secondary"
-        size="small"
-        fluid
-        @click="showBatchDialog = true"
-      />
+      <Button label="Batch Script" icon="pi pi-list" severity="secondary" size="small" fluid @click="showBatchDialog = true" />
     </div>
 
     <!-- Batch Script Dialog -->
@@ -29,8 +22,6 @@ import PromptEditor from './PromptEditor.vue';
 import SplitButton from 'primevue/splitbutton';
 import Button from 'primevue/button';
 import BatchScriptDialog from '@/components/generation/batch/BatchScriptDialog.vue';
-
-const props = defineProps(['collapsed', 'icon', 'label', 'toggleable']);
 
 const emit = defineEmits<{
   generate: [];

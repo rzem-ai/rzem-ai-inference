@@ -5,14 +5,14 @@ export const slider: SliderDesignTokens = {
     transitionDuration: '{transition.duration}',
   },
   handle: {
-    width: '20px',
-    height: '16px',
-    borderRadius: '{border.radius.md}',
+    width: '0.5rem',
+    height: '2.15rem',
+    borderRadius: '{border.radius.sm}',
     content: {
-      borderRadius: '{border.radius.sm}',
-      width: '16px',
-      height: '10px',
-      shadow: '0',
+      borderRadius: '0',
+      width: '0.5rem',
+      height: '2.15rem',
+      shadow: '{form.field.shadow}',
     },
     focusRing: {
       width: '0',
@@ -20,18 +20,19 @@ export const slider: SliderDesignTokens = {
       offset: '0',
     },
   },
-  range: {},
+  range: {
+  },
   track: {
     borderRadius: '{border.radius.md}',
-    size: '5px',
+    size: '2.15rem',
   },
   colorScheme: {
     light: {
       handle: {
-        background: '{blue.300}',
+        background: '{surface.600}',
         hoverBackground: '{blue.500}',
         content: {
-          background: '{blue.400}',
+          background: '{surface.400}',
           hoverBackground: '{blue.500}',
           //shadow: '0px 1px 1px 0px rgba(0, 0, 0, 0.2)',
           shadow: '0px',

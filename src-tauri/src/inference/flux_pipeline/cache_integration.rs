@@ -59,17 +59,29 @@ impl FluxPipeline {
             if self.t5.is_none() {
                 let t5_timer = Timer::start();
                 if paths.has_quantized_t5() {
-                    info!("Reloading T5 encoder (quantized)");
+                    let model_path = paths.quantized_t5_path();
+                    let tokenizer_path = paths.t5_tokenizer_path();
+                    info!(
+                        model = %model_path.display(),
+                        tokenizer = %tokenizer_path.display(),
+                        "Reloading T5 encoder (quantized)"
+                    );
                     self.t5 = Some(T5TextEncoder::load_quantized(
-                        paths.quantized_t5_path(),
-                        paths.t5_tokenizer_path(),
+                        model_path,
+                        tokenizer_path,
                         self.device.clone(),
                     )?);
                 } else {
-                    info!("Reloading T5 encoder (full precision)");
+                    let model_path = paths.t5_path();
+                    let tokenizer_path = paths.t5_tokenizer_path();
+                    info!(
+                        model = %model_path.display(),
+                        tokenizer = %tokenizer_path.display(),
+                        "Reloading T5 encoder (full precision)"
+                    );
                     self.t5 = Some(T5TextEncoder::load(
-                        paths.t5_path(),
-                        paths.t5_tokenizer_path(),
+                        model_path,
+                        tokenizer_path,
                         self.device.clone(),
                     )?);
                 }
@@ -77,11 +89,17 @@ impl FluxPipeline {
             }
 
             if self.clip.is_none() {
-                info!("Reloading CLIP encoder");
+                let model_path = paths.clip_path().join("model.safetensors");
+                let tokenizer_path = paths.tokenizer_path();
+                info!(
+                    model = %model_path.display(),
+                    tokenizer = %tokenizer_path.display(),
+                    "Reloading CLIP encoder"
+                );
                 let clip_timer = Timer::start();
                 self.clip = Some(ClipTextEncoder::load(
-                    paths.clip_path().join("model.safetensors"),
-                    paths.tokenizer_path(),
+                    model_path,
+                    tokenizer_path,
                     self.device.clone(),
                 )?);
                 stats.clip_load_ms = Some(clip_timer.stop());
@@ -144,26 +162,42 @@ impl FluxPipeline {
 
             if self.flux.is_none() {
                 let flux_timer = Timer::start();
-                if paths.has_quantized_for(self.model_type) {
-                    info!(model = %self.model_type, "Reloading transformer (quantized)");
+                if paths.has_quantized_for(self.model_type.clone()) {
+                    let model_path = paths.quantized_transformer_path_for(self.model_type.clone());
+                    info!(
+                        model = %self.model_type,
+                        path = %model_path.display(),
+                        "Reloading transformer (quantized)"
+                    );
                     self.flux = Some(FluxTransformer::load_quantized(
-                        paths.quantized_transformer_path_for(self.model_type),
+                        model_path,
                         self.device.clone(),
+                        self.model_type.clone(),
                     )?);
                 } else {
-                    info!(model = %self.model_type, "Reloading transformer (full precision)");
+                    let model_path = paths.transformer_path_for(self.model_type.clone());
+                    info!(
+                        model = %self.model_type,
+                        path = %model_path.display(),
+                        "Reloading transformer (full precision)"
+                    );
                     self.flux = Some(FluxTransformer::load(
-                        paths.transformer_path_for(self.model_type),
+                        model_path,
                         self.device.clone(),
+                        self.model_type.clone(),
                     )?);
                 }
                 stats.flux_load_ms = Some(flux_timer.stop());
             }
 
             if self.vae.is_none() {
-                info!("Reloading VAE decoder");
+                let model_path = paths.vae_path();
+                info!(
+                    model = %model_path.display(),
+                    "Reloading VAE decoder"
+                );
                 let vae_timer = Timer::start();
-                self.vae = Some(VaeDecoder::load(paths.vae_path(), self.device.clone())?);
+                self.vae = Some(VaeDecoder::load(model_path, self.device.clone())?);
                 stats.vae_load_ms = Some(vae_timer.stop());
             }
         }
@@ -176,9 +210,9 @@ impl FluxPipeline {
             "full_precision".to_string()
         };
 
-        info!(steps = steps, guidance = guidance, seed = seed, sampler = ?sampler, scheduler = ?scheduler, "Denoising");
+        info!(steps = steps, guidance = guidance, seed = seed, sampler = ?sampler, scheduler = ?scheduler, "Drawing");
         let denoise_timer = Timer::start();
-        let latents = flux.denoise(t5_emb, clip_emb, height, width, steps, guidance, seed, sampler, scheduler)?;
+        let latents = flux.denoise(t5_emb, clip_emb, height, width, steps, guidance, seed, sampler, scheduler, None::<fn(usize, usize)>)?;
         stats.denoise_ms = denoise_timer.stop();
         stats.latent_shape = latents.dims().to_vec();
 
@@ -244,16 +278,14 @@ impl FluxPipeline {
         let mut stats = GenerationStats::default();
         stats.steps = steps;
 
-        // Loading stage
+        // Loading models and encoding stage (0.0 - 0.5)
         on_progress(GenerationProgress::new(PipelineStage::LoadingModels, 0.0));
         self.ensure_models_loaded(&mut stats)?;
-        on_progress(GenerationProgress::new(PipelineStage::LoadingModels, 1.0));
+        on_progress(GenerationProgress::new(PipelineStage::LoadingModels, 0.5));
 
         // Encoding with cache
-        on_progress(GenerationProgress::new(PipelineStage::EncodingT5, 0.0));
         let (t5_emb, clip_emb) = self.encode_prompt_cached(prompt, embedding_cache, &mut stats)?;
-        on_progress(GenerationProgress::new(PipelineStage::EncodingT5, 1.0));
-        on_progress(GenerationProgress::new(PipelineStage::EncodingClip, 1.0));
+        on_progress(GenerationProgress::new(PipelineStage::LoadingModels, 1.0));
 
         // Denoising
         let flux = self.flux.as_ref().ok_or_else(|| anyhow::anyhow!("FLUX model not loaded"))?;
@@ -264,14 +296,23 @@ impl FluxPipeline {
             "full_precision".to_string()
         };
 
-        on_progress(GenerationProgress::denoising_step(0, steps));
-
         let denoise_timer = Timer::start();
-        let latents = flux.denoise(&t5_emb, &clip_emb, height, width, steps, guidance, seed, sampler, scheduler)?;
+        let latents = flux.denoise(
+            &t5_emb,
+            &clip_emb,
+            height,
+            width,
+            steps,
+            guidance,
+            seed,
+            sampler,
+            scheduler,
+            Some(|current_step: usize, total_steps: usize| {
+                on_progress(GenerationProgress::denoising_step(current_step, total_steps));
+            }),
+        )?;
         stats.denoise_ms = denoise_timer.stop();
         stats.latent_shape = latents.dims().to_vec();
-
-        on_progress(GenerationProgress::denoising_step(steps, steps));
 
         // VAE decoding
         on_progress(GenerationProgress::new(PipelineStage::DecodingVae, 0.0));

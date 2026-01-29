@@ -52,10 +52,11 @@ impl ModelDownloader {
 
     /// Check if a specific model is downloaded
     pub fn is_model_downloaded(&self, model_type: ModelType) -> bool {
-        match model_type {
-            ModelType::Schnell => self.is_schnell_downloaded(),
-            ModelType::Dev => self.is_dev_downloaded(),
-            ModelType::ZImageTurbo => self.paths.is_zimage_downloaded(),
+        match model_type.id() {
+            "schnell" => self.is_schnell_downloaded(),
+            "dev" => self.is_dev_downloaded(),
+            "zimage-turbo" => self.paths.is_zimage_downloaded(),
+            _ => false,
         }
     }
 
@@ -102,7 +103,7 @@ impl ModelDownloader {
 
     /// Filter files to only include model files we need for Schnell
     fn filter_required_files(files: Vec<String>) -> Vec<String> {
-        Self::filter_required_files_for_model(files, ModelType::Schnell)
+        Self::filter_required_files_for_model(files, ModelType::schnell())
     }
 
     /// Filter files to only include model files we need for a specific model
@@ -120,10 +121,11 @@ impl ModelDownloader {
                 ];
 
                 // Root-level model files vary by model type
-                let transformer_file = match model_type {
-                    ModelType::Schnell => "flux1-schnell.safetensors",
-                    ModelType::Dev => "flux1-dev.safetensors",
-                    ModelType::ZImageTurbo => "transformer/", // Z-Image uses directory with sharded files
+                let transformer_file = match model_type.id() {
+                    "schnell" => "flux1-schnell.safetensors",
+                    "dev" => "flux1-dev.safetensors",
+                    "zimage-turbo" => "transformer/", // Z-Image uses directory with sharded files
+                    _ => "flux1-schnell.safetensors", // Fallback
                 };
 
                 let root_files: Vec<&str> = vec![
@@ -249,13 +251,13 @@ impl ModelDownloader {
         std::env::set_var("HF_TOKEN", &hf_token);
 
         let api = Api::new()?;
-        let repo_id = ModelType::Dev.repo_id();
+        let repo_id = "black-forest-labs/FLUX.1-dev";
 
         info!("Downloading FLUX Dev from HuggingFace Hub");
         info!("Fetching file list from repository");
 
         let all_files = Self::fetch_repo_files(repo_id, &hf_token).await?;
-        let mut files = Self::filter_required_files_for_model(all_files, ModelType::Dev);
+        let mut files = Self::filter_required_files_for_model(all_files, ModelType::dev());
 
         // Optimization: If Schnell is already downloaded, skip shared components
         // Only download the Dev-specific transformer file
@@ -288,13 +290,16 @@ impl ModelDownloader {
 
     /// Download a specific model
     pub async fn download_model(&self, model_type: ModelType) -> Result<()> {
-        match model_type {
-            ModelType::Schnell => self.download_schnell().await,
-            ModelType::Dev => self.download_dev().await,
-            ModelType::ZImageTurbo => {
+        match model_type.id() {
+            "schnell" => self.download_schnell().await,
+            "dev" => self.download_dev().await,
+            "zimage-turbo" => {
                 // TODO: Implement Z-Image-Turbo download
                 // For now, model should be manually downloaded to HF cache
                 anyhow::bail!("Z-Image-Turbo download not yet implemented. Please download manually using: huggingface-cli download Tongyi-MAI/Z-Image-Turbo")
+            }
+            _ => {
+                anyhow::bail!("Unknown model type: {}", model_type.id())
             }
         }
     }

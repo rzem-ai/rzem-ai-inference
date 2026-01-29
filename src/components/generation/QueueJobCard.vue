@@ -1,18 +1,18 @@
 <template>
   <div
-    class="flex min-w-62.5 items-start gap-3 rounded-lg border p-2 shadow-lg"
+    class="flex min-w-62.5 items-start gap-3 rounded-lg border p-2"
     :class="{
-      'border-surface-400 bg-surface-900': job.status === 'pending',
-      'border-blue-500/50 bg-surface-900': job.status === 'running',
-      'border-green-500/50 bg-surface-900': job.status === 'completed',
-      'border-red-500 bg-red-50': job.status === 'failed',
+      'border-surface-700 bg-surface-900 shadow': job.status === 'pending',
+      'border-blue-500/50 bg-surface-900 shadow-lg': job.status === 'running',
+      'border-green-500/50 bg-surface-900 shadow': job.status === 'completed',
+      'border-red-500 bg-red-50 shadow': job.status === 'failed',
     }">
     <!-- Status Icon -->
     <div
       class="flex items-center justify-center w-8 h-8 rounded-full"
       :class="{
-        'bg-(--bg-elevated) text-(--text-secondary)': job.status === 'pending',
-        'bg-(--accent-primary) text-(--bg-app)': job.status === 'running',
+        'text-surface-400': job.status === 'pending',
+        'text-primary-500': job.status === 'running',
         'bg-green-500 text-white': job.status === 'completed',
         'bg-red-500 text-white': job.status === 'failed',
       }">
@@ -22,7 +22,7 @@
     <!-- Job Info -->
     <div class="flex-1 min-w-0">
       <div class="flex-1 min-w-0">
-        <div class="truncate text-sm font-medium text-(--text-heading)">{{ prompt }}</div>
+        <div class="text-sm font-medium truncate text-surface-300">{{ prompt }}</div>
         <div class="mt-1 flex gap-2 text-xs text-(--text-secondary)">
           <span>{{ job.params.width }}x{{ job.params.height }}</span>
           <span>{{ job.params.steps }} steps</span>
@@ -35,15 +35,31 @@
         <div class="flex items-center gap-2">
           <span class="w-12.5 shrink-0 text-xs text-(--text-primary)">Pipeline</span>
           <ProgressBar :value="progress" :showValue="false" class="flex-1 border border-surface-400" />
-          <span class="w-10 shrink-0 text-right font-mono text-xs text-(--text-heading)">{{ progress }}%</span>
+          <span class="w-10 font-mono text-xs text-right shrink-0 text-surface-300">{{ progress }}%</span>
         </div>
         <!-- Steps progress (bottom bar) -->
         <div class="flex items-center gap-2">
           <span class="w-12.5 shrink-0 text-xs text-(--text-primary)">Steps</span>
-          <ProgressBar :value="getStepProgress(job)" :showValue="false" class="flex-1 progress-bar-steps" />
-          <span class="w-10 shrink-0 text-right font-mono text-xs text-(--text-heading)">{{ getStepDisplay(job) }}</span>
+          <ProgressBar :value="getStepProgress(job)" :showValue="false" class="flex-1 border progress-bar-steps border-surface-400" />
+          <span class="w-10 font-mono text-xs text-right shrink-0 text-surface-300">{{ getStepDisplay(job) }}</span>
         </div>
         <div class="font-mono text-xs text-center">{{ getStageDisplayName(job.currentStage) }}</div>
+      </div>
+
+      <div v-else class="flex flex-col w-full gap-1 pt-2">
+        <!-- Pipeline progress (top bar) -->
+        <div class="flex items-center gap-2">
+          <span class="w-12.5 shrink-0 text-xs text-(--text-primary)">Pipeline</span>
+          <ProgressBar :value="progress" :showValue="false" class="flex-1 border border-surface-400" />
+          <span class="w-10 font-mono text-xs text-right shrink-0 text-surface-300">{{ progress }}%</span>
+        </div>
+        <!-- Steps progress (bottom bar) -->
+        <div class="flex items-center gap-2">
+          <span class="w-12.5 shrink-0 text-xs text-(--text-primary)">Steps</span>
+          <ProgressBar :value="0" :showValue="false" class="flex-1 border progress-bar-steps border-surface-400" />
+          <span class="w-10 font-mono text-xs text-right shrink-0 text-surface-300">{{ getStepDisplay(job) }}</span>
+        </div>
+        <div class="font-mono text-xs text-center">Waiting...</div>
       </div>
     </div>
   </div>
@@ -79,7 +95,7 @@ const progress = computed((): number => {
 });
 
 const prompt = computed((): string => {
-  const text = props?.job?.params?.prompt ? props.job.params.prompt : ''
+  const text = props?.job?.params?.prompt ? props.job.params.prompt : '';
   return text.length > 60 ? text.substring(0, 60) + '...' : text;
 });
 
@@ -88,8 +104,8 @@ const stageDisplayNames = computed(() => ({
   loading_models: 'Loading models...',
   encoding_t5: 'Encoding prompt (T5)...',
   encoding_clip: 'Encoding prompt (CLIP)...',
-  denoising: 'Denoising...',
-  decoding_vae: 'Decoding image...',
+  denoising: 'Drawing...',
+  decoding_vae: 'Drawing image...',
   encoding_png: 'Saving image...',
 }));
 
@@ -125,11 +141,8 @@ const getStepDisplay = computed(() => (job: GenerationJob) => {
   const current = job.currentStep ?? 0;
   return `${current}/${totalSteps}`;
 });
- 
 </script>
 
 <style scoped>
 @reference "tailwindcss";
-
-
 </style>

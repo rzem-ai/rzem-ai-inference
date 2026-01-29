@@ -20,10 +20,10 @@ import { ref, onMounted, onUnmounted, useTemplateRef } from 'vue';
 import WorkspaceNavItem, { type Workspace } from './WorkspaceNavItem.vue';
 
 const workspaces: Workspace[] = [
-  { label: 'Generate', path: '/generate', icon: 'sparkles' },
-  { label: 'Gallery', path: '/gallery', icon: 'images' },
-  { label: 'Compare', path: '/compare', icon: 'code-compare' },
-  { label: 'Models', path: '/models', icon: 'database' },
+  { label: 'Generate', path: '/generate', icon: 'sparkles', enabled: true },
+  { label: 'Gallery', path: '/gallery', icon: 'images', enabled: true },
+  { label: 'Compare', path: '/compare', icon: 'code-compare', enabled: false },
+  { label: 'Models', path: '/models', icon: 'database', enabled: true },
 ];
 
 // Pixel effect implementation

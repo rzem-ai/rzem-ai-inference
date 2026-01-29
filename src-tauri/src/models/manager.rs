@@ -65,7 +65,7 @@ impl ModelManager {
 
     /// Get current model type
     pub fn current_model(&self) -> Option<ModelType> {
-        self.current_model
+        self.current_model.clone()
     }
 
     /// Check available VRAM in MB (returns total if can't query)
@@ -96,7 +96,7 @@ impl ModelManager {
         if self.vae.is_some() {
             used += 160; // VAE ~160MB
         }
-        if let (Some(model), Some(precision)) = (self.current_model, self.current_precision) {
+        if let (Some(model), Some(precision)) = (self.current_model.clone(), self.current_precision) {
             used += match precision {
                 Precision::Full => model.vram_full_precision(),
                 Precision::Quantized => model.vram_quantized(),
@@ -131,27 +131,43 @@ impl ModelManager {
         info!("Loading shared components");
 
         if self.t5.is_none() {
-            info!("Loading T5 encoder");
+            let model_path = self.paths.t5_path();
+            let tokenizer_path = self.paths.t5_tokenizer_path();
+            info!(
+                model = %model_path.display(),
+                tokenizer = %tokenizer_path.display(),
+                "Loading T5 encoder"
+            );
             self.t5 = Some(T5TextEncoder::load(
-                self.paths.t5_path(),
-                self.paths.t5_tokenizer_path(),
+                model_path,
+                tokenizer_path,
                 self.device.clone(),
             )?);
         }
 
         if self.clip.is_none() {
-            info!("Loading CLIP encoder");
+            let model_path = self.paths.clip_path().join("model.safetensors");
+            let tokenizer_path = self.paths.tokenizer_path();
+            info!(
+                model = %model_path.display(),
+                tokenizer = %tokenizer_path.display(),
+                "Loading CLIP encoder"
+            );
             self.clip = Some(ClipTextEncoder::load(
-                self.paths.clip_path().join("model.safetensors"),
-                self.paths.tokenizer_path(),
+                model_path,
+                tokenizer_path,
                 self.device.clone(),
             )?);
         }
 
         if self.vae.is_none() {
-            info!("Loading VAE decoder");
+            let model_path = self.paths.vae_path();
+            info!(
+                model = %model_path.display(),
+                "Loading VAE decoder"
+            );
             self.vae = Some(VaeDecoder::load(
-                self.paths.vae_path(),
+                model_path,
                 self.device.clone(),
             )?);
         }
@@ -165,43 +181,53 @@ impl ModelManager {
         self.load_shared()?;
 
         // Check if already loaded
-        if self.current_model == Some(model) && self.flux.is_some() {
+        if self.current_model == Some(model.clone()) && self.flux.is_some() {
             return Ok(());
         }
 
         // Unload current transformer if different model
-        if self.current_model.is_some() && self.current_model != Some(model) {
-            debug!(model = ?self.current_model.unwrap(), "Unloading transformer");
+        if self.current_model.is_some() && self.current_model != Some(model.clone()) {
+            debug!(model = ?self.current_model.as_ref().unwrap(), "Unloading transformer");
             self.flux = None;
             self.current_model = None;
             self.current_precision = None;
         }
 
         // Determine precision
-        let precision = self.select_precision(model);
+        let precision = self.select_precision(model.clone());
         let use_quantized = precision == Precision::Quantized;
 
-        info!(
-            model = %model,
-            precision = if use_quantized { "quantized" } else { "full_precision" },
-            "Loading transformer"
-        );
-
         // Load transformer
-        let flux = if use_quantized && self.paths.has_quantized_for(model) {
+        let flux = if use_quantized && self.paths.has_quantized_for(model.clone()) {
+            let model_path = self.paths.quantized_transformer_path_for(model.clone());
+            info!(
+                model = %model,
+                path = %model_path.display(),
+                precision = "quantized",
+                "Loading transformer"
+            );
             FluxTransformer::load_quantized(
-                self.paths.quantized_transformer_path_for(model),
+                model_path,
                 self.device.clone(),
+                model.clone(),
             )?
         } else {
+            let model_path = self.paths.transformer_path_for(model.clone());
+            info!(
+                model = %model,
+                path = %model_path.display(),
+                precision = "full_precision",
+                "Loading transformer"
+            );
             FluxTransformer::load(
-                self.paths.transformer_path_for(model),
+                model_path,
                 self.device.clone(),
+                model.clone(),
             )?
         };
 
         self.flux = Some(flux);
-        self.current_model = Some(model);
+        self.current_model = Some(model.clone());
         self.current_precision = Some(precision);
 
         info!(model = %model, "Model loaded successfully");
@@ -281,7 +307,7 @@ mod tests {
         let device = Device::Cpu;
         let manager = ModelManager::new(device).unwrap();
         // On CPU, should always have "enough" VRAM
-        let precision = manager.select_precision(ModelType::Schnell);
+        let precision = manager.select_precision(ModelType::schnell());
         assert_eq!(precision, Precision::Full);
     }
 }

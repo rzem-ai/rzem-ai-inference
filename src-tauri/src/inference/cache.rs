@@ -148,8 +148,8 @@ impl ModelCache {
 
         if needs_new {
             info!(model = ?model_type, "Creating new pipeline");
-            *pipeline_guard = Some(FluxPipeline::with_model_type(self.device.clone(), model_type)?);
-            *model_type_guard = Some(model_type);
+            *pipeline_guard = Some(FluxPipeline::with_model_type(self.device.clone(), model_type.clone())?);
+            *model_type_guard = Some(model_type.clone());
             stats.pipeline_recreations += 1;
             stats.current_model_type = Some(model_type.to_string());
             Ok(true)

@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia'
-import { ref, computed, onScopeDispose } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
+import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 
 /**
  * Backend preference for auto-tagging
@@ -63,235 +62,222 @@ export interface VisionModelStatus {
   error: string | null
 }
 
-export const useAutoTagStore = defineStore('autoTag', () => {
-  // State
-  const settings = ref<AutoTagSettings>({
-    enabled: false,
-    auto_tag_on_generation: false,
-    preferred_backend: 'claude',
-    min_confidence: 0.6,
-    claude_api_key: undefined,
-  })
-  const modelStatus = ref<VisionModelStatus>({
-    is_downloaded: false,
-    download_progress: null,
-    model_size: 0,
-    model_size_display: '',
-    error: null,
-  })
-  const isLoadingSettings = ref(false)
-  const isTagging = ref(false)
-  const isDownloading = ref(false)
-  const lastError = ref<string | null>(null)
-  const recentTaggingResults = ref<TaggingResult[]>([])
+export const useAutoTagStore = defineStore('autoTag', {
+  state: () => ({
+    settings: {
+      enabled: false,
+      auto_tag_on_generation: false,
+      preferred_backend: 'claude',
+      min_confidence: 0.6,
+      claude_api_key: undefined,
+    } as AutoTagSettings,
+    modelStatus: {
+      is_downloaded: false,
+      download_progress: null,
+      model_size: 0,
+      model_size_display: '',
+      error: null,
+    } as VisionModelStatus,
+    isLoadingSettings: false,
+    isTagging: false,
+    isDownloading: false,
+    lastError: null as string | null,
+    recentTaggingResults: [] as TaggingResult[],
+    // Event unlisteners
+    unlisteners: [] as UnlistenFn[],
+  }),
 
-  // Computed
-  const isClaudeAvailable = computed(() => {
-    return !!settings.value.claude_api_key && settings.value.claude_api_key.length > 0
-  })
+  getters: {
+    isClaudeAvailable(state): boolean {
+      return !!state.settings.claude_api_key && state.settings.claude_api_key.length > 0
+    },
 
-  const isLocalAvailable = computed(() => {
-    return modelStatus.value.is_downloaded
-  })
+    isLocalAvailable(state): boolean {
+      return state.modelStatus.is_downloaded
+    },
 
-  const effectiveBackend = computed((): TaggingBackend | null => {
-    const preferred = settings.value.preferred_backend
-    if (preferred === 'local' && isLocalAvailable.value) return 'local'
-    if (preferred === 'claude' && isClaudeAvailable.value) return 'claude'
-    // Fallback to other backend if preferred not available
-    if (preferred === 'local' && isClaudeAvailable.value) return 'claude'
-    if (preferred === 'claude' && isLocalAvailable.value) return 'local'
-    return null
-  })
+    effectiveBackend(state): TaggingBackend | null {
+      const preferred = state.settings.preferred_backend
+      if (preferred === 'local' && state.modelStatus.is_downloaded) return 'local'
+      if (preferred === 'claude' && state.settings.claude_api_key) return 'claude'
+      // Fallback to other backend if preferred not available
+      if (preferred === 'local' && state.settings.claude_api_key) return 'claude'
+      if (preferred === 'claude' && state.modelStatus.is_downloaded) return 'local'
+      return null
+    },
 
-  const canAutoTag = computed(() => {
-    return settings.value.enabled && effectiveBackend.value !== null
-  })
+    canAutoTag(state): boolean {
+      const backend = this.effectiveBackend
+      return state.settings.enabled && backend !== null
+    },
 
-  const downloadProgressPercent = computed(() => {
-    const progress = modelStatus.value.download_progress
-    if (progress === null || modelStatus.value.model_size === 0) return 0
-    return Math.round((progress / modelStatus.value.model_size) * 100)
-  })
+    downloadProgressPercent(state): number {
+      const progress = state.modelStatus.download_progress
+      if (progress === null || state.modelStatus.model_size === 0) return 0
+      return Math.round((progress / state.modelStatus.model_size) * 100)
+    },
+  },
 
-  // Listen for auto-tag events from backend
-  const unlistenComplete = listen<{
-    image_id: string
-    tags: TagWithConfidence[]
-    backend: TaggingBackend
-  }>('auto-tag-complete', (event) => {
-    const result: TaggingResult = {
-      image_id: event.payload.image_id,
-      tags: event.payload.tags,
-      backend: event.payload.backend,
-      success: true,
-    }
-    recentTaggingResults.value.unshift(result)
-    // Keep only last 10 results
-    if (recentTaggingResults.value.length > 10) {
-      recentTaggingResults.value = recentTaggingResults.value.slice(0, 10)
-    }
-  })
+  actions: {
+    // Initialize event listeners
+    async initializeEventListeners() {
+      if (this.unlisteners.length > 0) return; // Already initialized
 
-  const unlistenFailed = listen<{
-    image_id: string
-    error: string
-    backend: TaggingBackend
-  }>('auto-tag-failed', (event) => {
-    const result: TaggingResult = {
-      image_id: event.payload.image_id,
-      tags: [],
-      backend: event.payload.backend,
-      success: false,
-      error: event.payload.error,
-    }
-    recentTaggingResults.value.unshift(result)
-    if (recentTaggingResults.value.length > 10) {
-      recentTaggingResults.value = recentTaggingResults.value.slice(0, 10)
-    }
-  })
-
-  const unlistenDownloadProgress = listen<{
-    bytes_downloaded: number
-    total_bytes: number
-  }>('vision-model-download-progress', (event) => {
-    modelStatus.value.download_progress = event.payload.bytes_downloaded
-    modelStatus.value.model_size = event.payload.total_bytes
-  })
-
-  // Cleanup listeners on store disposal
-  onScopeDispose(async () => {
-    const unlisten1 = await unlistenComplete
-    unlisten1()
-    const unlisten2 = await unlistenFailed
-    unlisten2()
-    const unlisten3 = await unlistenDownloadProgress
-    unlisten3()
-  })
-
-  // Actions
-  async function loadSettings(): Promise<void> {
-    isLoadingSettings.value = true
-    lastError.value = null
-    try {
-      const result = await invoke<AutoTagSettings>('get_auto_tag_settings')
-      settings.value = result
-    } catch (error) {
-      console.error('Failed to load auto-tag settings:', error)
-      lastError.value = 'Failed to load settings'
-    } finally {
-      isLoadingSettings.value = false
-    }
-  }
-
-  async function saveSettings(newSettings: Partial<AutoTagSettings>): Promise<boolean> {
-    lastError.value = null
-    try {
-      // Merge with existing settings
-      const updated = { ...settings.value, ...newSettings }
-      await invoke('update_auto_tag_settings', { settings: updated })
-      settings.value = updated
-      return true
-    } catch (error) {
-      console.error('Failed to save auto-tag settings:', error)
-      lastError.value = 'Failed to save settings'
-      return false
-    }
-  }
-
-  async function checkModelStatus(): Promise<void> {
-    try {
-      const result = await invoke<VisionModelStatus>('check_vision_model_status')
-      modelStatus.value = result
-    } catch (error) {
-      console.error('Failed to check vision model status:', error)
-    }
-  }
-
-  async function downloadModel(): Promise<boolean> {
-    if (isDownloading.value) return false
-
-    isDownloading.value = true
-    lastError.value = null
-    try {
-      await invoke('download_vision_model')
-      await checkModelStatus()
-      return true
-    } catch (error) {
-      console.error('Failed to download vision model:', error)
-      lastError.value = `Download failed: ${error}`
-      return false
-    } finally {
-      isDownloading.value = false
-    }
-  }
-
-  async function clearLocks(): Promise<string> {
-    try {
-      const result = await invoke<string>('clear_vision_model_locks')
-      return result
-    } catch (error) {
-      console.error('Failed to clear locks:', error)
-      throw error
-    }
-  }
-
-  async function tagImages(
-    imageIds: string[],
-    backend?: TaggingBackend
-  ): Promise<TaggingResult[]> {
-    if (isTagging.value || imageIds.length === 0) return []
-
-    isTagging.value = true
-    lastError.value = null
-    try {
-      const results = await invoke<TaggingResult[]>('auto_tag_images', {
-        imageIds,
-        backend: backend ?? null,
+      // Listen for auto-tag complete events
+      const unlisten1 = await listen<{
+        image_id: string
+        tags: TagWithConfidence[]
+        backend: TaggingBackend
+      }>('auto-tag-complete', (event) => {
+        const result: TaggingResult = {
+          image_id: event.payload.image_id,
+          tags: event.payload.tags,
+          backend: event.payload.backend,
+          success: true,
+        }
+        this.recentTaggingResults.unshift(result)
+        // Keep only last 10 results
+        if (this.recentTaggingResults.length > 10) {
+          this.recentTaggingResults = this.recentTaggingResults.slice(0, 10)
+        }
       })
-      // Add to recent results
-      for (const result of results) {
-        recentTaggingResults.value.unshift(result)
-      }
-      if (recentTaggingResults.value.length > 10) {
-        recentTaggingResults.value = recentTaggingResults.value.slice(0, 10)
-      }
-      return results
-    } catch (error) {
-      console.error('Failed to tag images:', error)
-      lastError.value = `Tagging failed: ${error}`
-      return []
-    } finally {
-      isTagging.value = false
-    }
-  }
+      this.unlisteners.push(unlisten1)
 
-  function clearRecentResults(): void {
-    recentTaggingResults.value = []
-  }
+      // Listen for auto-tag failed events
+      const unlisten2 = await listen<{
+        image_id: string
+        error: string
+        backend: TaggingBackend
+      }>('auto-tag-failed', (event) => {
+        const result: TaggingResult = {
+          image_id: event.payload.image_id,
+          tags: [],
+          backend: event.payload.backend,
+          success: false,
+          error: event.payload.error,
+        }
+        this.recentTaggingResults.unshift(result)
+        if (this.recentTaggingResults.length > 10) {
+          this.recentTaggingResults = this.recentTaggingResults.slice(0, 10)
+        }
+      })
+      this.unlisteners.push(unlisten2)
 
-  return {
-    // State
-    settings,
-    modelStatus,
-    isLoadingSettings,
-    isTagging,
-    isDownloading,
-    lastError,
-    recentTaggingResults,
-    // Computed
-    isClaudeAvailable,
-    isLocalAvailable,
-    effectiveBackend,
-    canAutoTag,
-    downloadProgressPercent,
-    // Actions
-    loadSettings,
-    saveSettings,
-    checkModelStatus,
-    downloadModel,
-    clearLocks,
-    tagImages,
-    clearRecentResults,
-  }
+      // Listen for vision model download progress
+      const unlisten3 = await listen<{
+        bytes_downloaded: number
+        total_bytes: number
+      }>('vision-model-download-progress', (event) => {
+        this.modelStatus.download_progress = event.payload.bytes_downloaded
+        this.modelStatus.model_size = event.payload.total_bytes
+      })
+      this.unlisteners.push(unlisten3)
+    },
+
+    // Cleanup event listeners
+    cleanupEventListeners() {
+      this.unlisteners.forEach(fn => fn())
+      this.unlisteners = []
+    },
+
+    async loadSettings(): Promise<void> {
+      this.isLoadingSettings = true
+      this.lastError = null
+      try {
+        const result = await invoke<AutoTagSettings>('get_auto_tag_settings')
+        this.settings = result
+      } catch (error) {
+        console.error('Failed to load auto-tag settings:', error)
+        this.lastError = 'Failed to load settings'
+      } finally {
+        this.isLoadingSettings = false
+      }
+    },
+
+    async saveSettings(newSettings: Partial<AutoTagSettings>): Promise<boolean> {
+      this.lastError = null
+      try {
+        // Merge with existing settings
+        const updated = { ...this.settings, ...newSettings }
+        await invoke('update_auto_tag_settings', { settings: updated })
+        this.settings = updated
+        return true
+      } catch (error) {
+        console.error('Failed to save auto-tag settings:', error)
+        this.lastError = 'Failed to save settings'
+        return false
+      }
+    },
+
+    async checkModelStatus(): Promise<void> {
+      try {
+        const result = await invoke<VisionModelStatus>('check_vision_model_status')
+        this.modelStatus = result
+      } catch (error) {
+        console.error('Failed to check vision model status:', error)
+      }
+    },
+
+    async downloadModel(): Promise<boolean> {
+      if (this.isDownloading) return false
+
+      this.isDownloading = true
+      this.lastError = null
+      try {
+        await invoke('download_vision_model')
+        await this.checkModelStatus()
+        return true
+      } catch (error) {
+        console.error('Failed to download vision model:', error)
+        this.lastError = `Download failed: ${error}`
+        return false
+      } finally {
+        this.isDownloading = false
+      }
+    },
+
+    async clearLocks(): Promise<string> {
+      try {
+        const result = await invoke<string>('clear_vision_model_locks')
+        return result
+      } catch (error) {
+        console.error('Failed to clear locks:', error)
+        throw error
+      }
+    },
+
+    async tagImages(
+      imageIds: string[],
+      backend?: TaggingBackend
+    ): Promise<TaggingResult[]> {
+      if (this.isTagging || imageIds.length === 0) return []
+
+      this.isTagging = true
+      this.lastError = null
+      try {
+        const results = await invoke<TaggingResult[]>('auto_tag_images', {
+          imageIds,
+          backend: backend ?? null,
+        })
+        // Add to recent results
+        for (const result of results) {
+          this.recentTaggingResults.unshift(result)
+        }
+        if (this.recentTaggingResults.length > 10) {
+          this.recentTaggingResults = this.recentTaggingResults.slice(0, 10)
+        }
+        return results
+      } catch (error) {
+        console.error('Failed to tag images:', error)
+        this.lastError = `Tagging failed: ${error}`
+        return []
+      } finally {
+        this.isTagging = false
+      }
+    },
+
+    clearRecentResults(): void {
+      this.recentTaggingResults = []
+    },
+  },
 })

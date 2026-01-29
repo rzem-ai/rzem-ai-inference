@@ -1,5 +1,4 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import type { Model, LoRA, LoraFileInfo, LoraConfig } from '@/types'
 
@@ -8,6 +7,46 @@ interface ModelAvailability {
   name: string
   is_downloaded: boolean
   has_quantized: boolean
+}
+
+// Backend ModelRecord structure (camelCase from Rust serde)
+interface BackendModelRecord {
+  id: string
+  name: string
+  description: string
+  type: string
+  category: string
+  categoryLabel: string
+  path?: string
+  sizeEstimate: string
+  sizeBytes?: number
+  format: string
+  isDownloaded: boolean
+  isActive: boolean
+  source: string
+  license: string
+  docsUrl?: string
+  tags: string[]
+  icon: string
+  iconClass: string
+  defaultSettings?: any
+  features?: string[]
+  notes?: string
+  hasQuantized: boolean
+  quantizedDownloaded: boolean
+  supportsLoras: boolean
+  createdAt: number
+  lastUsedAt?: number
+  repoId?: string
+  transformerFilename?: string
+  quantizedFilename?: string
+  quantizedRepos?: any
+  stepMin?: number
+  stepMax?: number
+  vramFull?: number
+  vramQuantized?: number
+  modelFamily?: string
+  componentType?: string
 }
 
 // Backend LoraInfo structure (snake_case from Rust)
@@ -29,6 +68,44 @@ interface BackendLoraFileInfo {
   weight_count: number
   rank?: number
   total_params: number
+}
+
+// Convert backend ModelRecord to frontend Model
+function mapModelRecord(record: BackendModelRecord): Model {
+  // Infer type from model ID or family
+  let type: Model['type'] = 'flux-schnell'
+  if (record.id.includes('dev')) {
+    type = 'flux-dev'
+  } else if (record.id.includes('schnell')) {
+    type = 'flux-schnell'
+  }
+
+  return {
+    id: record.id,
+    name: record.name,
+    type,
+    path: record.path,
+    sizeBytes: record.sizeBytes,
+    isDownloaded: record.isDownloaded,
+    isActive: record.isActive,
+    createdAt: record.createdAt,
+    lastUsedAt: record.lastUsedAt,
+    metadata: {
+      description: record.description,
+      category: record.category,
+      format: record.format,
+      source: record.source,
+      license: record.license,
+      docsUrl: record.docsUrl,
+      repoId: record.repoId,
+      supportsLoras: record.supportsLoras,
+      vramFull: record.vramFull,
+      vramQuantized: record.vramQuantized,
+    },
+    description: record.description,
+    defaultSteps: record.stepMin || record.defaultSettings?.steps || 4,
+    defaultGuidance: record.defaultSettings?.guidance || 3.5,
+  }
 }
 
 // Convert backend LoraInfo to frontend LoRA
@@ -59,228 +136,204 @@ function mapLoraFileInfo(info: BackendLoraFileInfo): LoraFileInfo {
   }
 }
 
-export const useModelsStore = defineStore('models', () => {
-  // State
-  const models = ref<Model[]>([
-    {
-      id: 'schnell',
-      name: 'FLUX Schnell',
-      type: 'flux-schnell',
-      isDownloaded: false,
-      isActive: true,
-      createdAt: Date.now(),
-      description: 'Fast generation (4 steps)',
-      defaultSteps: 4,
-      defaultGuidance: 1.0,
+export const useModelsStore = defineStore('models', {
+  state: () => ({
+    models: [] as Model[],
+    loras: [] as LoRA[],
+    selectedModelId: 'dev',
+    lorasLoading: false,
+    lorasError: null as string | null,
+    modelsLoading: false,
+    modelsError: null as string | null,
+  }),
+
+  getters: {
+    activeModel(state): Model | undefined {
+      return state.models.find((m) => m.id === state.selectedModelId)
     },
-    {
-      id: 'dev',
-      name: 'FLUX Dev',
-      type: 'flux-dev',
-      isDownloaded: false,
-      isActive: false,
-      createdAt: Date.now(),
-      description: 'High quality (28+ steps)',
-      defaultSteps: 28,
-      defaultGuidance: 3.5,
+
+    activeLoras(state): LoRA[] {
+      return state.loras.filter((l) => l.isActive)
     },
-  ])
 
-  const loras = ref<LoRA[]>([])
+    downloadedModels(state): Model[] {
+      return state.models.filter((m) => m.isDownloaded)
+    },
+  },
 
-  const selectedModelId = ref<string>('schnell')
+  actions: {
+    // ============ Model Backend Integration ============
 
-  // Getters
-  const activeModel = computed(() =>
-    models.value.find((m) => m.id === selectedModelId.value)
-  )
+    // Load all models from database
+    async loadModels(): Promise<void> {
+      this.modelsLoading = true
+      this.modelsError = null
+      try {
+        const backendModels = await invoke<BackendModelRecord[]>('get_all_models')
 
-  const activeLoras = computed(() => loras.value.filter((l) => l.isActive))
+        // Filter to only generation models (transformers)
+        const generationModels = backendModels.filter(
+          (m) => m.category === 'generation' && m.componentType === 'transformer'
+        )
 
-  const downloadedModels = computed(() =>
-    models.value.filter((m) => m.isDownloaded)
-  )
+        this.models = generationModels.map(mapModelRecord)
 
-  // Actions
-  function addModel(model: Model) {
-    models.value.push(model)
-  }
-
-  function removeModel(id: string): boolean {
-    const index = models.value.findIndex((m) => m.id === id)
-    if (index !== -1) {
-      models.value.splice(index, 1)
-      return true
-    }
-    return false
-  }
-
-  function selectModel(id: string): boolean {
-    const model = models.value.find((m) => m.id === id)
-    if (model && model.isDownloaded) {
-      // Deactivate all models
-      models.value = models.value.map((m) => ({
-        ...m,
-        isActive: m.id === id,
-      }))
-      selectedModelId.value = id
-      return true
-    }
-    return false
-  }
-
-  // ============ LoRA Backend Integration ============
-
-  // Track loading state
-  const lorasLoading = ref(false)
-  const lorasError = ref<string | null>(null)
-
-  // Load all LoRAs from backend
-  async function loadLoras(): Promise<void> {
-    lorasLoading.value = true
-    lorasError.value = null
-    try {
-      const backendLoras = await invoke<BackendLoraInfo[]>('get_loras')
-      // Map backend data, preserving frontend state for existing LoRAs
-      loras.value = backendLoras.map((info) => {
-        const existing = loras.value.find((l) => l.id === info.id)
-        return mapLoraInfo(info, existing)
-      })
-    } catch (error) {
-      lorasError.value = String(error)
-      console.error('Failed to load LoRAs:', error)
-    } finally {
-      lorasLoading.value = false
-    }
-  }
-
-  // Import a new LoRA from file
-  async function importLora(
-    sourcePath: string,
-    name: string,
-    triggerWords?: string
-  ): Promise<LoRA | null> {
-    try {
-      const info = await invoke<BackendLoraInfo>('import_lora', {
-        sourcePath,
-        name,
-        triggerWords: triggerWords || null,
-      })
-      const newLora = mapLoraInfo(info)
-      loras.value.push(newLora)
-      return newLora
-    } catch (error) {
-      console.error('Failed to import LoRA:', error)
-      throw error
-    }
-  }
-
-  // Remove a LoRA (deletes from disk via backend)
-  async function removeLora(id: string): Promise<boolean> {
-    try {
-      await invoke('remove_lora', { id })
-      const index = loras.value.findIndex((l) => l.id === id)
-      if (index !== -1) {
-        loras.value.splice(index, 1)
-      }
-      return true
-    } catch (error) {
-      console.error('Failed to remove LoRA:', error)
-      throw error
-    }
-  }
-
-  // Get file info before importing (preview)
-  async function getLoraFileInfo(path: string): Promise<LoraFileInfo> {
-    try {
-      const info = await invoke<BackendLoraFileInfo>('get_lora_file_info', { path })
-      return mapLoraFileInfo(info)
-    } catch (error) {
-      console.error('Failed to get LoRA file info:', error)
-      throw error
-    }
-  }
-
-  // ============ Local LoRA State Management ============
-
-  function toggleLora(id: string): boolean {
-    const index = loras.value.findIndex((l) => l.id === id)
-    if (index !== -1) {
-      loras.value[index] = {
-        ...loras.value[index],
-        isActive: !loras.value[index].isActive,
-      }
-      return true
-    }
-    return false
-  }
-
-  function updateLoraStrength(id: string, strength: number): boolean {
-    // Clamp strength to valid range (0.0 to 2.0)
-    const clampedStrength = Math.max(0, Math.min(2, strength))
-
-    const index = loras.value.findIndex((l) => l.id === id)
-    if (index !== -1) {
-      loras.value[index] = {
-        ...loras.value[index],
-        strength: clampedStrength,
-      }
-      return true
-    }
-    return false
-  }
-
-  // Get active LoRAs as config for generation params
-  function getActiveLoraConfigs(): LoraConfig[] {
-    return loras.value
-      .filter((l) => l.isActive)
-      .map((l) => ({
-        id: l.id,
-        strength: l.strength,
-      }))
-  }
-
-  // ============ Model Backend Integration ============
-
-  // Fetch model availability from backend
-  async function refreshModelAvailability(): Promise<void> {
-    try {
-      const availability = await invoke<ModelAvailability[]>('get_available_models')
-      for (const avail of availability) {
-        const model = models.value.find((m) => m.id === avail.id)
-        if (model) {
-          model.isDownloaded = avail.is_downloaded
+        // Set default selected model if none selected or selected model not available
+        if (!this.selectedModelId || !this.models.find((m) => m.id === this.selectedModelId)) {
+          // Prefer LoRA-compatible models, then downloaded models
+          const loraCompatible = this.models.find((m) => m.isDownloaded && m.metadata?.supportsLoras)
+          const anyDownloaded = this.models.find((m) => m.isDownloaded)
+          this.selectedModelId = loraCompatible?.id || anyDownloaded?.id || this.models[0]?.id || 'dev'
         }
+      } catch (error) {
+        this.modelsError = String(error)
+        console.error('Failed to load models:', error)
+      } finally {
+        this.modelsLoading = false
       }
-    } catch (error) {
-      console.error('Failed to refresh model availability:', error)
-    }
-  }
+    },
 
-  return {
-    // State
-    models,
-    loras,
-    selectedModelId,
-    lorasLoading,
-    lorasError,
-    // Getters
-    activeModel,
-    activeLoras,
-    downloadedModels,
-    // Model Actions
-    addModel,
-    removeModel,
-    selectModel,
-    refreshModelAvailability,
-    // LoRA Actions (backend-connected)
-    loadLoras,
-    importLora,
-    removeLora,
-    getLoraFileInfo,
-    // LoRA Actions (local state)
-    toggleLora,
-    updateLoraStrength,
-    getActiveLoraConfigs,
-  }
+    addModel(model: Model) {
+      this.models.push(model)
+    },
+
+    removeModel(id: string): boolean {
+      const index = this.models.findIndex((m) => m.id === id)
+      if (index !== -1) {
+        this.models.splice(index, 1)
+        return true
+      }
+      return false
+    },
+
+    selectModel(id: string): boolean {
+      const model = this.models.find((m) => m.id === id)
+      if (model && model.isDownloaded) {
+        // Deactivate all models
+        this.models = this.models.map((m) => ({
+          ...m,
+          isActive: m.id === id,
+        }))
+        this.selectedModelId = id
+        return true
+      }
+      return false
+    },
+
+    // ============ LoRA Backend Integration ============
+
+    // Load all LoRAs from backend
+    async loadLoras(): Promise<void> {
+      this.lorasLoading = true
+      this.lorasError = null
+      try {
+        const backendLoras = await invoke<BackendLoraInfo[]>('get_loras')
+        // Map backend data, preserving frontend state for existing LoRAs
+        this.loras = backendLoras.map((info) => {
+          const existing = this.loras.find((l) => l.id === info.id)
+          return mapLoraInfo(info, existing)
+        })
+      } catch (error) {
+        this.lorasError = String(error)
+        console.error('Failed to load LoRAs:', error)
+      } finally {
+        this.lorasLoading = false
+      }
+    },
+
+    // Import a new LoRA from file
+    async importLora(
+      sourcePath: string,
+      name: string,
+      triggerWords?: string
+    ): Promise<LoRA | null> {
+      try {
+        const info = await invoke<BackendLoraInfo>('import_lora', {
+          sourcePath,
+          name,
+          triggerWords: triggerWords || null,
+        })
+        const newLora = mapLoraInfo(info)
+        this.loras.push(newLora)
+        return newLora
+      } catch (error) {
+        console.error('Failed to import LoRA:', error)
+        throw error
+      }
+    },
+
+    // Remove a LoRA (deletes from disk via backend)
+    async removeLora(id: string): Promise<boolean> {
+      try {
+        await invoke('remove_lora', { id })
+        const index = this.loras.findIndex((l) => l.id === id)
+        if (index !== -1) {
+          this.loras.splice(index, 1)
+        }
+        return true
+      } catch (error) {
+        console.error('Failed to remove LoRA:', error)
+        throw error
+      }
+    },
+
+    // Get file info before importing (preview)
+    async getLoraFileInfo(path: string): Promise<LoraFileInfo> {
+      try {
+        const info = await invoke<BackendLoraFileInfo>('get_lora_file_info', { path })
+        return mapLoraFileInfo(info)
+      } catch (error) {
+        console.error('Failed to get LoRA file info:', error)
+        throw error
+      }
+    },
+
+    // ============ Local LoRA State Management ============
+
+    toggleLora(id: string): boolean {
+      const lora = this.loras.find((l) => l.id === id)
+      if (lora) {
+        lora.isActive = !lora.isActive
+        return true
+      }
+      return false
+    },
+
+    updateLoraStrength(id: string, strength: number): boolean {
+      const lora = this.loras.find((l) => l.id === id)
+      if (lora) {
+        // Clamp strength to valid range (0.0 to 2.0)
+        lora.strength = Math.max(0, Math.min(2, strength))
+        return true
+      }
+      return false
+    },
+
+    // Get active LoRAs as config for generation params
+    getActiveLoraConfigs(): LoraConfig[] {
+      return this.loras
+        .filter((l) => l.isActive)
+        .map((l) => ({
+          id: l.id,
+          strength: l.strength,
+        }))
+    },
+
+    // ============ Model Backend Integration ============
+
+    // Fetch model availability from backend
+    async refreshModelAvailability(): Promise<void> {
+      try {
+        const availability = await invoke<ModelAvailability[]>('get_available_models')
+        for (const avail of availability) {
+          const model = this.models.find((m) => m.id === avail.id)
+          if (model) {
+            model.isDownloaded = avail.is_downloaded
+          }
+        }
+      } catch (error) {
+        console.error('Failed to refresh model availability:', error)
+      }
+    },
+  },
 })

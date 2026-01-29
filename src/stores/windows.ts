@@ -1,35 +1,25 @@
 import { defineStore } from 'pinia';
-import { ref } from 'vue';
 
 export type ConnectionMode = 'local' | 'server' | 'client';
 
-export const useWindowsStore = defineStore('windows', () => {
-  // State
-  const mainHeight = ref<number>(0);
-  const navHeight = ref<number>(0);
-  const windowsHeight = ref<number>(0);
+export const useWindowsStore = defineStore('windows', {
+  state: () => ({
+    mainHeight: 0,
+    navHeight: 0,
+    windowsHeight: 0,
+  }),
 
-  // Actions
-  function setMainHeight(height: number) {
-    mainHeight.value = height;
-  }
+  actions: {
+    setMainHeight(height: number) {
+      this.mainHeight = height;
+    },
 
-  function setNavHeight(height: number) {
-    navHeight.value = height;
-  }
+    setNavHeight(height: number) {
+      this.navHeight = height;
+    },
 
-  function setWindowsHeight(height: number) {
-    windowsHeight.value = height;
-  }
-
-  return {
-    // State
-    mainHeight,
-    navHeight,
-    windowsHeight,
-    // Actions
-    setMainHeight,
-    setNavHeight,
-    setWindowsHeight,
-  };
+    setWindowsHeight(height: number) {
+      this.windowsHeight = height;
+    },
+  },
 });

@@ -1,9 +1,9 @@
 <template>
-  <Panel :collapsed="props.collapsed" :toggleable="props.toggleable">
+  <GenerationAction :collapsed="false" :toggleable="true" icon="layer-group" label="Advanced Settings" panelClass="border border-red-200 rounded-lg px-2 pb-2 bg-surface-950">
     <template #header>
       <div class="flex gap-2 px-0 py-2 text-xs font-semibold tracking-wider uppercase text-surface-300">
-        <fa :icon="['fal', props.icon]" size="sm" />
-        {{ props.label }}
+        <fa :icon="['fal', 'gears']" size="sm" />
+        Advanced
       </div>
     </template>
 
@@ -40,7 +40,7 @@
         </div>
       </div>
     </div>
-  </Panel>
+  </GenerationAction>
 </template>
 
 <script setup lang="ts">
@@ -52,6 +52,7 @@ import Select from 'primevue/select';
 import InputNumber from 'primevue/inputnumber';
 import ToggleSwitch from 'primevue/toggleswitch';
 import type { Sampler, Scheduler } from '@/types';
+import GenerationAction from './GenerationAction.vue';
 
 const props = defineProps(['collapsed', 'icon', 'label', 'toggleable']);
 

@@ -7,8 +7,6 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "snake_case")]
 pub enum PipelineStage {
     LoadingModels,
-    EncodingT5,
-    EncodingClip,
     Denoising,
     DecodingVae,
     EncodingPng,
@@ -19,22 +17,18 @@ impl PipelineStage {
     pub fn start_percent(&self) -> f32 {
         match self {
             Self::LoadingModels => 0.0,
-            Self::EncodingT5 => 0.10,
-            Self::EncodingClip => 0.20,
-            Self::Denoising => 0.25,
-            Self::DecodingVae => 0.85,
-            Self::EncodingPng => 0.95,
+            Self::Denoising => 0.5,
+            Self::DecodingVae => 0.95,
+            Self::EncodingPng => 0.98,
         }
     }
 
     /// Get the end percentage for this stage (0.0-1.0)
     pub fn end_percent(&self) -> f32 {
         match self {
-            Self::LoadingModels => 0.10,
-            Self::EncodingT5 => 0.20,
-            Self::EncodingClip => 0.25,
-            Self::Denoising => 0.85,
-            Self::DecodingVae => 0.95,
+            Self::LoadingModels => 0.5,
+            Self::Denoising => 0.95,
+            Self::DecodingVae => 0.98,
             Self::EncodingPng => 1.0,
         }
     }
@@ -43,9 +37,7 @@ impl PipelineStage {
     pub fn display_name(&self) -> &'static str {
         match self {
             Self::LoadingModels => "Loading models",
-            Self::EncodingT5 => "Encoding prompt (T5)",
-            Self::EncodingClip => "Encoding prompt (CLIP)",
-            Self::Denoising => "Denoising",
+            Self::Denoising => "Drawing",
             Self::DecodingVae => "Decoding image",
             Self::EncodingPng => "Saving image",
         }
@@ -100,7 +92,7 @@ impl GenerationProgress {
     pub fn denoising_step(current_step: usize, total_steps: usize) -> Self {
         let stage_progress = current_step as f32 / total_steps as f32;
         let mut progress = Self::new(PipelineStage::Denoising, stage_progress);
-        progress.message = format!("Denoising step {}/{}", current_step, total_steps);
+        progress.message = format!("Drawing step {}/{}", current_step, total_steps);
         progress.current_step = Some(current_step);
         progress.total_steps = Some(total_steps);
         progress

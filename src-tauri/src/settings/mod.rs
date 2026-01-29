@@ -1,11 +1,13 @@
 //! Application settings management
 //!
-//! Stores user settings in a JSON config file at ~/.rzem-ai-inference/settings.json
+//! Stores user settings in database (app_settings table)
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 /// Application settings
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -95,6 +97,61 @@ impl AppSettings {
     /// Set the Fal.ai API key
     pub fn set_fal_key(&mut self, key: Option<String>) {
         self.fal_key = key.filter(|k| !k.trim().is_empty());
+    }
+
+    /// Load settings from database
+    pub fn load_from_db(db: &crate::gallery::GalleryDb) -> Result<Self> {
+        Ok(Self {
+            hf_token: db.get_setting("hf_token")?,
+            claude_api_key: db.get_setting("claude_api_key")?,
+            fal_key: db.get_setting("fal_key")?,
+        })
+    }
+
+    /// Save settings to database
+    pub fn save_to_db(&self, db: &crate::gallery::GalleryDb) -> Result<()> {
+        if let Some(token) = &self.hf_token {
+            db.set_setting("hf_token", token)?;
+        } else {
+            db.delete_setting("hf_token")?;
+        }
+
+        if let Some(key) = &self.claude_api_key {
+            db.set_setting("claude_api_key", key)?;
+        } else {
+            db.delete_setting("claude_api_key")?;
+        }
+
+        if let Some(key) = &self.fal_key {
+            db.set_setting("fal_key", key)?;
+        } else {
+            db.delete_setting("fal_key")?;
+        }
+
+        Ok(())
+    }
+
+    /// Migrate settings from JSON file to database (one-time migration)
+    pub fn migrate_from_file_to_db(db: &crate::gallery::GalleryDb) -> Result<()> {
+        let path = Self::settings_path()?;
+
+        // If JSON file exists, migrate its data
+        if path.exists() {
+            tracing::info!("Migrating settings from JSON file to database");
+
+            let settings = Self::load()?;
+            settings.save_to_db(db)?;
+
+            // Rename the old file to .bak so it's not used anymore
+            let backup_path = path.with_extension("json.bak");
+            if let Err(e) = std::fs::rename(&path, &backup_path) {
+                tracing::warn!(error = %e, "Failed to backup old settings file");
+            } else {
+                tracing::info!("Backed up old settings file to {:?}", backup_path);
+            }
+        }
+
+        Ok(())
     }
 }
 

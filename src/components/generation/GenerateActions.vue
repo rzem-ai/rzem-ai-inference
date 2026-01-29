@@ -9,15 +9,11 @@
     <div class="flex flex-col gap-4 px-2 py-2 overflow-y-auto">
       <!-- Preset Section -->
 
-      <component
-        v-for="section in sections"
-        :key="section.id"
-        :is="section.component"
-        :icon="section.icon"
-        :label="section.label"
-        :collapsed="section.collapsed"
-        :toggleable="section.toggleable"
-        @generate="handleGenerate" />
+      <PromptInput @generate="handleGenerate" />
+      <ImageDimensions @generate="handleGenerate" />
+      <QualitySelector @generate="handleGenerate" v-if="showQuality" />
+      <LoraPanel @generate="handleGenerate" v-if="showStyle" />
+      <AdvancedSettings @generate="handleGenerate" v-if="showAdvanced" />
     </div>
 
     <!-- Drag Overlay -->
@@ -39,7 +35,7 @@
         <i class="pi pi-spin pi-spinner text-4xl text-(--accent-primary)"></i>
         <div class="text-center">
           <div class="text-lg font-semibold text-(--text-heading)">Analyzing Image</div>
-          <div class="text-sm text-(--text-secondary)">Claude is generating a prompt...</div>
+          <div class="text-sm text-(--text-secondary)">Claude is creating a prompt...</div>
         </div>
       </div>
     </div>
@@ -59,14 +55,15 @@ import Dialog from 'primevue/dialog';
 import AdvancedSettings from '@/components/generation/actions/AdvancedSettings.vue';
 import PromptInput from '@/components/generation/actions/PromptInput.vue';
 import ImageDimensions from '@/components/generation/actions/ImageDimensions.vue';
-import GenerationSettings from '@/components/generation/actions/GenerationSettings.vue';
-import ModelSelector from '@/components/generation/actions/ModelSelector.vue';
 import LoraPanel from '@/components/generation/actions/LoraPanel.vue';
 import PresetSelector from '@/components/generation/actions/PresetSelector.vue';
 import { useGenerationStore } from '@/stores/generation';
 import { useModelsStore } from '@/stores/models';
 import { analyzeImageForPrompt, fileToDataUrl, isValidImageFile } from '@/services/imageAnalysis';
 import { readFile } from '@tauri-apps/plugin-fs';
+import QualitySelector from './actions/QualitySelector.vue';
+
+defineProps(['showQuality', 'showStyle', 'showAdvanced']);
 
 const emit = defineEmits<{
   generate: [];
@@ -87,57 +84,6 @@ const dragCounter = ref(0);
 
 const showPresetModal = ref(false);
 
-const sections = [
-  {
-    id: 'PROMPT',
-    label: 'Text Prompt',
-    icon: 'pen-to-square',
-    component: PromptInput,
-    toggleable: false,
-    collapsed: false,
-  },
-  {
-    id: 'IMAGE',
-    label: 'Image Dimensions',
-    icon: 'sliders',
-    component: ImageDimensions,
-    toggleable: false,
-    collapsed: false,
-  },
-  {
-    id: 'GENERATION',
-    label: 'Generation Settings',
-    icon: 'gear',
-    component: GenerationSettings,
-    toggleable: false,
-    collapsed: false,
-  },
-  {
-    id: 'MODEL',
-    label: 'Model Selection',
-    icon: 'box-open',
-    component: ModelSelector,
-    toggleable: false,
-    collapsed: false,
-  },
-  {
-    id: 'LORAS',
-    label: 'Style Selection',
-    icon: 'layer-group',
-    component: LoraPanel,
-    toggleable: true,
-    collapsed: false,
-  },
-  {
-    id: 'ADVANCED',
-    label: 'ADVANCED',
-    icon: 'layer-group',
-    component: AdvancedSettings,
-    toggleable: true,
-    collapsed: true,
-  },
-];
-
 // Watch for model changes and update default parameters
 // Note: The ModelSelector component now handles syncing both stores
 // This watch only updates the default steps/guidance when model changes
@@ -146,10 +92,6 @@ watch(
   (newModelId) => {
     const model = modelsStore.models.find((m) => m.id === newModelId);
     if (model) {
-      // Sync the models store if it's out of sync
-      if (modelsStore.selectedModelId !== newModelId) {
-        modelsStore.selectedModelId = newModelId;
-      }
       // Update defaults
       if (model.defaultSteps) {
         generationStore.currentParams.steps = model.defaultSteps;

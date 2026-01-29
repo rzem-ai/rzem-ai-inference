@@ -180,7 +180,7 @@
             <div class="flex justify-between mt-4">
               <Button label="Back" icon="pi pi-arrow-left" @click="prevStep" severity="secondary" :disabled="isGenerating" />
               <Button
-                :label="`Generate ${previewRows.length} Images`"
+                :label="`Draw ${previewRows.length} Images`"
                 icon="pi pi-check"
                 iconPos="right"
                 @click="generateBatch"

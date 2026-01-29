@@ -3,7 +3,7 @@
 use super::{QueueManager, JobStatus};
 use crate::inference::{InferenceEngine, GenerationStats, ModelCache, ModelCacheConfig};
 use crate::gallery::{GalleryDb, ImageMetadata};
-use crate::models::{LoraManager, ModelType};
+use crate::models::{LoraManager, ModelType, ModelPaths};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::time::{sleep, Duration, timeout};
@@ -11,6 +11,25 @@ use tokio::task::JoinHandle;
 use anyhow::Result;
 use tauri::{AppHandle, Emitter};
 use tracing::{debug, error, info, warn};
+
+/// Infer model type from transformer component
+async fn infer_model_type_from_component(component_id: &str) -> Result<ModelType> {
+    let db_path = ModelPaths::get_db_path()?;
+    let db = GalleryDb::new(&db_path)?;
+    let component = db.get_component(component_id)?;
+
+    let arch = component.architecture.unwrap_or_default().to_lowercase();
+
+    if arch.contains("schnell") {
+        Ok(ModelType::schnell())
+    } else if arch.contains("dev") {
+        Ok(ModelType::dev())
+    } else if arch.contains("z-image") || arch.contains("zimage") {
+        Ok(ModelType::zimage_turbo())
+    } else {
+        Ok(ModelType::schnell()) // Default
+    }
+}
 
 pub struct QueueProcessor {
     queue_manager: Arc<QueueManager>,
@@ -38,7 +57,7 @@ impl QueueProcessor {
         let model_cache = ModelCache::new(device, ModelCacheConfig::default());
 
         // Create LoRA manager
-        let lora_manager = Arc::new(tokio::sync::Mutex::new(LoraManager::new()?));
+        let lora_manager = Arc::new(tokio::sync::Mutex::new(LoraManager::new(gallery_db.clone())?));
 
         Ok(Self {
             queue_manager,
@@ -290,8 +309,31 @@ async fn execute_generation(
     use crate::models::LoraAdapter;
     use candle_core::DType;
 
-    // Parse model type from params (defaults to Schnell if invalid)
-    let model_type: ModelType = params.model.parse().unwrap_or(ModelType::Schnell);
+    // Determine model type from params or infer from components
+    let model_type: ModelType = if let Some(ref model_type_str) = params.model_type {
+        model_type_str.parse().unwrap_or(ModelType::schnell())
+    } else {
+        // Infer from transformer component
+        infer_model_type_from_component(&params.model_component_id).await.unwrap_or(ModelType::schnell())
+    };
+
+    // Log bundle/component selection
+    if let Some(ref bundle_id) = params.bundle_id {
+        info!(
+            bundle_id = %bundle_id,
+            model_type = ?model_type,
+            "Using bundle for generation"
+        );
+    } else {
+        info!(
+            model_component = %params.model_component_id,
+            t5 = %params.t5_component_id,
+            clip = %params.clip_component_id,
+            vae = %params.vae_component_id,
+            model_type = ?model_type,
+            "Using individual components for generation"
+        );
+    }
 
     // Load LoRA adapters if specified
     let mut loaded_loras: Vec<(Arc<LoraAdapter>, f32)> = Vec::new();
@@ -322,20 +364,33 @@ async fn execute_generation(
     }
 
     // Get or create cached pipeline for this model type
-    let created_new = model_cache.get_or_create_pipeline(model_type).await?;
+    let created_new = model_cache.get_or_create_pipeline(model_type.clone()).await?;
     if created_new {
         info!(model = ?model_type, "Created new pipeline");
     } else {
         debug!(model = ?model_type, "Reusing cached pipeline");
     }
 
-    // Set LoRAs on the pipeline (will trigger reload if changed)
-    if !loaded_loras.is_empty() {
-        model_cache.with_pipeline(|pipeline| {
+    // Set component context and LoRAs on the pipeline
+    model_cache.with_pipeline(|pipeline| {
+        use crate::inference::flux_pipeline::BundleContext;
+
+        // Always set bundle context with component IDs
+        pipeline.set_bundle_context(BundleContext {
+            bundle_id: params.bundle_id.clone(),
+            model_component_id: Some(params.model_component_id.clone()),
+            t5_component_id: Some(params.t5_component_id.clone()),
+            clip_component_id: Some(params.clip_component_id.clone()),
+            vae_component_id: Some(params.vae_component_id.clone()),
+        });
+
+        // Set LoRAs (will trigger reload if changed)
+        if !loaded_loras.is_empty() {
             pipeline.set_loras(loaded_loras.clone());
-            Ok(())
-        }).await?;
-    }
+        }
+
+        Ok(())
+    }).await?;
 
     // Clone values for the progress callback closure
     let job_id_clone = job_id.to_string();
@@ -376,6 +431,12 @@ async fn execute_generation(
     let scheduler = params.scheduler.unwrap_or_default();
 
     // Create metadata for embedding in the PNG
+    let model_name = if let Some(ref bundle_id) = params.bundle_id {
+        format!("bundle:{}", bundle_id)
+    } else {
+        format!("component:{}", params.model_component_id)
+    };
+
     let metadata = ImageMetadata {
         prompt: params.prompt.clone(),
         negative_prompt: params.negative_prompt.clone(),
@@ -384,7 +445,7 @@ async fn execute_generation(
         width: params.width,
         height: params.height,
         seed: params.seed,
-        model: params.model.clone(),
+        model: model_name,
         sampler: Some(sampler.to_string()),
         scheduler: Some(scheduler.to_string()),
     };
@@ -489,13 +550,39 @@ async fn save_to_gallery(
         }
     };
 
+    // Calculate file size from the actual file
+    let file_size = std::fs::metadata(image_path)
+        .map(|m| m.len() as i64)
+        .unwrap_or(0);
+
+    // Convert sampler enum to string
+    let sampler = params.sampler.as_ref().map(|s| format!("{:?}", s));
+
     let image_id = uuid::Uuid::new_v4().to_string();
+
+    // Construct model name from bundle or component
+    let model_name = if let Some(ref bundle_id) = params.bundle_id {
+        format!("bundle:{}", bundle_id)
+    } else {
+        format!("component:{}", params.model_component_id)
+    };
+
     let metadata = ImageMetadata {
         id: image_id.clone(),
         file_path: image_path.to_string(),
         thumbnail_path,
         prompt: params.prompt.clone(),
         created_at: chrono::Utc::now().timestamp(),
+        width: params.width as i32,
+        height: params.height as i32,
+        file_size,
+        model_name,
+        negative_prompt: params.negative_prompt.clone(),
+        steps: Some(params.steps as i32),
+        cfg_scale: Some(params.cfg_scale),
+        seed: Some(params.seed),
+        sampler,
+        generation_time_ms: Some(stats.total_ms as i64),
     };
 
     db.insert_image(&metadata)?;

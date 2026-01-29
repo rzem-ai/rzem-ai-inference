@@ -3,7 +3,7 @@ import type { ToggleButtonDesignTokens } from '@primeuix/themes/types/togglebutt
 export const togglebutton: ToggleButtonDesignTokens = {
   root: {
     padding: '0.25rem',
-    borderRadius: '{border.radius.md}',
+    borderRadius: '0',
     gap: '0.5rem',
     fontWeight: '500',
     focusRing: {
@@ -39,14 +39,14 @@ export const togglebutton: ToggleButtonDesignTokens = {
       root: {
         background: '{surface.900}',
         borderColor: '{surface.600}',
-        checkedBackground: '{surface.800}',
+        checkedBackground: '{surface.900}',
         checkedBorderColor: '{surface.600}',
         checkedColor: '{surface.950}',
         color: '{surface.100}',
         disabledBackground: '{form.field.disabled.background}',
         disabledBorderColor: '{form.field.disabled.background}',
         disabledColor: '{form.field.disabled.color}',
-        hoverBackground: '{surface.950}',
+        hoverBackground: '{surface.900}',
         hoverColor: '{surface.100}',
         invalidBorderColor: '{form.field.invalid.border.color}',
         focusRing: {
@@ -54,7 +54,7 @@ export const togglebutton: ToggleButtonDesignTokens = {
         },
       },
       content: {
-        checkedBackground: '{blue.500}',
+        checkedBackground: '{primary.400}',
       },
       icon: {
         color: '{surface.400}',

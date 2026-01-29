@@ -9,16 +9,16 @@ export const inputgroup: InputGroupDesignTokens = {
   colorScheme: {
     light: {
       addon: {
-        background: 'transparent',
-        borderColor: '{surface.700}',
-        color: '{surface.400}',
+        background: '{form.field.background}',
+        borderColor: '{form.field.border.color}',
+        color: '{form.field.icon.color}',
       },
     },
     dark: {
       addon: {
-        background: 'transparent',
-        borderColor: '{surface.700}',
-        color: '{surface.400}',
+        background: '{form.field.background}',
+        borderColor: '{form.field.border.color}',
+        color: '{form.field.icon.color}',
       },
     },
   },

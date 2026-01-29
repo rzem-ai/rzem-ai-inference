@@ -1,9 +1,9 @@
 <template>
-  <GenerationAction :collapsed="props.collapsed" :toggleable="props.toggleable" :icon="props.icon" :label="props.label">
+  <GenerationAction :collapsed="false" :toggleable="false" icon="sliders" label="Image Dimensions">
     <!-- Aspect Ratio Pills -->
     <div class="flex flex-col">
       <div class="flex items-center gap-1 text-surface-300">
-        <div class="text-xs font-medium tracking-wide">Aspect Ratio</div>
+        <div class="text-sm font-medium tracking-wide">Aspect Ratio</div>
       </div>
       <SelectButton
         v-model="activeRatio"
@@ -25,7 +25,7 @@
     <!-- Width/Height Input Fields -->
     <div class="grid grid-cols-2 gap-3">
       <div class="flex flex-col">
-        <label class="mb-1 text-xs font-medium tracking-wide text-surface-300">Width</label>
+        <label class="mb-1 text-sm font-medium tracking-wide text-surface-300">Width</label>
         <InputGroup>
           <InputGroupAddon>
             <fa :icon="['fal', 'arrows-left-right']" size="sm" />
@@ -42,7 +42,7 @@
         </InputGroup>
       </div>
       <div class="flex flex-col">
-        <label class="mb-1 text-xs text-base font-medium tracking-wide text-surface-300">Height</label>
+        <label class="mb-1 text-sm font-medium tracking-wide text-surface-300">Height</label>
         <InputGroup>
           <InputGroupAddon>
             <fa :icon="['fal', 'arrows-up-down']" size="sm" />

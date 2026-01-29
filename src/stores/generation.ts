@@ -1,139 +1,137 @@
-import { defineStore } from 'pinia'
-import { ref, computed, watch } from 'vue'
-import type { GenerationJob, GenerationParams, GenerationProgress } from '@/types'
+import { defineStore } from 'pinia';
+import type { GenerationJob, GenerationParams, GenerationProgress } from '@/types';
 
-const STORAGE_KEY = 'generation-params'
-const SEED_RANDOMIZE_KEY = 'generation-randomize-seed'
+const STORAGE_KEY = 'generation-params';
+const SEED_RANDOMIZE_KEY = 'generation-randomize-seed';
 
 const defaultParams: GenerationParams = {
   mode: 'txt2img',
   prompt: 'A West Highland White Terrier in the style of a Pixar cartoon',
   negativePrompt: '',
-  steps: 4,  // Flux Schnell default
-  cfgScale: 1.0,  // Flux uses CFG=1 typically
-  sampler: 'euler',  // Default sampler
-  scheduler: 'normal',  // Default scheduler
+  steps: 4, // Flux Schnell default
+  cfgScale: 1.0, // Flux uses CFG=1 typically
+  sampler: 'euler', // Default sampler
+  scheduler: 'normal', // Default scheduler
   width: 1024,
   height: 1024,
   seed: -1,
-  model: 'schnell',  // Model ID: 'schnell' or 'dev'
-  batchSize: 1
-}
+  modelType: 'schnell', // Model ID: 'schnell' or 'dev'
+  batchSize: 1,
+  // Bundle system (new)
+  bundleId: undefined,
+  modelComponentId: '',
+  t5ComponentId: '',
+  clipComponentId: '',
+  vaeComponentId: '',
+};
 
 function loadParams(): GenerationParams {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY)
+    const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
-      return { ...defaultParams, ...JSON.parse(stored) }
+      return { ...defaultParams, ...JSON.parse(stored) };
     }
   } catch (e) {
-    console.warn('Failed to load generation params from localStorage:', e)
+    console.warn('Failed to load generation params from localStorage:', e);
   }
-  return { ...defaultParams }
+  return { ...defaultParams };
 }
 
 function loadRandomizeSeed(): boolean {
   try {
-    const stored = localStorage.getItem(SEED_RANDOMIZE_KEY)
+    const stored = localStorage.getItem(SEED_RANDOMIZE_KEY);
     if (stored !== null) {
-      return JSON.parse(stored)
+      return JSON.parse(stored);
     }
   } catch (e) {
-    console.warn('Failed to load randomize seed setting from localStorage:', e)
+    console.warn('Failed to load randomize seed setting from localStorage:', e);
   }
-  return true
+  return true;
 }
 
-export const useGenerationStore = defineStore('generation', () => {
-  // State
-  const jobs = ref<GenerationJob[]>([])
-  const currentParams = ref<GenerationParams>(loadParams())
+export const useGenerationStore = defineStore('generation', {
+  state: () => ({
+    jobs: [] as GenerationJob[],
+    currentParams: loadParams(),
+    randomizeSeedOnGenerate: loadRandomizeSeed(),
+    activeProgress: {} as Record<string, GenerationProgress>,
+    _unsubscribe: null as (() => void) | null,
+  }),
 
-  // When true, a new random seed is generated for each generation
-  // When false, the current seed value is used (locked)
-  const randomizeSeedOnGenerate = ref(loadRandomizeSeed())
+  getters: {
+    queuedJobs(state): GenerationJob[] {
+      return state.jobs.filter((job) => job.status === 'Queued');
+    },
 
-  const activeProgress = ref<Record<string, GenerationProgress>>({})
+    runningJobs(state): GenerationJob[] {
+      return state.jobs.filter((job) => job.status === 'Running');
+    },
 
-  // Getters
-  const queuedJobs = computed(() =>
-    jobs.value.filter(job => job.status === 'Queued')
-  )
+    completedJobs(state): GenerationJob[] {
+      return state.jobs.filter((job) => job.status === 'Completed');
+    },
 
-  const runningJobs = computed(() =>
-    jobs.value.filter(job => job.status === 'Running')
-  )
+    isGenerating(state): boolean {
+      return state.jobs.filter((job) => job.status === 'Running').length > 0;
+    },
 
-  const completedJobs = computed(() =>
-    jobs.value.filter(job => job.status === 'Completed')
-  )
+    getProgress(state) {
+      return (jobId: string) => state.activeProgress[jobId];
+    },
+  },
 
-  // Getter for active generation
-  const isGenerating = computed(() => runningJobs.value.length > 0)
+  actions: {
+    // Initialize automatic localStorage persistence
+    initializePersistence() {
+      if (this._unsubscribe) return; // Already initialized
 
-  // Getter for progress of specific job
-  const getProgress = (jobId: string) => activeProgress.value[jobId]
+      // Subscribe to state changes for automatic persistence
+      this._unsubscribe = this.$subscribe(
+        (mutation, state) => {
+          try {
+            // Persist currentParams
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(state.currentParams));
+            // Persist randomizeSeedOnGenerate
+            localStorage.setItem(SEED_RANDOMIZE_KEY, JSON.stringify(state.randomizeSeedOnGenerate));
+          } catch (e) {
+            console.warn('Failed to save generation params to localStorage:', e);
+          }
+        },
+        { detached: true },
+      );
+    },
 
-  // Actions
-  function addJob(job: GenerationJob) {
-    jobs.value.push(job)
-  }
+    // Cleanup persistence subscription
+    cleanupPersistence() {
+      if (this._unsubscribe) {
+        this._unsubscribe();
+        this._unsubscribe = null;
+      }
+    },
 
-  function updateJobStatus(id: string, status: GenerationJob['status']): boolean {
-    const job = jobs.value.find(j => j.id === id)
-    if (job) {
-      job.status = status
-      return true
-    }
-    return false
-  }
+    addJob(job: GenerationJob) {
+      this.jobs.push(job);
+    },
 
-  function clearCompleted() {
-    jobs.value = jobs.value.filter(job => job.status !== 'Completed')
-  }
+    updateJobStatus(id: string, status: GenerationJob['status']): boolean {
+      const job = this.jobs.find((j) => j.id === id);
+      if (job) {
+        job.status = status;
+        return true;
+      }
+      return false;
+    },
 
-  function updateProgress(jobId: string, progress: GenerationProgress) {
-    activeProgress.value[jobId] = progress
-  }
+    clearCompleted() {
+      this.jobs = this.jobs.filter((job) => job.status !== 'Completed');
+    },
 
-  function clearProgress(jobId: string) {
-    delete activeProgress.value[jobId]
-  }
+    updateProgress(jobId: string, progress: GenerationProgress) {
+      this.activeProgress[jobId] = progress;
+    },
 
-  // Persist params to localStorage on change
-  watch(currentParams, (params) => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(params))
-    } catch (e) {
-      console.warn('Failed to save generation params to localStorage:', e)
-    }
-  }, { deep: true })
-
-  watch(randomizeSeedOnGenerate, (value) => {
-    try {
-      localStorage.setItem(SEED_RANDOMIZE_KEY, JSON.stringify(value))
-    } catch (e) {
-      console.warn('Failed to save randomize seed setting to localStorage:', e)
-    }
-  })
-
-  return {
-    // State
-    jobs,
-    currentParams,
-    activeProgress,
-    randomizeSeedOnGenerate,
-    // Getters
-    queuedJobs,
-    runningJobs,
-    completedJobs,
-    isGenerating,
-    getProgress,
-    // Actions
-    addJob,
-    updateJobStatus,
-    clearCompleted,
-    updateProgress,
-    clearProgress
-  }
-})
+    clearProgress(jobId: string) {
+      delete this.activeProgress[jobId];
+    },
+  },
+});

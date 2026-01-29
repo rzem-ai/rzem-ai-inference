@@ -32,7 +32,9 @@ pub struct GenerationParams {
     pub width: u32,
     pub height: u32,
     pub seed: i64,
-    pub model: String,
+    /// Model type (schnell, dev, zimage-turbo) - optional, inferred from components
+    #[serde(default)]
+    pub model_type: Option<String>,
     /// Sampling algorithm (euler, euler_a, dpm_pp_2m)
     #[serde(default)]
     pub sampler: Option<SamplerType>,
@@ -42,6 +44,14 @@ pub struct GenerationParams {
     /// LoRA adapters to apply with their strengths
     #[serde(default)]
     pub loras: Vec<LoraConfig>,
+    /// Bundle ID - if set, use all components from bundle
+    #[serde(default)]
+    pub bundle_id: Option<String>,
+    /// Individual component IDs (required if bundle_id not set)
+    pub model_component_id: String,
+    pub t5_component_id: String,
+    pub clip_component_id: String,
+    pub vae_component_id: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

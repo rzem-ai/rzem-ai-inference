@@ -1,6 +1,6 @@
 <template>
   <div class="relative h-full overflow-hidden">
-    <div class="h-full rounded-lg bg-surface-700 border-surface-700">
+    <div class="h-full border rounded-lg bg-surface-800 border-surface-700">
       <!-- Demo mode indicator -->
       <div v-if="demoMode" class="absolute top-1 right-2 z-10 flex items-center gap-1 px-2 py-0.5 bg-purple-600 text-white text-xs rounded-full">
         <span class="animate-pulse">●</span> Demo Mode (Ctrl+Shift+D to exit)
@@ -133,9 +133,12 @@ const pendingJobCount = computed(() => {
   return queueStore.jobs.filter((j) => j.status === 'pending' || j.status === 'running').length;
 });
 
-onMounted(() => {
+onMounted(async () => {
+  // Initialize event listeners for real-time queue updates
+  await queueStore.initializeEventListeners();
+
   // Initial load of jobs
-  queueStore.refreshJobs();
+  await queueStore.refreshJobs();
 
   // Note: No polling needed! Queue store already listens to real-time events:
   // - Tauri events (local/server mode)
@@ -145,6 +148,9 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  // Cleanup event listeners
+  queueStore.cleanupEventListeners();
+
   window.removeEventListener('keydown', handleKeydown);
   if (demoInterval) {
     clearInterval(demoInterval);

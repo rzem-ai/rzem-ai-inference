@@ -26,12 +26,24 @@ pub struct FluxPipeline {
     pub(crate) active_loras: Vec<(Arc<LoraAdapter>, f32)>,
     /// Hash of current LoRA config for change detection
     pub(crate) lora_config_hash: u64,
+    /// Bundle/component context for custom path resolution
+    pub(crate) bundle_context: Option<BundleContext>,
+}
+
+/// Context for bundle or component-based path resolution
+#[derive(Debug, Clone)]
+pub struct BundleContext {
+    pub bundle_id: Option<String>,
+    pub model_component_id: Option<String>,
+    pub t5_component_id: Option<String>,
+    pub clip_component_id: Option<String>,
+    pub vae_component_id: Option<String>,
 }
 
 impl FluxPipeline {
     /// Creates a new Flux pipeline instance for Schnell model (default)
     pub fn new(device: Device) -> Result<Self> {
-        Self::with_model_type(device, ModelType::Schnell)
+        Self::with_model_type(device, ModelType::schnell())
     }
 
     /// Creates a new Flux pipeline instance for a specific model type
@@ -46,7 +58,18 @@ impl FluxPipeline {
             models_loaded_this_session: false,
             active_loras: Vec::new(),
             lora_config_hash: 0,
+            bundle_context: None,
         })
+    }
+
+    /// Set bundle/component context for custom path resolution
+    pub fn set_bundle_context(&mut self, context: BundleContext) {
+        self.bundle_context = Some(context);
+    }
+
+    /// Clear bundle/component context (use default path resolution)
+    pub fn clear_bundle_context(&mut self) {
+        self.bundle_context = None;
     }
 
     /// Set LoRA adapters for this pipeline
@@ -91,7 +114,7 @@ impl FluxPipeline {
 
     /// Get the model type this pipeline is configured for
     pub fn model_type(&self) -> ModelType {
-        self.model_type
+        self.model_type.clone()
     }
 
     /// Check which models are currently loaded

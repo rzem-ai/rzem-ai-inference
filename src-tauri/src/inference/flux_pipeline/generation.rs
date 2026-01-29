@@ -117,9 +117,9 @@ impl FluxPipeline {
         } else {
             "full_precision".to_string()
         };
-        info!(steps = steps, guidance = guidance, model = %stats.model_type, seed = seed, sampler = ?sampler, scheduler = ?scheduler, "Denoising");
+        info!(steps = steps, guidance = guidance, model = %stats.model_type, seed = seed, sampler = ?sampler, scheduler = ?scheduler, "Drawing");
         let denoise_timer = Timer::start();
-        let latents = flux.denoise(&t5_emb, &clip_emb, height, width, steps, guidance, seed, sampler, scheduler)?;
+        let latents = flux.denoise(&t5_emb, &clip_emb, height, width, steps, guidance, seed, sampler, scheduler, None::<fn(usize, usize)>)?;
         stats.denoise_ms = denoise_timer.stop();
         stats.latent_shape = latents.dims().to_vec();
         debug!(shape = ?latents.dims(), time_ms = stats.denoise_ms, "Latent");
@@ -212,15 +212,15 @@ impl FluxPipeline {
         let mut stats = GenerationStats::default();
         stats.steps = steps;
 
-        // Loading stage
+        // Loading models and encoding stage (0.0 - 0.5)
         trace!("Loading models stage");
         on_progress(GenerationProgress::new(PipelineStage::LoadingModels, 0.0));
         self.ensure_models_loaded(&mut stats)?;
-        on_progress(GenerationProgress::new(PipelineStage::LoadingModels, 1.0));
 
-        // T5 encoding
-        trace!("T5 encoding stage");
-        on_progress(GenerationProgress::new(PipelineStage::EncodingT5, 0.0));
+        // Progress after models loaded (before encoding)
+        on_progress(GenerationProgress::new(PipelineStage::LoadingModels, 0.5));
+
+        // Get T5 for encoding
         let t5 = self.t5.as_mut()
             .ok_or_else(|| anyhow::anyhow!("T5 model not loaded"))?;
 
@@ -230,11 +230,11 @@ impl FluxPipeline {
         stats.t5_encode_ms = t5_timer.stop();
         stats.t5_embedding_shape = t5_emb.dims().to_vec();
         debug!(shape = ?stats.t5_embedding_shape, time_ms = stats.t5_encode_ms, "T5 encoding complete");
-        on_progress(GenerationProgress::new(PipelineStage::EncodingT5, 1.0));
 
-        // CLIP encoding
-        trace!("CLIP encoding stage");
-        on_progress(GenerationProgress::new(PipelineStage::EncodingClip, 0.0));
+        // Progress after T5 encoding
+        on_progress(GenerationProgress::new(PipelineStage::LoadingModels, 0.75));
+
+        // Get CLIP for encoding
         let clip = self.clip.as_ref()
             .ok_or_else(|| anyhow::anyhow!("CLIP model not loaded"))?;
 
@@ -243,13 +243,15 @@ impl FluxPipeline {
         stats.clip_encode_ms = clip_timer.stop();
         stats.clip_embedding_shape = clip_emb.dims().to_vec();
         debug!(shape = ?stats.clip_embedding_shape, time_ms = stats.clip_encode_ms, "CLIP encoding complete");
-        on_progress(GenerationProgress::new(PipelineStage::EncodingClip, 1.0));
+
+        // Models ready, encoding complete (progress = 0.5)
+        on_progress(GenerationProgress::new(PipelineStage::LoadingModels, 1.0));
 
         // Note: Model unloading is now handled by apply_cache_config() after generation
         // This allows the cache system to decide what to keep loaded
 
-        // Denoising
-        trace!("Denoising stage");
+        // Drawing stage (0.5 - 0.95)
+        trace!("Drawing stage");
         let flux = self.flux.as_ref()
             .ok_or_else(|| anyhow::anyhow!("FLUX model not loaded"))?;
 
@@ -259,7 +261,7 @@ impl FluxPipeline {
             "full_precision".to_string()
         };
 
-        // Log GPU memory before denoising starts
+        // Log GPU memory before drawing starts
         if let Some((used, total, percent)) = get_gpu_memory_stats() {
             let available = total - used;
             info!(
@@ -270,7 +272,7 @@ impl FluxPipeline {
                 gpu_used = format_bytes(used),
                 gpu_available = format_bytes(available),
                 gpu_percent = format!("{:.1}%", percent),
-                "Starting denoising"
+                "Starting drawing"
             );
 
             // Warn if memory is critically low (>90% used)
@@ -278,23 +280,31 @@ impl FluxPipeline {
                 warn!(
                     gpu_percent = format!("{:.1}%", percent),
                     available = format_bytes(available),
-                    "GPU memory critically low before denoising - OOM risk"
+                    "GPU memory critically low before drawing - OOM risk"
                 );
             }
         } else {
-            info!(steps = steps, model = %stats.model_type, sampler = ?sampler, scheduler = ?scheduler, "Starting denoising");
+            info!(steps = steps, model = %stats.model_type, sampler = ?sampler, scheduler = ?scheduler, "Starting drawing");
         }
 
-        on_progress(GenerationProgress::denoising_step(0, steps));
-
         let denoise_timer = Timer::start();
-        let latents = flux.denoise(&t5_emb, &clip_emb, height, width, steps, guidance, seed, sampler, scheduler)?;
+        let latents = flux.denoise(
+            &t5_emb,
+            &clip_emb,
+            height,
+            width,
+            steps,
+            guidance,
+            seed,
+            sampler,
+            scheduler,
+            Some(|current_step: usize, total_steps: usize| {
+                on_progress(GenerationProgress::denoising_step(current_step, total_steps));
+            }),
+        )?;
         stats.denoise_ms = denoise_timer.stop();
         stats.latent_shape = latents.dims().to_vec();
         debug!(shape = ?stats.latent_shape, time_ms = stats.denoise_ms, "Denoising complete");
-
-        // Progress for denoising complete
-        on_progress(GenerationProgress::denoising_step(steps, steps));
 
         // Free VRAM by dropping embedding tensors
         // Only unload CLIP (~1GB) - keep T5, FLUX, and VAE loaded for fast subsequent generations

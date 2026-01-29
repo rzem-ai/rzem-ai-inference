@@ -20,10 +20,10 @@ export const semanticLight: ColorSchemeLight = {
     950: '{gray.50}',
   },
   primary: {
-    color: '{primary.500}',
+    color: '{primary.400}',
     contrastColor: '#ffffff',
-    hoverColor: '{primary.600}',
-    activeColor: '{primary.700}',
+    hoverColor: '{primary.500}',
+    activeColor: '{primary.500}',
   },
   highlight: {
     background: '{primary.50}',
@@ -46,7 +46,7 @@ export const semanticLight: ColorSchemeLight = {
   },
   formField: {
     background: '{surface.900}',
-    borderColor: '{surface.500}',
+    borderColor: '{surface.600}',
     color: '{surface.500}',
     disabledBackground: '{surface.700}',
     disabledColor: '{surface.400}',

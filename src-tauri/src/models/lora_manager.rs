@@ -17,12 +17,12 @@ use uuid::Uuid;
 pub struct LoraManager {
     /// Directory where LoRAs are stored
     loras_dir: PathBuf,
-    /// Path to the metadata index file
+    /// Path to the old JSON index file (for migration)
     index_path: PathBuf,
     /// Cached loaded adapters (keyed by ID)
     loaded: Arc<RwLock<HashMap<String, Arc<LoraAdapter>>>>,
-    /// Metadata index (keyed by ID)
-    index: Arc<RwLock<LoraIndex>>,
+    /// Database for persistent storage
+    db: Arc<tokio::sync::Mutex<Option<crate::gallery::GalleryDb>>>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -34,7 +34,7 @@ impl LoraManager {
     /// Create a new LoRA manager
     ///
     /// Uses ~/.rzem-ai-inference/loras/ as the storage directory
-    pub fn new() -> Result<Self> {
+    pub fn new(db: Arc<tokio::sync::Mutex<Option<crate::gallery::GalleryDb>>>) -> Result<Self> {
         let home = dirs::home_dir()
             .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?;
 
@@ -45,19 +45,11 @@ impl LoraManager {
         // Ensure directories exist
         std::fs::create_dir_all(&loras_dir)?;
 
-        // Load existing index
-        let index = if index_path.exists() {
-            let content = std::fs::read_to_string(&index_path)?;
-            serde_json::from_str(&content).unwrap_or_default()
-        } else {
-            LoraIndex::default()
-        };
-
         Ok(Self {
             loras_dir,
             index_path,
             loaded: Arc::new(RwLock::new(HashMap::new())),
-            index: Arc::new(RwLock::new(index)),
+            db,
         })
     }
 
@@ -68,21 +60,34 @@ impl LoraManager {
 
     /// Scan the LoRAs directory and return all available LoRAs
     pub async fn scan_loras(&self) -> Result<Vec<LoraInfo>> {
-        let mut index = self.index.write().await;
-        let mut found_ids = Vec::new();
+        // Get existing LoRAs from database
+        let mut existing_loras: HashMap<String, LoraInfo> = {
+            let db_guard = self.db.lock().await;
+            let db = db_guard.as_ref()
+                .ok_or_else(|| anyhow::anyhow!("Database not initialized"))?;
+
+            db.get_all_loras()?
+                .into_iter()
+                .map(|l| (l.id.clone(), l))
+                .collect()
+        }; // db_guard dropped here
+
+        let mut found_paths = Vec::new();
+        let mut new_loras = Vec::new();
 
         // Scan directory for .safetensors files
         if let Ok(entries) = std::fs::read_dir(&self.loras_dir) {
             for entry in entries.flatten() {
                 let path = entry.path();
                 if path.extension().is_some_and(|e| e == "safetensors") {
-                    // Check if this file is already indexed
-                    let existing = index.loras.values().find(|l| l.path == path.to_string_lossy());
+                    let path_str = path.to_string_lossy().to_string();
+                    found_paths.push(path_str.clone());
 
-                    if let Some(lora) = existing {
-                        found_ids.push(lora.id.clone());
-                    } else {
-                        // New LoRA file - add to index
+                    // Check if this file is already in database
+                    let existing = existing_loras.values().find(|l| l.path == path_str);
+
+                    if existing.is_none() {
+                        // New LoRA file - add to list for batch insertion
                         let id = Uuid::new_v4().to_string();
                         let name = path.file_stem()
                             .map(|s| s.to_string_lossy().to_string())
@@ -93,7 +98,7 @@ impl LoraManager {
                         let info = LoraInfo {
                             id: id.clone(),
                             name,
-                            path: path.to_string_lossy().to_string(),
+                            path: path_str,
                             trigger_words: None,
                             base_model: Some("flux".to_string()),
                             size_bytes: metadata.len(),
@@ -101,39 +106,61 @@ impl LoraManager {
                             metadata: HashMap::new(),
                         };
 
-                        index.loras.insert(id.clone(), info);
-                        found_ids.push(id);
+                        new_loras.push(info);
                     }
                 }
             }
         }
 
-        // Remove entries for files that no longer exist
-        let to_remove: Vec<String> = index.loras.iter()
-            .filter(|(_, info)| !Path::new(&info.path).exists())
+        // Remove database entries for files that no longer exist
+        let to_remove: Vec<String> = existing_loras.iter()
+            .filter(|(_, info)| !found_paths.contains(&info.path))
             .map(|(id, _)| id.clone())
             .collect();
 
-        for id in to_remove {
-            index.loras.remove(&id);
-            // Also remove from loaded cache
-            self.loaded.write().await.remove(&id);
+        // Batch database operations
+        {
+            let db_guard = self.db.lock().await;
+            let db = db_guard.as_ref()
+                .ok_or_else(|| anyhow::anyhow!("Database not initialized"))?;
+
+            // Insert new LoRAs
+            for lora in &new_loras {
+                db.upsert_lora(lora)?;
+                existing_loras.insert(lora.id.clone(), lora.clone());
+            }
+
+            // Remove deleted LoRAs
+            for id in &to_remove {
+                db.delete_lora(id)?;
+                existing_loras.remove(id);
+            }
+        } // db_guard dropped here
+
+        // Remove from loaded cache (after db operations)
+        for id in &to_remove {
+            self.loaded.write().await.remove(id);
         }
 
-        // Save updated index
-        self.save_index(&index)?;
-
-        Ok(index.loras.values().cloned().collect())
+        Ok(existing_loras.into_values().collect())
     }
 
     /// Get all known LoRAs without rescanning
-    pub async fn get_loras(&self) -> Vec<LoraInfo> {
-        self.index.read().await.loras.values().cloned().collect()
+    pub async fn get_loras(&self) -> Result<Vec<LoraInfo>> {
+        let db_guard = self.db.lock().await;
+        let db = db_guard.as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Database not initialized"))?;
+
+        db.get_all_loras()
     }
 
     /// Get info about a specific LoRA
-    pub async fn get_lora_info(&self, id: &str) -> Option<LoraInfo> {
-        self.index.read().await.loras.get(id).cloned()
+    pub async fn get_lora_info(&self, id: &str) -> Result<Option<LoraInfo>> {
+        let db_guard = self.db.lock().await;
+        let db = db_guard.as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Database not initialized"))?;
+
+        db.get_lora(id)
     }
 
     /// Import a LoRA from an external path
@@ -176,11 +203,12 @@ impl LoraManager {
             metadata: HashMap::new(),
         };
 
-        // Add to index
+        // Add to database
         {
-            let mut index = self.index.write().await;
-            index.loras.insert(id.clone(), info.clone());
-            self.save_index(&index)?;
+            let db_guard = self.db.lock().await;
+            let db = db_guard.as_ref()
+                .ok_or_else(|| anyhow::anyhow!("Database not initialized"))?;
+            db.upsert_lora(&info)?;
         }
 
         info!(id = %id, name = %name, "Imported LoRA");
@@ -190,12 +218,22 @@ impl LoraManager {
 
     /// Remove a LoRA from the collection
     ///
-    /// Deletes the file and removes from index
+    /// Deletes the file and removes from database
     pub async fn remove_lora(&self, id: &str) -> Result<()> {
-        let mut index = self.index.write().await;
+        // Get LoRA info and delete from database
+        let info = {
+            let db_guard = self.db.lock().await;
+            let db = db_guard.as_ref()
+                .ok_or_else(|| anyhow::anyhow!("Database not initialized"))?;
 
-        let info = index.loras.remove(id)
-            .ok_or_else(|| anyhow::anyhow!("LoRA not found: {}", id))?;
+            let info = db.get_lora(id)?
+                .ok_or_else(|| anyhow::anyhow!("LoRA not found: {}", id))?;
+
+            // Remove from database
+            db.delete_lora(id)?;
+
+            info
+        }; // db_guard dropped here
 
         // Delete the file if it's in our loras directory
         let path = Path::new(&info.path);
@@ -206,9 +244,6 @@ impl LoraManager {
 
         // Remove from loaded cache
         self.loaded.write().await.remove(id);
-
-        // Save updated index
-        self.save_index(&index)?;
 
         info!(id = %id, name = %info.name, "Removed LoRA");
 
@@ -222,9 +257,11 @@ impl LoraManager {
         name: Option<&str>,
         trigger_words: Option<Option<&str>>,
     ) -> Result<LoraInfo> {
-        let mut index = self.index.write().await;
+        let db_guard = self.db.lock().await;
+        let db = db_guard.as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Database not initialized"))?;
 
-        let info = index.loras.get_mut(id)
+        let mut info = db.get_lora(id)?
             .ok_or_else(|| anyhow::anyhow!("LoRA not found: {}", id))?;
 
         if let Some(new_name) = name {
@@ -235,8 +272,8 @@ impl LoraManager {
             info.trigger_words = new_trigger_words.map(|s| s.to_string());
         }
 
-        let info = info.clone();
-        self.save_index(&index)?;
+        // Save to database
+        db.upsert_lora(&info)?;
 
         Ok(info)
     }
@@ -257,7 +294,7 @@ impl LoraManager {
         }
 
         // Load from disk
-        let info = self.get_lora_info(id).await
+        let info = self.get_lora_info(id).await?
             .ok_or_else(|| anyhow::anyhow!("LoRA not found: {}", id))?;
 
         let mut adapter = LoraAdapter::load(&info.path, id.to_string(), info.name.clone(), device, dtype)?;
@@ -289,17 +326,36 @@ impl LoraManager {
         get_lora_file_info(path)
     }
 
-    /// Save the index to disk
-    fn save_index(&self, index: &LoraIndex) -> Result<()> {
-        let content = serde_json::to_string_pretty(index)?;
-        std::fs::write(&self.index_path, content)?;
-        Ok(())
-    }
-}
+    /// Migrate LoRAs from JSON file to database (one-time migration)
+    pub async fn migrate_from_file_to_db(&self) -> Result<()> {
+        // If JSON file exists, migrate its data
+        if self.index_path.exists() {
+            tracing::info!("Migrating LoRAs from JSON file to database");
 
-impl Default for LoraManager {
-    fn default() -> Self {
-        Self::new().expect("Failed to create LoRA manager")
+            let content = std::fs::read_to_string(&self.index_path)?;
+            let index: LoraIndex = serde_json::from_str(&content).unwrap_or_default();
+
+            let db_guard = self.db.lock().await;
+            let db = db_guard.as_ref()
+                .ok_or_else(|| anyhow::anyhow!("Database not initialized"))?;
+
+            // Insert all LoRAs into database
+            for lora in index.loras.values() {
+                db.upsert_lora(lora)?;
+            }
+
+            tracing::info!(count = index.loras.len(), "Migrated LoRAs to database");
+
+            // Rename the old file to .bak so it's not used anymore
+            let backup_path = self.index_path.with_extension("json.bak");
+            if let Err(e) = std::fs::rename(&self.index_path, &backup_path) {
+                tracing::warn!(error = %e, "Failed to backup old LoRA index file");
+            } else {
+                tracing::info!("Backed up old LoRA index file to {:?}", backup_path);
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -311,7 +367,8 @@ mod tests {
     #[tokio::test]
     async fn test_lora_manager_creation() {
         // Just test that we can create a manager
-        let manager = LoraManager::new();
+        let db = std::sync::Arc::new(tokio::sync::Mutex::new(None));
+        let manager = LoraManager::new(db);
         assert!(manager.is_ok());
     }
 }

@@ -28,7 +28,7 @@ export interface GenerationParams {
   width: number
   height: number
   seed: number
-  model: string
+  //model: string
   batchSize?: number
   // LoRA adapters to apply
   loras?: LoraConfig[]
@@ -36,6 +36,15 @@ export interface GenerationParams {
   sourceImage?: string
   strength?: number
   maskImage?: string
+
+  modelType?: string
+
+  // Bundle system support (new)
+  bundleId?: string // If set, use bundle; otherwise use individual components
+  modelComponentId: string
+  t5ComponentId: string
+  clipComponentId: string
+  vaeComponentId: string
 }
 
 export interface GenerationProgress {

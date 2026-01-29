@@ -1,8 +1,8 @@
 <template>
-  <div ref="wrapper" class="flex flex-col flex-1 p-2 overflow-hidden">
+  <div ref="wrapper" class="flex flex-col flex-1 p-2 overflow-hidden ">
     <div class="flex items-center justify-between mb-3">
       <span class=""> </span>
-      <span v-if="pendingCount && pendingCount > 0" class="text-xs text-surface-50"> {{ images.length }}/{{ totalSlots }} generating... </span>
+      <span v-if="pendingCount && pendingCount > 0" class="text-xs text-surface-50"> {{ images.length }}/{{ totalSlots }} creating... </span>
       <span v-else class="text-xs text-surface-50"> {{ images.length }} {{ images.length === 1 ? 'image' : 'images' }} </span>
     </div>
 
@@ -10,8 +10,8 @@
       <div class="flex flex-col items-center gap-3 text-surface-50">
         <i class="text-5xl pi pi-image"></i>
         <div class="text-center">
-          <p class="text-sm font-medium">No images generated yet</p>
-          <p class="text-xs text-surface-500">Generated images will appear here</p>
+          <p class="text-sm font-medium">No images created yet</p>
+          <p class="text-xs text-surface-500">Created images will appear here</p>
         </div>
       </div>
     </div>
@@ -42,7 +42,7 @@
       <!-- Skeleton placeholders for pending images -->
       <FloatingLines v-for="skeletonIndex in pendingCount" :key="`skeleton-${skeletonIndex}`" class="" :style="getCellStyle(images.length + skeletonIndex - 1)">
         <div class="flex flex-col items-center justify-center w-full h-full text-surface-900">
-          <div class="text-lg font-medium">Generating <fa :icon="['fas', 'ellipsis']" fade /></div>
+          <div class="text-lg font-medium">Drawing <fa :icon="['fas', 'ellipsis']" fade /></div>
         </div>
       </FloatingLines>
     </div>

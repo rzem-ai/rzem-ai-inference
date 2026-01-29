@@ -1,5 +1,4 @@
 import { defineStore } from 'pinia';
-import { ref, computed, onScopeDispose } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { useGalleryStore } from './gallery';
 import { useJobUpdates } from '@/composables/useWebSocket';
@@ -21,7 +20,11 @@ export interface GenerationParams {
   width: number;
   height: number;
   seed: number;
-  model: string;
+  bundle_id?: string // If set, use bundle; otherwise use individual components
+  model_component_id: string
+  clip_component_id: string
+  t5_component_id: string
+  vae_component_id: string
   sampler?: SamplerType;
   scheduler?: SchedulerType;
   // LoRA adapters to apply during generation
@@ -94,246 +97,238 @@ export interface GenerationJob {
   stats?: GenerationStats;
 }
 
-export const useQueueStore = defineStore('queue', () => {
-  // State
-  const jobs = ref<GenerationJob[]>([]);
-  const historyJobs = ref<GenerationJob[]>([]);
-  const isPolling = ref(false);
-  const pollingInterval = ref<number | null>(null);
-  const error = ref<string | null>(null);
+export const useQueueStore = defineStore('queue', {
+  state: () => ({
+    jobs: [] as GenerationJob[],
+    historyJobs: [] as GenerationJob[],
+    isPolling: false,
+    pollingInterval: null as number | null,
+    error: null as string | null,
+    jobUpdates: null as ReturnType<typeof useJobUpdates> | null,
+  }),
 
-  // Set up unified job update listeners (works in both local and client modes)
-  const jobUpdates = useJobUpdates();
+  getters: {
+    pendingJobs(state): GenerationJob[] {
+      return state.jobs.filter((j) => j.status === 'pending')
+    },
 
-  // Handle job update events
-  const handleJobUpdate = async (payload: { job_id: string; status: string; progress?: number; result_path?: string; error?: string; stats?: any }) => {
-    const { job_id, status, progress, result_path, error: jobError, stats } = payload;
+    runningJobs(state): GenerationJob[] {
+      return state.jobs.filter((j) => j.status === 'running')
+    },
 
-    // Find and update job in local state
-    let jobIndex = jobs.value.findIndex((j) => j.id === job_id);
-    if (jobIndex === -1) {
-      // Job not found in local state - refresh to get it
-      await refreshJobs();
-      // Re-check after refresh
-      jobIndex = jobs.value.findIndex((j) => j.id === job_id);
-      if (jobIndex === -1) {
-        // Still not found - job may have been cancelled or cleared
-        console.warn(`Job ${job_id} not found in local state after refresh`);
-        return;
-      }
-    }
+    completedJobs(state): GenerationJob[] {
+      return state.jobs.filter((j) => j.status === 'completed')
+    },
 
-    // Job found - update its properties
-    const updatedJob = { ...jobs.value[jobIndex] };
-    updatedJob.status = status as JobStatus;
-    if (progress !== undefined) {
-      updatedJob.progress = progress;
-    }
-    if (result_path) {
-      updatedJob.result_path = result_path;
-    }
-    if (jobError) {
-      updatedJob.error = jobError;
-    }
-    if (stats) {
-      updatedJob.stats = stats;
-    }
-    // Update started_at when job begins running
-    if (status === 'running' && !updatedJob.started_at) {
-      updatedJob.started_at = Math.floor(Date.now() / 1000);
-    }
-    // Update completed_at when job finishes
-    if (status === 'completed' || status === 'failed' || status === 'cancelled') {
-      updatedJob.completed_at = Math.floor(Date.now() / 1000);
-    }
+    failedJobs(state): GenerationJob[] {
+      return state.jobs.filter((j) => j.status === 'failed')
+    },
 
-    // Replace job in array to trigger Vue reactivity
-    jobs.value[jobIndex] = updatedJob;
+    queueLength(state): number {
+      return state.jobs.filter((j) => j.status === 'pending').length
+    },
 
-    // Refresh gallery when job completes successfully
-    if (status === 'completed') {
-      // Get gallery store inside the callback (after Pinia is initialized)
-      const galleryStore = useGalleryStore();
-      await galleryStore.loadImages();
-    }
-  };
+    hasRunningJobs(state): boolean {
+      return state.jobs.filter((j) => j.status === 'running').length > 0
+    },
+  },
 
-  // Handle job progress events
-  const handleJobProgress = (payload: {
-    job_id: string;
-    stage: string;
-    stage_progress: number;
-    overall_progress: number;
-    message: string;
-    eta_seconds?: number;
-    current_step?: number;
-    total_steps?: number;
-  }) => {
-    const { job_id, stage, overall_progress, message, current_step, total_steps } = payload;
+  actions: {
+    // Initialize event listeners
+    async initializeEventListeners() {
+      if (this.jobUpdates) return; // Already initialized
 
-    // Find and update job in local state
-    const jobIndex = jobs.value.findIndex((j) => j.id === job_id);
-    if (jobIndex !== -1) {
-      jobs.value[jobIndex].progress = overall_progress;
-      jobs.value[jobIndex].currentStage = stage as PipelineStage;
-      jobs.value[jobIndex].statusMessage = message;
-      // Track denoising steps separately for the step progress bar
-      if (current_step !== undefined) {
-        jobs.value[jobIndex].currentStep = current_step;
-      }
-      if (total_steps !== undefined) {
-        jobs.value[jobIndex].totalSteps = total_steps;
-      }
-    }
-  };
+      this.jobUpdates = useJobUpdates();
 
-  // Subscribe to job update events
-  jobUpdates.onJobUpdate(handleJobUpdate);
-  jobUpdates.onJobProgress(handleJobProgress);
+      // Handle job update events
+      await this.jobUpdates.onJobUpdate(async (payload: { job_id: string; status: string; progress?: number; result_path?: string; error?: string; stats?: any }) => {
+        const { job_id, status, progress, result_path, error: jobError, stats } = payload;
 
-  // Computed
-  const pendingJobs = computed(() => jobs.value.filter((j) => j.status === 'pending'));
+        // Find and update job in local state
+        let jobIndex = this.jobs.findIndex((j) => j.id === job_id);
+        if (jobIndex === -1) {
+          // Job not found in local state - refresh to get it
+          await this.refreshJobs();
+          // Re-check after refresh
+          jobIndex = this.jobs.findIndex((j) => j.id === job_id);
+          if (jobIndex === -1) {
+            // Still not found - job may have been cancelled or cleared
+            console.warn(`Job ${job_id} not found in local state after refresh`);
+            return;
+          }
+        }
 
-  const runningJobs = computed(() => jobs.value.filter((j) => j.status === 'running'));
+        // Job found - update its properties
+        const updatedJob = { ...this.jobs[jobIndex] };
+        updatedJob.status = status as JobStatus;
+        if (progress !== undefined) {
+          updatedJob.progress = progress;
+        }
+        if (result_path) {
+          updatedJob.result_path = result_path;
+        }
+        if (jobError) {
+          updatedJob.error = jobError;
+        }
+        if (stats) {
+          updatedJob.stats = stats;
+        }
+        // Update started_at when job begins running
+        if (status === 'running' && !updatedJob.started_at) {
+          updatedJob.started_at = Math.floor(Date.now() / 1000);
+        }
+        // Update completed_at when job finishes
+        if (status === 'completed' || status === 'failed' || status === 'cancelled') {
+          updatedJob.completed_at = Math.floor(Date.now() / 1000);
+        }
 
-  const completedJobs = computed(() => jobs.value.filter((j) => j.status === 'completed'));
+        // Replace job in array to trigger Vue reactivity
+        this.jobs[jobIndex] = updatedJob;
 
-  const failedJobs = computed(() => jobs.value.filter((j) => j.status === 'failed'));
-
-  const queueLength = computed(() => pendingJobs.value.length);
-  const hasRunningJobs = computed(() => runningJobs.value.length > 0);
-
-  // Cleanup polling and event listeners on store disposal
-  onScopeDispose(() => {
-    stopPolling();
-    jobUpdates.cleanup();
-  });
-
-  // Actions
-  async function addToQueue(params: GenerationParams): Promise<string> {
-    try {
-      const jobId = await invoke<string>('client_add_to_queue', { params });
-      // Note: No refreshJobs() call here - backend emits job-update events
-      // which the event listener handles as the single source of truth
-      error.value = null;
-      return jobId;
-    } catch (err) {
-      const message = 'Failed to add to queue';
-      error.value = message;
-      console.error(message, err);
-      throw err;
-    }
-  }
-
-  async function refreshJobs(): Promise<void> {
-    try {
-      const result = await invoke<GenerationJob[]>('client_get_queue_jobs');
-      jobs.value = result;
-      error.value = null;
-    } catch (err) {
-      const message = 'Failed to refresh jobs';
-      error.value = message;
-      console.error(message, err);
-    }
-  }
-
-  async function getJob(jobId: string): Promise<GenerationJob | null> {
-    try {
-      const result = await invoke<GenerationJob | null>('client_get_queue_job', {
-        jobId,
+        // Refresh gallery when job completes successfully
+        if (status === 'completed') {
+          const galleryStore = useGalleryStore();
+          await galleryStore.loadImages();
+        }
       });
-      error.value = null;
-      return result;
-    } catch (err) {
-      const message = 'Failed to get job';
-      error.value = message;
-      console.error(message, err);
-      return null;
-    }
-  }
 
-  async function cancelJob(jobId: string): Promise<boolean> {
-    try {
-      const cancelled = await invoke<boolean>('client_cancel_queue_job', { jobId });
-      // Note: No refreshJobs() call here - backend emits job-update events
-      // which the event listener handles as the single source of truth
-      error.value = null;
-      return cancelled;
-    } catch (err) {
-      const message = 'Failed to cancel job';
-      error.value = message;
-      console.error(message, err);
-      return false;
-    }
-  }
+      // Handle job progress events
+      await this.jobUpdates.onJobProgress((payload: {
+        job_id: string;
+        stage: string;
+        stage_progress: number;
+        overall_progress: number;
+        message: string;
+        eta_seconds?: number;
+        current_step?: number;
+        total_steps?: number;
+      }) => {
+        const { job_id, stage, overall_progress, message, current_step, total_steps } = payload;
 
-  async function clearCompleted(): Promise<void> {
-    try {
-      await invoke('clear_completed_jobs');
-      await refreshJobs();
-      error.value = null;
-    } catch (err) {
-      const message = 'Failed to clear completed jobs';
-      error.value = message;
-      console.error(message, err);
-    }
-  }
+        // Find and update job in local state
+        const jobIndex = this.jobs.findIndex((j) => j.id === job_id);
+        if (jobIndex !== -1) {
+          this.jobs[jobIndex].progress = overall_progress;
+          this.jobs[jobIndex].currentStage = stage as PipelineStage;
+          this.jobs[jobIndex].statusMessage = message;
+          // Track denoising steps separately for the step progress bar
+          if (current_step !== undefined) {
+            this.jobs[jobIndex].currentStep = current_step;
+          }
+          if (total_steps !== undefined) {
+            this.jobs[jobIndex].totalSteps = total_steps;
+          }
+        }
+      });
+    },
 
-  function startPolling(intervalMs: number = 1000): void {
-    if (isPolling.value) return;
+    // Cleanup event listeners
+    cleanupEventListeners() {
+      if (this.jobUpdates) {
+        this.jobUpdates.cleanup();
+        this.jobUpdates = null;
+      }
+    },
 
-    isPolling.value = true;
-    pollingInterval.value = window.setInterval(() => {
-      refreshJobs();
-    }, intervalMs);
-  }
+    async addToQueue(params: GenerationParams): Promise<string> {
+      try {
+        const jobId = await invoke<string>('client_add_to_queue', { params });
+        // Note: No refreshJobs() call here - backend emits job-update events
+        // which the event listener handles as the single source of truth
+        this.error = null;
+        return jobId;
+      } catch (err) {
+        const message = 'Failed to add to queue';
+        this.error = message;
+        console.error(message, err);
+        throw err;
+      }
+    },
 
-  function stopPolling(): void {
-    if (!isPolling.value) return;
+    async refreshJobs(): Promise<void> {
+      try {
+        const result = await invoke<GenerationJob[]>('client_get_queue_jobs');
+        this.jobs = result;
+        this.error = null;
+      } catch (err) {
+        const message = 'Failed to refresh jobs';
+        this.error = message;
+        console.error(message, err);
+      }
+    },
 
-    isPolling.value = false;
-    if (pollingInterval.value !== null) {
-      clearInterval(pollingInterval.value);
-      pollingInterval.value = null;
-    }
-  }
+    async getJob(jobId: string): Promise<GenerationJob | null> {
+      try {
+        const result = await invoke<GenerationJob | null>('client_get_queue_job', {
+          jobId,
+        });
+        this.error = null;
+        return result;
+      } catch (err) {
+        const message = 'Failed to get job';
+        this.error = message;
+        console.error(message, err);
+        return null;
+      }
+    },
 
-  function moveCompletedToHistory(): void {
-    // Move all completed and failed jobs from queue to history
-    const completedOrFailed = jobs.value.filter((j) => j.status === 'completed' || j.status === 'failed');
+    async cancelJob(jobId: string): Promise<boolean> {
+      try {
+        const cancelled = await invoke<boolean>('client_cancel_queue_job', { jobId });
+        // Note: No refreshJobs() call here - backend emits job-update events
+        // which the event listener handles as the single source of truth
+        this.error = null;
+        return cancelled;
+      } catch (err) {
+        const message = 'Failed to cancel job';
+        this.error = message;
+        console.error(message, err);
+        return false;
+      }
+    },
 
-    if (completedOrFailed.length > 0) {
-      // Add to beginning of history (most recent first)
-      historyJobs.value = [...completedOrFailed, ...historyJobs.value];
+    async clearCompleted(): Promise<void> {
+      try {
+        await invoke('clear_completed_jobs');
+        await this.refreshJobs();
+        this.error = null;
+      } catch (err) {
+        const message = 'Failed to clear completed jobs';
+        this.error = message;
+        console.error(message, err);
+      }
+    },
 
-      // Remove from active queue
-      jobs.value = jobs.value.filter((j) => j.status !== 'completed' && j.status !== 'failed');
-    }
-  }
+    startPolling(intervalMs: number = 1000): void {
+      if (this.isPolling) return;
 
-  return {
-    // State
-    jobs,
-    historyJobs,
-    isPolling,
-    error,
+      this.isPolling = true;
+      this.pollingInterval = window.setInterval(() => {
+        this.refreshJobs();
+      }, intervalMs);
+    },
 
-    // Computed
-    pendingJobs,
-    runningJobs,
-    completedJobs,
-    failedJobs,
-    queueLength,
-    hasRunningJobs,
+    stopPolling(): void {
+      if (!this.isPolling) return;
 
-    // Actions
-    addToQueue,
-    refreshJobs,
-    getJob,
-    cancelJob,
-    clearCompleted,
-    startPolling,
-    stopPolling,
-    moveCompletedToHistory,
-  };
+      this.isPolling = false;
+      if (this.pollingInterval !== null) {
+        clearInterval(this.pollingInterval);
+        this.pollingInterval = null;
+      }
+    },
+
+    moveCompletedToHistory(): void {
+      // Move all completed and failed jobs from queue to history
+      const completedOrFailed = this.jobs.filter((j) => j.status === 'completed' || j.status === 'failed');
+
+      if (completedOrFailed.length > 0) {
+        // Add to beginning of history (most recent first)
+        this.historyJobs = [...completedOrFailed, ...this.historyJobs];
+
+        // Remove from active queue
+        this.jobs = this.jobs.filter((j) => j.status !== 'completed' && j.status !== 'failed');
+      }
+    },
+  },
 });

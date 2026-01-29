@@ -13,6 +13,7 @@ use tracing::{debug, info, warn};
 
 use crate::inference::samplers::{SamplerType, SchedulerType, get_timesteps};
 use crate::models::lora::{LoraAdapter, LoraConfig};
+use crate::models::ModelType;
 
 /// Enum to hold either regular or quantized FLUX model
 enum FluxModel {
@@ -32,9 +33,10 @@ impl FluxTransformer {
     /// Load FLUX Schnell transformer from safetensors file (full precision)
     ///
     /// # Arguments
-    /// * `model_path` - Path to flux1-schnell.safetensors file
+    /// * `model_path` - Path to flux safetensors file
     /// * `device` - Device to load model on
-    pub fn load<P: AsRef<Path>>(model_path: P, device: Device) -> Result<Self> {
+    /// * `model_type` - Which FLUX model variant (Schnell or Dev)
+    pub fn load<P: AsRef<Path>>(model_path: P, device: Device, model_type: ModelType) -> Result<Self> {
         let model_path = model_path.as_ref();
 
         // Use bf16 on CUDA for efficiency
@@ -48,8 +50,12 @@ impl FluxTransformer {
             VarBuilder::from_mmaped_safetensors(&[model_path], dtype, &device)?
         };
 
-        // Load FLUX Schnell model
-        let cfg = flux::model::Config::schnell();
+        // Load appropriate FLUX config
+        let cfg = match model_type.id() {
+            "schnell" => flux::model::Config::schnell(),
+            "dev" => flux::model::Config::dev(),
+            _ => anyhow::bail!("Unsupported model type for FLUX: {}", model_type),
+        };
         let model = flux::model::Flux::new(&cfg, vb)?;
 
         Ok(Self {
@@ -59,21 +65,26 @@ impl FluxTransformer {
         })
     }
 
-    /// Load quantized FLUX Schnell transformer from GGUF file
+    /// Load quantized FLUX transformer from GGUF file
     /// Uses ~12GB VRAM instead of ~23GB
     ///
     /// # Arguments
-    /// * `model_path` - Path to flux1-schnell.gguf file
+    /// * `model_path` - Path to flux GGUF file
     /// * `device` - Device to load model on
-    pub fn load_quantized<P: AsRef<Path>>(model_path: P, device: Device) -> Result<Self> {
+    /// * `model_type` - Which FLUX model variant (Schnell or Dev)
+    pub fn load_quantized<P: AsRef<Path>>(model_path: P, device: Device, model_type: ModelType) -> Result<Self> {
         use candle_transformers::quantized_var_builder::VarBuilder as QVarBuilder;
 
         let model_path = model_path.as_ref();
 
         let vb = QVarBuilder::from_gguf(model_path, &device)?;
 
-        // Load quantized FLUX Schnell model
-        let cfg = flux::model::Config::schnell();
+        // Load appropriate FLUX config
+        let cfg = match model_type.id() {
+            "schnell" => flux::model::Config::schnell(),
+            "dev" => flux::model::Config::dev(),
+            _ => anyhow::bail!("Unsupported model type for FLUX: {}", model_type),
+        };
         let model = flux::quantized_model::Flux::new(&cfg, vb)?;
 
         Ok(Self {
@@ -89,12 +100,14 @@ impl FluxTransformer {
     /// and builds the model from the merged weights.
     ///
     /// # Arguments
-    /// * `model_path` - Path to flux1-schnell.safetensors file
+    /// * `model_path` - Path to flux safetensors file
     /// * `device` - Device to load model on
+    /// * `model_type` - Which FLUX model variant (Schnell or Dev)
     /// * `loras` - List of LoRA adapters with their strengths
     pub fn load_with_loras<P: AsRef<Path>>(
         model_path: P,
         device: Device,
+        model_type: ModelType,
         loras: &[(Arc<LoraAdapter>, f32)],
     ) -> Result<Self> {
         let model_path = model_path.as_ref();
@@ -108,7 +121,7 @@ impl FluxTransformer {
 
         if loras.is_empty() {
             // No LoRAs, use standard loading
-            return Self::load(model_path, device);
+            return Self::load(model_path, device, model_type);
         }
 
         info!(
@@ -195,8 +208,12 @@ impl FluxTransformer {
         // Build VarBuilder from merged tensors
         let vb = VarBuilder::from_tensors(merged_tensors, dtype, &device);
 
-        // Load FLUX Schnell model
-        let cfg = flux::model::Config::schnell();
+        // Load appropriate FLUX config
+        let cfg = match model_type.id() {
+            "schnell" => flux::model::Config::schnell(),
+            "dev" => flux::model::Config::dev(),
+            _ => anyhow::bail!("Unsupported model type for FLUX: {}", model_type),
+        };
         let model = flux::model::Flux::new(&cfg, vb)?;
 
         info!("FLUX loaded with LoRA adapters merged");
@@ -255,10 +272,11 @@ impl FluxTransformer {
     /// * `seed` - Random seed for reproducible generation
     /// * `sampler` - Sampling algorithm to use
     /// * `scheduler` - Noise schedule type
+    /// * `on_step` - Optional callback for progress updates per step
     ///
     /// # Returns
     /// Denoised latents ready for VAE decode
-    pub fn denoise(
+    pub fn denoise<F>(
         &self,
         t5_emb: &Tensor,
         clip_emb: &Tensor,
@@ -269,7 +287,11 @@ impl FluxTransformer {
         seed: u64,
         sampler: SamplerType,
         scheduler: SchedulerType,
-    ) -> Result<Tensor> {
+        on_step: Option<F>,
+    ) -> Result<Tensor>
+    where
+        F: Fn(usize, usize),
+    {
         // Create initial noise with seed for reproducibility
         let img = self.create_noise(height, width, seed)?;
 
@@ -295,16 +317,16 @@ impl FluxTransformer {
         let denoised = match &self.model {
             FluxModel::Regular(model) => {
                 match sampler {
-                    SamplerType::Euler => denoise_euler_impl(model, &state, &timesteps, guidance, &self.device)?,
-                    SamplerType::EulerA => denoise_euler_ancestral_impl(model, &state, &timesteps, guidance, seed, &self.device)?,
-                    SamplerType::DpmPP2M => denoise_dpm_pp_2m_impl(model, &state, &timesteps, guidance, &self.device)?,
+                    SamplerType::Euler => denoise_euler_impl(model, &state, &timesteps, guidance, &self.device, on_step.as_ref())?,
+                    SamplerType::EulerA => denoise_euler_ancestral_impl(model, &state, &timesteps, guidance, seed, &self.device, on_step.as_ref())?,
+                    SamplerType::DpmPP2M => denoise_dpm_pp_2m_impl(model, &state, &timesteps, guidance, &self.device, on_step.as_ref())?,
                 }
             }
             FluxModel::Quantized(model) => {
                 let result = match sampler {
-                    SamplerType::Euler => denoise_euler_impl_q(model, &state, &timesteps, guidance, &self.device)?,
-                    SamplerType::EulerA => denoise_euler_ancestral_impl_q(model, &state, &timesteps, guidance, seed, &self.device)?,
-                    SamplerType::DpmPP2M => denoise_dpm_pp_2m_impl_q(model, &state, &timesteps, guidance, &self.device)?,
+                    SamplerType::Euler => denoise_euler_impl_q(model, &state, &timesteps, guidance, &self.device, on_step.as_ref())?,
+                    SamplerType::EulerA => denoise_euler_ancestral_impl_q(model, &state, &timesteps, guidance, seed, &self.device, on_step.as_ref())?,
+                    SamplerType::DpmPP2M => denoise_dpm_pp_2m_impl_q(model, &state, &timesteps, guidance, &self.device, on_step.as_ref())?,
                 };
 
                 // Quantized model returns F32, convert back to bf16 if on CUDA
@@ -332,18 +354,24 @@ impl FluxTransformer {
 
 /// Standard Euler method - first-order ODE solver
 /// x_{t+1} = x_t + (t_{next} - t) * v(x_t, t)
-fn denoise_euler_impl(
+fn denoise_euler_impl<F>(
     model: &flux::model::Flux,
     state: &flux::sampling::State,
     timesteps: &[f64],
     guidance: f64,
     device: &Device,
-) -> Result<Tensor> {
+    on_step: Option<&F>,
+) -> Result<Tensor>
+where
+    F: Fn(usize, usize),
+{
     let mut img = state.img.clone();
     let b_sz = img.dim(0)?;
 
     // Create guidance tensor with batch size (matches candle's denoise implementation)
     let guidance_tensor = Tensor::full(guidance as f32, b_sz, device)?;
+
+    let total_steps = timesteps.len() - 1;
 
     for (i, window) in timesteps.windows(2).enumerate() {
         let t_curr = window[0];
@@ -366,24 +394,35 @@ fn denoise_euler_impl(
         img = (img + v * dt)?;
 
         debug!(step = i + 1, t_curr = t_curr, t_next = t_next, "Euler step");
+
+        // Report progress for this step
+        if let Some(callback) = on_step {
+            callback(i + 1, total_steps);
+        }
     }
 
     Ok(img)
 }
 
 /// Euler method for quantized model
-fn denoise_euler_impl_q(
+fn denoise_euler_impl_q<F>(
     model: &flux::quantized_model::Flux,
     state: &flux::sampling::State,
     timesteps: &[f64],
     guidance: f64,
     device: &Device,
-) -> Result<Tensor> {
+    on_step: Option<&F>,
+) -> Result<Tensor>
+where
+    F: Fn(usize, usize),
+{
     let mut img = state.img.clone();
     let b_sz = img.dim(0)?;
 
     // Create guidance tensor with batch size (matches candle's denoise implementation)
     let guidance_tensor = Tensor::full(guidance as f32, b_sz, device)?;
+
+    let total_steps = timesteps.len() - 1;
 
     for (i, window) in timesteps.windows(2).enumerate() {
         let t_curr = window[0];
@@ -406,24 +445,35 @@ fn denoise_euler_impl_q(
         img = (img + v * dt)?;
 
         debug!(step = i + 1, t_curr = t_curr, t_next = t_next, "Euler step");
+
+        // Report progress for this step
+        if let Some(callback) = on_step {
+            callback(i + 1, total_steps);
+        }
     }
 
     Ok(img)
 }
 
 /// Euler Ancestral - adds noise at each step for more variation
-fn denoise_euler_ancestral_impl(
+fn denoise_euler_ancestral_impl<F>(
     model: &flux::model::Flux,
     state: &flux::sampling::State,
     timesteps: &[f64],
     guidance: f64,
     seed: u64,
     device: &Device,
-) -> Result<Tensor> {
+    on_step: Option<&F>,
+) -> Result<Tensor>
+where
+    F: Fn(usize, usize),
+{
     let mut img = state.img.clone();
     let b_sz = img.dim(0)?;
 
     let guidance_tensor = Tensor::full(guidance as f32, b_sz, device)?;
+
+    let total_steps = timesteps.len() - 1;
 
     for (i, window) in timesteps.windows(2).enumerate() {
         let t_curr = window[0];
@@ -469,24 +519,35 @@ fn denoise_euler_ancestral_impl(
         }
 
         debug!(step = i + 1, t_curr = t_curr, t_next = t_next, sigma_up = sigma_up, "EulerA step");
+
+        // Report progress for this step
+        if let Some(callback) = on_step {
+            callback(i + 1, total_steps);
+        }
     }
 
     Ok(img)
 }
 
 /// Euler Ancestral for quantized model
-fn denoise_euler_ancestral_impl_q(
+fn denoise_euler_ancestral_impl_q<F>(
     model: &flux::quantized_model::Flux,
     state: &flux::sampling::State,
     timesteps: &[f64],
     guidance: f64,
     seed: u64,
     device: &Device,
-) -> Result<Tensor> {
+    on_step: Option<&F>,
+) -> Result<Tensor>
+where
+    F: Fn(usize, usize),
+{
     let mut img = state.img.clone();
     let b_sz = img.dim(0)?;
 
     let guidance_tensor = Tensor::full(guidance as f32, b_sz, device)?;
+
+    let total_steps = timesteps.len() - 1;
 
     for (i, window) in timesteps.windows(2).enumerate() {
         let t_curr = window[0];
@@ -532,25 +593,36 @@ fn denoise_euler_ancestral_impl_q(
         }
 
         debug!(step = i + 1, t_curr = t_curr, t_next = t_next, sigma_up = sigma_up, "EulerA step");
+
+        // Report progress for this step
+        if let Some(callback) = on_step {
+            callback(i + 1, total_steps);
+        }
     }
 
     Ok(img)
 }
 
 /// DPM++ 2M - second-order multistep method
-fn denoise_dpm_pp_2m_impl(
+fn denoise_dpm_pp_2m_impl<F>(
     model: &flux::model::Flux,
     state: &flux::sampling::State,
     timesteps: &[f64],
     guidance: f64,
     device: &Device,
-) -> Result<Tensor> {
+    on_step: Option<&F>,
+) -> Result<Tensor>
+where
+    F: Fn(usize, usize),
+{
     let mut img = state.img.clone();
     let b_sz = img.dim(0)?;
     let mut prev_velocity: Option<Tensor> = None;
 
     // Create guidance tensor with batch size
     let guidance_tensor = Tensor::full(guidance as f32, b_sz, device)?;
+
+    let total_steps = timesteps.len() - 1;
 
     for (i, window) in timesteps.windows(2).enumerate() {
         let t_curr = window[0];
@@ -594,25 +666,36 @@ fn denoise_dpm_pp_2m_impl(
         prev_velocity = Some(v);
 
         debug!(step = i + 1, t_curr = t_curr, t_next = t_next, "DPM++ 2M step");
+
+        // Report progress for this step
+        if let Some(callback) = on_step {
+            callback(i + 1, total_steps);
+        }
     }
 
     Ok(img)
 }
 
 /// DPM++ 2M for quantized model
-fn denoise_dpm_pp_2m_impl_q(
+fn denoise_dpm_pp_2m_impl_q<F>(
     model: &flux::quantized_model::Flux,
     state: &flux::sampling::State,
     timesteps: &[f64],
     guidance: f64,
     device: &Device,
-) -> Result<Tensor> {
+    on_step: Option<&F>,
+) -> Result<Tensor>
+where
+    F: Fn(usize, usize),
+{
     let mut img = state.img.clone();
     let b_sz = img.dim(0)?;
     let mut prev_velocity: Option<Tensor> = None;
 
     // Create guidance tensor with batch size
     let guidance_tensor = Tensor::full(guidance as f32, b_sz, device)?;
+
+    let total_steps = timesteps.len() - 1;
 
     for (i, window) in timesteps.windows(2).enumerate() {
         let t_curr = window[0];
@@ -656,6 +739,11 @@ fn denoise_dpm_pp_2m_impl_q(
         prev_velocity = Some(v);
 
         debug!(step = i + 1, t_curr = t_curr, t_next = t_next, "DPM++ 2M step");
+
+        // Report progress for this step
+        if let Some(callback) = on_step {
+            callback(i + 1, total_steps);
+        }
     }
 
     Ok(img)
@@ -806,7 +894,7 @@ mod tests {
         let paths = ModelPaths::new().unwrap();
         let device = Device::cuda_if_available(0).unwrap();
 
-        let _flux = FluxTransformer::load(paths.transformer_path(), device).unwrap();
+        let _flux = FluxTransformer::load(paths.transformer_path(), device, ModelType::schnell()).unwrap();
     }
 
     #[test]
@@ -821,6 +909,7 @@ mod tests {
             let flux = FluxTransformer::load_quantized(
                 paths.quantized_transformer_path(),
                 device,
+                ModelType::schnell(),
             ).unwrap();
             assert!(flux.is_quantized());
         }

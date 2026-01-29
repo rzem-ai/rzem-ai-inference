@@ -1,5 +1,5 @@
 <template>
-  <RouterLink :id="id" :to="workspace.path" v-slot="{ isActive }" class="w-full">
+  <RouterLink v-if="workspace.enabled" :id="id" :to="workspace.path" v-slot="{ isActive }" class="w-full">
     <div
       class="flex flex-col items-center justify-center gap-1 px-2 py-4"
       :class="[
@@ -13,6 +13,15 @@
       </div>
     </div>
   </RouterLink>
+  <div v-else>
+    <div
+      class="flex flex-col items-center justify-center gap-1 px-2 py-4 bg-transparent text-surface-700">
+      <fa :icon="['fal', workspace.icon]" size="xl" />
+      <div class="text-xs">
+        {{ workspace.label }}
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -20,6 +29,7 @@ export interface Workspace {
   label: string;
   path: string;
   icon: string;
+  enabled: boolean;
 }
 
 defineProps<{
