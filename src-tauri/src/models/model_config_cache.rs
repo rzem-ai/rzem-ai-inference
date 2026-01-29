@@ -43,7 +43,7 @@ impl ModelConfigCache {
         Ok(())
     }
 
-    /// Get config by model ID with fallback
+    /// Get config by model ID
     pub async fn get_config(&self, model_id: &str) -> Result<ModelConfig> {
         // Check cache
         {
@@ -61,12 +61,11 @@ impl ModelConfigCache {
             }
         }
 
-        // Fallback to hard-coded defaults
-        tracing::warn!(
-            model_id = model_id,
-            "Using fallback config - model not in database"
-        );
-        Ok(ModelConfig::fallback(model_id))
+        // No fallback - require database config
+        Err(anyhow::anyhow!(
+            "Model config '{}' not found in database. Please ensure the model is properly registered.",
+            model_id
+        ))
     }
 
     /// Get all available model configs
