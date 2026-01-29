@@ -494,7 +494,7 @@ function getComponentById(id: string, components: ComponentRecord[]): ComponentR
   return components.find((c) => c.id === id) || null;
 }
 
-// Infer model type from bundle (for backward compatibility)
+// Infer model type from bundle
 function inferModelIdFromBundle(bundle: BundleInfo): string {
   // Check transformer component architecture
   const transformer = bundle.components.find((c: any) => c.role === 'transformer');

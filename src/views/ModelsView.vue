@@ -645,11 +645,7 @@ const fetchComponentAvailability = async () => {
   }
 };
 
-// Load models from database - removed, using bundle/component system instead
-const loadModelsFromDatabase = async () => {
-  // Database loading removed - use bundles/components API
-  dbModels.value = [];
-};
+// Removed: loadModelsFromDatabase - use bundle/component system exclusively
 
 // ===== Bundle Methods =====
 
@@ -789,7 +785,6 @@ function formatComponentRole(role: string): string {
 
 onMounted(async () => {
   await Promise.all([
-    loadModelsFromDatabase(),
     modelsStore.refreshModelAvailability(),
     autoTagStore.checkModelStatus(),
     fetchComponentAvailability(),

@@ -50,9 +50,9 @@
         </div>
       </div>
 
-      <!-- No Active Bundle Warning -->
-      <Message v-else severity="warn" :closable="false">
-        No bundle active. Using legacy hardcoded paths. Activate a bundle for better control.
+      <!-- No Active Bundle Error -->
+      <Message v-else severity="error" :closable="false">
+        No bundle active. Please activate a bundle to enable model operations.
       </Message>
 
       <!-- Scan Result Message -->
