@@ -671,48 +671,6 @@ fn get_hf_cache_dir() -> Result<PathBuf> {
     Ok(home.join(".cache").join("huggingface").join("hub"))
 }
 
-// ===== Legacy API for backward compatibility =====
-
-/// Old DiscoveredModel structure (for backward compatibility)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DiscoveredModel {
-    pub id: String,
-    pub display_name: String,
-    pub repo_id: String,
-    pub format: ModelFormat,
-    pub path: PathBuf,
-    pub supports_loras: bool,
-    pub vram_mb: usize,
-}
-
-/// Legacy function - scans only for transformers (backward compatibility)
-pub fn scan_cache_for_models() -> Result<Vec<DiscoveredModel>> {
-    let components = scan_all_components()?;
-
-    // Filter to transformers only and convert to legacy format
-    let models = components
-        .into_iter()
-        .filter(|c| c.component_type == ComponentType::Transformer)
-        .map(|c| {
-            let id = c.repo_id.replace('/', "--");
-            let supports_loras = c.format == ModelFormat::Safetensors && c.quantization.is_none();
-
-            DiscoveredModel {
-                id,
-                display_name: c.architecture.clone(),
-                repo_id: c.repo_id,
-                format: c.format,
-                path: c.path,
-                supports_loras,
-                vram_mb: c.vram_mb.unwrap_or(24000),
-            }
-        })
-        .collect();
-
-    Ok(models)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

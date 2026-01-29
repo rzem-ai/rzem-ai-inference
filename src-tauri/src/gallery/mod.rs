@@ -1766,8 +1766,8 @@ impl GalleryDb {
         Ok(count)
     }
 
-    /// Save discovered models to database
-    pub fn save_discovered_models(&self, models: &[crate::models::DiscoveredModel]) -> Result<()> {
+    /// Save discovered components to database (transformers only)
+    pub fn save_discovered_components(&self, components: &[&crate::models::DiscoveredComponent]) -> Result<()> {
         use crate::models::ModelFormat;
 
         let now = std::time::SystemTime::now()
@@ -1775,12 +1775,15 @@ impl GalleryDb {
             .map(|d| d.as_secs() as i64)
             .unwrap_or(0);
 
-        for model in models {
-            // Use the hub directory-based ID directly
-            let id = &model.id;
+        for component in components {
+            // Generate ID from repo_id (replace / with --)
+            let id = component.repo_id.replace('/', "--");
 
             // Generate HuggingFace URL from repo_id
-            let source_url = format!("https://huggingface.co/{}", model.repo_id);
+            let source_url = format!("https://huggingface.co/{}", component.repo_id);
+
+            // Check if LoRAs are supported (safetensors and not quantized)
+            let supports_loras = component.format == ModelFormat::Safetensors && component.quantization.is_none();
 
             // Check if model already exists
             let exists: bool = self.conn
@@ -1796,15 +1799,15 @@ impl GalleryDb {
                 self.conn.execute(
                     "UPDATE models SET path = ?1, supports_loras = ?2, format = ?3, source = ?4, repo_id = ?5, is_downloaded = 1 WHERE id = ?6",
                     params![
-                        model.path.to_string_lossy().as_ref(),
-                        model.supports_loras as i32,
-                        match model.format {
+                        component.path.to_string_lossy().as_ref(),
+                        supports_loras as i32,
+                        match component.format {
                             ModelFormat::Safetensors => "Safetensors",
                             ModelFormat::Gguf => "GGUF",
                             ModelFormat::Json => "JSON",
                         },
                         &source_url,
-                        &model.repo_id,
+                        &component.repo_id,
                         id
                     ],
                 )?;
@@ -1819,22 +1822,22 @@ impl GalleryDb {
                     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
                     params![
                         id,
-                        &model.display_name,
+                        &component.architecture,
                         format!("Discovered in HuggingFace cache"),
                         "Diffusion Transformer",
                         "generation",
                         "Image Generation",
-                        model.path.to_string_lossy().as_ref(),
-                        format!("{} MB", model.vram_mb),
-                        match model.format {
+                        component.path.to_string_lossy().as_ref(),
+                        format!("{} MB", component.vram_mb.unwrap_or(24000)),
+                        match component.format {
                             ModelFormat::Safetensors => "Safetensors",
                             ModelFormat::Gguf => "GGUF",
                             ModelFormat::Json => "JSON",
                         },
                         &source_url,
-                        &model.repo_id,
-                        model.vram_mb as i64,
-                        model.supports_loras as i32,
+                        &component.repo_id,
+                        component.vram_mb.unwrap_or(24000) as i64,
+                        supports_loras as i32,
                         1i32, // is_downloaded (it's in cache!)
                         now,
                     ],

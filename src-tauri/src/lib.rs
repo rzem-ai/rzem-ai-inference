@@ -640,11 +640,19 @@ struct ModelAvailability {
     has_quantized: bool,
 }
 
-/// Scan HuggingFace cache for available models
+/// Scan HuggingFace cache for available models (transformers only)
 #[command]
-fn scan_models() -> Result<Vec<models::DiscoveredModel>, String> {
-    models::scan_cache_for_models()
-        .map_err(|e| format!("Failed to scan models: {}", e))
+fn scan_models() -> Result<Vec<models::DiscoveredComponent>, String> {
+    let all_components = models::scan_all_components()
+        .map_err(|e| format!("Failed to scan models: {}", e))?;
+
+    // Filter to transformers only for this command
+    let transformers = all_components
+        .into_iter()
+        .filter(|c| c.component_type == models::ComponentType::Transformer)
+        .collect();
+
+    Ok(transformers)
 }
 
 /// Get availability status of all supported models
@@ -1954,49 +1962,60 @@ pub fn run_with_config(runtime_config: shared::protocol::RuntimeConfig, port: Op
                     tokio::time::sleep(std::time::Duration::from_secs(2)).await;
 
                     info!("Starting model cache scan...");
-                    match models::scan_cache_for_models() {
-                        Ok(discovered) => {
-                            let lora_compatible: Vec<_> = discovered.iter()
-                                .filter(|m| m.supports_loras)
+                    match models::scan_all_components() {
+                        Ok(all_components) => {
+                            // Filter to transformers only for legacy database/UI
+                            let transformers: Vec<_> = all_components.iter()
+                                .filter(|c| c.component_type == models::ComponentType::Transformer)
                                 .collect();
 
-                            // Log details about discovered models
+                            let lora_compatible: Vec<_> = transformers.iter()
+                                .filter(|c| c.format == models::ModelFormat::Safetensors && c.quantization.is_none())
+                                .collect();
+
+                            // Log details about discovered components
                             info!(
-                                total = discovered.len(),
+                                total = all_components.len(),
+                                transformers = transformers.len(),
                                 lora_compatible = lora_compatible.len(),
-                                "Model scan complete"
+                                "Component scan complete"
                             );
 
-                            for model in &discovered {
+                            for component in &transformers {
+                                let supports_loras = component.format == models::ModelFormat::Safetensors && component.quantization.is_none();
                                 info!(
-                                    id = %model.id,
-                                    name = %model.display_name,
-                                    format = ?model.format,
-                                    lora_support = model.supports_loras,
-                                    vram_mb = model.vram_mb,
-                                    "Found model in cache"
+                                    repo_id = %component.repo_id,
+                                    architecture = %component.architecture,
+                                    format = ?component.format,
+                                    lora_support = supports_loras,
+                                    vram_mb = component.vram_mb.unwrap_or(24000),
+                                    "Found transformer in cache"
                                 );
                             }
 
-                            // Save to database
+                            // Save to database (convert transformers to legacy format)
                             if let Some(db) = gallery_db.lock().await.as_ref() {
-                                if let Err(e) = db.save_discovered_models(&discovered) {
-                                    warn!(error = %e, "Failed to save discovered models to database");
+                                if let Err(e) = db.save_discovered_components(&transformers) {
+                                    warn!(error = %e, "Failed to save discovered components to database");
                                 } else {
                                     info!(
-                                        saved = discovered.len(),
-                                        "Saved discovered models to database"
+                                        saved = transformers.len(),
+                                        "Saved discovered components to database"
                                     );
                                 }
                             }
 
-                            // Emit event with discovered models
-                            if let Err(e) = app_handle.emit("models-discovered", &discovered) {
+                            // Emit event with discovered transformers (for legacy UI)
+                            let transformer_components: Vec<_> = all_components
+                                .into_iter()
+                                .filter(|c| c.component_type == models::ComponentType::Transformer)
+                                .collect();
+                            if let Err(e) = app_handle.emit("models-discovered", &transformer_components) {
                                 warn!(error = %e, "Failed to emit models-discovered event");
                             }
                         }
                         Err(e) => {
-                            warn!(error = %e, "Failed to scan model cache");
+                            warn!(error = %e, "Failed to scan component cache");
                         }
                     }
                 }

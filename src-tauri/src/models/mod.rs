@@ -29,7 +29,7 @@ pub use model_config_cache::ModelConfigCache;
 pub use model_type::ModelType;
 pub use paths::{ComponentRole, ModelPaths};
 pub use qwen3::Qwen3TextEncoder;
-pub use scanner::{ComponentType, DiscoveredComponent, DiscoveredModel, ModelFormat, scan_all_components, scan_cache_for_models};
+pub use scanner::{ComponentType, DiscoveredComponent, ModelFormat, scan_all_components};
 pub use t5::T5TextEncoder;
 pub use vae::VaeDecoder;
 pub use zimage::ZImageTransformer;
