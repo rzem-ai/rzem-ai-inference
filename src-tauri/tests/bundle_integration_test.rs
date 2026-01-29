@@ -4,7 +4,6 @@
 mod tests {
     use rzem_ai_inference::gallery::{BundleRecord, ComponentRecord, GalleryDb};
     use rzem_ai_inference::models::{ComponentRole, ModelPaths};
-    use std::path::PathBuf;
 
     #[test]
     fn test_bundle_aware_paths() {
@@ -94,14 +93,145 @@ mod tests {
     }
 
     #[test]
-    fn test_model_paths_legacy_fallback() {
-        // Test that ModelPaths can be created even without active bundle
-        // This should fall back to legacy mode
-        let paths = ModelPaths::new().unwrap();
+    fn test_model_paths_requires_active_bundle() {
+        // Create in-memory database with no active bundle
+        let db = GalleryDb::new(":memory:").unwrap();
+        db.init_schema().unwrap();
 
-        // Should not be in bundle mode (unless there's actually an active bundle)
-        // We can't assert false here because there might be a real bundle
-        assert!(paths.cache_dir.to_string_lossy().contains("huggingface"));
+        // Should fail without active bundle in database
+        let result = ModelPaths::new(&db);
+        assert!(result.is_err());
+        let err_msg = format!("{}", result.err().unwrap());
+        assert!(err_msg.contains("No active bundle"));
+    }
+
+    #[test]
+    fn test_model_paths_from_active_bundle() {
+        // Create in-memory database
+        let db = GalleryDb::new(":memory:").unwrap();
+        db.init_schema().unwrap();
+
+        // Create complete bundle with all components
+        let component_roles = [
+            ("transformer", "/tmp/flux.safetensors"),
+            ("t5", "/tmp/t5.safetensors"),
+            ("clip", "/tmp/clip.safetensors"),
+            ("vae", "/tmp/vae.safetensors"),
+            ("clip_tokenizer", "/tmp/clip_tokenizer"),
+            ("t5_tokenizer", "/tmp/t5_tokenizer"),
+        ];
+
+        let bundle = BundleRecord {
+            id: "complete-bundle".to_string(),
+            name: "Complete Bundle".to_string(),
+            description: Some("Complete bundle with all components".to_string()),
+            bundle_type: "user_created".to_string(),
+            model_family: "flux".to_string(),
+            default_steps: Some(4),
+            default_guidance: Some(3.5),
+            step_min: Some(1),
+            step_max: Some(50),
+            total_vram_mb: Some(24000),
+            is_complete: true,
+            is_active: true,
+            created_at: chrono::Utc::now().timestamp(),
+            updated_at: chrono::Utc::now().timestamp(),
+            validation_errors: None,
+        };
+
+        db.insert_bundle(&bundle).unwrap();
+
+        // Add all components
+        for (i, (role, path)) in component_roles.iter().enumerate() {
+            let component = ComponentRecord {
+                id: format!("comp-{}", i),
+                component_type: role.to_string(),
+                format: "safetensors".to_string(),
+                file_path: path.to_string(),
+                file_size: 1000000,
+                file_hash: None,
+                name: format!("Test {}", role),
+                repo_id: Some("test/repo".to_string()),
+                repo_snapshot: None,
+                architecture: Some("test-arch".to_string()),
+                quantization: None,
+                supports_loras: false,
+                is_sharded: false,
+                shard_count: None,
+                vram_mb: Some(4000),
+                discovered_at: chrono::Utc::now().timestamp(),
+                last_verified_at: Some(chrono::Utc::now().timestamp()),
+                is_available: true,
+                metadata: None,
+            };
+
+            db.insert_component(&component).unwrap();
+            db.add_component_to_bundle(&bundle.id, &component.id, role, true, i as i32)
+                .unwrap();
+        }
+
+        // Now ModelPaths::new should succeed
+        let paths = ModelPaths::new(&db).unwrap();
+        assert_eq!(paths.bundle_id(), Some("complete-bundle"));
+    }
+
+    #[test]
+    fn test_model_paths_requires_all_component_ids() {
+        // Create in-memory database
+        let db = GalleryDb::new(":memory:").unwrap();
+        db.init_schema().unwrap();
+
+        // Create components
+        let component_ids = ["trans-1", "t5-1", "clip-1", "vae-1"];
+        for id in &component_ids {
+            let component = ComponentRecord {
+                id: id.to_string(),
+                component_type: "test".to_string(),
+                format: "safetensors".to_string(),
+                file_path: format!("/tmp/{}.safetensors", id),
+                file_size: 1000000,
+                file_hash: None,
+                name: format!("Test {}", id),
+                repo_id: Some("test/repo".to_string()),
+                repo_snapshot: None,
+                architecture: Some("test-arch".to_string()),
+                quantization: None,
+                supports_loras: false,
+                is_sharded: false,
+                shard_count: None,
+                vram_mb: Some(4000),
+                discovered_at: chrono::Utc::now().timestamp(),
+                last_verified_at: Some(chrono::Utc::now().timestamp()),
+                is_available: true,
+                metadata: None,
+            };
+            db.insert_component(&component).unwrap();
+        }
+
+        // Test with all 4 component IDs - should succeed
+        let result = ModelPaths::from_component_ids(
+            &db,
+            "trans-1",
+            "t5-1",
+            "clip-1",
+            "vae-1"
+        );
+        assert!(result.is_ok());
+
+        // Test with non-existent component - should fail
+        let result = ModelPaths::from_component_ids(
+            &db,
+            "missing-id",
+            "t5-1",
+            "clip-1",
+            "vae-1"
+        );
+        assert!(result.is_err());
+        // Error should indicate component is missing (either explicit error or database error)
+        let err_msg = format!("{}", result.err().unwrap());
+        assert!(err_msg.contains("Query returned no rows")
+                || err_msg.contains("Component not found")
+                || err_msg.contains("not found"));
     }
 
     #[test]
