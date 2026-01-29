@@ -221,7 +221,7 @@ RUST_LOG=debug npm run tauri:dev
 ```
 
 **Solutions:**
-1. Deactivate bundle (falls back to legacy mode)
+1. Try activating a different bundle
 2. Check bundle completeness
 3. Verify component file permissions
 4. Rescan models
@@ -341,7 +341,7 @@ rm ~/.rzem-ai-inference/rzem.db
 1. **Check logs**: Console (F12) and terminal output
 2. **Review docs**: This guide and user guide
 3. **Database queries**: Use SQL commands above to inspect state
-4. **Fallback**: Deactivate all bundles to use legacy mode
+4. **Try different bundle**: Activate a different complete bundle
 
 ### Reporting Issues
 

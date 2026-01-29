@@ -30,49 +30,44 @@ Provides type-safe component role identification with conversion methods:
 #### Enhanced ModelPaths Structure
 ```rust
 pub struct ModelPaths {
-    // Bundle mode fields
-    bundle_id: Option<String>,
-    bundle_components: Option<HashMap<ComponentRole, PathBuf>>,
-
-    // Legacy mode fields (backward compatibility)
+    // Bundle fields
+    bundle_id: String,
+    bundle_components: HashMap<ComponentRole, PathBuf>,
     cache_dir: PathBuf,
-    schnell_dir: PathBuf,
 }
 ```
 
-**Two operating modes:**
-1. **Bundle Mode**: When an active bundle exists, uses component paths from database
-2. **Legacy Mode**: Falls back to hardcoded HuggingFace cache paths
+**Bundle-Only Operation:**
+- Requires an active bundle to function
+- All component paths loaded from database
+- Clear error messages when bundle missing or incomplete
 
 #### Key Methods
 
 **Constructors:**
-- `new()` - Primary constructor, tries bundle first, falls back to legacy
+- `new()` - Primary constructor, loads from active bundle
 - `from_active_bundle()` - Load from database active bundle
 - `from_bundle_info()` - Create from specific BundleInfo
-- `new_legacy()` - Force legacy mode (private)
 
-**Bundle-Aware Path Access:**
+**Path Access:**
 - `component_path(role)` - Get path by ComponentRole
-- `clip_path()` - Bundle-aware CLIP path
-- `vae_path()` - Bundle-aware VAE path
-- `transformer_path()` - Bundle-aware transformer path
-- `t5_path()` - Bundle-aware T5 path
-- `tokenizer_path()` - Bundle-aware CLIP tokenizer path
-- `t5_tokenizer_path()` - Bundle-aware T5 tokenizer path
+- `clip_path()` - Get CLIP path from bundle
+- `vae_path()` - Get VAE path from bundle
+- `transformer_path()` - Get transformer path from bundle
+- `t5_path()` - Get T5 path from bundle
+- `tokenizer_path()` - Get CLIP tokenizer path from bundle
+- `t5_tokenizer_path()` - Get T5 tokenizer path from bundle
 
-**Mode Detection:**
-- `is_bundle_mode()` - Returns true if using bundle
-- `bundle_id()` - Returns active bundle ID if any
+**Bundle Info:**
+- `bundle_id()` - Returns active bundle ID
+- `bundle_family()` - Returns model family (FLUX/Z-Index)
 
 **Validation:**
-- `all_files_exist()` - Validates paths based on mode
+- `all_files_exist()` - Validates bundle component files
 - `validate_bundle_components()` - Checks bundle component availability
-- `validate_legacy_paths()` - Checks hardcoded paths
 - `get_status()` - Detailed status report for debugging
 
-**Legacy Methods (Maintained):**
-All existing methods preserved for backward compatibility:
+**Model Type Methods:**
 - Quantized path methods
 - Dev model methods
 - Z-Image methods
@@ -98,33 +93,21 @@ if !paths.all_files_exist() {
 ```rust
 let paths = ModelPaths::new()?;
 
-// Log whether we're in bundle mode or legacy mode
-if paths.is_bundle_mode() {
-    info!(bundle_id = ?paths.bundle_id(), "Loading models from active bundle");
-} else {
-    debug!("Loading models from legacy hardcoded paths");
-}
+info!(bundle_id = ?paths.bundle_id(), "Loading models from active bundle");
 
 // Validate model files exist
 if !paths.all_files_exist() {
-    if paths.is_bundle_mode() {
-        return Err(anyhow::anyhow!(
-            "Active bundle '{}' has missing components. Please scan for models or activate a different bundle.",
-            paths.bundle_id().unwrap_or("unknown")
-        ));
-    } else {
-        return Err(anyhow::anyhow!(
-            "Required model files not found. Download models or activate a bundle.\n\
-             Missing files can be downloaded from Settings or by running 'rzem-cli models download'."
-        ));
-    }
+    return Err(anyhow::anyhow!(
+        "Active bundle '{}' has missing components. Please scan for models or activate a different bundle.",
+        paths.bundle_id()
+    ));
 }
 ```
 
 **Key Improvements:**
-- Logs active bundle ID for debugging
-- Context-aware error messages
-- Guides users to correct action based on mode
+- Always logs active bundle ID for debugging
+- Clear error messages guide users to scan/activate bundles
+- Simplified logic without fallback branches
 
 ### 3. Integration Tests
 
@@ -176,7 +159,7 @@ pub mod gallery;
 
 ## How It Works
 
-### Bundle Mode Flow
+### Bundle Flow
 
 ```
 1. User activates bundle via UI
@@ -196,60 +179,62 @@ pub mod gallery;
 8. Models loaded from bundle component paths
 ```
 
-### Legacy Mode Flow (Fallback)
+### No Bundle Flow
 
 ```
 1. No active bundle in database
    ↓
-2. ModelPaths::from_active_bundle() returns Err
+2. ModelPaths::new() returns error
    ↓
-3. Falls back to ModelPaths::new_legacy()
+3. Pipeline returns clear error message
    ↓
-4. Uses hardcoded HuggingFace cache paths
-   ↓
-5. Pipeline uses clip_path(), vae_path(), etc.
-   ↓
-6. Methods internally fallback to legacy_clip_path()
-   ↓
-7. Models loaded from traditional locations
+4. User guided to scan models and activate bundle
 ```
 
-### Seamless Transition
+### Simplified Path Resolution
 
-The beauty of the implementation is that **existing code doesn't need to change**. Methods like `clip_path()` work in both modes:
+All path access methods directly use the bundle components:
 
 ```rust
 pub fn clip_path(&self) -> PathBuf {
     self.component_path(ComponentRole::Clip)
-        .unwrap_or_else(|_| self.legacy_clip_path())
+        .expect("Bundle must have CLIP component")
 }
 ```
 
-If bundle mode succeeds, use bundle path. If not, use legacy path.
+Bundle components are validated on creation, so all required paths are guaranteed to exist.
 
-## Backward Compatibility
+## Bundle-Only Architecture
 
-### ✅ Guaranteed Compatibility
+The system requires bundles for operation:
 
-1. **Existing API Unchanged**
-   - All public methods maintain same signatures
-   - `clip_path()`, `vae_path()`, etc. still work
+1. **Bundle Required**
+   - All public path methods require an active bundle
+   - `clip_path()`, `vae_path()`, etc. use bundle components
 
-2. **Automatic Fallback**
-   - If no bundle active, works exactly as before
-   - No user intervention needed
+2. **Clear Error Messages**
+   - Guides users to scan and activate bundles
+   - No confusing fallback behavior
 
-3. **Legacy Code Works**
-   - Components that don't know about bundles continue working
-   - Gradual migration possible
+3. **Simplified Logic**
+   - Single path resolution system
+   - No conditional branches for different modes
 
-4. **No Breaking Changes**
-   - Old databases without bundle tables still work
-   - Schema migration is additive only
+4. **Schema Management**
+   - Bundle tables required for operation
+   - Schema migration runs on first startup
 
 ## Error Messages
 
-### Bundle Mode Errors
+### No Active Bundle
+
+```
+No active model bundle found. Please scan for models and activate a bundle in the Models view.
+```
+
+**User action:** Go to Models → Bundles → Scan Models → Activate a bundle
+
+### Incomplete Bundle
 
 ```
 Active bundle 'black-forest-labs-flux-1-schnell-full' has missing components.
@@ -258,21 +243,12 @@ Please scan for models or activate a different bundle.
 
 **User action:** Scan models or choose different bundle
 
-### Legacy Mode Errors
-
-```
-Required model files not found. Download models or activate a bundle.
-Missing files can be downloaded from Settings or by running 'rzem-cli models download'.
-```
-
-**User action:** Download models or scan to create bundles
-
 ## Testing Coverage
 
 ### Unit Tests
 - ✅ ComponentRole conversion
 - ✅ ModelPaths creation
-- ✅ Legacy fallback
+- ✅ Bundle requirement validation
 
 ### Integration Tests
 - ✅ Bundle CRUD operations
@@ -313,20 +289,15 @@ let bundle_info = db.get_active_bundle()?
 
 ## Example Usage
 
-### Creating Bundle-Aware Paths
+### Creating Bundle Paths
 
 ```rust
-// Automatic (tries bundle, falls back to legacy)
+// Load from active bundle (required)
 let paths = ModelPaths::new()?;
 
-// Check mode
-if paths.is_bundle_mode() {
-    println!("Using bundle: {}", paths.bundle_id().unwrap());
-} else {
-    println!("Using legacy hardcoded paths");
-}
+println!("Using bundle: {}", paths.bundle_id());
 
-// Get component path (works in both modes)
+// Get component paths from bundle
 let clip_path = paths.clip_path();
 let t5_path = paths.t5_path();
 
@@ -339,14 +310,14 @@ let transformer_path = paths.component_path(ComponentRole::Transformer)?;
 ```rust
 impl FluxPipeline {
     pub fn ensure_models_loaded(&mut self, stats: &mut GenerationStats) -> Result<()> {
-        let paths = ModelPaths::new()?; // Automatically bundle-aware
+        let paths = ModelPaths::new()?; // Loads from active bundle
 
         if !paths.all_files_exist() {
-            // Intelligent error message based on mode
+            // Clear error message guides user to scan/activate bundle
             return Err(...);
         }
 
-        // Use paths normally - bundle or legacy, doesn't matter!
+        // Use paths from active bundle
         self.load_clip_encoder(&paths, stats)?;
         self.load_t5_encoder(&paths, stats)?;
         // ... etc
@@ -417,10 +388,10 @@ With pipeline integration complete, the backend is fully bundle-aware. Next step
 
 ## Conclusion
 
-Step 6 successfully integrates the bundle system with the inference pipeline while maintaining 100% backward compatibility. The implementation is:
+Step 6 successfully integrates the bundle system with the inference pipeline using a clean bundle-only architecture. The implementation is:
 
 - ✅ **Robust**: Comprehensive validation and error handling
-- ✅ **Flexible**: Works in bundle or legacy mode seamlessly
+- ✅ **Simplified**: Single path resolution system, no fallback logic
 - ✅ **Type-Safe**: ComponentRole enum prevents errors
 - ✅ **Tested**: 5 integration tests passing
 - ✅ **Documented**: Clear code comments and documentation

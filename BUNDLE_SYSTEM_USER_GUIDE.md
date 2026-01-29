@@ -10,18 +10,14 @@ Model bundles group the 4 required components for image generation:
 
 ## Why Use Bundles?
 
-### Before Bundles (Legacy Mode)
-- App used hardcoded paths to specific models
-- Could only use predetermined combinations
-- Switching models was difficult
-- No visibility into what was installed
+Bundles are the foundation of the model management system:
 
-### With Bundles
 - ✅ **Auto-Discovery**: Automatically finds all installed models
 - ✅ **Flexibility**: Mix and match components from different sources
 - ✅ **Memory Optimization**: Choose quantized versions to save VRAM
 - ✅ **Easy Switching**: Change bundles with one click
 - ✅ **Transparency**: See exactly what components you have
+- ✅ **Required**: The system requires an active bundle to generate images
 
 ## Getting Started
 
@@ -225,28 +221,28 @@ Click the **Components** tab to see all detected components:
 
 **Solutions:**
 1. Check console logs for specific error
-2. Deactivate bundle (falls back to legacy mode)
+2. Try activating a different bundle
 3. Rescan models
 4. Verify component files exist at listed paths
 
 ## Technical Details
 
-### Bundle-Aware vs Legacy Mode
+### Bundle System Architecture
 
-**Bundle Mode** (When bundle is active):
+**Bundle Operation** (Required):
 ```
 ModelPaths → Loads from database → Uses bundle component paths
 ```
 
-**Legacy Mode** (No active bundle):
+**No Active Bundle:**
 ```
-ModelPaths → Falls back to hardcoded → Uses traditional HF cache paths
+ModelPaths → Returns error → User must activate a bundle
 ```
 
-**Switching:**
-- Activate bundle → Bundle mode
-- Deactivate all bundles → Legacy mode
-- Automatic, transparent to user
+**Bundle Requirement:**
+- Must have an active bundle to generate images
+- Clear error messages guide users to scan and activate
+- Simplified architecture with single path resolution system
 
 ### Where Are Bundles Stored?
 
@@ -312,7 +308,7 @@ ModelPaths → Falls back to hardcoded → Uses traditional HF cache paths
 ## FAQs
 
 ### Q: Do I need to use bundles?
-**A:** No. If no bundle is active, the app falls back to legacy mode and works exactly as before.
+**A:** Yes. The system requires an active bundle to generate images. Simply scan for models and activate a bundle to get started.
 
 ### Q: Can I have multiple bundles active?
 **A:** No. Only one bundle can be active at a time to prevent component conflicts.
@@ -323,8 +319,8 @@ ModelPaths → Falls back to hardcoded → Uses traditional HF cache paths
 ### Q: Can I delete auto-discovered bundles?
 **A:** No. Auto-discovered bundles regenerate on next scan. Only user-created bundles can be deleted.
 
-### Q: How do I go back to the old way?
-**A:** Deactivate all bundles. The app will automatically use legacy hardcoded paths.
+### Q: What happens if I don't have an active bundle?
+**A:** The system will show a clear error message guiding you to scan for models and activate a bundle.
 
 ### Q: Can I share bundles with others?
 **A:** Not yet, but bundle import/export is planned for a future release.

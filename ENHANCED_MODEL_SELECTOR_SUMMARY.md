@@ -182,7 +182,7 @@ Creates custom ModelPaths from bundle/component selections, then loads models ac
 
 **ensure_models_loaded_with_paths()** - Renamed from ensure_models_loaded, accepts custom paths
 
-**ensure_models_loaded()** - Wrapper for backward compatibility
+**ensure_models_loaded()** - Wrapper that calls ensure_models_loaded_with_paths
 
 ### 4. Generation Store Updates
 
@@ -644,15 +644,15 @@ User sees:
 
 Selects: FLUX Schnell
 Component selectors appear with auto-selections
-Pipeline uses: Individual component paths or legacy fallback
+Pipeline uses: Individual component paths
 ```
 
-### Backward Compatibility
+### Bundle/Component System
 
-✅ **Maintained:**
-- If no bundleId and no component IDs: Uses legacy paths
-- Existing generation params work unchanged
-- Old UI state migrates gracefully
+The system uses the bundle and component selection system:
+- Bundle selections load all components from the bundle
+- Individual model selections use component-specific paths
+- Clear validation ensures all required components are selected
 
 ## Testing Commands
 
@@ -707,6 +707,6 @@ Successfully enhanced the generation page model selector to provide:
 - ✅ **Auto-selection** for convenience
 - ✅ **Real-time validation** for completeness
 - ✅ **VRAM visibility** for informed choices
-- ✅ **Backward compatible** with existing workflows
+- ✅ **Validated selections** ensure complete configurations
 
 The system now offers both convenience (bundles) and control (individual components) in a single, intuitive interface! 🎨✨

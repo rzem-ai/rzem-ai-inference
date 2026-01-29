@@ -41,7 +41,6 @@ Created 3 new tables:
 - Quantization extraction (Q5_K_M, Q8_0, etc.)
 - Architecture inference
 - VRAM estimation
-- Backward compatible `scan_cache_for_models()` legacy function
 
 **New Types**:
 - `ComponentType` enum (Transformer, T5Encoder, ClipEncoder, VaeDecoder, ClipTokenizer, T5Tokenizer)
@@ -129,36 +128,30 @@ Created 3 new tables:
 **File**: `src-tauri/src/models/paths.rs` (UPDATED)
 
 **Implemented**:
-- ✅ Complete rewrite to be bundle-aware
+- ✅ Complete rewrite to be bundle-only
 - ✅ New `ComponentRole` enum (Transformer, T5, Clip, Vae, ClipTokenizer, T5Tokenizer)
 - ✅ `from_active_bundle()` constructor - loads from database
 - ✅ `from_bundle_info()` constructor - creates from BundleInfo
 - ✅ `component_path(role)` - get path by component role
-- ✅ `is_bundle_mode()` - check if using bundle
-- ✅ All existing methods now bundle-aware with automatic fallback
-- ✅ Comprehensive validation for both modes
+- ✅ Comprehensive validation for bundle components
 
 **Key Changes**:
 ```rust
 pub struct ModelPaths {
     // Bundle mode fields
-    bundle_id: Option<String>,
-    bundle_components: Option<HashMap<ComponentRole, PathBuf>>,
-
-    // Legacy mode fields (backward compatibility)
+    bundle_id: String,
+    bundle_components: HashMap<ComponentRole, PathBuf>,
     cache_dir: PathBuf,
-    schnell_dir: PathBuf,
 }
 ```
 
 **File**: `src-tauri/src/inference/flux_pipeline/loader.rs` (UPDATED)
 
 **Implemented**:
-- ✅ `ensure_models_loaded()` detects bundle mode
+- ✅ `ensure_models_loaded()` requires active bundle
 - ✅ Logs active bundle ID when loading
-- ✅ Better error messages for bundle vs legacy mode
+- ✅ Clear error messages when bundle missing or incomplete
 - ✅ Bundle-specific validation errors
-- ✅ Automatic fallback to legacy paths when no bundle active
 
 ### ✅ Step 7: Frontend Integration (COMPLETED)
 
@@ -210,15 +203,13 @@ pub struct ModelPaths {
 5. Test bundle activation from UI
 6. Test image generation with active bundle
 7. Test switching between bundles
-8. Test fallback to hardcoded paths when no bundle active
 
-## Backward Compatibility
+## Bundle-Only Architecture
 
-✅ **Maintained**:
-- Old `models` table untouched
-- `scan_cache_for_models()` legacy function works
-- Existing model loading code continues working
-- No breaking changes to existing functionality
+The system now requires bundles for operation:
+- Users must scan models and activate a bundle to generate images
+- Clear error messages guide users to create/activate bundles when needed
+- Simplified architecture with single path resolution system
 
 ## Architecture Benefits
 
