@@ -40,6 +40,6 @@ mod tests {
 
     #[test]
     fn test_model_module() {
-        let _paths = ModelPaths::new().unwrap();
+        let _paths = ModelPaths::new_for_test().unwrap();
     }
 }

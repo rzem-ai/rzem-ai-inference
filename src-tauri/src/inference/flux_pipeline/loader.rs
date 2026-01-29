@@ -65,7 +65,9 @@ impl FluxPipeline {
         let paths = if let Some(paths) = custom_paths {
             paths
         } else {
-            ModelPaths::new()?
+            let db_path = ModelPaths::get_db_path()?;
+            let db = crate::gallery::GalleryDb::new(&db_path)?;
+            ModelPaths::new(&db)?
         };
 
         // Log bundle info
@@ -154,7 +156,9 @@ impl FluxPipeline {
                 "Loading models from individual components"
             );
 
-            ModelPaths::from_component_ids(model_id, Some(t5_id), Some(clip_id), Some(vae_id))?
+            let db_path = ModelPaths::get_db_path()?;
+            let db = crate::gallery::GalleryDb::new(&db_path)?;
+            ModelPaths::from_component_ids(&db, model_id, t5_id, clip_id, vae_id)?
         };
 
         // Load models with resolved paths

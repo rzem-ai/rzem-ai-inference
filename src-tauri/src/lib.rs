@@ -652,7 +652,9 @@ fn scan_models() -> Result<Vec<models::DiscoveredModel>, String> {
 fn get_available_models() -> Result<Vec<ModelAvailability>, String> {
     use crate::models::ModelPaths;
 
-    let paths = ModelPaths::new()
+    let db_path = ModelPaths::get_db_path().map_err(|e| e.to_string())?;
+    let db = crate::gallery::GalleryDb::new(&db_path).map_err(|e| e.to_string())?;
+    let paths = ModelPaths::new(&db)
         .map_err(|e| e.to_string())?;
 
     let bundle_id = paths.bundle_id()
@@ -680,7 +682,9 @@ struct ModelFileStatus {
 fn get_model_status() -> Result<Vec<ModelFileStatus>, String> {
     use crate::models::ModelPaths;
 
-    let paths = ModelPaths::new()
+    let db_path = ModelPaths::get_db_path().map_err(|e| e.to_string())?;
+    let db = crate::gallery::GalleryDb::new(&db_path).map_err(|e| e.to_string())?;
+    let paths = ModelPaths::new(&db)
         .map_err(|e| e.to_string())?;
 
     let status = paths.get_status()
@@ -708,7 +712,9 @@ struct ComponentAvailability {
 fn get_component_availability() -> Result<Vec<ComponentAvailability>, String> {
     use crate::models::ModelPaths;
 
-    let paths = ModelPaths::new()
+    let db_path = ModelPaths::get_db_path().map_err(|e| e.to_string())?;
+    let db = crate::gallery::GalleryDb::new(&db_path).map_err(|e| e.to_string())?;
+    let paths = ModelPaths::new(&db)
         .map_err(|e| e.to_string())?;
 
     // Check each component's availability in the bundle

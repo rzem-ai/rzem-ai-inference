@@ -59,7 +59,9 @@ impl ZIndexPipeline {
             return Ok(());
         }
 
-        let paths = ModelPaths::new()?;
+        let db_path = ModelPaths::get_db_path()?;
+        let db = crate::gallery::GalleryDb::new(&db_path)?;
+        let paths = ModelPaths::new(&db)?;
 
         // Check if Z-Image-Turbo is downloaded
         if !paths.is_zimage_downloaded() {

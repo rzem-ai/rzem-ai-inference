@@ -81,7 +81,7 @@ mod tests {
     fn test_vae_loading() {
         use crate::models::ModelPaths;
 
-        let paths = ModelPaths::new().unwrap();
+        let paths = ModelPaths::new_for_test().unwrap();
         let device = Device::cuda_if_available(0).unwrap();
 
         let _vae = VaeDecoder::load(paths.vae_path().unwrap(), device).unwrap();
@@ -92,7 +92,7 @@ mod tests {
     fn test_zimage_vae_loading() {
         use crate::models::ModelPaths;
 
-        let paths = ModelPaths::new().unwrap();
+        let paths = ModelPaths::new_for_test().unwrap();
         let device = Device::cuda_if_available(0).unwrap();
 
         // Z-Image uses FLUX's VAE - verify it loads with existing decoder
@@ -111,7 +111,7 @@ mod tests {
         use crate::models::ModelPaths;
         use candle_core::Tensor;
 
-        let paths = ModelPaths::new().unwrap();
+        let paths = ModelPaths::new_for_test().unwrap();
         let device = Device::cuda_if_available(0).unwrap();
 
         // Load Z-Image VAE

@@ -54,7 +54,9 @@ impl FluxPipeline {
         // Need to encode - ensure T5 and CLIP are loaded
         if self.t5.is_none() || self.clip.is_none() {
             // Reload encoders if they were unloaded
-            let paths = ModelPaths::new()?;
+            let db_path = ModelPaths::get_db_path()?;
+            let db = crate::gallery::GalleryDb::new(&db_path)?;
+            let paths = ModelPaths::new(&db)?;
 
             if self.t5.is_none() {
                 let t5_timer = Timer::start();
@@ -143,7 +145,9 @@ impl FluxPipeline {
 
         // Ensure FLUX and VAE are loaded
         if self.flux.is_none() || self.vae.is_none() {
-            let paths = ModelPaths::new()?;
+            let db_path = ModelPaths::get_db_path()?;
+            let db = crate::gallery::GalleryDb::new(&db_path)?;
+            let paths = ModelPaths::new(&db)?;
 
             if self.flux.is_none() {
                 let flux_timer = Timer::start();

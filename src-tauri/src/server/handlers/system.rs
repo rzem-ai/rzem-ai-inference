@@ -56,7 +56,9 @@ pub async fn list_models(
 ) -> Result<Json<Vec<ModelInfo>>, StatusCode> {
     use crate::models::ModelPaths;
 
-    let paths = ModelPaths::new()
+    let db_path = ModelPaths::get_db_path().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let db = crate::gallery::GalleryDb::new(&db_path).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let paths = ModelPaths::new(&db)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let bundle_id = paths.bundle_id()

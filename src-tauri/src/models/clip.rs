@@ -160,7 +160,7 @@ mod tests {
     fn test_clip_encoding() {
         use crate::models::ModelPaths;
 
-        let paths = ModelPaths::new().unwrap();
+        let paths = ModelPaths::new_for_test().unwrap();
         let device = Device::cuda_if_available(0).unwrap();
 
         let encoder = ClipTextEncoder::load(

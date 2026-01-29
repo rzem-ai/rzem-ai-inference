@@ -34,7 +34,9 @@ pub struct ModelManager {
 impl ModelManager {
     /// Create a new model manager
     pub fn new(device: Device) -> Result<Self> {
-        let paths = ModelPaths::new()?;
+        let db_path = ModelPaths::get_db_path()?;
+        let db = crate::gallery::GalleryDb::new(&db_path)?;
+        let paths = ModelPaths::new(&db)?;
 
         Ok(Self {
             device,

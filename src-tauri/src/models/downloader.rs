@@ -35,8 +35,10 @@ pub struct ModelDownloader {
 impl ModelDownloader {
     /// Create new downloader
     pub fn new() -> Result<Self> {
+        let db_path = ModelPaths::get_db_path()?;
+        let db = crate::gallery::GalleryDb::new(&db_path)?;
         Ok(Self {
-            paths: ModelPaths::new()?,
+            paths: ModelPaths::new(&db)?,
         })
     }
 

@@ -49,15 +49,12 @@ pub struct ModelPaths {
 impl ModelPaths {
     /// Create new ModelPaths - loads from active bundle
     /// This is the primary constructor that should be used
-    pub fn new() -> Result<Self> {
-        Self::from_active_bundle()
+    pub fn new(db: &crate::gallery::GalleryDb) -> Result<Self> {
+        Self::from_active_bundle(db)
     }
 
     /// Create ModelPaths from active bundle in database
-    pub fn from_active_bundle() -> Result<Self> {
-        let db_path = Self::get_db_path()?;
-        let db = crate::gallery::GalleryDb::new(&db_path)?;
-
+    pub fn from_active_bundle(db: &crate::gallery::GalleryDb) -> Result<Self> {
         let bundle_info = db.get_active_bundle()?
             .ok_or_else(|| anyhow::anyhow!("No active bundle configured"))?;
 
@@ -82,14 +79,12 @@ impl ModelPaths {
 
     /// Create ModelPaths from individual component IDs
     pub fn from_component_ids(
+        db: &crate::gallery::GalleryDb,
         transformer_id: &str,
-        t5_id: Option<&str>,
-        clip_id: Option<&str>,
-        vae_id: Option<&str>,
+        t5_id: &str,
+        clip_id: &str,
+        vae_id: &str,
     ) -> Result<Self> {
-        let db_path = Self::get_db_path()?;
-        let db = crate::gallery::GalleryDb::new(&db_path)?;
-
         let mut component_paths = HashMap::new();
 
         // Load transformer (required)
@@ -97,29 +92,28 @@ impl ModelPaths {
         component_paths.insert(ComponentRole::Transformer, PathBuf::from(&transformer.file_path));
 
         // Load required components
-        if let Some(t5_id) = t5_id {
-            let t5 = db.get_component(t5_id)?;
-            component_paths.insert(ComponentRole::T5, PathBuf::from(&t5.file_path));
-        } else {
-            anyhow::bail!("T5 component ID required");
-        }
+        let t5 = db.get_component(t5_id)?;
+        component_paths.insert(ComponentRole::T5, PathBuf::from(&t5.file_path));
 
-        if let Some(clip_id) = clip_id {
-            let clip = db.get_component(clip_id)?;
-            component_paths.insert(ComponentRole::Clip, PathBuf::from(&clip.file_path));
-        } else {
-            anyhow::bail!("CLIP component ID required");
-        }
+        let clip = db.get_component(clip_id)?;
+        component_paths.insert(ComponentRole::Clip, PathBuf::from(&clip.file_path));
 
-        if let Some(vae_id) = vae_id {
-            let vae = db.get_component(vae_id)?;
-            component_paths.insert(ComponentRole::Vae, PathBuf::from(&vae.file_path));
-        } else {
-            anyhow::bail!("VAE component ID required");
-        }
+        let vae = db.get_component(vae_id)?;
+        component_paths.insert(ComponentRole::Vae, PathBuf::from(&vae.file_path));
+
+        // Generate sanitized bundle ID using hash for safe filesystem/DB storage
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+
+        let mut hasher = DefaultHasher::new();
+        transformer_id.hash(&mut hasher);
+        t5_id.hash(&mut hasher);
+        clip_id.hash(&mut hasher);
+        vae_id.hash(&mut hasher);
+        let hash = hasher.finish();
 
         Ok(Self {
-            bundle_id: Some(format!("custom-{}", transformer_id)),
+            bundle_id: Some(format!("custom-{:x}", hash)),
             bundle_components: component_paths,
         })
     }
@@ -229,6 +223,8 @@ impl ModelPaths {
             ComponentRole::T5,
             ComponentRole::Clip,
             ComponentRole::Vae,
+            ComponentRole::ClipTokenizer,
+            ComponentRole::T5Tokenizer,
         ];
 
         for role in &required_roles {
@@ -272,6 +268,14 @@ impl ModelPaths {
         }
 
         status
+    }
+
+    /// Helper function to create ModelPaths for tests (creates its own DB connection)
+    #[cfg(test)]
+    pub fn new_for_test() -> Result<Self> {
+        let db_path = Self::get_db_path()?;
+        let db = crate::gallery::GalleryDb::new(&db_path)?;
+        Self::new(&db)
     }
 }
 

@@ -29,9 +29,11 @@ const app = createApp(App);
 const pinia = createPinia();
 
 app.component('fa', FontAwesomeIcon);
+app.directive('tooltip', Tooltip);
 app.use(pinia);
 app.use(router);
-app.directive('tooltip', Tooltip);
+app.use(ToastService);
+app.use(ConfirmationService);
 app.use(PrimeVue, {
   theme: {
     preset: AuraPlus,
@@ -44,7 +46,5 @@ app.use(PrimeVue, {
     },
   },
 });
-app.use(ToastService);
-app.use(ConfirmationService);
 
 app.mount('#app');

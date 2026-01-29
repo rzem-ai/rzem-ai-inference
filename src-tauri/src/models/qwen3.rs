@@ -197,7 +197,7 @@ mod tests {
     #[test]
     #[ignore] // Requires downloaded Z-Image-Turbo model
     fn test_qwen3_loading() {
-        let paths = crate::models::ModelPaths::new().unwrap();
+        let paths = crate::models::ModelPaths::new_for_test().unwrap();
         let device = Device::cuda_if_available(0).unwrap();
 
         // TODO: Remove Z-Image support
@@ -213,7 +213,7 @@ mod tests {
     #[test]
     #[ignore] // Requires downloaded Z-Image-Turbo model
     fn test_qwen3_encoding() {
-        let paths = crate::models::ModelPaths::new().unwrap();
+        let paths = crate::models::ModelPaths::new_for_test().unwrap();
         let device = Device::cuda_if_available(0).unwrap();
 
         // TODO: Remove Z-Image support
@@ -236,7 +236,7 @@ mod tests {
     #[test]
     #[ignore] // Requires downloaded Z-Image-Turbo model
     fn test_qwen3_chinese() {
-        let paths = crate::models::ModelPaths::new().unwrap();
+        let paths = crate::models::ModelPaths::new_for_test().unwrap();
         let device = Device::cuda_if_available(0).unwrap();
 
         // TODO: Remove Z-Image support

@@ -427,7 +427,7 @@ mod tests {
     fn test_t5_encoding() {
         use crate::models::ModelPaths;
 
-        let paths = ModelPaths::new().unwrap();
+        let paths = ModelPaths::new_for_test().unwrap();
         let device = Device::cuda_if_available(0).unwrap();
 
         let mut encoder =
@@ -446,7 +446,7 @@ mod tests {
     fn test_quantized_t5_encoding() {
         use crate::models::ModelPaths;
 
-        let paths = ModelPaths::new().unwrap();
+        let paths = ModelPaths::new_for_test().unwrap();
         let device = Device::cuda_if_available(0).unwrap();
 
         // TODO: Update test for bundle-based quantized T5

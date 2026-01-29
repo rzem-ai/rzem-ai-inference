@@ -332,7 +332,9 @@ fn cmd_generate(
 }
 
 fn cmd_models_list() -> Result<()> {
-    let paths = ModelPaths::new()?;
+    let db_path = ModelPaths::get_db_path()?;
+    let db = crate::gallery::GalleryDb::new(&db_path)?;
+    let paths = ModelPaths::new(&db)?;
 
     println!("FLUX Models");
     println!("════════════════════════════════════════════════════════════");
@@ -403,7 +405,9 @@ fn cmd_info() -> Result<()> {
 
     println!("Device:  {}", device_name);
 
-    let paths = ModelPaths::new()?;
+    let db_path = ModelPaths::get_db_path()?;
+    let db = crate::gallery::GalleryDb::new(&db_path)?;
+    let paths = ModelPaths::new(&db)?;
     if let Some(bundle_id) = paths.bundle_id() {
         println!("Bundle:  {}", bundle_id);
     }

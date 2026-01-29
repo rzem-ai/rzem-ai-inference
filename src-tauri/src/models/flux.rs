@@ -891,7 +891,7 @@ mod tests {
     fn test_flux_loading() {
         use crate::models::ModelPaths;
 
-        let paths = ModelPaths::new().unwrap();
+        let paths = ModelPaths::new_for_test().unwrap();
         let device = Device::cuda_if_available(0).unwrap();
 
         let _flux = FluxTransformer::load(paths.transformer_path().unwrap(), device, ModelType::schnell()).unwrap();
@@ -902,7 +902,7 @@ mod tests {
     fn test_quantized_flux_loading() {
         use crate::models::ModelPaths;
 
-        let paths = ModelPaths::new().unwrap();
+        let paths = ModelPaths::new_for_test().unwrap();
         let device = Device::cuda_if_available(0).unwrap();
 
         // TODO: Update test for bundle-based quantization

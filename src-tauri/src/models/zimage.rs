@@ -65,7 +65,7 @@ mod tests {
     fn test_zimage_transformer_loading() {
         use crate::models::ModelPaths;
 
-        let paths = ModelPaths::new().unwrap();
+        let paths = ModelPaths::new_for_test().unwrap();
         let device = Device::cuda_if_available(0).unwrap();
 
         // TODO: Update test for bundle system
