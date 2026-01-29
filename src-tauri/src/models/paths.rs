@@ -172,43 +172,6 @@ impl ModelPaths {
         self.component_path(ComponentRole::T5Tokenizer)
     }
 
-    // ===== Legacy Z-Index stubs (TODO: Remove when Z-Index removed) =====
-
-    /// DEPRECATED: Qwen3 is part of Z-Index which is being removed
-    pub fn qwen3_path(&self) -> Result<PathBuf> {
-        anyhow::bail!("Qwen3 paths are deprecated - Z-Index is being removed")
-    }
-
-    /// DEPRECATED: Qwen3 is part of Z-Index which is being removed
-    pub fn qwen3_tokenizer_path(&self) -> Result<PathBuf> {
-        anyhow::bail!("Qwen3 tokenizer paths are deprecated - Z-Index is being removed")
-    }
-
-    /// DEPRECATED: Z-Image paths are deprecated
-    pub fn zimage_vae_path(&self) -> Result<PathBuf> {
-        anyhow::bail!("Z-Image paths are deprecated")
-    }
-
-    /// DEPRECATED: Z-Image paths are deprecated
-    pub fn zimage_transformer_path(&self) -> Result<PathBuf> {
-        anyhow::bail!("Z-Image paths are deprecated")
-    }
-
-    /// DEPRECATED: Legacy quantization check - use component metadata instead
-    pub fn has_quantized_transformer(&self) -> bool {
-        false
-    }
-
-    /// DEPRECATED: Legacy quantization check - use component metadata instead
-    pub fn quantized_transformer_path(&self) -> Result<PathBuf> {
-        anyhow::bail!("Quantized paths are deprecated - use component metadata")
-    }
-
-    /// DEPRECATED: Z-Image download check - use bundle system
-    pub fn is_zimage_downloaded(&self) -> bool {
-        false
-    }
-
     // ===== Validation =====
 
     /// Check if all required files exist

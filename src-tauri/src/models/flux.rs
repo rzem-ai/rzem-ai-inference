@@ -898,25 +898,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // Requires downloaded quantized model
-    fn test_quantized_flux_loading() {
-        use crate::models::ModelPaths;
-
-        let paths = ModelPaths::new_for_test().unwrap();
-        let device = Device::cuda_if_available(0).unwrap();
-
-        // TODO: Update test for bundle-based quantization
-        if paths.has_quantized_transformer() {
-            let flux = FluxTransformer::load_quantized(
-                paths.quantized_transformer_path().unwrap(),
-                device,
-                ModelType::schnell(),
-            ).unwrap();
-            assert!(flux.is_quantized());
-        }
-    }
-
-    #[test]
     fn test_noise_generation() {
         let device = Device::Cpu;
         // Can't test without loading model, so just test the sampling function

@@ -59,49 +59,10 @@ impl ZIndexPipeline {
             return Ok(());
         }
 
-        let db_path = ModelPaths::get_db_path()?;
-        let db = crate::gallery::GalleryDb::new(&db_path)?;
-        let paths = ModelPaths::new(&db)?;
-
-        // Check if Z-Image-Turbo is downloaded
-        if !paths.is_zimage_downloaded() {
-            return Err(anyhow::anyhow!(
-                "Z-Image-Turbo model not downloaded. Download manually using: huggingface-cli download Tongyi-MAI/Z-Image-Turbo"
-            ));
-        }
-
-        let total_load_timer = Timer::start();
-        let mut any_loaded = false;
-
-        // Load each model component
-        if self.qwen3.is_none() {
-            self.load_qwen3_encoder(&paths, stats)?;
-            any_loaded = true;
-        } else {
-            debug!("Qwen3 encoder already loaded, skipping");
-        }
-
-        if self.vae.is_none() {
-            self.load_vae_decoder(&paths, stats)?;
-            any_loaded = true;
-        } else {
-            debug!("VAE decoder already loaded, skipping");
-        }
-
-        if self.zimage.is_none() {
-            self.load_zimage_transformer(&paths, stats)?;
-            any_loaded = true;
-        } else {
-            debug!("Z-Image transformer already loaded, skipping");
-        }
-
-        if any_loaded {
-            stats.model_load_ms = Some(total_load_timer.stop());
-            self.models_loaded_this_session = true;
-            info!("Z-Image-Turbo models ready");
-        }
-
-        Ok(())
+        // Z-Image support removed per NO BACKWARD COMPATIBILITY rule
+        return Err(anyhow::anyhow!(
+            "Z-Image-Turbo support has been removed. Use FLUX pipelines instead."
+        ));
     }
 
     /// Ensure models are ready for generation (reload if unloaded)
@@ -111,136 +72,18 @@ impl ZIndexPipeline {
         self.ensure_models_loaded(stats)
     }
 
-    /// Load Qwen3-4B text encoder
-    fn load_qwen3_encoder(&mut self, paths: &ModelPaths, stats: &mut GenerationStats) -> Result<()> {
-        info!("Loading Qwen3-4B text encoder (~7.5GB)");
-        let qwen3_timer = Timer::start();
-        let mem_before = get_gpu_memory_stats();
-
-        // TODO: Remove Z-Index support
-        self.qwen3 = Some(Qwen3TextEncoder::load(
-            paths.qwen3_path()?,
-            paths.qwen3_tokenizer_path()?,
-            self.device.clone(),
-        )?);
-
-        let elapsed = qwen3_timer.stop();
-        stats.t5_load_ms = Some(elapsed); // Reuse t5_load_ms field for text encoder timing
-
-        // Log completion with memory stats
-        if let Some((used, total, percent)) = get_gpu_memory_stats() {
-            let delta = mem_before.map(|(before, _, _)| used as i64 - before as i64);
-            if let Some(delta) = delta {
-                info!(
-                    elapsed_ms = elapsed,
-                    gpu_used = format_bytes(used),
-                    gpu_total = format_bytes(total),
-                    gpu_percent = format!("{:.1}%", percent),
-                    delta = format_bytes(delta.abs() as u64),
-                    "Qwen3 encoder loaded"
-                );
-            } else {
-                info!(
-                    elapsed_ms = elapsed,
-                    gpu_used = format_bytes(used),
-                    gpu_total = format_bytes(total),
-                    gpu_percent = format!("{:.1}%", percent),
-                    "Qwen3 encoder loaded"
-                );
-            }
-        } else {
-            info!(elapsed_ms = elapsed, "Qwen3 encoder loaded (GPU stats unavailable)");
-        }
-
-        Ok(())
+    /// Load Qwen3-4B text encoder (REMOVED - Z-Image support dropped)
+    fn load_qwen3_encoder(&mut self, _paths: &ModelPaths, _stats: &mut GenerationStats) -> Result<()> {
+        Err(anyhow::anyhow!("Z-Image support removed"))
     }
 
-    /// Load VAE decoder (shared with FLUX)
-    fn load_vae_decoder(&mut self, paths: &ModelPaths, stats: &mut GenerationStats) -> Result<()> {
-        info!("Loading VAE decoder (shared with FLUX)");
-        let vae_timer = Timer::start();
-        let mem_before = get_gpu_memory_stats();
-
-        // Z-Image uses FLUX's VAE - load from Z-Image directory
-        // TODO: Remove Z-Image support
-        let vae_file = paths.zimage_vae_path()?.join("diffusion_pytorch_model.safetensors");
-
-        self.vae = Some(VaeDecoder::load(
-            vae_file,
-            self.device.clone(),
-        )?);
-
-        let elapsed = vae_timer.stop();
-        stats.vae_load_ms = Some(elapsed);
-
-        // Log completion with memory stats
-        if let Some((used, total, percent)) = get_gpu_memory_stats() {
-            let delta = mem_before.map(|(before, _, _)| used as i64 - before as i64);
-            if let Some(delta) = delta {
-                info!(
-                    elapsed_ms = elapsed,
-                    gpu_used = format_bytes(used),
-                    gpu_total = format_bytes(total),
-                    gpu_percent = format!("{:.1}%", percent),
-                    delta = format_bytes(delta.abs() as u64),
-                    "VAE decoder loaded"
-                );
-            } else {
-                info!(
-                    elapsed_ms = elapsed,
-                    gpu_used = format_bytes(used),
-                    gpu_total = format_bytes(total),
-                    gpu_percent = format!("{:.1}%", percent),
-                    "VAE decoder loaded"
-                );
-            }
-        } else {
-            info!(elapsed_ms = elapsed, "VAE decoder loaded (GPU stats unavailable)");
-        }
-
-        Ok(())
+    /// Load VAE decoder (REMOVED - Z-Image support dropped)
+    fn load_vae_decoder(&mut self, _paths: &ModelPaths, _stats: &mut GenerationStats) -> Result<()> {
+        Err(anyhow::anyhow!("Z-Image support removed"))
     }
 
-    /// Load Z-Image-Turbo transformer (stub - Phase 4)
-    fn load_zimage_transformer(&mut self, paths: &ModelPaths, stats: &mut GenerationStats) -> Result<()> {
-        info!("Loading Z-Image-Turbo transformer (stub - Phase 4)");
-        let zimage_timer = Timer::start();
-        let mem_before = get_gpu_memory_stats();
-
-        // TODO: Remove Z-Image support
-        self.zimage = Some(ZImageTransformer::load(
-            paths.zimage_transformer_path()?,
-            self.device.clone(),
-        )?);
-
-        let elapsed = zimage_timer.stop();
-        stats.flux_load_ms = Some(elapsed); // Reuse flux_load_ms for transformer timing
-
-        // Log completion with memory stats
-        if let Some((used, total, percent)) = get_gpu_memory_stats() {
-            let delta = mem_before.map(|(before, _, _)| used as i64 - before as i64);
-            if let Some(delta) = delta {
-                info!(
-                    elapsed_ms = elapsed,
-                    gpu_used = format_bytes(used),
-                    gpu_total = format_bytes(total),
-                    gpu_percent = format!("{:.1}%", percent),
-                    delta = format_bytes(delta.abs() as u64),
-                    "Z-Image transformer loaded (stub)"
-                );
-            } else {
-                info!(
-                    elapsed_ms = elapsed,
-                    gpu_used = format_bytes(used),
-                    gpu_total = format_bytes(total),
-                    gpu_percent = format!("{:.1}%", percent),
-                    "Z-Image transformer loaded (stub)"
-                );
-            }
-        } else {
-            info!(elapsed_ms = elapsed, "Z-Image transformer loaded (GPU stats unavailable)");
-        }
-
-        Ok(())
+    /// Load Z-Image-Turbo transformer (REMOVED - Z-Image support dropped)
+    fn load_zimage_transformer(&mut self, _paths: &ModelPaths, _stats: &mut GenerationStats) -> Result<()> {
+        Err(anyhow::anyhow!("Z-Image support removed"))
     }
 }
