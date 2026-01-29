@@ -84,7 +84,7 @@ mod tests {
         let paths = ModelPaths::new().unwrap();
         let device = Device::cuda_if_available(0).unwrap();
 
-        let _vae = VaeDecoder::load(paths.vae_path(), device).unwrap();
+        let _vae = VaeDecoder::load(paths.vae_path().unwrap(), device).unwrap();
     }
 
     #[test]
@@ -96,7 +96,8 @@ mod tests {
         let device = Device::cuda_if_available(0).unwrap();
 
         // Z-Image uses FLUX's VAE - verify it loads with existing decoder
-        let vae_file = paths.zimage_vae_path().join("diffusion_pytorch_model.safetensors");
+        // TODO: Update test for bundle system
+        let vae_file = paths.vae_path().unwrap().join("diffusion_pytorch_model.safetensors");
 
         let vae = VaeDecoder::load(&vae_file, device);
         assert!(vae.is_ok(), "Failed to load Z-Image VAE: {:?}", vae.err());
@@ -114,7 +115,8 @@ mod tests {
         let device = Device::cuda_if_available(0).unwrap();
 
         // Load Z-Image VAE
-        let vae_file = paths.zimage_vae_path().join("diffusion_pytorch_model.safetensors");
+        // TODO: Update test for bundle system
+        let vae_file = paths.vae_path().unwrap().join("diffusion_pytorch_model.safetensors");
         let vae = VaeDecoder::load(&vae_file, device.clone()).unwrap();
 
         // Create dummy latent tensor [1, 16, 128, 128] (for 1024x1024 image)

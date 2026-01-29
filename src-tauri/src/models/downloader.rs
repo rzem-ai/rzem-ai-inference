@@ -46,17 +46,18 @@ impl ModelDownloader {
     }
 
     /// Check if FLUX Dev is already downloaded
+    /// DEPRECATED: Legacy downloader - use bundle system instead
     pub fn is_dev_downloaded(&self) -> bool {
-        self.paths.is_dev_downloaded()
+        false // Legacy method - dev model is now managed via bundles
     }
 
     /// Check if a specific model is downloaded
+    /// DEPRECATED: Legacy downloader - use bundle system instead
     pub fn is_model_downloaded(&self, model_type: ModelType) -> bool {
         match model_type.id() {
             "schnell" => self.is_schnell_downloaded(),
             "dev" => self.is_dev_downloaded(),
-            "zimage-turbo" => self.paths.is_zimage_downloaded(),
-            _ => false,
+            _ => false, // Z-Image removed - use bundle system
         }
     }
 

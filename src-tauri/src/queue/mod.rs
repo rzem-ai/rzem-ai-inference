@@ -260,10 +260,15 @@ mod tests {
             width: 512,
             height: 512,
             seed: 42,
-            model: "test-model".to_string(),
+            model_type: Some("test-model".to_string()),
             sampler: None,
             scheduler: None,
             loras: Vec::new(),
+            bundle_id: Some("test-bundle".to_string()),
+            model_component_id: "test-transformer".to_string(),
+            t5_component_id: "test-t5".to_string(),
+            clip_component_id: "test-clip".to_string(),
+            vae_component_id: "test-vae".to_string(),
         }
     }
 

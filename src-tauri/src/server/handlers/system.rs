@@ -54,21 +54,20 @@ pub async fn health(
 pub async fn list_models(
     State(_state): State<Arc<ServerState>>,
 ) -> Result<Json<Vec<ModelInfo>>, StatusCode> {
-    use crate::models::{ModelPaths, ModelType};
+    use crate::models::ModelPaths;
 
     let paths = ModelPaths::new()
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
+    let bundle_id = paths.bundle_id()
+        .unwrap_or("unknown")
+        .to_string();
+
     let models = vec![
         ModelInfo {
-            id: "schnell".to_string(),
-            name: "FLUX Schnell".to_string(),
+            id: bundle_id.clone(),
+            name: format!("FLUX Bundle: {}", bundle_id),
             is_downloaded: paths.all_files_exist(),
-        },
-        ModelInfo {
-            id: "dev".to_string(),
-            name: "FLUX Dev".to_string(),
-            is_downloaded: paths.is_dev_downloaded(),
         },
     ];
 

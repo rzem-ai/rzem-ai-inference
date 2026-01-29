@@ -164,8 +164,8 @@ mod tests {
         let device = Device::cuda_if_available(0).unwrap();
 
         let encoder = ClipTextEncoder::load(
-            paths.clip_path().join("model.safetensors"),
-            paths.tokenizer_path(),
+            paths.clip_path().unwrap().join("model.safetensors"),
+            paths.tokenizer_path().unwrap(),
             device,
         ).unwrap();
 

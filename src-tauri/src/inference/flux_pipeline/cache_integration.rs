@@ -58,39 +58,24 @@ impl FluxPipeline {
 
             if self.t5.is_none() {
                 let t5_timer = Timer::start();
-                if paths.has_quantized_t5() {
-                    let model_path = paths.quantized_t5_path();
-                    let tokenizer_path = paths.t5_tokenizer_path();
-                    info!(
-                        model = %model_path.display(),
-                        tokenizer = %tokenizer_path.display(),
-                        "Reloading T5 encoder (quantized)"
-                    );
-                    self.t5 = Some(T5TextEncoder::load_quantized(
-                        model_path,
-                        tokenizer_path,
-                        self.device.clone(),
-                    )?);
-                } else {
-                    let model_path = paths.t5_path();
-                    let tokenizer_path = paths.t5_tokenizer_path();
-                    info!(
-                        model = %model_path.display(),
-                        tokenizer = %tokenizer_path.display(),
-                        "Reloading T5 encoder (full precision)"
-                    );
-                    self.t5 = Some(T5TextEncoder::load(
-                        model_path,
-                        tokenizer_path,
-                        self.device.clone(),
-                    )?);
-                }
+                let model_path = paths.t5_path()?;
+                let tokenizer_path = paths.t5_tokenizer_path()?;
+                info!(
+                    model = %model_path.display(),
+                    tokenizer = %tokenizer_path.display(),
+                    "Reloading T5 encoder from bundle"
+                );
+                self.t5 = Some(T5TextEncoder::load(
+                    model_path,
+                    tokenizer_path,
+                    self.device.clone(),
+                )?);
                 stats.t5_load_ms = Some(t5_timer.stop());
             }
 
             if self.clip.is_none() {
-                let model_path = paths.clip_path().join("model.safetensors");
-                let tokenizer_path = paths.tokenizer_path();
+                let model_path = paths.clip_path()?.join("model.safetensors");
+                let tokenizer_path = paths.tokenizer_path()?;
                 info!(
                     model = %model_path.display(),
                     tokenizer = %tokenizer_path.display(),
@@ -162,36 +147,22 @@ impl FluxPipeline {
 
             if self.flux.is_none() {
                 let flux_timer = Timer::start();
-                if paths.has_quantized_for(self.model_type.clone()) {
-                    let model_path = paths.quantized_transformer_path_for(self.model_type.clone());
-                    info!(
-                        model = %self.model_type,
-                        path = %model_path.display(),
-                        "Reloading transformer (quantized)"
-                    );
-                    self.flux = Some(FluxTransformer::load_quantized(
-                        model_path,
-                        self.device.clone(),
-                        self.model_type.clone(),
-                    )?);
-                } else {
-                    let model_path = paths.transformer_path_for(self.model_type.clone());
-                    info!(
-                        model = %self.model_type,
-                        path = %model_path.display(),
-                        "Reloading transformer (full precision)"
-                    );
-                    self.flux = Some(FluxTransformer::load(
-                        model_path,
-                        self.device.clone(),
-                        self.model_type.clone(),
-                    )?);
-                }
+                let model_path = paths.transformer_path()?;
+                info!(
+                    model = %self.model_type,
+                    path = %model_path.display(),
+                    "Reloading transformer from bundle"
+                );
+                self.flux = Some(FluxTransformer::load(
+                    model_path,
+                    self.device.clone(),
+                    self.model_type.clone(),
+                )?);
                 stats.flux_load_ms = Some(flux_timer.stop());
             }
 
             if self.vae.is_none() {
-                let model_path = paths.vae_path();
+                let model_path = paths.vae_path()?;
                 info!(
                     model = %model_path.display(),
                     "Reloading VAE decoder"

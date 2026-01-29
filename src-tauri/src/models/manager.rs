@@ -131,23 +131,23 @@ impl ModelManager {
         info!("Loading shared components");
 
         if self.t5.is_none() {
-            let model_path = self.paths.t5_path();
-            let tokenizer_path = self.paths.t5_tokenizer_path();
+            let model_path = self.paths.t5_path()?;
+            let tokenizer_path = self.paths.t5_tokenizer_path()?;
             info!(
                 model = %model_path.display(),
                 tokenizer = %tokenizer_path.display(),
                 "Loading T5 encoder"
             );
             self.t5 = Some(T5TextEncoder::load(
-                model_path,
-                tokenizer_path,
+                &model_path,
+                &tokenizer_path,
                 self.device.clone(),
             )?);
         }
 
         if self.clip.is_none() {
-            let model_path = self.paths.clip_path().join("model.safetensors");
-            let tokenizer_path = self.paths.tokenizer_path();
+            let model_path = self.paths.clip_path()?.join("model.safetensors");
+            let tokenizer_path = self.paths.tokenizer_path()?;
             info!(
                 model = %model_path.display(),
                 tokenizer = %tokenizer_path.display(),
@@ -161,13 +161,13 @@ impl ModelManager {
         }
 
         if self.vae.is_none() {
-            let model_path = self.paths.vae_path();
+            let model_path = self.paths.vae_path()?;
             info!(
                 model = %model_path.display(),
                 "Loading VAE decoder"
             );
             self.vae = Some(VaeDecoder::load(
-                model_path,
+                &model_path,
                 self.device.clone(),
             )?);
         }
@@ -193,42 +193,22 @@ impl ModelManager {
             self.current_precision = None;
         }
 
-        // Determine precision
-        let precision = self.select_precision(model.clone());
-        let use_quantized = precision == Precision::Quantized;
-
-        // Load transformer
-        let flux = if use_quantized && self.paths.has_quantized_for(model.clone()) {
-            let model_path = self.paths.quantized_transformer_path_for(model.clone());
-            info!(
-                model = %model,
-                path = %model_path.display(),
-                precision = "quantized",
-                "Loading transformer"
-            );
-            FluxTransformer::load_quantized(
-                model_path,
-                self.device.clone(),
-                model.clone(),
-            )?
-        } else {
-            let model_path = self.paths.transformer_path_for(model.clone());
-            info!(
-                model = %model,
-                path = %model_path.display(),
-                precision = "full_precision",
-                "Loading transformer"
-            );
-            FluxTransformer::load(
-                model_path,
-                self.device.clone(),
-                model.clone(),
-            )?
-        };
+        // Load transformer from bundle
+        let model_path = self.paths.transformer_path()?;
+        info!(
+            model = %model,
+            path = %model_path.display(),
+            "Loading transformer from bundle"
+        );
+        let flux = FluxTransformer::load(
+            model_path,
+            self.device.clone(),
+            model.clone(),
+        )?;
 
         self.flux = Some(flux);
         self.current_model = Some(model.clone());
-        self.current_precision = Some(precision);
+        self.current_precision = Some(Precision::Full); // TODO: Get from component metadata
 
         info!(model = %model, "Model loaded successfully");
         Ok(())

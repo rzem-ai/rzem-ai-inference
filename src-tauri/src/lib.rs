@@ -650,23 +650,21 @@ fn scan_models() -> Result<Vec<models::DiscoveredModel>, String> {
 /// Get availability status of all supported models
 #[command]
 fn get_available_models() -> Result<Vec<ModelAvailability>, String> {
-    use crate::models::{ModelPaths, ModelType};
+    use crate::models::ModelPaths;
 
     let paths = ModelPaths::new()
         .map_err(|e| e.to_string())?;
 
+    let bundle_id = paths.bundle_id()
+        .unwrap_or("unknown")
+        .to_string();
+
     Ok(vec![
         ModelAvailability {
-            id: "schnell".to_string(),
-            name: "FLUX Schnell".to_string(),
+            id: bundle_id.clone(),
+            name: format!("FLUX Bundle: {}", bundle_id),
             is_downloaded: paths.all_files_exist(),
-            has_quantized: paths.has_quantized_for(ModelType::schnell()),
-        },
-        ModelAvailability {
-            id: "dev".to_string(),
-            name: "FLUX Dev".to_string(),
-            is_downloaded: paths.is_dev_downloaded(),
-            has_quantized: paths.has_quantized_for(ModelType::dev()),
+            has_quantized: false, // Quantization is now handled at component level
         },
     ])
 }
@@ -713,16 +711,22 @@ fn get_component_availability() -> Result<Vec<ComponentAvailability>, String> {
     let paths = ModelPaths::new()
         .map_err(|e| e.to_string())?;
 
-    // Check each component's download status
-    let clip_downloaded = paths.clip_path().join("model.safetensors").exists();
-    let vae_downloaded = paths.vae_path().exists();
+    // Check each component's availability in the bundle
+    let clip_downloaded = paths.clip_path()
+        .map(|p| p.exists())
+        .unwrap_or(false);
 
-    // T5 can be full precision (split safetensors) or quantized (single GGUF)
-    let t5_dir = paths.t5_path();
-    let t5_full_downloaded = t5_dir.join("model-00001-of-00002.safetensors").exists()
-        && t5_dir.join("config.json").exists();
-    let t5_quantized_downloaded = paths.has_quantized_t5();
-    let t5_tokenizer_downloaded = paths.t5_tokenizer_path().exists();
+    let vae_downloaded = paths.vae_path()
+        .map(|p| p.exists())
+        .unwrap_or(false);
+
+    let t5_downloaded = paths.t5_path()
+        .map(|p| p.exists())
+        .unwrap_or(false);
+
+    let t5_tokenizer_downloaded = paths.t5_tokenizer_path()
+        .map(|p| p.exists())
+        .unwrap_or(false);
 
     Ok(vec![
         ComponentAvailability {
@@ -747,10 +751,10 @@ fn get_component_availability() -> Result<Vec<ComponentAvailability>, String> {
             id: "t5".to_string(),
             name: "T5-XXL Text Encoder".to_string(),
             description: "Google T5-XXL encoder for detailed text understanding and long prompts".to_string(),
-            is_downloaded: t5_full_downloaded || t5_quantized_downloaded,
-            size_estimate: "~9 GB (full) / ~3.3 GB (quantized)".to_string(),
-            has_quantized: true,
-            quantized_downloaded: t5_quantized_downloaded,
+            is_downloaded: t5_downloaded,
+            size_estimate: "~9 GB".to_string(),
+            has_quantized: false,
+            quantized_downloaded: false,
         },
         ComponentAvailability {
             id: "t5-tokenizer".to_string(),

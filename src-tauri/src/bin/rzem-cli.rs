@@ -347,13 +347,13 @@ fn cmd_models_list() -> Result<()> {
     };
     println!("{:<12} {:<18} {:<12}", "schnell", schnell_status, "~23 GB");
 
-    // Dev
-    let dev_status = if paths.is_dev_downloaded() {
-        "✓ downloaded"
+    // Bundle status
+    let bundle_status = if let Some(bundle_id) = paths.bundle_id() {
+        format!("Bundle: {}", bundle_id)
     } else {
-        "✗ not downloaded"
+        "No active bundle".to_string()
     };
-    println!("{:<12} {:<18} {:<12}", "dev", dev_status, "~24 GB");
+    println!("\n{}", bundle_status);
 
     println!();
     Ok(())
@@ -404,7 +404,9 @@ fn cmd_info() -> Result<()> {
     println!("Device:  {}", device_name);
 
     let paths = ModelPaths::new()?;
-    println!("Cache:   {}", paths.cache_dir.display());
+    if let Some(bundle_id) = paths.bundle_id() {
+        println!("Bundle:  {}", bundle_id);
+    }
 
     println!();
     println!("Model Status:");

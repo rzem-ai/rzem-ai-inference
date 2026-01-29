@@ -68,7 +68,8 @@ mod tests {
         let paths = ModelPaths::new().unwrap();
         let device = Device::cuda_if_available(0).unwrap();
 
-        let transformer = ZImageTransformer::load(paths.zimage_transformer_path(), device);
+        // TODO: Update test for bundle system
+        let transformer = ZImageTransformer::load(paths.transformer_path().unwrap(), device);
         assert!(transformer.is_ok(), "Failed to load Z-Image transformer: {:?}", transformer.err());
 
         println!("✓ Z-Image transformer stub loaded");

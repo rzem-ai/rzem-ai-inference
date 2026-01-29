@@ -115,9 +115,10 @@ impl ZIndexPipeline {
         let qwen3_timer = Timer::start();
         let mem_before = get_gpu_memory_stats();
 
+        // TODO: Remove Z-Index support
         self.qwen3 = Some(Qwen3TextEncoder::load(
-            paths.qwen3_path(),
-            paths.qwen3_tokenizer_path(),
+            paths.qwen3_path()?,
+            paths.qwen3_tokenizer_path()?,
             self.device.clone(),
         )?);
 
@@ -159,7 +160,8 @@ impl ZIndexPipeline {
         let mem_before = get_gpu_memory_stats();
 
         // Z-Image uses FLUX's VAE - load from Z-Image directory
-        let vae_file = paths.zimage_vae_path().join("diffusion_pytorch_model.safetensors");
+        // TODO: Remove Z-Image support
+        let vae_file = paths.zimage_vae_path()?.join("diffusion_pytorch_model.safetensors");
 
         self.vae = Some(VaeDecoder::load(
             vae_file,
@@ -203,8 +205,9 @@ impl ZIndexPipeline {
         let zimage_timer = Timer::start();
         let mem_before = get_gpu_memory_stats();
 
+        // TODO: Remove Z-Image support
         self.zimage = Some(ZImageTransformer::load(
-            paths.zimage_transformer_path(),
+            paths.zimage_transformer_path()?,
             self.device.clone(),
         )?);
 

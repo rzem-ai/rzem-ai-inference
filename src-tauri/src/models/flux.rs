@@ -894,7 +894,7 @@ mod tests {
         let paths = ModelPaths::new().unwrap();
         let device = Device::cuda_if_available(0).unwrap();
 
-        let _flux = FluxTransformer::load(paths.transformer_path(), device, ModelType::schnell()).unwrap();
+        let _flux = FluxTransformer::load(paths.transformer_path().unwrap(), device, ModelType::schnell()).unwrap();
     }
 
     #[test]
@@ -905,9 +905,10 @@ mod tests {
         let paths = ModelPaths::new().unwrap();
         let device = Device::cuda_if_available(0).unwrap();
 
+        // TODO: Update test for bundle-based quantization
         if paths.has_quantized_transformer() {
             let flux = FluxTransformer::load_quantized(
-                paths.quantized_transformer_path(),
+                paths.quantized_transformer_path().unwrap(),
                 device,
                 ModelType::schnell(),
             ).unwrap();

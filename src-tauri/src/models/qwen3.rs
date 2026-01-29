@@ -200,9 +200,10 @@ mod tests {
         let paths = crate::models::ModelPaths::new().unwrap();
         let device = Device::cuda_if_available(0).unwrap();
 
+        // TODO: Remove Z-Image support
         let encoder = Qwen3TextEncoder::load(
-            paths.qwen3_path(),
-            paths.qwen3_tokenizer_path(),
+            paths.qwen3_path().unwrap(),
+            paths.qwen3_tokenizer_path().unwrap(),
             device,
         );
 
@@ -215,9 +216,10 @@ mod tests {
         let paths = crate::models::ModelPaths::new().unwrap();
         let device = Device::cuda_if_available(0).unwrap();
 
+        // TODO: Remove Z-Image support
         let mut encoder = Qwen3TextEncoder::load(
-            paths.qwen3_path(),
-            paths.qwen3_tokenizer_path(),
+            paths.qwen3_path().unwrap(),
+            paths.qwen3_tokenizer_path().unwrap(),
             device,
         ).unwrap();
 
@@ -237,9 +239,10 @@ mod tests {
         let paths = crate::models::ModelPaths::new().unwrap();
         let device = Device::cuda_if_available(0).unwrap();
 
+        // TODO: Remove Z-Image support
         let mut encoder = Qwen3TextEncoder::load(
-            paths.qwen3_path(),
-            paths.qwen3_tokenizer_path(),
+            paths.qwen3_path().unwrap(),
+            paths.qwen3_tokenizer_path().unwrap(),
             device,
         ).unwrap();
 
