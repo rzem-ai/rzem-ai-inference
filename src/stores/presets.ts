@@ -72,7 +72,7 @@ export const usePresetsStore = defineStore('presets', {
         width: generationStore.currentParams.width,
         height: generationStore.currentParams.height,
         seed: generationStore.currentParams.seed,
-        modelId: generationStore.currentParams.model,
+        modelId: generationStore.currentParams.modelComponentId,
         loraIds: JSON.stringify(
           modelsStore.activeLoras.map((l) => ({
             id: l.id,

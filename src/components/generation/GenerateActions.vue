@@ -88,7 +88,7 @@ const showPresetModal = ref(false);
 // Note: The ModelSelector component now handles syncing both stores
 // This watch only updates the default steps/guidance when model changes
 watch(
-  () => generationStore.currentParams.model,
+  () => generationStore.currentParams.modelComponentId,
   (newModelId) => {
     const model = modelsStore.models.find((m) => m.id === newModelId);
     if (model) {

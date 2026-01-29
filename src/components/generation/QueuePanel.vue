@@ -40,7 +40,10 @@ const demoAllJobs = computed<GenerationJob[]>(() => {
     width: 1024,
     height: 1024,
     seed: 42,
-    model: 'flux-dev',
+    model_component_id: 'flux-dev',
+    clip_component_id: 'clip',
+    t5_component_id: 't5',
+    vae_component_id: 'vae',
     sampler: 'euler' as const,
     scheduler: 'normal' as const,
   };

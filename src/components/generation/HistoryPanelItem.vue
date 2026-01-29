@@ -100,7 +100,7 @@ const restoreParameters = (job: GenerationJob) => {
     width: job.params.width,
     height: job.params.height,
     seed: job.params.seed,
-    model: job.params.model,
+    modelComponentId: job.params.model_component_id,
     sampler: job.params.sampler || 'euler',
     scheduler: job.params.scheduler || 'simple',
   };

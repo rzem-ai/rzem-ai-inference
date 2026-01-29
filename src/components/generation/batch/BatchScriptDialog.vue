@@ -162,7 +162,7 @@
                     <div><span class="text-gray-400">CFG Scale:</span> {{ generationStore.currentParams.cfgScale }}</div>
                     <div><span class="text-gray-400">Size:</span> {{ generationStore.currentParams.width }}×{{ generationStore.currentParams.height }}</div>
                     <div><span class="text-gray-400">Seed:</span> {{ displaySeed }}</div>
-                    <div class="col-span-2"><span class="text-gray-400">Model:</span> {{ generationStore.currentParams.model }}</div>
+                    <div class="col-span-2"><span class="text-gray-400">Model:</span> {{ generationStore.currentParams.modelComponentId }}</div>
                     <div v-if="activeLorasCount > 0" class="col-span-2"> <span class="text-gray-400">LoRAs:</span> {{ activeLorasCount }} active </div>
                   </div>
                 </div>
@@ -452,7 +452,10 @@ async function generateBatch() {
           width: baseParams.width,
           height: baseParams.height,
           seed: frozenSeed, // SAME SEED FOR ALL ROWS
-          model: baseParams.model,
+          model_component_id: baseParams.modelComponentId,
+          clip_component_id: baseParams.clipComponentId,
+          t5_component_id: baseParams.t5ComponentId,
+          vae_component_id: baseParams.vaeComponentId,
           sampler: baseParams.sampler,
           scheduler: baseParams.scheduler,
           loras: modelsStore.getActiveLoraConfigs(),
