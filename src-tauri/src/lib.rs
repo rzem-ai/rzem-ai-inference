@@ -1947,20 +1947,11 @@ pub fn run_with_config(runtime_config: shared::protocol::RuntimeConfig, port: Op
             tauri::async_runtime::spawn({
                 let app_handle = app_handle.clone();
                 let gallery_db = gallery_db.clone();
-                let queue_processor_for_migration = queue_processor.clone();
                 async move {
                     use tracing::{info, warn};
 
                     // Give the app time to initialize
                     tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-
-                    // Migrate LoRAs from JSON to database
-                    {
-                        let lora_manager = queue_processor_for_migration.lora_manager().lock().await;
-                        if let Err(e) = lora_manager.migrate_from_file_to_db().await {
-                            warn!(error = %e, "Failed to migrate LoRAs from file");
-                        }
-                    }
 
                     info!("Starting model cache scan...");
                     match models::scan_cache_for_models() {

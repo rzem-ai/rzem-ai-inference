@@ -5,29 +5,21 @@
 use super::lora::{LoraAdapter, LoraInfo, LoraFileInfo, get_lora_file_info};
 use anyhow::{Context, Result};
 use candle_core::{DType, Device};
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 use uuid::Uuid;
 
 /// Manages the collection of available LoRAs
 pub struct LoraManager {
     /// Directory where LoRAs are stored
     loras_dir: PathBuf,
-    /// Path to the old JSON index file (for migration)
-    index_path: PathBuf,
     /// Cached loaded adapters (keyed by ID)
     loaded: Arc<RwLock<HashMap<String, Arc<LoraAdapter>>>>,
     /// Database for persistent storage
     db: Arc<tokio::sync::Mutex<Option<crate::gallery::GalleryDb>>>,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-struct LoraIndex {
-    loras: HashMap<String, LoraInfo>,
 }
 
 impl LoraManager {
@@ -40,14 +32,12 @@ impl LoraManager {
 
         let base_dir = home.join(".rzem-ai-inference");
         let loras_dir = base_dir.join("loras");
-        let index_path = base_dir.join("loras.json");
 
         // Ensure directories exist
         std::fs::create_dir_all(&loras_dir)?;
 
         Ok(Self {
             loras_dir,
-            index_path,
             loaded: Arc::new(RwLock::new(HashMap::new())),
             db,
         })
@@ -324,38 +314,6 @@ impl LoraManager {
     /// Get file info for a LoRA without fully loading it
     pub fn get_file_info(&self, path: &Path) -> Result<LoraFileInfo> {
         get_lora_file_info(path)
-    }
-
-    /// Migrate LoRAs from JSON file to database (one-time migration)
-    pub async fn migrate_from_file_to_db(&self) -> Result<()> {
-        // If JSON file exists, migrate its data
-        if self.index_path.exists() {
-            tracing::info!("Migrating LoRAs from JSON file to database");
-
-            let content = std::fs::read_to_string(&self.index_path)?;
-            let index: LoraIndex = serde_json::from_str(&content).unwrap_or_default();
-
-            let db_guard = self.db.lock().await;
-            let db = db_guard.as_ref()
-                .ok_or_else(|| anyhow::anyhow!("Database not initialized"))?;
-
-            // Insert all LoRAs into database
-            for lora in index.loras.values() {
-                db.upsert_lora(lora)?;
-            }
-
-            tracing::info!(count = index.loras.len(), "Migrated LoRAs to database");
-
-            // Rename the old file to .bak so it's not used anymore
-            let backup_path = self.index_path.with_extension("json.bak");
-            if let Err(e) = std::fs::rename(&self.index_path, &backup_path) {
-                tracing::warn!(error = %e, "Failed to backup old LoRA index file");
-            } else {
-                tracing::info!("Backed up old LoRA index file to {:?}", backup_path);
-            }
-        }
-
-        Ok(())
     }
 }
 
