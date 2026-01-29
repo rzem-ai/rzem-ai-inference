@@ -1954,13 +1954,6 @@ pub fn run_with_config(runtime_config: shared::protocol::RuntimeConfig, port: Op
                     // Give the app time to initialize
                     tokio::time::sleep(std::time::Duration::from_secs(2)).await;
 
-                    // Migrate settings from JSON to database
-                    if let Some(db) = gallery_db.lock().await.as_ref() {
-                        if let Err(e) = settings::AppSettings::migrate_from_file_to_db(db) {
-                            warn!(error = %e, "Failed to migrate settings from file");
-                        }
-                    }
-
                     // Migrate LoRAs from JSON to database
                     {
                         let lora_manager = queue_processor_for_migration.lora_manager().lock().await;

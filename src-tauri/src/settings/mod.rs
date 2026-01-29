@@ -6,8 +6,6 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
-use std::sync::Arc;
-use tokio::sync::Mutex;
 
 /// Application settings
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -131,28 +129,6 @@ impl AppSettings {
         Ok(())
     }
 
-    /// Migrate settings from JSON file to database (one-time migration)
-    pub fn migrate_from_file_to_db(db: &crate::gallery::GalleryDb) -> Result<()> {
-        let path = Self::settings_path()?;
-
-        // If JSON file exists, migrate its data
-        if path.exists() {
-            tracing::info!("Migrating settings from JSON file to database");
-
-            let settings = Self::load()?;
-            settings.save_to_db(db)?;
-
-            // Rename the old file to .bak so it's not used anymore
-            let backup_path = path.with_extension("json.bak");
-            if let Err(e) = std::fs::rename(&path, &backup_path) {
-                tracing::warn!(error = %e, "Failed to backup old settings file");
-            } else {
-                tracing::info!("Backed up old settings file to {:?}", backup_path);
-            }
-        }
-
-        Ok(())
-    }
 }
 
 #[cfg(test)]
