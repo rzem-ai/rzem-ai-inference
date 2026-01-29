@@ -5,7 +5,7 @@ use anyhow::Result;
 #[allow(unused_imports)]
 use tracing::{debug, info, warn};
 
-use crate::models::{ClipTextEncoder, FluxTransformer, ModelPaths, ModelType, T5TextEncoder, VaeDecoder};
+use crate::models::{ClipTextEncoder, FluxTransformer, ModelPaths, T5TextEncoder, VaeDecoder};
 use crate::inference::stats::{GenerationStats, Timer};
 use super::FluxPipeline;
 
@@ -70,14 +70,10 @@ impl FluxPipeline {
             ModelPaths::new(&db)?
         };
 
-        // Log bundle info
-        info!(bundle_id = ?paths.bundle_id(), "Loading models from active bundle");
-
         // Validate model files exist
         if !paths.all_files_exist() {
             return Err(anyhow::anyhow!(
-                "Active bundle '{}' has missing components. Please scan for models or activate a different bundle.",
-                paths.bundle_id().unwrap_or("unknown")
+                "Active bundle has missing components. Please scan for models or activate a different bundle."
             ));
         }
 
@@ -182,7 +178,7 @@ impl FluxPipeline {
         info!(
             model = %model_path.display(),
             tokenizer = %tokenizer_path.display(),
-            "Loading T5 encoder from bundle"
+            "Loading T5 encoder"
         );
         self.t5 = Some(T5TextEncoder::load(
             model_path,
@@ -228,7 +224,7 @@ impl FluxPipeline {
         info!(
             model = %model_path.display(),
             tokenizer = %tokenizer_path.display(),
-            "Loading CLIP encoder from bundle"
+            "Loading CLIP encoder"
         );
         let clip_timer = Timer::start();
         let mem_before = get_gpu_memory_stats();
@@ -275,7 +271,7 @@ impl FluxPipeline {
         let model_path = paths.vae_path()?;
         info!(
             model = %model_path.display(),
-            "Loading VAE decoder from bundle"
+            "Loading VAE decoder"
         );
         let vae_timer = Timer::start();
         let mem_before = get_gpu_memory_stats();
@@ -332,7 +328,7 @@ impl FluxPipeline {
                 model = %self.model_type,
                 path = %model_path.display(),
                 lora_count = self.active_loras.len(),
-                "Loading transformer with LoRAs from bundle"
+                "Loading transformer with LoRAs"
             );
             self.flux = Some(FluxTransformer::load_with_loras(
                 model_path,
@@ -344,7 +340,7 @@ impl FluxPipeline {
             info!(
                 model = %self.model_type,
                 path = %model_path.display(),
-                "Loading transformer from bundle"
+                "Loading transformer"
             );
             self.flux = Some(FluxTransformer::load(
                 model_path,
