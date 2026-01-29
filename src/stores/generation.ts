@@ -78,6 +78,21 @@ export const useGenerationStore = defineStore('generation', {
     getProgress(state) {
       return (jobId: string) => state.activeProgress[jobId];
     },
+
+    isValidConfiguration(state): boolean {
+      // Bundle mode: bundleId must be set
+      if (state.currentParams.bundleId) {
+        return true;
+      }
+
+      // Individual mode: all component IDs must be set
+      return !!(
+        state.currentParams.modelComponentId &&
+        state.currentParams.t5ComponentId &&
+        state.currentParams.clipComponentId &&
+        state.currentParams.vaeComponentId
+      );
+    },
   },
 
   actions: {

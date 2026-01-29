@@ -1,6 +1,13 @@
 <template>
   <GenerationAction :collapsed="false" :toggleable="false" icon="pen-to-square" label="Image Description">
     <PromptEditor v-model="prompt" label="Prompt" placeholder="Describe the image you want to generate..." :rows="4" />
+
+    <!-- Configuration validation message -->
+    <div v-if="!generationStore.isValidConfiguration && prompt.trim().length > 0" class="p-2 text-xs border rounded bg-amber-900/20 border-amber-800/50 text-amber-300">
+      <i class="mr-1 pi pi-exclamation-triangle"></i>
+      Please select a model bundle or configure all components (Model, T5, CLIP, VAE) in the Quality section
+    </div>
+
     <div class="flex flex-col gap-2">
       <SplitButton :loading="queueStore.hasRunningJobs" fluid size="small" @click="handleGenerate" :model="generationCounts" :disabled="!canGenerate">
         {{ queueStore.queueLength > 0 ? `Generate` : 'Generate' }} ( {{ imageCount }} )
@@ -41,7 +48,9 @@ const prompt = computed({
 });
 
 const canGenerate = computed(() => {
-  return generationStore.currentParams.prompt.trim().length > 0;
+  const hasPrompt = generationStore.currentParams.prompt.trim().length > 0;
+  const hasValidConfig = generationStore.isValidConfiguration;
+  return hasPrompt && hasValidConfig;
 });
 
 const imageCount = computed({

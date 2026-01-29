@@ -315,6 +315,27 @@ const areComponentsValid = computed(() => {
   return !!(selectedT5.value && selectedClip.value && selectedVae.value);
 });
 
+// Validation for complete configuration (exposed to parent)
+const isValidConfiguration = computed(() => {
+  // Bundle mode: bundleId must be set
+  if (generationStore.currentParams.bundleId) {
+    return true;
+  }
+
+  // Individual mode: all component IDs must be set
+  return !!(
+    generationStore.currentParams.modelComponentId &&
+    generationStore.currentParams.t5ComponentId &&
+    generationStore.currentParams.clipComponentId &&
+    generationStore.currentParams.vaeComponentId
+  );
+});
+
+// Expose validation state to parent
+defineExpose({
+  isValidConfiguration,
+});
+
 // Build options list with bundles first, then individual models
 interface SelectOption {
   label: string;
