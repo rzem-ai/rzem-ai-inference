@@ -645,16 +645,10 @@ const fetchComponentAvailability = async () => {
   }
 };
 
-// Load models from database
+// Load models from database - removed, using bundle/component system instead
 const loadModelsFromDatabase = async () => {
-  try {
-    const models = await invoke<ModelInfo[]>('get_all_models');
-    dbModels.value = models;
-  } catch (error) {
-    console.error('Failed to load models from database:', error);
-    // Fallback to legacy models if database fails
-    dbModels.value = [];
-  }
+  // Database loading removed - use bundles/components API
+  dbModels.value = [];
 };
 
 // ===== Bundle Methods =====

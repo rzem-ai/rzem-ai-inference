@@ -56,15 +56,6 @@ async fn init_database(app_state: State<'_, AppState>, db_path: String) -> Resul
     db.init_schema()
         .map_err(|e| format!("Failed to initialize schema: {}", e))?;
 
-    // Seed default models on first run
-    let model_count = db.get_model_count()
-        .map_err(|e| format!("Failed to get model count: {}", e))?;
-
-    if model_count == 0 {
-        tracing::info!("First run detected, seeding default models");
-        db.seed_default_models()
-            .map_err(|e| format!("Failed to seed models: {}", e))?;
-    }
 
     *app_state.gallery_db.lock().await = Some(db);
 
@@ -782,16 +773,6 @@ fn get_component_availability() -> Result<Vec<ComponentAvailability>, String> {
     ])
 }
 
-/// Get all models from database
-#[command]
-async fn get_all_models(
-    app_state: State<'_, AppState>,
-) -> Result<Vec<gallery::ModelRecord>, String> {
-    let db_guard = app_state.gallery_db.lock().await;
-    let db = db_guard.as_ref()
-        .ok_or_else(|| "Database not initialized".to_string())?;
-    db.get_all_models().map_err(|e| e.to_string())
-}
 
 // ========== Model Bundle System Commands ==========
 
@@ -1993,17 +1974,6 @@ pub fn run_with_config(runtime_config: shared::protocol::RuntimeConfig, port: Op
                                 );
                             }
 
-                            // Save to database (convert transformers to legacy format)
-                            if let Some(db) = gallery_db.lock().await.as_ref() {
-                                if let Err(e) = db.save_discovered_components(&transformers) {
-                                    warn!(error = %e, "Failed to save discovered components to database");
-                                } else {
-                                    info!(
-                                        saved = transformers.len(),
-                                        "Saved discovered components to database"
-                                    );
-                                }
-                            }
 
                             // Emit event with discovered transformers (for legacy UI)
                             let transformer_components: Vec<_> = all_components
@@ -2090,8 +2060,6 @@ pub fn run_with_config(runtime_config: shared::protocol::RuntimeConfig, port: Op
             scan_models,
             get_available_models,
             get_component_availability,
-            // Model database commands
-            get_all_models,
             // Model bundle system commands
             scan_and_discover_models,
             get_all_bundles,

@@ -18,28 +18,14 @@ impl ModelConfigCache {
         }
     }
 
-    /// Load all model configs from database
+    /// Load all model configs - now empty since we use bundle/component system
     pub async fn load_all(&self) -> Result<()> {
-        let db_guard = self.db.lock().await;
-        let db = db_guard.as_ref()
-            .ok_or_else(|| anyhow::anyhow!("Database not initialized"))?;
-
-        let records = db.get_all_models()
-            .map_err(|e| anyhow::anyhow!("Failed to load models: {}", e))?;
-
+        // Model configs are no longer loaded from old models table
+        // Use bundle/component system instead
         let mut configs = self.configs.write().await;
         configs.clear();
 
-        for record in records {
-            // Only load transformer models
-            if record.component_type.as_deref() == Some("transformer") {
-                if let Ok(config) = ModelConfig::from_record(&record) {
-                    configs.insert(config.id.clone(), config);
-                }
-            }
-        }
-
-        tracing::info!(count = configs.len(), "Loaded model configurations");
+        tracing::info!("Model config cache cleared - use bundle/component system");
         Ok(())
     }
 
