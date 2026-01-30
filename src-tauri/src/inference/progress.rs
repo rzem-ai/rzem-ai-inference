@@ -65,6 +65,10 @@ pub struct GenerationProgress {
     pub current_step: Option<usize>,
     /// Total denoising steps (if in denoising stage)
     pub total_steps: Option<usize>,
+    /// Optional preview image data (base64-encoded JPEG)
+    /// Available during VAE decoding stage for final preview
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub preview_data: Option<String>,
 }
 
 impl GenerationProgress {
@@ -85,6 +89,7 @@ impl GenerationProgress {
             batch_total: None,
             current_step: None,
             total_steps: None,
+            preview_data: None,
         }
     }
 
@@ -111,6 +116,12 @@ impl GenerationProgress {
     /// Set ETA
     pub fn with_eta(mut self, seconds: f32) -> Self {
         self.eta_seconds = Some(seconds);
+        self
+    }
+
+    /// Create progress with preview image data
+    pub fn with_preview(mut self, preview_base64: String) -> Self {
+        self.preview_data = Some(preview_base64);
         self
     }
 }

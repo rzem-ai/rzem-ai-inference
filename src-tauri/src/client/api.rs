@@ -2,6 +2,7 @@
 
 use super::ClientConfig;
 use crate::queue::{GenerationParams, GenerationJob};
+use crate::chatbot::{RefineRequest, ChatResponse};
 use anyhow::{Result, anyhow};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -184,6 +185,30 @@ impl ApiClient {
     /// Get the full URL for a file
     pub fn get_file_url(&self, filename: &str) -> String {
         format!("{}/files/{}", self.config.api_base(), filename)
+    }
+
+    /// Refine a prompt using the chatbot
+    pub async fn chat_refine(&self, request: RefineRequest) -> Result<ChatResponse> {
+        let url = format!("{}/chat/refine", self.config.api_base());
+        debug!(url = %url, "Sending chat refine request");
+
+        let response = self.client
+            .post(&url)
+            .json(&request)
+            .send()
+            .await
+            .map_err(|e| anyhow!("Failed to send chat request: {}", e))?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            return Err(anyhow!("Server returned error {}: {}", status, body));
+        }
+
+        let result = response.json::<ChatResponse>().await
+            .map_err(|e| anyhow!("Failed to parse response: {}", e))?;
+
+        Ok(result)
     }
 }
 

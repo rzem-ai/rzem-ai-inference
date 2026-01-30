@@ -95,6 +95,11 @@ export interface GenerationJob {
   result_path?: string;
   error?: string;
   stats?: GenerationStats;
+  /**
+   * Preview image data (base64-encoded JPEG)
+   * Available during generation before final image completes
+   */
+  previewData?: string;
 }
 
 export const useQueueStore = defineStore('queue', {
@@ -202,8 +207,9 @@ export const useQueueStore = defineStore('queue', {
         eta_seconds?: number;
         current_step?: number;
         total_steps?: number;
+        preview_data?: string;
       }) => {
-        const { job_id, stage, overall_progress, message, current_step, total_steps } = payload;
+        const { job_id, stage, overall_progress, message, current_step, total_steps, preview_data } = payload;
 
         // Find and update job in local state
         const jobIndex = this.jobs.findIndex((j) => j.id === job_id);
@@ -217,6 +223,10 @@ export const useQueueStore = defineStore('queue', {
           }
           if (total_steps !== undefined) {
             this.jobs[jobIndex].totalSteps = total_steps;
+          }
+          // Update preview if included
+          if (preview_data) {
+            this.jobs[jobIndex].previewData = preview_data;
           }
         }
       });

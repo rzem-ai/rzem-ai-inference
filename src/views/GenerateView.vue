@@ -2,6 +2,7 @@
   <div class="flex w-full">
     <!-- Sidebar -->
     <WorkspaceActions>
+      <template #header>Generate Images</template>
       <template #toolbar>
         <div class="w-full grid grid-cols-3 border rounded-md shadow-xs border-surface-600">
           <ToggleButton :model-value="showQuality" severity="secondary" size="small" class="border-0 rounded-none rounded-l-md" @change="handleToggleQuality()">
@@ -29,7 +30,7 @@
           </ToggleButton>
         </div>
       </template>
-      <template #header>Generate Images</template>
+
       <template #body><GenerateActions @generate="handleGenerate" :showQuality="showQuality" :showStyle="showStyle" :showAdvanced="showAdvanced" /></template>
     </WorkspaceActions>
 
@@ -49,8 +50,28 @@
       </div>
     </div>
 
-    <div class="flex flex-col h-full w-60 min-w-60 shrink">
-      <HistoryPanel @restore-image="handleRestoreImage" />
+    <!-- Right Panel with Tabs -->
+    <div class="flex flex-col h-full w-72 min-w-72 shrink bg-surface-900">
+      <Tabs :value="activeRightPanel" @update:value="(val) => activeRightPanel = String(val)" class="flex flex-col h-full">
+        <TabList class="border-b shrink-0 border-surface-700">
+          <Tab value="history" class="text-xs">
+            <fa :icon="['fal', 'clock-rotate-left']" class="mr-1" />
+            History
+          </Tab>
+          <Tab value="assistant" class="text-xs">
+            <fa :icon="['fal', 'sparkles']" class="mr-1" />
+            Assistant
+          </Tab>
+        </TabList>
+        <TabPanels class="flex-1 overflow-hidden">
+          <TabPanel value="history" class="h-full p-0">
+            <HistoryPanel @restore-image="handleRestoreImage" />
+          </TabPanel>
+          <TabPanel value="assistant" class="h-full p-0">
+            <ChatPanel />
+          </TabPanel>
+        </TabPanels>
+      </Tabs>
     </div>
   </div>
 </template>
@@ -70,6 +91,12 @@ import { useModelsStore } from '@/stores/models';
 import type { GenerationParams } from '@/stores/queue';
 import WorkspaceActions from '@/components/shared/WorkspaceActions.vue';
 import HistoryPanel from '@/components/generation/HistoryPanel.vue';
+import ChatPanel from '@/components/generation/ChatPanel.vue';
+import Tabs from 'primevue/tabs';
+import TabList from 'primevue/tablist';
+import Tab from 'primevue/tab';
+import TabPanels from 'primevue/tabpanels';
+import TabPanel from 'primevue/tabpanel';
 import ToggleButton from 'primevue/togglebutton';
 
 const queueStore = useQueueStore();
@@ -93,6 +120,9 @@ const currentBatchJobIds = ref<Set<string>>(new Set());
 
 // Track pending image count for skeleton placeholders
 const pendingCount = ref(0);
+
+// Right panel tab state
+const activeRightPanel = ref<string>('history');
 
 // Track pending image count for skeleton placeholders
 const showQuality = ref(true);
@@ -202,7 +232,7 @@ const handleGenerate = async () => {
         //loras: [{ id: '098df4c8-384b-426d-a257-20bae1dc9327', strength: 1 }],
       };
 
-      console.log(queueParams)
+      console.log(queueParams);
 
       const jobId = await queueStore.addToQueue(queueParams);
       currentBatchJobIds.value.add(jobId);

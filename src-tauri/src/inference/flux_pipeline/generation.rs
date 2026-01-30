@@ -2,12 +2,43 @@
 
 use anyhow::Result;
 use tracing::{debug, info, trace, warn};
+use base64::{engine::general_purpose, Engine as _};
 
 use crate::inference::metadata::{ImageMetadata, encode_png_with_metadata};
 use crate::inference::samplers::{SamplerType, SchedulerType};
 use crate::inference::stats::{GenerationStats, GenerationResult, Timer};
 use crate::inference::{GenerationProgress, PipelineStage};
 use super::FluxPipeline;
+
+/// Encode RGB data as JPEG and return base64 string
+///
+/// # Arguments
+/// * `rgb_data` - Raw RGB pixel data (width * height * 3 bytes)
+/// * `width` - Image width in pixels
+/// * `height` - Image height in pixels
+/// * `quality` - JPEG quality (1-100, recommended 70-80)
+fn encode_jpeg_base64(rgb_data: &[u8], width: u32, height: u32, quality: u8) -> Result<String> {
+    use image::{ImageBuffer, RgbImage};
+    use std::io::Cursor;
+
+    // Create image buffer
+    let img: RgbImage = ImageBuffer::from_raw(width, height, rgb_data.to_vec())
+        .ok_or_else(|| anyhow::anyhow!("Failed to create image buffer"))?;
+
+    // Encode as JPEG to memory
+    let mut jpeg_data = Cursor::new(Vec::new());
+    let mut encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut jpeg_data, quality);
+    encoder.encode(
+        img.as_raw(),
+        width,
+        height,
+        image::ExtendedColorType::Rgb8,
+    )?;
+
+    // Base64 encode
+    let base64 = general_purpose::STANDARD.encode(jpeg_data.into_inner());
+    Ok(base64)
+}
 
 /// Get current GPU memory stats using nvidia-smi
 fn get_gpu_memory_stats() -> Option<(u64, u64, f32)> {
@@ -338,6 +369,15 @@ impl FluxPipeline {
         on_progress(GenerationProgress::new(PipelineStage::EncodingPng, 0.0));
         let png_timer = Timer::start();
         let rgb_data = vae.tensor_to_rgb(&image)?;
+
+        // Generate preview JPEG (quality 75 for good balance)
+        if let Ok(preview_base64) = encode_jpeg_base64(&rgb_data, width as u32, height as u32, 75) {
+            let preview_progress = GenerationProgress::new(PipelineStage::DecodingVae, 1.0)
+                .with_preview(preview_base64);
+            on_progress(preview_progress);
+        } else {
+            warn!("Failed to generate preview JPEG, continuing without preview");
+        }
 
         // Use provided metadata or create default
         let final_metadata = metadata.unwrap_or_else(|| ImageMetadata {
