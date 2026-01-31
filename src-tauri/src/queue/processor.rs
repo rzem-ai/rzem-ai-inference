@@ -450,7 +450,7 @@ async fn execute_generation(
     let on_progress = move |progress: GenerationProgress| {
         // Emit detailed progress event for frontend
         let _ = app_handle_clone.emit("job-progress", serde_json::json!({
-            "job_id": job_id_clone,
+            "job_id": job_id_clone.clone(),
             "stage": progress.stage,
             "stage_progress": progress.stage_progress,
             "overall_progress": progress.overall_progress,
