@@ -71,7 +71,7 @@ import SelectButton from 'primevue/selectbutton';
 import { useGenerationStore } from '@/stores/generation';
 import GenerationAction from './GenerationAction.vue';
 
-const props = defineProps(['collapsed', 'icon', 'label', 'toggleable']);
+defineProps(['collapsed', 'icon', 'label', 'toggleable']);
 
 const generationStore = useGenerationStore();
 

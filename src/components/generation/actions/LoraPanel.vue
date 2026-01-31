@@ -21,7 +21,7 @@
     <!-- LoRA List -->
     <template v-else>
       <!-- Import Button -->
-      <Button label="Import LoRA" severity="info" size="small"  @click="showImportDialog = true" />
+      <Button label="Import LoRA" severity="info" size="small" @click="showImportDialog = true" />
 
       <ul role="list" class="divide-y divide-surface-600">
         <li
@@ -52,7 +52,8 @@
                   :use-grouping="true"
                   :min="0"
                   :max="2"
-                  :minFractionDigits="2" :maxFractionDigits="2"
+                  :minFractionDigits="2"
+                  :maxFractionDigits="2"
                   :step="0.1"
                   fluid
                   input-class="flex items-center font-mono text-base leading-none text-center" />
@@ -98,7 +99,7 @@ import LoraImportDialog from './LoraImportDialog.vue';
 import InputText from 'primevue/inputtext';
 import { LoRA } from '@/types';
 
-const props = defineProps(['collapsed', 'icon', 'label', 'toggleable']);
+defineProps(['collapsed', 'icon', 'label', 'toggleable']);
 
 const modelsStore = useModelsStore();
 const toast = useToast();
@@ -119,11 +120,6 @@ onMounted(() => {
 const handleToggle = (lora: LoRA) => {
   lora.isActive = !lora.isActive;
   modelsStore.toggleLora(lora.id);
-};
-
-const handleStrengthChange = (lora: LoRA, strength: number) => {
-  lora.strength = strength;
-  modelsStore.updateLoraStrength(lora.id, strength);
 };
 
 const handleResetStrengthChange = (lora: LoRA) => {
@@ -171,13 +167,6 @@ const copyTriggerWords = async (text: string) => {
   } catch (error) {
     console.error('Failed to copy:', error);
   }
-};
-
-const formatFileSize = (bytes: number): string => {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 };
 </script>
 

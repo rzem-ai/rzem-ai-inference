@@ -234,6 +234,15 @@ async fn process_next_job(
 
     let job_id = job.id.clone();
     let params = job.params.clone();
+    let image_id = job.image_id.clone();
+
+    // Update database: PENDING → PROCESSING
+    if let Some(ref img_id) = image_id {
+        let db_guard = gallery_db.lock().await;
+        if let Some(db) = db_guard.as_ref() {
+            let _ = db.update_image_status(img_id, "processing");
+        }
+    }
 
     // Mark as running and emit event
     queue_manager.update_job_status(&job_id, JobStatus::Running).await
@@ -258,23 +267,51 @@ async fn process_next_job(
     // Handle result and emit completion/failure event
     match result {
         Ok((image_path, stats)) => {
-            // Save to gallery with stats
-            let image_id = match save_to_gallery(&image_path, &params, &stats, gallery_db).await {
-                Ok(id) => id,
-                Err(e) => {
-                    warn!(error = %e, "Failed to save to gallery");
-                    String::new()
-                }
-            };
+            // Update database: PROCESSING → COMPLETED
+            if let Some(ref img_id) = image_id {
+                let db_guard = gallery_db.lock().await;
+                if let Some(db) = db_guard.as_ref() {
+                    // Generate thumbnail
+                    let thumbnail_path = match generate_thumbnail(&image_path, 400) {
+                        Ok(path) => Some(path),
+                        Err(e) => {
+                            warn!(error = ?e, "Failed to generate thumbnail");
+                            None
+                        }
+                    };
 
-            // Auto-tag if enabled (runs asynchronously, non-blocking)
-            if !image_id.is_empty() {
-                let gallery_db = gallery_db.clone();
-                let app_handle = app_handle.clone();
-                let image_path_clone = image_path.clone();
-                tokio::spawn(async move {
-                    auto_tag_if_enabled(&image_id, &image_path_clone, &gallery_db, &app_handle).await;
-                });
+                    // Get file metadata
+                    let file_size = std::fs::metadata(&image_path)
+                        .map(|m| m.len() as i64)
+                        .unwrap_or(0);
+
+                    // Update image on completion
+                    if let Err(e) = db.update_image_on_completion(
+                        img_id,
+                        &image_path,
+                        thumbnail_path,
+                        params.width as i32,
+                        params.height as i32,
+                        file_size,
+                        stats.total_ms as i64,
+                    ) {
+                        warn!(error = %e, "Failed to update image on completion");
+                    }
+
+                    // Store generation stats
+                    if let Err(e) = db.insert_generation_stats(img_id, &stats) {
+                        warn!(error = %e, "Failed to insert generation stats");
+                    }
+
+                    // Auto-tag if enabled (runs asynchronously, non-blocking)
+                    let gallery_db = gallery_db.clone();
+                    let app_handle = app_handle.clone();
+                    let image_path_clone = image_path.clone();
+                    let img_id_clone = img_id.clone();
+                    tokio::spawn(async move {
+                        auto_tag_if_enabled(&img_id_clone, &image_path_clone, &gallery_db, &app_handle).await;
+                    });
+                }
             }
 
             // Mark as completed
@@ -285,6 +322,15 @@ async fn process_next_job(
         }
         Err(e) => {
             let error_msg = e.to_string();
+
+            // Update database: PROCESSING → FAILED
+            if let Some(ref img_id) = image_id {
+                let db_guard = gallery_db.lock().await;
+                if let Some(db) = db_guard.as_ref() {
+                    let _ = db.update_image_on_failure(img_id, &error_msg);
+                }
+            }
+
             // Mark as failed
             queue_manager.fail_job(&job_id, error_msg.clone()).await
                 .map_err(|e| anyhow::anyhow!(e))?;
@@ -451,23 +497,48 @@ async fn execute_generation(
     };
 
     // Use the cached pipeline for generation
+    // Choose between standard and staged loading based on VRAM availability
     debug!("Calling with_pipeline");
     let result = model_cache.with_pipeline(|pipeline| {
-        debug!("Inside with_pipeline, calling generate_with_progress");
-        // Use the progress-enabled generation method
-        // The embedding cache integration will be refined in a future iteration
-        let gen_result = pipeline.generate_with_progress(
-            &params.prompt,
-            params.steps as usize,
-            params.width as usize,
-            params.height as usize,
-            guidance,
-            seed,
-            Some(metadata),
-            sampler,
-            scheduler,
-            on_progress,
-        );
+        debug!("Inside with_pipeline, checking if staged loading is needed");
+
+        // Check if staged loading is required (FLUX-dev on <34GB GPU)
+        let use_staged = pipeline.needs_staged_loading();
+        if use_staged {
+            info!("Using staged loading for memory-constrained GPU (FLUX-dev on <34GB VRAM)");
+        }
+
+        let gen_result = if use_staged {
+            // Staged loading: load encoders, encode, unload, load transformer
+            pipeline.generate_with_staged_loading(
+                &params.prompt,
+                params.steps as usize,
+                params.width as usize,
+                params.height as usize,
+                guidance,
+                seed,
+                Some(metadata),
+                sampler,
+                scheduler,
+                on_progress,
+            )
+        } else {
+            // Standard loading: all models loaded together
+            debug!("Using standard loading (sufficient VRAM or non-dev model)");
+            pipeline.generate_with_progress(
+                &params.prompt,
+                params.steps as usize,
+                params.width as usize,
+                params.height as usize,
+                guidance,
+                seed,
+                Some(metadata),
+                sampler,
+                scheduler,
+                on_progress,
+            )
+        };
+
         if let Err(ref e) = gen_result {
             error!(error = ?e, "Generation error");
         }
@@ -530,68 +601,8 @@ fn generate_thumbnail(image_path: &str, thumbnail_size: u32) -> Result<String> {
     Ok(thumbnail_path.to_string_lossy().to_string())
 }
 
-async fn save_to_gallery(
-    image_path: &str,
-    params: &super::GenerationParams,
-    stats: &GenerationStats,
-    gallery_db: &Arc<tokio::sync::Mutex<Option<GalleryDb>>>,
-) -> Result<String> {
-    let db_guard = gallery_db.lock().await;
-    let Some(db) = db_guard.as_ref() else {
-        return Ok(String::new()); // Database not initialized, skip
-    };
-
-    // Generate thumbnail for gallery display (400px covers most use cases)
-    let thumbnail_path = match generate_thumbnail(image_path, 400) {
-        Ok(path) => Some(path),
-        Err(e) => {
-            warn!(error = ?e, "Failed to generate thumbnail, using original image");
-            None
-        }
-    };
-
-    // Calculate file size from the actual file
-    let file_size = std::fs::metadata(image_path)
-        .map(|m| m.len() as i64)
-        .unwrap_or(0);
-
-    // Convert sampler enum to string
-    let sampler = params.sampler.as_ref().map(|s| format!("{:?}", s));
-
-    let image_id = uuid::Uuid::new_v4().to_string();
-
-    // Construct model name from bundle or component
-    let model_name = if let Some(ref bundle_id) = params.bundle_id {
-        format!("bundle:{}", bundle_id)
-    } else {
-        format!("component:{}", params.model_component_id)
-    };
-
-    let metadata = ImageMetadata {
-        id: image_id.clone(),
-        file_path: image_path.to_string(),
-        thumbnail_path,
-        prompt: params.prompt.clone(),
-        created_at: chrono::Utc::now().timestamp(),
-        width: params.width as i32,
-        height: params.height as i32,
-        file_size,
-        model_name,
-        negative_prompt: params.negative_prompt.clone(),
-        steps: Some(params.steps as i32),
-        cfg_scale: Some(params.cfg_scale),
-        seed: Some(params.seed),
-        sampler,
-        generation_time_ms: Some(stats.total_ms as i64),
-    };
-
-    db.insert_image(&metadata)?;
-
-    // Store generation stats
-    db.insert_generation_stats(&image_id, stats)?;
-
-    Ok(image_id)
-}
+// save_to_gallery function removed - images are now created upfront
+// and updated on completion via update_image_on_completion()
 
 /// Auto-tag a newly generated image if enabled in settings
 async fn auto_tag_if_enabled(

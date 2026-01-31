@@ -1105,6 +1105,138 @@ async fn scan_and_discover_models(
     })
 }
 
+/// Scan a specific directory for model files (not HuggingFace cache)
+/// Identifies model types by inspecting file headers
+#[command]
+async fn scan_directory_for_models(
+    app_state: State<'_, AppState>,
+    directory_path: String,
+    compute_hashes: Option<bool>,
+) -> Result<ScanResult, String> {
+    use crate::models::{scan_directory_for_models as scan_dir, scan_directory_for_models_fast as scan_dir_fast, to_component_record};
+    use std::path::Path;
+    use std::sync::{Arc, Mutex as StdMutex};
+
+    let dir_path = Path::new(&directory_path);
+    let should_hash = compute_hashes.unwrap_or(false);
+
+    info!("🔄 ========================================");
+    info!("🔄 scan_directory_for_models COMMAND CALLED");
+    info!("🔄 Directory: {}", directory_path);
+    info!("🔄 Compute hashes: {}", should_hash);
+    info!("🔄 ========================================");
+
+    // Emit scan start event
+    let _ = app_state.app_handle.emit("model-scan-progress", serde_json::json!({
+        "stage": "discovering",
+        "message": "Discovering model files...",
+        "progress": 0
+    }));
+
+    // Shared counter for new components
+    let new_components_count = Arc::new(StdMutex::new(0usize));
+
+    // Progress callback
+    let app_handle = app_state.app_handle.clone();
+    let progress_callback = Box::new(move |current: usize, total: usize, filename: &str| {
+        let progress = (current * 100 / total.max(1)) as u8;
+        let _ = app_handle.emit("model-scan-progress", serde_json::json!({
+            "stage": "identifying",
+            "message": format!("[{}/{}] Identifying: {}", current, total, filename),
+            "progress": progress,
+            "filesProcessed": current,
+            "filesFound": total
+        }));
+    });
+
+    // Run the scan (with or without hash computation)
+    let components = if should_hash {
+        // Hash progress callback
+        let app_handle2 = app_state.app_handle.clone();
+        let hash_callback = Box::new(move |filename: &str, percent: u8, processed: u64, total: u64| {
+            let processed_mb = processed as f64 / 1_000_000.0;
+            let total_mb = total as f64 / 1_000_000.0;
+            let _ = app_handle2.emit("model-scan-progress", serde_json::json!({
+                "stage": "hashing",
+                "message": format!("Computing hash: {} ({}% - {:.1}/{:.1} MB)", filename, percent, processed_mb, total_mb),
+                "progress": percent
+            }));
+        });
+        scan_dir(dir_path, Some(progress_callback), Some(hash_callback))
+    } else {
+        scan_dir_fast(dir_path, Some(progress_callback))
+    }.map_err(|e| format!("Scan failed: {}", e))?;
+
+    let components_count = components.len();
+
+    if components.is_empty() {
+        info!("⚠️  No model components found in directory");
+        let _ = app_state.app_handle.emit("model-scan-progress", serde_json::json!({
+            "stage": "complete",
+            "message": "No model files found",
+            "progress": 100
+        }));
+
+        return Ok(ScanResult {
+            components_found: 0,
+            components_added: 0,
+            bundles_created: 0,
+        });
+    }
+
+    // Save components to database and create bundles
+    let _ = app_state.app_handle.emit("model-scan-progress", serde_json::json!({
+        "stage": "processing",
+        "message": "Saving components to database...",
+        "progress": 80
+    }));
+
+    let db_guard = app_state.gallery_db.lock().await;
+    let db = db_guard.as_ref()
+        .ok_or_else(|| "Database not initialized".to_string())?;
+
+    for component in &components {
+        // Convert to database record
+        let record = to_component_record(component);
+
+        // Check if component already exists
+        if db.get_component(&record.id).is_ok() {
+            info!("   - Component already exists: {}", record.name);
+            continue;
+        }
+
+        // Insert new component
+        match db.insert_component(&record) {
+            Ok(_) => {
+                *new_components_count.lock().unwrap() += 1;
+                info!("   ✓ Added new component: {} ({:?})", record.name, component.component_type);
+            }
+            Err(e) => {
+                warn!("   ✗ Failed to save component: {}", e);
+            }
+        }
+    }
+
+    let new_components = *new_components_count.lock().unwrap();
+
+    info!("✅ Directory scan complete");
+    info!("   Components found: {}", components_count);
+    info!("   New components added: {}", new_components);
+
+    // Emit completion event
+    let _ = app_state.app_handle.emit("model-scan-progress", serde_json::json!({
+        "stage": "complete",
+        "message": format!("Scan complete: {} components found, {} new", components_count, new_components),
+        "progress": 100
+    }));
+
+    Ok(ScanResult {
+        components_found: components_count,
+        components_added: new_components,
+        bundles_created: 0,
+    })
+}
+
 /// Get all bundles with component details
 #[command]
 async fn get_all_bundles(
@@ -2337,6 +2469,7 @@ pub fn run_with_config(runtime_config: shared::protocol::RuntimeConfig, port: Op
             get_component_availability,
             // Model bundle system commands
             scan_and_discover_models,
+            scan_directory_for_models,
             get_all_bundles,
             get_bundle,
             create_bundle,

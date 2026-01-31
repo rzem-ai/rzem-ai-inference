@@ -17,65 +17,35 @@ pub struct ClipTextEncoder {
 
 impl ClipTextEncoder {
     /// Load CLIP model from safetensors file
+    ///
+    /// # Arguments
+    /// * `model_path` - Path to model.safetensors
+    /// * `tokenizer_path` - Path to tokenizer.json file, or vocab.json for BPE format
     pub fn load<P: AsRef<Path>>(
         model_path: P,
         tokenizer_path: P,
         device: Device,
     ) -> Result<Self> {
-        // Load tokenizer from directory containing vocab.json and merges.txt
-        // CLIP uses BPE tokenizer, not a unified tokenizer.json
-        let tokenizer_dir = tokenizer_path.as_ref();
-        let tokenizer = if tokenizer_dir.join("tokenizer.json").exists() {
-            // Unified tokenizer format
-            Tokenizer::from_file(tokenizer_dir.join("tokenizer.json"))
-                .map_err(|e| anyhow::anyhow!("Failed to load tokenizer: {}", e))?
-        } else if tokenizer_dir.join("vocab.json").exists() && tokenizer_dir.join("merges.txt").exists() {
-            // Separate BPE files format (CLIP default)
-            // Build BPE tokenizer from local vocab and merges files
-            let vocab_path = tokenizer_dir.join("vocab.json");
-            let merges_path = tokenizer_dir.join("merges.txt");
+        let tokenizer_path = tokenizer_path.as_ref();
 
-            let bpe = BPE::from_file(&vocab_path.to_string_lossy(), &merges_path.to_string_lossy())
-                .build()
-                .map_err(|e| anyhow::anyhow!("Failed to build BPE tokenizer: {}", e))?;
+        // Scanner stores file path: tokenizer.json or vocab.json
+        if !tokenizer_path.is_file() {
+            anyhow::bail!("Tokenizer path is not a file: {:?}", tokenizer_path);
+        }
 
-            let mut tokenizer = Tokenizer::new(bpe);
+        let filename = tokenizer_path.file_name().and_then(|n| n.to_str()).unwrap_or("");
 
-            // Add special tokens
-            tokenizer.add_special_tokens(&[
-                AddedToken::from("<|startoftext|>", true).single_word(false),
-                AddedToken::from("<|endoftext|>", true).single_word(false),
-            ]);
-
-            // CLIP post-processing: add SOT at start, EOT at end
-            // SOT = 49406, EOT = 49407
-            let template = TemplateProcessing::builder()
-                .try_single("<|startoftext|> $A <|endoftext|>")
-                .map_err(|e| anyhow::anyhow!("Failed to set template: {}", e))?
-                .special_tokens(vec![
-                    ("<|startoftext|>", 49406u32),
-                    ("<|endoftext|>", 49407u32),
-                ])
-                .build()
-                .map_err(|e| anyhow::anyhow!("Failed to build template: {}", e))?;
-            tokenizer.with_post_processor(template);
-
-            // Padding and truncation to 77 tokens
-            tokenizer.with_padding(Some(tokenizers::PaddingParams {
-                strategy: tokenizers::PaddingStrategy::Fixed(77),
-                pad_id: 49407,  // <|endoftext|>
-                pad_token: "<|endoftext|>".to_string(),
-                ..Default::default()
-            }));
-
-            tokenizer.with_truncation(Some(tokenizers::TruncationParams {
-                max_length: 77,
-                ..Default::default()
-            })).map_err(|e| anyhow::anyhow!("Failed to set truncation: {}", e))?;
-
-            tokenizer
+        let tokenizer = if filename == "tokenizer.json" {
+            // Unified tokenizer format - load directly
+            Tokenizer::from_file(tokenizer_path)
+                .map_err(|e| anyhow::anyhow!("Failed to load tokenizer from {:?}: {}", tokenizer_path, e))?
+        } else if filename == "vocab.json" {
+            // BPE format - need vocab.json + merges.txt from same directory
+            let tokenizer_dir = tokenizer_path.parent()
+                .ok_or_else(|| anyhow::anyhow!("Could not get parent directory of tokenizer"))?;
+            Self::load_bpe_tokenizer(tokenizer_dir)?
         } else {
-            anyhow::bail!("Could not find tokenizer files in {}", tokenizer_dir.display());
+            anyhow::bail!("Unknown tokenizer file format: {:?}. Expected tokenizer.json or vocab.json", tokenizer_path);
         };
 
         // Load model weights
@@ -114,6 +84,61 @@ impl ClipTextEncoder {
             tokenizer,
             device,
         })
+    }
+
+    /// Load BPE tokenizer from a directory containing vocab.json and merges.txt
+    fn load_bpe_tokenizer(tokenizer_dir: &Path) -> Result<Tokenizer> {
+        let vocab_path = tokenizer_dir.join("vocab.json");
+        let merges_path = tokenizer_dir.join("merges.txt");
+
+        if !vocab_path.exists() || !merges_path.exists() {
+            anyhow::bail!(
+                "BPE tokenizer requires vocab.json and merges.txt in {:?}",
+                tokenizer_dir
+            );
+        }
+
+        let bpe = BPE::from_file(&vocab_path.to_string_lossy(), &merges_path.to_string_lossy())
+            .build()
+            .map_err(|e| anyhow::anyhow!("Failed to build BPE tokenizer: {}", e))?;
+
+        let mut tokenizer = Tokenizer::new(bpe);
+
+        // Add special tokens
+        tokenizer.add_special_tokens(&[
+            AddedToken::from("<|startoftext|>", true).single_word(false),
+            AddedToken::from("<|endoftext|>", true).single_word(false),
+        ]);
+
+        // CLIP post-processing: add SOT at start, EOT at end
+        // SOT = 49406, EOT = 49407
+        let template = TemplateProcessing::builder()
+            .try_single("<|startoftext|> $A <|endoftext|>")
+            .map_err(|e| anyhow::anyhow!("Failed to set template: {}", e))?
+            .special_tokens(vec![
+                ("<|startoftext|>", 49406u32),
+                ("<|endoftext|>", 49407u32),
+            ])
+            .build()
+            .map_err(|e| anyhow::anyhow!("Failed to build template: {}", e))?;
+        tokenizer.with_post_processor(Some(template));
+
+        // Padding and truncation to 77 tokens
+        tokenizer.with_padding(Some(tokenizers::PaddingParams {
+            strategy: tokenizers::PaddingStrategy::Fixed(77),
+            pad_id: 49407, // <|endoftext|>
+            pad_token: "<|endoftext|>".to_string(),
+            ..Default::default()
+        }));
+
+        tokenizer
+            .with_truncation(Some(tokenizers::TruncationParams {
+                max_length: 77,
+                ..Default::default()
+            }))
+            .map_err(|e| anyhow::anyhow!("Failed to set truncation: {}", e))?;
+
+        Ok(tokenizer)
     }
 
     /// Encode text prompt to pooled embeddings

@@ -81,8 +81,11 @@ export const useBundlesStore = defineStore('bundles', {
     availableComponents: [] as ComponentRecord[],
     isLoading: false,
     isScanning: false,
+    scanMessage: '' as string,
+    scanProgress: 0 as number,
     lastScanResult: null as ScanResult | null,
     error: null as string | null,
+    scanEventListener: null as (() => void) | null,
   }),
 
   getters: {
@@ -201,7 +204,7 @@ export const useBundlesStore = defineStore('bundles', {
     },
 
     // Scan HuggingFace cache for models
-    async scanModels() {
+    async scanBundles() {
       this.isScanning = true
       this.error = null
 
@@ -305,8 +308,46 @@ export const useBundlesStore = defineStore('bundles', {
       }
     },
 
+    // Set up scan progress event listener (call early in app lifecycle)
+    async setupScanListener() {
+      if (this.scanEventListener) {
+        return // Already set up
+      }
+
+      const { listen } = await import('@tauri-apps/api/event')
+
+      const unlisten = await listen<{ stage: string; message: string; progress: number }>(
+        'model-scan-progress',
+        (event) => {
+          const progress = event.payload
+          console.log('📡 Store received scan progress:', progress)
+
+          if (progress.stage === 'complete') {
+            this.isScanning = true
+            this.scanMessage = progress.message
+            this.scanProgress = progress.progress
+
+            setTimeout(() => {
+              this.isScanning = false
+              this.scanMessage = ''
+              this.scanProgress = 0
+            }, 3000)
+          } else {
+            this.isScanning = true
+            this.scanMessage = progress.message
+            this.scanProgress = progress.progress
+          }
+        }
+      )
+
+      this.scanEventListener = unlisten
+    },
+
     // Initialize store - call from component on mount
     async initialize() {
+      // Set up event listener first, before any loading that might trigger scans
+      await this.setupScanListener()
+
       await Promise.all([
         this.loadBundles(),
         this.loadComponents(),

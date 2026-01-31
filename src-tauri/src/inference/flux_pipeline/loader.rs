@@ -51,7 +51,148 @@ fn format_bytes(bytes: u64) -> String {
     }
 }
 
+/// Required VRAM threshold (in GB) above which staged loading is used
+const STAGED_LOADING_VRAM_THRESHOLD_GB: u64 = 34;
+
 impl FluxPipeline {
+    /// Check if staged loading is required based on available VRAM
+    ///
+    /// Returns true if total required VRAM exceeds available.
+    /// FLUX-dev needs ~34GB for all models simultaneously.
+    /// With staged loading, peak is ~24GB (just transformer + VAE).
+    pub fn needs_staged_loading(&self) -> bool {
+        // Only FLUX-dev needs staged loading (schnell transformer is smaller)
+        if self.model_type.id() != "dev" {
+            return false;
+        }
+
+        // Check GPU memory
+        if let Some((_, total_bytes, _)) = get_gpu_memory_stats() {
+            let total_gb = total_bytes / (1024 * 1024 * 1024);
+            // Need ~34GB for all models, use staged if less available
+            return total_gb < STAGED_LOADING_VRAM_THRESHOLD_GB;
+        }
+
+        // If we can't query GPU memory, assume staged loading needed for dev
+        // This is safer - prevents OOM on unknown hardware
+        true
+    }
+
+    /// Load only text encoders (T5 + CLIP) for prompt encoding
+    ///
+    /// Used in staged loading to encode prompts before loading the transformer.
+    pub(crate) fn ensure_text_encoders_loaded(&mut self, stats: &mut GenerationStats) -> Result<()> {
+        // Get paths from bundle context
+        let context = self.bundle_context.clone()
+            .ok_or_else(|| anyhow::anyhow!("No bundle context set - component IDs required"))?;
+
+        let paths = if let Some(bundle_id) = context.bundle_id {
+            let db_path = ModelPaths::get_db_path()?;
+            let db = crate::gallery::GalleryDb::new(&db_path)?;
+            let bundle_info = db.get_bundle(&bundle_id)?;
+            ModelPaths::from_bundle_info(&bundle_info)?
+        } else {
+            let model_id = context.model_component_id.as_deref()
+                .ok_or_else(|| anyhow::anyhow!("model_component_id required"))?;
+            let t5_id = context.t5_component_id.as_deref()
+                .ok_or_else(|| anyhow::anyhow!("t5_component_id required"))?;
+            let clip_id = context.clip_component_id.as_deref()
+                .ok_or_else(|| anyhow::anyhow!("clip_component_id required"))?;
+            let vae_id = context.vae_component_id.as_deref()
+                .ok_or_else(|| anyhow::anyhow!("vae_component_id required"))?;
+
+            let db_path = ModelPaths::get_db_path()?;
+            let db = crate::gallery::GalleryDb::new(&db_path)?;
+            ModelPaths::from_component_ids(&db, model_id, t5_id, clip_id, vae_id)?
+        };
+
+        let total_load_timer = Timer::start();
+        let mut any_loaded = false;
+
+        // Load T5 if not present
+        if self.t5.is_none() {
+            self.load_t5_encoder(&paths, stats)?;
+            any_loaded = true;
+        } else {
+            debug!("T5 encoder already loaded, skipping");
+        }
+
+        // Load CLIP if not present
+        if self.clip.is_none() {
+            self.load_clip_encoder(&paths, stats)?;
+            any_loaded = true;
+        } else {
+            debug!("CLIP encoder already loaded, skipping");
+        }
+
+        if any_loaded {
+            stats.model_load_ms = Some(total_load_timer.stop());
+            self.models_loaded_this_session = true;
+            info!("Text encoders loaded for staged generation");
+        }
+
+        Ok(())
+    }
+
+    /// Load only diffusion models (VAE + FLUX) for image generation
+    ///
+    /// Used in staged loading after text encoding is complete and
+    /// text encoders have been unloaded to free VRAM.
+    pub(crate) fn ensure_diffusion_models_loaded(&mut self, stats: &mut GenerationStats) -> Result<()> {
+        // Get paths from bundle context
+        let context = self.bundle_context.clone()
+            .ok_or_else(|| anyhow::anyhow!("No bundle context set - component IDs required"))?;
+
+        let paths = if let Some(bundle_id) = context.bundle_id {
+            let db_path = ModelPaths::get_db_path()?;
+            let db = crate::gallery::GalleryDb::new(&db_path)?;
+            let bundle_info = db.get_bundle(&bundle_id)?;
+            ModelPaths::from_bundle_info(&bundle_info)?
+        } else {
+            let model_id = context.model_component_id.as_deref()
+                .ok_or_else(|| anyhow::anyhow!("model_component_id required"))?;
+            let t5_id = context.t5_component_id.as_deref()
+                .ok_or_else(|| anyhow::anyhow!("t5_component_id required"))?;
+            let clip_id = context.clip_component_id.as_deref()
+                .ok_or_else(|| anyhow::anyhow!("clip_component_id required"))?;
+            let vae_id = context.vae_component_id.as_deref()
+                .ok_or_else(|| anyhow::anyhow!("vae_component_id required"))?;
+
+            let db_path = ModelPaths::get_db_path()?;
+            let db = crate::gallery::GalleryDb::new(&db_path)?;
+            ModelPaths::from_component_ids(&db, model_id, t5_id, clip_id, vae_id)?
+        };
+
+        let total_load_timer = Timer::start();
+        let mut any_loaded = false;
+
+        // Load VAE if not present
+        if self.vae.is_none() {
+            self.load_vae_decoder(&paths, stats)?;
+            any_loaded = true;
+        } else {
+            debug!("VAE decoder already loaded, skipping");
+        }
+
+        // Load FLUX transformer if not present
+        if self.flux.is_none() {
+            self.load_flux_transformer(&paths, stats)?;
+            any_loaded = true;
+        } else {
+            debug!("FLUX transformer already loaded, skipping");
+        }
+
+        if any_loaded {
+            // Add to existing model_load_ms if present (from text encoder loading)
+            let elapsed = total_load_timer.stop();
+            stats.model_load_ms = Some(stats.model_load_ms.unwrap_or(0) + elapsed);
+            self.models_loaded_this_session = true;
+            info!("Diffusion models loaded for staged generation");
+        }
+
+        Ok(())
+    }
+
     /// Load models if not already loaded, returning timing stats
     /// Each model is checked individually - only missing models are loaded
     /// Accepts optional custom ModelPaths for bundle/component override
@@ -180,11 +321,26 @@ impl FluxPipeline {
             tokenizer = %tokenizer_path.display(),
             "Loading T5 encoder"
         );
-        self.t5 = Some(T5TextEncoder::load(
-            model_path,
-            tokenizer_path,
-            self.device.clone(),
-        )?);
+
+        // Check if this is a quantized GGUF file or full-precision safetensors
+        let is_gguf = model_path.extension()
+            .and_then(|ext| ext.to_str())
+            .map(|ext| ext == "gguf")
+            .unwrap_or(false);
+
+        self.t5 = Some(if is_gguf {
+            T5TextEncoder::load_quantized(
+                model_path,
+                tokenizer_path,
+                self.device.clone(),
+            )?
+        } else {
+            T5TextEncoder::load(
+                model_path,
+                tokenizer_path,
+                self.device.clone(),
+            )?
+        });
 
         let elapsed = t5_timer.stop();
         stats.t5_load_ms = Some(elapsed);
@@ -219,7 +375,13 @@ impl FluxPipeline {
 
     /// Load CLIP text encoder
     fn load_clip_encoder(&mut self, paths: &ModelPaths, stats: &mut GenerationStats) -> Result<()> {
-        let model_path = paths.clip_path()?.join("model.safetensors");
+        let clip_path = paths.clip_path()?;
+        // Handle both file path (from scanner) and directory path (legacy)
+        let model_path = if clip_path.is_file() {
+            clip_path
+        } else {
+            clip_path.join("model.safetensors")
+        };
         let tokenizer_path = paths.tokenizer_path()?;
         info!(
             model = %model_path.display(),
@@ -320,10 +482,30 @@ impl FluxPipeline {
         // Check if LoRAs are active
         let has_loras = !self.active_loras.is_empty();
 
-        // Load transformer from bundle (quantization now handled via component metadata)
+        // Load transformer from bundle
         let model_path = paths.transformer_path()?;
 
-        if has_loras {
+        // Check if this is a quantized GGUF file
+        let is_gguf = model_path.extension()
+            .and_then(|ext| ext.to_str())
+            .map(|ext| ext == "gguf")
+            .unwrap_or(false);
+
+        if is_gguf {
+            if has_loras {
+                warn!("LoRAs are not supported with quantized GGUF models, ignoring LoRAs");
+            }
+            info!(
+                model = %self.model_type,
+                path = %model_path.display(),
+                "Loading quantized transformer (GGUF)"
+            );
+            self.flux = Some(FluxTransformer::load_quantized(
+                model_path,
+                self.device.clone(),
+                self.model_type.clone(),
+            )?);
+        } else if has_loras {
             info!(
                 model = %self.model_type,
                 path = %model_path.display(),

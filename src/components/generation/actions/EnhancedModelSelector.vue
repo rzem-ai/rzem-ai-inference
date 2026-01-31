@@ -20,11 +20,11 @@
         option-group-children="items"
         placeholder="Select model or bundle"
         size="small"
-        class="w-full">
+        class="w-full mb-2">
         <template #value="slotProps">
           <div class="flex items-center justify-between w-full gap-2">
             <div class="flex items-center gap-2">
-              <i :class="getOptionIcon(slotProps.value)" class="text-sm"></i>
+              <fa :icon="['fal', getOptionIcon(slotProps.value)]" />
               <span class="font-medium">{{ getOptionLabel(slotProps.value) }}</span>
             </div>
             <div class="flex items-center gap-2">
@@ -36,10 +36,17 @@
           </div>
         </template>
 
+        <template #optiongroup="slotProps">
+          <div class="flex items-center gap-2 px-1 py-2 font-semibold text-surface-300 bg-surface-800/50">
+            <fa :icon="['far', slotProps.option.icon]" />
+            <span class="text-sm tracking-wider uppercase"> {{ slotProps.option.label }} </span>
+          </div>
+        </template>
+
         <template #option="slotProps">
           <div class="flex items-center justify-between w-full gap-2">
             <div class="flex items-center gap-2">
-              <i :class="getOptionIcon(slotProps.option.value)" class="text-sm"></i>
+              <fa :icon="['fal', getOptionIcon(slotProps.option.value)]" />
               <span class="font-medium">{{ slotProps.option.label }}</span>
             </div>
             <div class="flex items-center gap-2">
@@ -51,31 +58,26 @@
             </div>
           </div>
         </template>
-
-        <template #optiongroup="slotProps">
-          <div class="flex items-center gap-2 px-3 py-2 bg-surface-800/50">
-            <i :class="slotProps.option.icon" class="text-sm text-surface-400"></i>
-            <span class="text-sm font-semibold tracking-wider uppercase text-surface-300">
-              {{ slotProps.option.label }}
-            </span>
-          </div>
-        </template>
       </Select>
 
       <!-- Bundle Description -->
-      <div v-if="selectedBundle" class="p-3 mt-2 text-xs rounded-lg bg-surface-800/50">
-        <div class="flex items-start gap-2 mb-2">
-          <i class="pi pi-info-circle text-blue-400 mt-0.5"></i>
-          <div class="flex-1">
-            <p v-if="selectedBundle.description" class="m-0 mb-1 text-surface-300">
+      <div class="px-1">
+        <Message v-if="selectedBundle" class="">
+          <template #icon><fa :icon="['fal', 'circle-info']" /></template>
+          <div class="flex flex-row">
+            <div v-if="selectedBundle.description" class="text-sm text-surface-300">
               {{ selectedBundle.description }}
-            </p>
-            <div class="flex gap-3 text-surface-500">
-              <span>{{ selectedBundle.components.length }} components</span>
-              <span v-if="selectedBundle.totalVramMb"> {{ bundlesStore.formatVram(selectedBundle.totalVramMb) }} VRAM </span>
+            </div>
+            <div class="flex flex-col text-xs text-surface-400">
+              <div class="text-nowrap"
+                >Components: <span class="font-semibold text-mono text-surface-300">{{ selectedBundle.components.length }}</span></div
+              >
+              <div class="text-nowrap" v-if="selectedBundle.totalVramMb"
+                >VRAM: <span class="font-semibold text-mono text-surface-300">{{ bundlesStore.formatVram(selectedBundle.totalVramMb) }}</span></div
+              >
             </div>
           </div>
-        </div>
+        </Message>
       </div>
     </div>
 
@@ -218,10 +220,12 @@
         </div>
 
         <!-- Validation Warning -->
-        <div v-if="!areComponentsValid" class="p-2 mt-3 text-xs border rounded bg-amber-900/20 border-amber-800/50 text-amber-300">
-          <i class="mr-1 pi pi-exclamation-triangle"></i>
+        <Message v-if="!areComponentsValid" severity="warn" size="small" class="mt-3">
+          <template #icon>
+            <fa :icon="['fal', 'triangle-exclamation']" size="lg" />
+          </template>
           Please select all required components (T5, CLIP, VAE)
-        </div>
+        </Message>
       </div>
     </template>
   </div>
@@ -233,8 +237,7 @@ import { useModelsStore } from '@/stores/models';
 import { useGenerationStore } from '@/stores/generation';
 import { useBundlesStore } from '@/stores/bundles';
 import type { BundleInfo, ComponentRecord } from '@/stores/bundles';
-import Select from 'primevue/select';
-import Tag from 'primevue/tag';
+import { Select, Tag, Message } from 'primevue';
 
 const modelsStore = useModelsStore();
 const generationStore = useGenerationStore();
@@ -369,7 +372,7 @@ const allOptions = computed(() => {
     if (bundleOptions.length > 0) {
       groups.push({
         label: 'Model Bundles',
-        icon: 'pi pi-box',
+        icon: 'box-taped',
         items: bundleOptions,
       });
     }
@@ -388,7 +391,7 @@ const allOptions = computed(() => {
   if (modelOptions.length > 0) {
     groups.push({
       label: 'Individual Models',
-      icon: 'pi pi-microchip',
+      icon: 'microchip-ai',
       items: modelOptions,
     });
   }
@@ -482,11 +485,21 @@ function isBundle(value: string | undefined): boolean {
 }
 
 function getOptionIcon(value: string | undefined): string {
-  if (!value) return 'pi pi-question text-surface-400';
-  if (isBundle(value)) {
-    return 'pi pi-box text-blue-400';
+  // if (!value) return 'pi pi-question text-surface-400';
+  // if (isBundle(value)) {
+  //   return 'pi pi-box text-blue-400';
+  // }
+  // return 'pi pi-microchip text-purple-400';
+
+  if (!value) {
+    return 'square-question';
   }
-  return 'pi pi-microchip text-purple-400';
+
+  if (isBundle(value)) {
+    return 'box-taped';
+  }
+
+  return 'layer-group';
 }
 
 function getOptionLabel(value: string | undefined): string {

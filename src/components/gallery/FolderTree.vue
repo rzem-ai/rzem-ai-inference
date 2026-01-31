@@ -59,11 +59,6 @@ const emit = defineEmits<{
 const contextMenuRef = ref<InstanceType<typeof ContextMenu> | null>(null);
 const contextFolder = ref<FolderNode | null>(null);
 
-const allExpanded = computed(() => {
-  const expandable = foldersStore.flatFolders.filter((f) => f.children.length > 0);
-  return expandable.length > 0 && expandable.every((f) => foldersStore.expandedFolderIds.has(f.id));
-});
-
 const contextMenuItems = computed(() => [
   {
     label: 'New Subfolder',
@@ -95,16 +90,6 @@ const contextMenuItems = computed(() => [
     },
   },
 ]);
-
-const handleSelectAll = () => {
-  foldersStore.setViewType('all');
-  galleryStore.loadAllImages();
-};
-
-const handleSelectUncategorized = () => {
-  foldersStore.setViewType('uncategorized');
-  galleryStore.loadUncategorizedImages();
-};
 
 const handleSelectFolder = (folder: FolderNode) => {
   foldersStore.setCurrentFolder(folder.id);
@@ -156,14 +141,6 @@ const handleFolderMove = async (data: { folderId: string; targetId: string; posi
 
     // Apply new order
     await foldersStore.reorderFolders(siblingIds);
-  }
-};
-
-const toggleExpandAll = () => {
-  if (allExpanded.value) {
-    foldersStore.collapseAll();
-  } else {
-    foldersStore.expandAll();
   }
 };
 </script>

@@ -1,17 +1,16 @@
-import { createRouter, createWebHistory } from 'vue-router'
-import ModelsView from '@/views/ModelsView.vue'
+import { createRouter, createWebHistory } from 'vue-router';
 
 const router = createRouter({
   history: createWebHistory(),
   routes: [
     {
       path: '/',
-      redirect: '/generate'
+      redirect: '/generate',
     },
     {
       path: '/generate',
       name: 'generate',
-      component: () => import('@/views/GenerateView.vue')
+      component: () => import('@/views/GenerateView.vue'),
     },
     {
       path: '/gallery',
@@ -21,19 +20,54 @@ const router = createRouter({
     {
       path: '/compare',
       name: 'compare',
-      component: () => import('@/views/CompareView.vue')
+      component: () => import('@/views/CompareView.vue'),
     },
     {
       path: '/models',
-      name: 'models',
-      component: ModelsView,
+      component: import('@/views/ModelsView.vue'),
+      redirect: '/models/bundles',
+      children: [
+        {
+          path: 'bundles',
+          name: 'models-bundles',
+          components: {
+            default: () => import('@/views/models/BundlesView.vue'),
+            sidebar: () => import('@/views/models/BundlesSidebar.vue'),
+          },
+        },
+        {
+          path: 'models',
+          name: 'models-models',
+          components: {
+            default: () => import('@/views/models/ModelsView.vue'),
+            sidebar: () => import('@/views/models/ModelsSidebar.vue'),
+          },
+        },
+      ],
     },
     {
       path: '/settings',
       name: 'settings',
-      component: () => import('@/views/SettingsView.vue')
-    }
-  ]
-})
+      component: import('@/views/SettingsView.vue'),
+      redirect: '/settings/apikeys',
+      children: [
+        {
+          path: 'apikeys',
+          name: 'apikeys',
+          components: {
+            default: () => import('@/views/settings/APIKeys.vue'),
+          },
+        },
+        {
+          path: 'cache',
+          name: 'cache',
+          components: {
+            default: () => import('@/views/settings/Cache.vue'),
+          },
+        },
+      ],
+    },
+  ],
+});
 
-export default router
+export default router;

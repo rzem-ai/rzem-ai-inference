@@ -30,6 +30,11 @@ export function useAppInit() {
       await invoke('init_database', { dbPath });
       console.log('Database initialized successfully');
 
+      // Scan and discover models (creates components and bundles in database)
+      console.log('Starting model scan...');
+      await invoke('scan_and_discover_models');
+      console.log('Model scan completed');
+
       // Refresh model availability from backend
       await modelsStore.refreshModelAvailability();
       console.log('Model availability refreshed');

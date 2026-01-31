@@ -29,7 +29,7 @@ pub use model_config_cache::ModelConfigCache;
 pub use model_type::ModelType;
 pub use paths::{ComponentRole, ModelPaths};
 pub use qwen3::Qwen3TextEncoder;
-pub use scanner::{ComponentType, DiscoveredComponent, ModelFormat, scan_all_components};
+pub use scanner::{ComponentType, DiscoveredComponent, ModelFormat, scan_all_components, scan_all_components_with_progress, scan_all_components_with_callbacks, scan_all_components_fast, scan_directory_for_models, scan_directory_for_models_fast, ScanProgressCallback, HashProgressCallback, RepoCompletionCallback, RepoSkipCallback, get_repo_snapshot_hash, get_repo_id_from_path};
 pub use t5::T5TextEncoder;
 pub use vae::VaeDecoder;
 pub use zimage::ZImageTransformer;

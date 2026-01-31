@@ -27,16 +27,12 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { useToast } from 'primevue/usetoast';
-import { useQueueStore, type GenerationJob } from '@/stores/queue';
-import { useGenerationStore } from '@/stores/generation';
+import { useQueueStore } from '@/stores/queue';
 import HistoryPanelItem from './HistoryPanelItem.vue';
 
 const queueStore = useQueueStore();
-const generationStore = useGenerationStore();
-const toast = useToast();
 
-const emit = defineEmits<{
+defineEmits<{
   restoreImage: [imagePath: string];
 }>();
 
@@ -47,68 +43,8 @@ const reversedHistoryJobs = computed(() => {
   const completedActive = queueStore.jobs.filter((j) => j.status === 'completed' || j.status === 'failed');
 
   // Combine with history jobs and reverse
-  return [...completedActive, ...queueStore.historyJobs].reverse();
+  return completedActive.reverse();
 });
-
-const formatTime = (timestamp?: number) => {
-  if (!timestamp) return '';
-  const date = new Date(timestamp * 1000);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMs / 3600000);
-  const diffDays = Math.floor(diffMs / 86400000);
-
-  if (diffMins < 1) return 'Just now';
-  if (diffMins < 60) return `${diffMins}m ago`;
-  if (diffHours < 24) return `${diffHours}h ago`;
-  if (diffDays < 7) return `${diffDays}d ago`;
-  return date.toLocaleDateString();
-};
-
-const restoreParameters = (job: GenerationJob) => {
-  // Copy the job's parameters to current generation settings
-  generationStore.currentParams = {
-    ...generationStore.currentParams,
-    prompt: job.params.prompt,
-    steps: job.params.steps,
-    cfgScale: job.params.cfg_scale,
-    width: job.params.width,
-    height: job.params.height,
-    seed: job.params.seed,
-    modelComponentId: job.params.model_component_id,
-    sampler: job.params.sampler || 'euler',
-    scheduler: job.params.scheduler || 'simple',
-  };
-
-  // Show confirmation toast
-  toast.add({
-    severity: 'success',
-    summary: 'Settings Restored',
-    detail: `Loaded parameters from previous generation (seed: ${job.params.seed})`,
-    life: 3000,
-  });
-};
-
-const handleJobClick = (job: GenerationJob) => {
-  // Restore generation parameters when clicking on history item
-  restoreParameters(job);
-
-  // Also restore the image to the center panel if it exists
-  if (job.result_path) {
-    emit('restoreImage', job.result_path);
-  }
-};
-
-const handleReuse = (job: GenerationJob) => {
-  // Also restore parameters when clicking the reuse button
-  restoreParameters(job);
-
-  // Also restore the image to the center panel if it exists
-  if (job.result_path) {
-    emit('restoreImage', job.result_path);
-  }
-};
 </script>
 
 <style scoped>

@@ -109,9 +109,7 @@ const contextMenuImageId = ref<string | null>(null);
 const getImageIds = () => {
   if (!contextMenuImageId.value) return [];
   // If clicked image is selected, use all selected images; otherwise just this image
-  return props.selectedIds.has(contextMenuImageId.value)
-    ? Array.from(props.selectedIds)
-    : [contextMenuImageId.value];
+  return props.selectedIds.has(contextMenuImageId.value) ? Array.from(props.selectedIds) : [contextMenuImageId.value];
 };
 
 const contextMenuItems = computed(() => {
@@ -211,7 +209,11 @@ const getImageSrc = (image: GalleryImage) => {
 // Get thumbnail source for gallery display (falls back to original if no thumbnail)
 const getThumbnailSrc = (image: GalleryImage) => {
   const path = image.thumbnailPath || image.filePath;
-  return convertFileSrc(path);
+  if (path) {
+    return convertFileSrc(path);
+  }
+
+  return '';
 };
 
 // Calculate column count based on container width
@@ -351,9 +353,6 @@ const handleDragEnd = () => {
   overflow: hidden;
   aspect-ratio: 1;
 }
-
-
-
 
 .image-container {
   position: relative;

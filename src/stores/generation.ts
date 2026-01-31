@@ -102,7 +102,7 @@ export const useGenerationStore = defineStore('generation', {
 
       // Subscribe to state changes for automatic persistence
       this._unsubscribe = this.$subscribe(
-        (mutation, state) => {
+        (_mutation, state) => {
           try {
             // Persist currentParams
             localStorage.setItem(STORAGE_KEY, JSON.stringify(state.currentParams));

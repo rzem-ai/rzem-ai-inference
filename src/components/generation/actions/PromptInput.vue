@@ -1,12 +1,16 @@
 <template>
   <GenerationAction :collapsed="false" :toggleable="false" icon="pen-to-square" label="Image Description">
-    <PromptEditor v-model="prompt" label="Prompt" placeholder="Describe the image you want to generate..." :rows="4" />
+    <div class="relative">
+      <PromptEditor v-model="prompt" label="Prompt" placeholder="Describe the image you want to generate..." :rows="4" />
+    </div>
 
     <!-- Configuration validation message -->
-    <div v-if="!generationStore.isValidConfiguration && prompt.trim().length > 0" class="p-2 text-xs border rounded bg-amber-900/20 border-amber-800/50 text-amber-300">
-      <i class="mr-1 pi pi-exclamation-triangle"></i>
+    <Message v-if="!generationStore.isValidConfiguration && prompt.trim().length > 0" severity="warn" size="small">
+      <template #icon>
+        <fa :icon="['fal', 'triangle-exclamation']" size="lg" />
+      </template>
       Please select a model bundle or configure all components (Model, T5, CLIP, VAE) in the Quality section
-    </div>
+    </Message>
 
     <div class="flex flex-col gap-2">
       <SplitButton :loading="queueStore.hasRunningJobs" fluid size="small" @click="handleGenerate" :model="generationCounts" :disabled="!canGenerate">
@@ -24,11 +28,13 @@
 import { ref, computed } from 'vue';
 import { useGenerationStore } from '@/stores/generation';
 import { useQueueStore } from '@/stores/queue';
+
 import GenerationAction from './GenerationAction.vue';
 import PromptEditor from './PromptEditor.vue';
 import SplitButton from 'primevue/splitbutton';
 import Button from 'primevue/button';
 import BatchScriptDialog from '@/components/generation/batch/BatchScriptDialog.vue';
+import Message from 'primevue/message';
 
 const emit = defineEmits<{
   generate: [];

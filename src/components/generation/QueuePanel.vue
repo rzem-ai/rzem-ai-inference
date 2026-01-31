@@ -128,14 +128,6 @@ const allJobs = computed(() => {
   return queueStore.jobs.filter((j) => j.status === 'pending' || j.status === 'running');
 });
 
-// Count of pending/running jobs for badge
-const pendingJobCount = computed(() => {
-  if (demoMode.value) {
-    return demoAllJobs.value.filter((j) => j.status === 'pending' || j.status === 'running').length;
-  }
-  return queueStore.jobs.filter((j) => j.status === 'pending' || j.status === 'running').length;
-});
-
 onMounted(async () => {
   // Initialize event listeners for real-time queue updates
   await queueStore.initializeEventListeners();

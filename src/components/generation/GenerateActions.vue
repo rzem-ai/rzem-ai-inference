@@ -6,25 +6,26 @@
     @dragleave.prevent="handleDragLeave"
     @drop.prevent="handleDrop">
     <!-- Scrollable Content -->
-    <div class="flex flex-col gap-4 px-2 py-2 overflow-y-auto">
-      <!-- Preset Section -->
 
+    <ul role="list" class="divide-y divide-surface-600/50">
       <PromptInput @generate="handleGenerate" />
       <ImageDimensions @generate="handleGenerate" />
       <QualitySelector @generate="handleGenerate" v-if="showQuality" />
       <LoraPanel @generate="handleGenerate" v-if="showStyle" />
       <AdvancedSettings @generate="handleGenerate" v-if="showAdvanced" />
-    </div>
+    </ul>
 
     <!-- Drag Overlay -->
     <div
       v-if="isDragging"
-      class="absolute inset-0 z-50 flex items-center justify-center border-2 border-dashed border-(--accent-primary) bg-[rgba(212,168,83,0.15)] backdrop-blur pointer-events-none">
-      <div class="flex flex-col items-center gap-3 rounded-xl bg-(--bg-elevated) p-6 shadow-[0_4px_20px_rgba(0,0,0,0.4)]">
-        <i class="pi pi-image text-4xl text-(--accent-primary)"></i>
-        <div class="text-center">
-          <div class="text-lg font-semibold text-(--text-heading)">Drop Image to Analyze</div>
-          <div class="text-sm text-(--text-secondary)">Generate a prompt to recreate this image</div>
+      class="absolute inset-0 z-100 flex items-center justify-center border-2 border-dashed border-(--accent-primary) bg-[rgba(212,168,83,0.15)] backdrop-blur pointer-events-none">
+      <div>
+        <div class="flex flex-col items-center gap-3 rounded-xl bg-(--bg-elevated) p-6 shadow-[0_4px_20px_rgba(0,0,0,0.4)]">
+          <i class="pi pi-image text-4xl text-(--accent-primary)"></i>
+          <div class="text-center">
+            <div class="text-lg font-semibold text-(--text-heading)">Drop Image to Analyze</div>
+            <div class="text-sm text-(--text-secondary)">Generate a prompt to recreate this image</div>
+          </div>
         </div>
       </div>
     </div>

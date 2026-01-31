@@ -34,8 +34,17 @@
       <template #body><GenerateActions @generate="handleGenerate" :showQuality="showQuality" :showStyle="showStyle" :showAdvanced="showAdvanced" /></template>
     </WorkspaceActions>
 
+    <!-- Chatbot Panel (expands from sidebar, positioned between sidebar and main content) -->
+    <Transition name="expand">
+      <div v-if="chatStore.isPanelOpen" class="flex flex-col h-full w-80 min-w-80 shrink-0">
+        <div class="h-full px-1 py-2 chat-panel-fade-in">
+          <ChatPanel />
+        </div>
+      </div>
+    </Transition>
+
     <!-- Main Content Area -->
-    <div class="flex flex-1 p-2 grow">
+    <div class="flex flex-1 p-2 transition-all duration-300 grow">
       <div class="flex flex-col flex-1 gap-2 p-2 overflow-hidden border rounded-lg border-surface-700 bg-surface-950">
         <!-- Canvas Section -->
         <div class="flex flex-1 overflow-hidden">
@@ -50,28 +59,9 @@
       </div>
     </div>
 
-    <!-- Right Panel with Tabs -->
-    <div class="flex flex-col h-full w-72 min-w-72 shrink bg-surface-900">
-      <Tabs :value="activeRightPanel" @update:value="(val) => activeRightPanel = String(val)" class="flex flex-col h-full">
-        <TabList class="border-b shrink-0 border-surface-700">
-          <Tab value="history" class="text-xs">
-            <fa :icon="['fal', 'clock-rotate-left']" class="mr-1" />
-            History
-          </Tab>
-          <Tab value="assistant" class="text-xs">
-            <fa :icon="['fal', 'sparkles']" class="mr-1" />
-            Assistant
-          </Tab>
-        </TabList>
-        <TabPanels class="flex-1 overflow-hidden">
-          <TabPanel value="history" class="h-full p-0">
-            <HistoryPanel @restore-image="handleRestoreImage" />
-          </TabPanel>
-          <TabPanel value="assistant" class="h-full p-0">
-            <ChatPanel />
-          </TabPanel>
-        </TabPanels>
-      </Tabs>
+    <!-- Right Panel - History -->
+    <div class="flex flex-col h-full w-60 min-w-60 shrink">
+      <HistoryPanel @restore-image="handleRestoreImage" />
     </div>
   </div>
 </template>
@@ -88,20 +78,17 @@ import GeneratedResults from '@/components/generation/GeneratedResults.vue';
 import { useQueueStore } from '@/stores/queue';
 import { useGenerationStore } from '@/stores/generation';
 import { useModelsStore } from '@/stores/models';
+import { useChatbotStore } from '@/stores/chatbot';
 import type { GenerationParams } from '@/stores/queue';
 import WorkspaceActions from '@/components/shared/WorkspaceActions.vue';
 import HistoryPanel from '@/components/generation/HistoryPanel.vue';
 import ChatPanel from '@/components/generation/ChatPanel.vue';
-import Tabs from 'primevue/tabs';
-import TabList from 'primevue/tablist';
-import Tab from 'primevue/tab';
-import TabPanels from 'primevue/tabpanels';
-import TabPanel from 'primevue/tabpanel';
 import ToggleButton from 'primevue/togglebutton';
 
 const queueStore = useQueueStore();
 const generationStore = useGenerationStore();
 const modelsStore = useModelsStore();
+const chatStore = useChatbotStore();
 const toast = useToast();
 
 // Generated images array
@@ -120,9 +107,6 @@ const currentBatchJobIds = ref<Set<string>>(new Set());
 
 // Track pending image count for skeleton placeholders
 const pendingCount = ref(0);
-
-// Right panel tab state
-const activeRightPanel = ref<string>('history');
 
 // Track pending image count for skeleton placeholders
 const showQuality = ref(true);
@@ -211,7 +195,11 @@ const handleGenerate = async () => {
       }
 
       // Get active LoRA configs for this generation
-      const activeLoraConfigs = modelsStore.getActiveLoraConfigs();
+      const activeLoraConfigs = modelsStore.loras.map((l) => ({
+        id: l.id,
+        strength: l.strength,
+      }));
+      console.log('activeLoraConfigs:', activeLoraConfigs);
 
       const queueParams: GenerationParams = {
         prompt: params.prompt,
@@ -346,5 +334,51 @@ onUnmounted(() => {
 
 :deep(.p-togglebutton-content:hover) {
   @apply bg-blue-500 text-white;
+}
+
+/* Expand animation for chatbot panel (width-based) */
+.expand-enter-active {
+  transition: all 0.3s ease-out;
+  overflow: hidden;
+}
+
+.expand-leave-active {
+  transition: all 0.25s ease-in;
+  overflow: hidden;
+}
+
+.expand-enter-from,
+.expand-leave-to {
+  width: 0;
+  min-width: 0;
+  opacity: 0;
+}
+
+/* Delayed fade-in for ChatPanel content */
+.expand-enter-active .chat-panel-fade-in {
+  animation: fade-in 0.2s ease-out 0.2s both;
+}
+
+/* Immediate fade-out for ChatPanel content when closing */
+.expand-leave-active .chat-panel-fade-in {
+  animation: fade-out 0.15s ease-in both;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
 }
 </style>

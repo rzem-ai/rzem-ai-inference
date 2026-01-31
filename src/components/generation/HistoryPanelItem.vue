@@ -45,34 +45,20 @@
   </div>
 </template>
 <script setup lang="ts">
-import { computed } from 'vue';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { useToast } from 'primevue/usetoast';
-import { useQueueStore, type GenerationJob } from '@/stores/queue';
+import { type GenerationJob } from '@/stores/queue';
 import { useGenerationStore } from '@/stores/generation';
 import Button from 'primevue/button';
 
-const {historyJob} = defineProps(['historyJob']);
+const { historyJob } = defineProps(['historyJob']);
 
-const queueStore = useQueueStore();
 const generationStore = useGenerationStore();
 const toast = useToast();
 
 const emit = defineEmits<{
   restoreImage: [imagePath: string];
 }>();
-
-// Show all completed/failed jobs (both from active queue and history)
-// Reverse so newest appears at the top
-const reversedHistoryJobs = computed(() => {
-  // Get completed/failed jobs from active queue
-  const completedActive = queueStore.jobs.filter(
-    (j) => j.status === 'completed' || j.status === 'failed'
-  );
-
-  // Combine with history jobs and reverse
-  return [...completedActive, ...queueStore.historyJobs].reverse();
-});
 
 const formatTime = (timestamp?: number) => {
   if (!timestamp) return '';

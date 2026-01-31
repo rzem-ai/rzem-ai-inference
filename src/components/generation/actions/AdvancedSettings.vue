@@ -1,5 +1,10 @@
 <template>
-  <GenerationAction :collapsed="false" :toggleable="true" icon="layer-group" label="Advanced Settings" panelClass="border border-red-200 rounded-lg px-2 pb-2 bg-surface-950">
+  <GenerationAction
+    :collapsed="false"
+    :toggleable="true"
+    icon="layer-group"
+    label="Advanced Settings"
+    panelClass="border border-red-200 rounded-lg px-2 pb-2 bg-surface-950">
     <template #header>
       <div class="flex gap-2 px-0 py-2 text-xs font-semibold tracking-wider uppercase text-surface-300">
         <fa :icon="['fal', 'gears']" size="sm" />
@@ -47,14 +52,14 @@
 import { computed } from 'vue';
 import { useGenerationStore } from '@/stores/generation';
 import Button from 'primevue/button';
-import Panel from 'primevue/panel';
+
 import Select from 'primevue/select';
 import InputNumber from 'primevue/inputnumber';
 import ToggleSwitch from 'primevue/toggleswitch';
 import type { Sampler, Scheduler } from '@/types';
 import GenerationAction from './GenerationAction.vue';
 
-const props = defineProps(['collapsed', 'icon', 'label', 'toggleable']);
+defineProps(['collapsed', 'icon', 'label', 'toggleable']);
 
 const generationStore = useGenerationStore();
 

@@ -45,9 +45,9 @@ export async function useRuntimeConfig() {
     config: readonly(config),
     loading: readonly(loading),
     error: readonly(error),
-    isLocal: config.value.mode === 'local',
-    isServer: config.value.mode === 'server',
-    isClient: config.value.mode === 'client',
+    isLocal: true,
+    isServer: true,
+    isClient: false,
     refresh: fetchConfig,
   };
 }

@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-col h-full ">
+  <div class="flex flex-col h-full">
     <div class="">
       <h1>Compare Images</h1>
       <div class="compare-actions">
@@ -15,7 +15,10 @@
     </div>
 
     <div v-else class="bg-surface-700 compare-grid" :style="{ gridTemplateColumns: `repeat(${compareStore.compareCount}, 1fr)` }">
-      <div v-for="(image, index) in compareStore.compareImages" :key="image.id" class="flex flex-col overflow-hidden bg-white border rounded-lg border-surface-200">
+      <div
+        v-for="(image, index) in compareStore.compareImages"
+        :key="image.id"
+        class="flex flex-col overflow-hidden bg-white border rounded-lg border-surface-200">
         <div class="flex items-center justify-between p-2 border-b bg-surface-50 border-surface-200">
           <span class="font-semibold text-surface-700">#{{ index + 1 }}</span>
           <Button icon="pi pi-times" severity="danger" text rounded size="small" @click="handleRemove(image.id)" />
@@ -78,8 +81,12 @@ import Image from 'primevue/image';
 
 const compareStore = useCompareStore();
 
-const getImageSrc = (filePath: string) => {
-  return convertFileSrc(filePath);
+const getImageSrc = (filePath: string | undefined) => {
+  if (filePath) {
+    return convertFileSrc(filePath);
+  }
+
+  return '';
 };
 
 const handleRemove = (imageId: string) => {
@@ -111,30 +118,15 @@ const getSizeDiff = (image: GalleryImage): string => {
   @apply flex flex-col h-full overflow-hidden;
 }
 
- 
-
 .compare-actions {
   @apply flex gap-4 items-center;
 }
-
- 
-
- 
-
- 
 
 .compare-grid {
   @apply grid gap-4 p-4 overflow-y-auto flex-1;
 }
 
- 
-
- 
- 
-
 .compare-image-container {
-   
-
   :deep(img) {
     @apply w-full h-full object-contain;
   }
@@ -148,10 +140,7 @@ const getSizeDiff = (image: GalleryImage): string => {
   @apply flex flex-col gap-1;
 }
 
- 
 .metadata-value {
- 
-
   &.different {
     @apply text-red-600 font-semibold;
   }

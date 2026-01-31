@@ -3,12 +3,12 @@ import { invoke } from '@tauri-apps/api/core'
 
 export interface GalleryImage {
   id: string
-  filePath: string
+  filePath?: string  // Nullable for pending images
   thumbnailPath?: string
   createdAt: number
-  width: number
-  height: number
-  fileSize: number
+  width?: number  // Nullable for pending images
+  height?: number  // Nullable for pending images
+  fileSize?: number  // Nullable for pending images
   isFavorite: boolean
   prompt: string
   negativePrompt?: string
@@ -19,6 +19,9 @@ export interface GalleryImage {
   sampler?: string
   tags: string[]
   folderIds: string[]
+  status: 'pending' | 'processing' | 'completed' | 'failed'
+  sessionId?: string
+  updatedAt: number
 }
 
 export interface GalleryFilters {

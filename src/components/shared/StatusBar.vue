@@ -5,13 +5,15 @@
       <span class="animate-pulse">●</span> Demo Mode (Ctrl+Shift+D to exit)
     </div>
 
-    <!-- Generation Status -->
-    <div class="flex items-center gap-2" :class="{ active: currentStats?.is_generating }">
-      <div class="status-icon" :class="currentStats?.is_generating ? 'generating' : 'idle'">
-        <fa v-if="currentStats?.is_generating" :icon="['fal', 'spinner-third']" class="fa-spin" size="sm" />
+    <!-- Generation/Scan Status -->
+    <div class="flex items-center gap-2" :class="{ active: currentStats?.is_generating || isScanning }">
+      <div class="status-icon" :class="(currentStats?.is_generating || isScanning) ? 'generating' : 'idle'">
+        <fa v-if="currentStats?.is_generating || isScanning" :icon="['fal', 'spinner-third']" class="fa-spin" size="sm" />
         <fa v-else :icon="['fal', 'circle']" size="sm" />
       </div>
-      <span class="text-xs font-medium text-surface-300">{{ currentStats?.is_generating ? 'Drawing' : 'Idle' }}</span>
+      <span class="text-xs font-medium text-surface-300">
+        {{ statusText }}
+      </span>
     </div>
 
     <div class="w-px h-4 bg-surface-700" />
@@ -110,6 +112,14 @@ const stats = ref<SystemStats>(BLANK_SYSTEM_STATUS);
 const isRefreshing = ref(false);
 let pollInterval: ReturnType<typeof setInterval> | null = null;
 
+// Scan progress state
+// Use scan state from bundles store (event listener set up in store.initialize())
+import { useBundlesStore } from '@/stores/bundles';
+const bundlesStore = useBundlesStore();
+
+const isScanning = computed(() => bundlesStore.isScanning);
+const scanMessage = computed(() => bundlesStore.scanMessage);
+
 // Demo mode state
 const demoMode = ref(false);
 const demoPhase = ref(0);
@@ -184,6 +194,14 @@ const demoStats = computed<SystemStats>(() => {
 // Use demo stats when in demo mode, otherwise use real stats
 const currentStats = computed(() => {
   return demoMode.value ? demoStats.value : stats.value;
+});
+
+// Status text shows scan progress or generation status
+const statusText = computed(() => {
+  if (isScanning.value) {
+    return scanMessage.value || 'Scanning models...';
+  }
+  return currentStats.value.is_generating ? 'Drawing' : 'Idle';
 });
 
 const cpuUsage = computed(() => {
@@ -393,7 +411,7 @@ const handleKeydown = (e: KeyboardEvent) => {
   }
 };
 
-onMounted(() => {
+onMounted(async () => {
   fetchStats();
 
   // Adaptive polling: faster when generating, slower when idle

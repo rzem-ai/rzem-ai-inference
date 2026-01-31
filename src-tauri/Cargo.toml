@@ -26,14 +26,14 @@ uuid = { version = "1.0", features = ["v4", "serde"] }
 rusqlite = { version = "0.32", features = ["bundled"] }
 dirs = "5.0"
 chrono = "0.4"
-sha2 = "0.10"
+blake2 = "0.10"
 
 # Candle ML framework - GPU features are platform-specific (see below)
 candle-core = "0.8.4"
 candle-nn = "0.8.4"
 candle-transformers = "0.8.4"     
 hf-hub = { version = "0.4", features = ["tokio"] }
-tokenizers = "0.15"
+tokenizers = "0.20"
 safetensors = "0.4"
 half = "2.4"
 image = "0.25"
@@ -82,7 +82,7 @@ candle-nn = { version = "0.8.4", features = ["metal"] }
 candle-transformers = { version = "0.8.4", features = ["metal"] }
 
 # =============================================================================
-# CLI Binary
+# CLI Binaries
 # =============================================================================
 
 [[bin]]

@@ -10,21 +10,25 @@
     <div v-if="image" class="flex gap-6 max-md:flex-col">
       <!-- Image Preview -->
       <div class="shrink-0 w-100 max-md:w-full">
-        <Image :src="imageSrc" :alt="image.prompt" preview class="[&_img]:w-full [&_img]:h-auto [&_img]:object-contain [&_img]:max-h-125 w-full rounded-lg overflow-hidden" />
+        <Image
+          :src="imageSrc"
+          :alt="image.prompt"
+          preview
+          class="[&_img]:w-full [&_img]:h-auto [&_img]:object-contain [&_img]:max-h-125 w-full rounded-lg overflow-hidden" />
       </div>
 
       <!-- Info Section -->
-      <div class="flex-1 flex flex-col gap-4 overflow-y-auto max-h-125">
+      <div class="flex flex-col flex-1 gap-4 overflow-y-auto max-h-125">
         <!-- Prompt -->
         <div class="flex flex-col gap-2">
-          <label class="text-xs font-semibold uppercase tracking-wide text-gray-400">Prompt</label>
-          <p class="text-sm text-gray-200 leading-relaxed wrap-break-word">{{ image.prompt }}</p>
+          <label class="text-xs font-semibold tracking-wide text-gray-400 uppercase">Prompt</label>
+          <p class="text-sm leading-relaxed text-gray-200 wrap-break-word">{{ image.prompt }}</p>
         </div>
 
         <!-- Negative Prompt -->
         <div v-if="image.negativePrompt" class="flex flex-col gap-2">
-          <label class="text-xs font-semibold uppercase tracking-wide text-gray-400">Negative Prompt</label>
-          <p class="text-sm text-gray-200 leading-relaxed wrap-break-word">{{ image.negativePrompt }}</p>
+          <label class="text-xs font-semibold tracking-wide text-gray-400 uppercase">Negative Prompt</label>
+          <p class="text-sm leading-relaxed text-gray-200 wrap-break-word">{{ image.negativePrompt }}</p>
         </div>
 
         <!-- Generation Parameters Grid -->
@@ -65,11 +69,18 @@
 
         <!-- Tags Section -->
         <div class="flex flex-col gap-2">
-          <label class="text-xs font-semibold uppercase tracking-wide text-gray-400">Tags</label>
-          <div class="flex flex-wrap gap-2 items-center">
+          <label class="text-xs font-semibold tracking-wide text-gray-400 uppercase">Tags</label>
+          <div class="flex flex-wrap items-center gap-2">
             <Chip v-for="tag in image.tags" :key="tag" :label="tag" removable @remove="removeTag(tag)" class="text-xs" />
             <div class="flex items-center gap-1">
-              <AutoComplete v-model="newTag" :suggestions="tagSuggestions" @complete="searchTags" @keyup.enter="addTag" placeholder="Add tag..." size="small" class="[&_.p-autocomplete-input]:w-32" />
+              <AutoComplete
+                v-model="newTag"
+                :suggestions="tagSuggestions"
+                @complete="searchTags"
+                @keyup.enter="addTag"
+                placeholder="Add tag..."
+                size="small"
+                class="[&_.p-autocomplete-input]:w-32" />
               <Button icon="pi pi-plus" size="small" text @click="addTag" :disabled="!newTag" />
             </div>
           </div>
@@ -77,8 +88,8 @@
 
         <!-- Folders Section -->
         <div class="flex flex-col gap-2">
-          <label class="text-xs font-semibold uppercase tracking-wide text-gray-400">Folders</label>
-          <div class="flex flex-wrap gap-2 items-center">
+          <label class="text-xs font-semibold tracking-wide text-gray-400 uppercase">Folders</label>
+          <div class="flex flex-wrap items-center gap-2">
             <Chip
               v-for="folderId in image.folderIds"
               :key="folderId"
@@ -150,8 +161,12 @@ const tagSuggestions = ref<string[]>([]);
 const selectedFolder = ref<string | null>(null);
 
 const imageSrc = computed(() => {
-  if (!props.image) return '';
-  return convertFileSrc(props.image.filePath);
+  const image = props.image;
+  if (image && image.filePath) {
+    return convertFileSrc(image.filePath);
+  }
+
+  return '';
 });
 
 const availableFolders = computed(() => {
@@ -216,10 +231,14 @@ const formatDate = (timestamp: number): string => {
   return new Date(timestamp * 1000).toLocaleString();
 };
 
-const formatFileSize = (bytes: number): string => {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+const formatFileSize = (bytes: number | undefined): string => {
+  if (bytes) {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  } else {
+    return '0 MB';
+  }
 };
 
 // Reset state when dialog opens

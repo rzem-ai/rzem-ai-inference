@@ -65,6 +65,8 @@ pub struct GenerationJob {
     pub completed_at: Option<i64>,
     pub result_path: Option<String>,
     pub error: Option<String>,
+    /// Links this job to the database image entry created before processing
+    pub image_id: Option<String>,
 }
 
 impl GenerationJob {
@@ -79,7 +81,13 @@ impl GenerationJob {
             completed_at: None,
             result_path: None,
             error: None,
+            image_id: None,
         }
+    }
+
+    pub fn with_image_id(mut self, image_id: String) -> Self {
+        self.image_id = Some(image_id);
+        self
     }
 }
 
@@ -102,6 +110,19 @@ impl QueueManager {
 
     pub async fn add_job(&self, params: GenerationParams) -> String {
         let job = GenerationJob::new(params);
+        let job_id = job.id.clone();
+
+        let mut jobs = self.jobs.write().await;
+        let mut order = self.job_order.write().await;
+
+        jobs.insert(job_id.clone(), job);
+        order.push(job_id.clone());
+
+        job_id
+    }
+
+    pub async fn add_job_with_image_id(&self, params: GenerationParams, image_id: String) -> String {
+        let job = GenerationJob::new(params).with_image_id(image_id);
         let job_id = job.id.clone();
 
         let mut jobs = self.jobs.write().await;

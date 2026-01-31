@@ -118,14 +118,14 @@ impl ModelPaths {
         })
     }
 
-    /// Get database path
+    /// Get database path (matches frontend: ~/.rzem-ai-inference/gallery.db)
     pub fn get_db_path() -> Result<String> {
-        let app_dir = dirs::data_dir()
-            .ok_or_else(|| anyhow::anyhow!("Could not determine data directory"))?
-            .join("rzem-ai-inference");
+        let app_dir = dirs::home_dir()
+            .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?
+            .join(".rzem-ai-inference");
 
         std::fs::create_dir_all(&app_dir)?;
-        Ok(app_dir.join("rzem.db").to_string_lossy().to_string())
+        Ok(app_dir.join("gallery.db").to_string_lossy().to_string())
     }
 
     /// Get component path by role

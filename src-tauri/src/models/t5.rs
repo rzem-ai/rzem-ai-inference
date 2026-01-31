@@ -34,7 +34,7 @@ impl T5TextEncoder {
     ///
     /// # Arguments
     /// * `model_dir` - Directory containing model-00001-of-00002.safetensors, etc.
-    /// * `tokenizer_path` - Path to tokenizer.json file (e.g., from lmz/mt5-tokenizers)
+    /// * `tokenizer_path` - Path to tokenizer file (tokenizer.json or directory containing it)
     /// * `device` - Device to load model on
     pub fn load<P: AsRef<Path>>(
         model_dir: P,
@@ -44,9 +44,8 @@ impl T5TextEncoder {
         let model_dir = model_dir.as_ref();
         let tokenizer_path = tokenizer_path.as_ref();
 
-        // Load tokenizer directly from file
-        let tokenizer = Tokenizer::from_file(tokenizer_path)
-            .map_err(|e| anyhow::anyhow!("Failed to load T5 tokenizer from {:?}: {}", tokenizer_path, e))?;
+        // Load tokenizer - handle file or directory path
+        let tokenizer = Self::load_tokenizer(tokenizer_path)?;
 
         // Load config
         let config_file = model_dir.join("config.json");
@@ -100,7 +99,7 @@ impl T5TextEncoder {
     ///
     /// # Arguments
     /// * `model_path` - Path to t5-v1_1-xxl-encoder-*.gguf file
-    /// * `tokenizer_path` - Path to tokenizer.json file
+    /// * `tokenizer_path` - Path to tokenizer file (tokenizer.json or directory containing it)
     /// * `device` - Device to load model on
     pub fn load_quantized<P: AsRef<Path>>(
         model_path: P,
@@ -112,9 +111,8 @@ impl T5TextEncoder {
 
         info!(path = ?model_path, "Loading quantized T5");
 
-        // Load tokenizer
-        let tokenizer = Tokenizer::from_file(tokenizer_path)
-            .map_err(|e| anyhow::anyhow!("Failed to load T5 tokenizer from {:?}: {}", tokenizer_path, e))?;
+        // Load tokenizer - handle file or directory path
+        let tokenizer = Self::load_tokenizer(tokenizer_path)?;
 
         // Load GGUF with name mapping
         let vb = MappedQVarBuilder::from_gguf(model_path, &device, map_llama_to_hf)?;
@@ -199,6 +197,52 @@ impl T5TextEncoder {
             T5Model::Regular(model) => model.clear_kv_cache(),
             T5Model::Quantized(model) => model.clear_kv_cache(),
         }
+    }
+
+    /// Load tokenizer from path - handles file or directory paths
+    ///
+    /// Supports:
+    /// - Direct file path to tokenizer.json
+    /// - Directory containing tokenizer.json
+    fn load_tokenizer(tokenizer_path: &Path) -> Result<Tokenizer> {
+        // If it's a file, load directly
+        if tokenizer_path.is_file() {
+            let filename = tokenizer_path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+
+            if filename == "tokenizer.json" || filename.ends_with(".tokenizer.json") {
+                return Tokenizer::from_file(tokenizer_path)
+                    .map_err(|e| anyhow::anyhow!("Failed to load T5 tokenizer from {:?}: {}", tokenizer_path, e));
+            } else if filename == "spiece.model" {
+                // SentencePiece model - check for tokenizer.json in same directory
+                if let Some(parent) = tokenizer_path.parent() {
+                    let tokenizer_json = parent.join("tokenizer.json");
+                    if tokenizer_json.exists() {
+                        return Tokenizer::from_file(&tokenizer_json)
+                            .map_err(|e| anyhow::anyhow!("Failed to load T5 tokenizer from {:?}: {}", tokenizer_json, e));
+                    }
+                }
+                anyhow::bail!(
+                    "Cannot load spiece.model directly. Need tokenizer.json in same directory: {:?}",
+                    tokenizer_path
+                );
+            } else {
+                // Try loading as tokenizer.json anyway
+                return Tokenizer::from_file(tokenizer_path)
+                    .map_err(|e| anyhow::anyhow!("Failed to load T5 tokenizer from {:?}: {}", tokenizer_path, e));
+            }
+        }
+
+        // If it's a directory, look for tokenizer.json inside
+        if tokenizer_path.is_dir() {
+            let tokenizer_json = tokenizer_path.join("tokenizer.json");
+            if tokenizer_json.exists() {
+                return Tokenizer::from_file(&tokenizer_json)
+                    .map_err(|e| anyhow::anyhow!("Failed to load T5 tokenizer from {:?}: {}", tokenizer_json, e));
+            }
+            anyhow::bail!("Could not find tokenizer.json in directory: {:?}", tokenizer_path);
+        }
+
+        anyhow::bail!("Tokenizer path does not exist: {:?}", tokenizer_path)
     }
 }
 

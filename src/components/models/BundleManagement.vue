@@ -5,7 +5,7 @@
       <div class="flex items-center justify-between mb-3">
         <div>
           <h2 class="text-xl font-semibold text-surface-50">Model Bundles</h2>
-          <p class="text-sm text-surface-400 mt-1">
+          <p class="mt-1 text-sm text-surface-400">
             Bundles group model components together for easy switching and management
           </p>
         </div>
@@ -75,7 +75,7 @@
 
       <!-- FLUX Bundles Tab -->
       <TabPanel value="1" header="FLUX Bundles">
-        <div v-if="bundlesStore.fluxBundles.length === 0" class="text-center py-8 text-surface-500">
+        <div v-if="bundlesStore.fluxBundles.length === 0" class="py-8 text-center text-surface-500">
           <p>No FLUX bundles found</p>
         </div>
         <div v-else class="space-y-3">
@@ -92,7 +92,7 @@
 
       <!-- Z-Index Bundles Tab -->
       <TabPanel value="2" header="Z-Index Bundles">
-        <div v-if="bundlesStore.zindexBundles.length === 0" class="text-center py-8 text-surface-500">
+        <div v-if="bundlesStore.zindexBundles.length === 0" class="py-8 text-center text-surface-500">
           <p>No Z-Index bundles found</p>
         </div>
         <div v-else class="space-y-3">
@@ -155,7 +155,7 @@ async function handleScan() {
   scanMessage.value = null
 
   try {
-    const result = await bundlesStore.scanModels()
+    const result = await bundlesStore.scanBundles()
 
     if (result.componentsAdded > 0 || result.bundlesCreated > 0) {
       scanMessage.value = `Found ${result.componentsFound} components, added ${result.componentsAdded} new, created ${result.bundlesCreated} bundles`

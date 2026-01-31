@@ -295,16 +295,21 @@ impl FluxTransformer {
         // Create initial noise with seed for reproducibility
         let img = self.create_noise(height, width, seed)?;
 
-        // For quantized models, convert embeddings to F32
-        let (t5_emb, clip_emb, img) = if self.is_quantized {
-            (
-                t5_emb.to_dtype(DType::F32)?,
-                clip_emb.to_dtype(DType::F32)?,
-                img.to_dtype(DType::F32)?,
-            )
+        // Convert embeddings to match model dtype
+        // Quantized: F32, Non-quantized CUDA: BF16, Non-quantized CPU: F32
+        let target_dtype = if self.is_quantized {
+            DType::F32
+        } else if self.device.is_cuda() {
+            DType::BF16
         } else {
-            (t5_emb.clone(), clip_emb.clone(), img)
+            DType::F32
         };
+
+        let (t5_emb, clip_emb, img) = (
+            t5_emb.to_dtype(target_dtype)?,
+            clip_emb.to_dtype(target_dtype)?,
+            img.to_dtype(target_dtype)?,
+        );
 
         // Create sampling state from embeddings
         let state = flux::sampling::State::new(&t5_emb, &clip_emb, &img)?;

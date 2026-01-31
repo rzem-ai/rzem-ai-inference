@@ -113,8 +113,27 @@ impl BundleBuilder {
         let clip = self.find_best_component(comps, ComponentType::ClipEncoder, false)?;
         let vae = self.find_best_component(comps, ComponentType::VaeDecoder, false)?;
 
+        // Find tokenizers (optional - fallback to any available)
+        let t5_tokenizer = self.find_best_component(comps, ComponentType::T5Tokenizer, false);
+        let clip_tokenizer = self.find_best_component(comps, ComponentType::ClipTokenizer, false);
+
         let model_family = infer_family(&transformer.architecture);
         let (step_min, step_max, default_steps, default_guidance) = get_model_defaults(&model_family);
+
+        let mut component_map = vec![
+            ("transformer".to_string(), component_id(transformer)),
+            ("t5".to_string(), component_id(t5)),
+            ("clip".to_string(), component_id(clip)),
+            ("vae".to_string(), component_id(vae)),
+        ];
+
+        // Add tokenizers if found
+        if let Some(t5_tok) = t5_tokenizer {
+            component_map.push(("t5_tokenizer".to_string(), component_id(t5_tok)));
+        }
+        if let Some(clip_tok) = clip_tokenizer {
+            component_map.push(("clip_tokenizer".to_string(), component_id(clip_tok)));
+        }
 
         Some(BundleDefinition {
             id: format!("{}-full", sanitize_id(repo_id)),
@@ -126,12 +145,7 @@ impl BundleBuilder {
             default_guidance: Some(default_guidance),
             step_min: Some(step_min),
             step_max: Some(step_max),
-            component_map: vec![
-                ("transformer".to_string(), component_id(transformer)),
-                ("t5".to_string(), component_id(t5)),
-                ("clip".to_string(), component_id(clip)),
-                ("vae".to_string(), component_id(vae)),
-            ],
+            component_map,
         })
     }
 
@@ -150,12 +164,31 @@ impl BundleBuilder {
         let clip = self.find_best_component(comps, ComponentType::ClipEncoder, false)?;
         let vae = self.find_best_component(comps, ComponentType::VaeDecoder, false)?;
 
+        // Find tokenizers (optional - fallback to any available)
+        let t5_tokenizer = self.find_best_component(comps, ComponentType::T5Tokenizer, false);
+        let clip_tokenizer = self.find_best_component(comps, ComponentType::ClipTokenizer, false);
+
         let model_family = infer_family(&transformer.architecture);
         let (step_min, step_max, default_steps, default_guidance) = get_model_defaults(&model_family);
 
         let quant_label = transformer.quantization.as_ref()
             .map(|q| format!(" ({})", q))
             .unwrap_or_default();
+
+        let mut component_map = vec![
+            ("transformer".to_string(), component_id(transformer)),
+            ("t5".to_string(), component_id(t5)),
+            ("clip".to_string(), component_id(clip)),
+            ("vae".to_string(), component_id(vae)),
+        ];
+
+        // Add tokenizers if found
+        if let Some(t5_tok) = t5_tokenizer {
+            component_map.push(("t5_tokenizer".to_string(), component_id(t5_tok)));
+        }
+        if let Some(clip_tok) = clip_tokenizer {
+            component_map.push(("clip_tokenizer".to_string(), component_id(clip_tok)));
+        }
 
         Some(BundleDefinition {
             id: format!("{}-quantized", sanitize_id(repo_id)),
@@ -167,12 +200,7 @@ impl BundleBuilder {
             default_guidance: Some(default_guidance),
             step_min: Some(step_min),
             step_max: Some(step_max),
-            component_map: vec![
-                ("transformer".to_string(), component_id(transformer)),
-                ("t5".to_string(), component_id(t5)),
-                ("clip".to_string(), component_id(clip)),
-                ("vae".to_string(), component_id(vae)),
-            ],
+            component_map,
         })
     }
 
@@ -197,8 +225,27 @@ impl BundleBuilder {
         let clip = self.find_best_component(comps, ComponentType::ClipEncoder, false)?;
         let vae = self.find_best_component(comps, ComponentType::VaeDecoder, false)?;
 
+        // Find tokenizers (optional - fallback to any available)
+        let t5_tokenizer = self.find_best_component(comps, ComponentType::T5Tokenizer, false);
+        let clip_tokenizer = self.find_best_component(comps, ComponentType::ClipTokenizer, false);
+
         let model_family = infer_family(&transformer.architecture);
         let (step_min, step_max, default_steps, default_guidance) = get_model_defaults(&model_family);
+
+        let mut component_map = vec![
+            ("transformer".to_string(), component_id(transformer)),
+            ("t5".to_string(), component_id(t5_full)),
+            ("clip".to_string(), component_id(clip)),
+            ("vae".to_string(), component_id(vae)),
+        ];
+
+        // Add tokenizers if found
+        if let Some(t5_tok) = t5_tokenizer {
+            component_map.push(("t5_tokenizer".to_string(), component_id(t5_tok)));
+        }
+        if let Some(clip_tok) = clip_tokenizer {
+            component_map.push(("clip_tokenizer".to_string(), component_id(clip_tok)));
+        }
 
         Some(BundleDefinition {
             id: format!("{}-mixed", sanitize_id(repo_id)),
@@ -210,12 +257,7 @@ impl BundleBuilder {
             default_guidance: Some(default_guidance),
             step_min: Some(step_min),
             step_max: Some(step_max),
-            component_map: vec![
-                ("transformer".to_string(), component_id(transformer)),
-                ("t5".to_string(), component_id(t5_full)),
-                ("clip".to_string(), component_id(clip)),
-                ("vae".to_string(), component_id(vae)),
-            ],
+            component_map,
         })
     }
 
@@ -285,38 +327,29 @@ fn component_id(comp: &DiscoveredComponent) -> String {
     format!("comp-{:x}", hasher.finish())
 }
 
-/// Generate display name for component
+/// Generate display name for component using the filename
 fn generate_component_name(comp: &DiscoveredComponent) -> String {
-    let base = match comp.component_type {
-        ComponentType::Transformer => {
-            if comp.architecture.contains("schnell") {
-                "FLUX.1 Schnell"
-            } else if comp.architecture.contains("dev") {
-                "FLUX.1 Dev"
-            } else if comp.architecture.contains("z-image") {
-                "Z-Image Turbo"
-            } else {
-                "FLUX Transformer"
-            }
-        }
-        ComponentType::T5Encoder => "T5-XXL Encoder",
-        ComponentType::ClipEncoder => "CLIP-L Encoder",
-        ComponentType::VaeDecoder => "VAE Decoder",
-        ComponentType::ClipTokenizer => "CLIP Tokenizer",
-        ComponentType::T5Tokenizer => "T5 Tokenizer",
-    };
+    // Use filename as the base name
+    let filename = comp.path.file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("unknown");
 
-    let mut name = base.to_string();
+    // Remove extension
+    let name = filename
+        .strip_suffix(".safetensors")
+        .or_else(|| filename.strip_suffix(".gguf"))
+        .or_else(|| filename.strip_suffix(".json"))
+        .unwrap_or(filename);
 
-    if let Some(ref quant) = comp.quantization {
-        name.push_str(&format!(" ({})", quant));
-    }
-
+    // For sharded models (directory path), use directory name
     if comp.is_sharded {
-        name.push_str(" [Sharded]");
+        let dir_name = comp.path.file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("sharded");
+        return format!("{} [Sharded]", dir_name);
     }
 
-    name
+    name.to_string()
 }
 
 /// Sanitize repo ID for use as bundle ID

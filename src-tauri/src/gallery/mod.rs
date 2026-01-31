@@ -58,13 +58,13 @@ pub struct Tag {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImageMetadata {
     pub id: String,
-    pub file_path: String,
+    pub file_path: Option<String>,  // Nullable: None for pending images
     pub thumbnail_path: Option<String>,
     pub prompt: String,
     pub created_at: i64,
-    pub width: i32,
-    pub height: i32,
-    pub file_size: i64,
+    pub width: Option<i32>,  // Nullable: None for pending images
+    pub height: Option<i32>,  // Nullable: None for pending images
+    pub file_size: Option<i64>,  // Nullable: None for pending images
     pub model_name: String,
     pub negative_prompt: Option<String>,
     pub steps: Option<i32>,
@@ -72,6 +72,9 @@ pub struct ImageMetadata {
     pub seed: Option<i64>,
     pub sampler: Option<String>,
     pub generation_time_ms: Option<i64>,
+    pub status: String,  // "pending", "processing", "completed", "failed"
+    pub session_id: Option<String>,  // UUID for session tracking
+    pub updated_at: i64,  // Unix timestamp of last update
 }
 
 /// Image metadata for frontend API (camelCase)
@@ -79,12 +82,12 @@ pub struct ImageMetadata {
 #[serde(rename_all = "camelCase")]
 pub struct GalleryImage {
     pub id: String,
-    pub file_path: String,
+    pub file_path: Option<String>,  // Nullable: None for pending images
     pub thumbnail_path: Option<String>,
     pub created_at: i64,
-    pub width: i32,
-    pub height: i32,
-    pub file_size: i64,
+    pub width: Option<i32>,  // Nullable: None for pending images
+    pub height: Option<i32>,  // Nullable: None for pending images
+    pub file_size: Option<i64>,  // Nullable: None for pending images
     pub is_favorite: bool,
     pub prompt: String,
     pub negative_prompt: Option<String>,
@@ -96,6 +99,9 @@ pub struct GalleryImage {
     pub tags: Vec<String>,
     /// IDs of folders this image belongs to
     pub folder_ids: Vec<String>,
+    pub status: String,  // "pending", "processing", "completed", "failed"
+    pub session_id: Option<String>,  // UUID for session tracking
+    pub updated_at: i64,  // Unix timestamp of last update
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -211,20 +217,24 @@ pub struct GalleryDb {
 impl GalleryDb {
     pub fn new(db_path: &str) -> Result<Self> {
         let conn = Connection::open(db_path)?;
-        Ok(Self { conn })
+        let db = Self { conn };
+        // Always initialize schema on new connection
+        db.init_schema()?;
+        Ok(db)
     }
 
     pub fn init_schema(&self) -> Result<()> {
+        tracing::info!("🔧 Initializing database schema...");
         // Create images table
         self.conn.execute(
             "CREATE TABLE IF NOT EXISTS images (
                 id TEXT PRIMARY KEY,
-                file_path TEXT NOT NULL UNIQUE,
+                file_path TEXT UNIQUE,
                 thumbnail_path TEXT,
                 created_at INTEGER NOT NULL,
-                width INTEGER NOT NULL,
-                height INTEGER NOT NULL,
-                file_size INTEGER NOT NULL,
+                width INTEGER,
+                height INTEGER,
+                file_size INTEGER,
                 is_favorite INTEGER DEFAULT 0,
                 prompt TEXT NOT NULL,
                 negative_prompt TEXT,
@@ -234,8 +244,30 @@ impl GalleryDb {
                 seed INTEGER,
                 sampler TEXT,
                 server_id TEXT,
-                generation_time_ms INTEGER
+                generation_time_ms INTEGER DEFAULT 0,
+                status TEXT NOT NULL DEFAULT 'completed',
+                session_id TEXT,
+                updated_at INTEGER NOT NULL DEFAULT 0
             )",
+            [],
+        )?;
+
+        // Add new columns to existing images table (migration for existing databases)
+        // These will fail silently if columns already exist
+        let _ = self.conn.execute("ALTER TABLE images ADD COLUMN status TEXT NOT NULL DEFAULT 'completed'", []);
+        let _ = self.conn.execute("ALTER TABLE images ADD COLUMN session_id TEXT", []);
+        let _ = self.conn.execute("ALTER TABLE images ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0", []);
+
+        // Create index for efficient session queries
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_images_session_status
+             ON images(session_id, status, created_at DESC)",
+            [],
+        )?;
+
+        // Migrate existing data: set updated_at to created_at where it's 0
+        self.conn.execute(
+            "UPDATE images SET updated_at = created_at WHERE updated_at = 0",
             [],
         )?;
 
@@ -477,6 +509,8 @@ impl GalleryDb {
             [],
         )?;
 
+        tracing::info!("✅ Model bundle tables created");
+
         // Create indexes for model bundle system
         self.conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_components_type ON model_components(component_type)",
@@ -511,6 +545,7 @@ impl GalleryDb {
             [],
         )?;
 
+        tracing::info!("✅ Database schema initialization complete");
         Ok(())
     }
 
@@ -520,9 +555,10 @@ impl GalleryDb {
             "INSERT INTO images (
                 id, file_path, thumbnail_path, prompt, created_at,
                 width, height, file_size, model_name, negative_prompt,
-                steps, cfg_scale, seed, sampler, generation_time_ms
+                steps, cfg_scale, seed, sampler, generation_time_ms,
+                status, session_id, updated_at
              )
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)",
             params![
                 metadata.id,
                 metadata.file_path,
@@ -539,6 +575,9 @@ impl GalleryDb {
                 metadata.seed,
                 metadata.sampler,
                 metadata.generation_time_ms,
+                metadata.status,
+                metadata.session_id,
+                metadata.updated_at,
             ],
         )?;
 
@@ -560,7 +599,8 @@ impl GalleryDb {
         let mut stmt = self.conn.prepare(
             "SELECT id, file_path, thumbnail_path, prompt, created_at,
                     width, height, file_size, model_name, negative_prompt,
-                    steps, cfg_scale, seed, sampler, generation_time_ms
+                    steps, cfg_scale, seed, sampler, generation_time_ms,
+                    status, session_id, updated_at
              FROM images
              ORDER BY created_at DESC
              LIMIT ?1"
@@ -583,6 +623,9 @@ impl GalleryDb {
                 seed: row.get(12)?,
                 sampler: row.get(13)?,
                 generation_time_ms: row.get(14)?,
+                status: row.get(15)?,
+                session_id: row.get(16)?,
+                updated_at: row.get(17)?,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
@@ -668,7 +711,7 @@ impl GalleryDb {
         let mut stmt = self.conn.prepare(
             "SELECT id, file_path, thumbnail_path, created_at, width, height,
                     file_size, is_favorite, prompt, negative_prompt, model_name,
-                    steps, cfg_scale, seed, sampler
+                    steps, cfg_scale, seed, sampler, status, session_id, updated_at
              FROM images
              ORDER BY created_at DESC
              LIMIT ?1"
@@ -693,6 +736,9 @@ impl GalleryDb {
                 sampler: row.get(14)?,
                 tags: Vec::new(),
                 folder_ids: Vec::new(),
+                status: row.get(15)?,
+                session_id: row.get(16)?,
+                updated_at: row.get(17)?,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
@@ -710,7 +756,8 @@ impl GalleryDb {
         let mut stmt = self.conn.prepare(
             "SELECT i.id, i.file_path, i.thumbnail_path, i.prompt, i.created_at,
                     i.width, i.height, i.file_size, i.model_name, i.negative_prompt,
-                    i.steps, i.cfg_scale, i.seed, i.sampler, i.generation_time_ms
+                    i.steps, i.cfg_scale, i.seed, i.sampler, i.generation_time_ms,
+                    i.status, i.session_id, i.updated_at
              FROM images i
              JOIN images_fts fts ON i.id = fts.image_id
              WHERE images_fts MATCH ?1
@@ -735,6 +782,9 @@ impl GalleryDb {
                 seed: row.get(12)?,
                 sampler: row.get(13)?,
                 generation_time_ms: row.get(14)?,
+                status: row.get(15)?,
+                session_id: row.get(16)?,
+                updated_at: row.get(17)?,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
@@ -787,7 +837,8 @@ impl GalleryDb {
         let mut stmt = self.conn.prepare(
             "SELECT id, file_path, thumbnail_path, prompt, created_at,
                     width, height, file_size, model_name, negative_prompt,
-                    steps, cfg_scale, seed, sampler, generation_time_ms
+                    steps, cfg_scale, seed, sampler, generation_time_ms,
+                    status, session_id, updated_at
              FROM images
              WHERE id = ?1"
         )?;
@@ -811,6 +862,9 @@ impl GalleryDb {
                 seed: row.get(12)?,
                 sampler: row.get(13)?,
                 generation_time_ms: row.get(14)?,
+                status: row.get(15)?,
+                session_id: row.get(16)?,
+                updated_at: row.get(17)?,
             }))
         } else {
             Ok(None)
@@ -1252,7 +1306,7 @@ impl GalleryDb {
         let query = format!(
             "SELECT id, file_path, thumbnail_path, created_at, width, height,
                     file_size, is_favorite, prompt, negative_prompt, model_name,
-                    steps, cfg_scale, seed, sampler
+                    steps, cfg_scale, seed, sampler, status, session_id, updated_at
              FROM images
              WHERE id IN ({})
              ORDER BY created_at DESC",
@@ -1281,6 +1335,9 @@ impl GalleryDb {
                 sampler: row.get(14)?,
                 tags: Vec::new(),
                 folder_ids: Vec::new(),
+                status: row.get(15)?,
+                session_id: row.get(16)?,
+                updated_at: row.get(17)?,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
@@ -1855,6 +1912,17 @@ impl GalleryDb {
         Ok(())
     }
 
+    /// Check if a repo has been scanned with a specific snapshot hash
+    /// Returns true if components from this repo+snapshot exist in the database
+    pub fn has_repo_snapshot(&self, repo_id: &str, snapshot_hash: &str) -> Result<bool> {
+        let count: i32 = self.conn.query_row(
+            "SELECT COUNT(*) FROM model_components WHERE repo_id = ?1 AND repo_snapshot = ?2",
+            params![repo_id, snapshot_hash],
+            |row| row.get(0),
+        )?;
+        Ok(count > 0)
+    }
+
     // --- Bundle Operations ---
 
     /// Insert a model bundle
@@ -2119,6 +2187,235 @@ impl GalleryDb {
 
         Ok(components)
     }
+
+    // ========== Session-Based Image Management Methods ==========
+
+    /// Create a pending image entry before generation starts
+    pub fn create_pending_image(
+        &self,
+        image_id: &str,
+        params: &crate::queue::GenerationParams,
+        session_id: &str,
+    ) -> Result<()> {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs() as i64;
+
+        // Construct model name from bundle or component
+        let model_name = if let Some(ref bundle_id) = params.bundle_id {
+            format!("bundle:{}", bundle_id)
+        } else {
+            format!("component:{}", params.model_component_id)
+        };
+
+        // Convert sampler enum to string
+        let sampler = params.sampler.as_ref().map(|s| format!("{:?}", s));
+
+        self.conn.execute(
+            "INSERT INTO images (
+                id, prompt, negative_prompt, model_name, steps, cfg_scale, seed, sampler,
+                created_at, updated_at, status, session_id
+             )
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+            params![
+                image_id,
+                params.prompt,
+                params.negative_prompt,
+                model_name,
+                params.steps,
+                params.cfg_scale,
+                params.seed,
+                sampler,
+                now,
+                now,
+                "pending",
+                session_id,
+            ],
+        )?;
+
+        // Insert into FTS table for search
+        self.conn.execute(
+            "INSERT INTO images_fts (image_id, prompt, negative_prompt)
+             VALUES (?1, ?2, ?3)",
+            params![
+                image_id,
+                params.prompt,
+                params.negative_prompt.as_deref().unwrap_or("")
+            ],
+        )?;
+
+        Ok(())
+    }
+
+    /// Update image when generation completes successfully
+    pub fn update_image_on_completion(
+        &self,
+        image_id: &str,
+        file_path: &str,
+        thumbnail_path: Option<String>,
+        width: i32,
+        height: i32,
+        file_size: i64,
+        generation_time_ms: i64,
+    ) -> Result<()> {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs() as i64;
+
+        self.conn.execute(
+            "UPDATE images
+             SET file_path = ?1, thumbnail_path = ?2, width = ?3, height = ?4,
+                 file_size = ?5, generation_time_ms = ?6, status = ?7, updated_at = ?8
+             WHERE id = ?9",
+            params![
+                file_path,
+                thumbnail_path,
+                width,
+                height,
+                file_size,
+                generation_time_ms,
+                "completed",
+                now,
+                image_id,
+            ],
+        )?;
+
+        Ok(())
+    }
+
+    /// Update image when generation fails
+    pub fn update_image_on_failure(&self, image_id: &str, _error: &str) -> Result<()> {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs() as i64;
+
+        self.conn.execute(
+            "UPDATE images SET status = ?1, updated_at = ?2 WHERE id = ?3",
+            params!["failed", now, image_id],
+        )?;
+
+        Ok(())
+    }
+
+    /// Update only the status of an image
+    pub fn update_image_status(&self, image_id: &str, status: &str) -> Result<()> {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs() as i64;
+
+        self.conn.execute(
+            "UPDATE images SET status = ?1, updated_at = ?2 WHERE id = ?3",
+            params![status, now, image_id],
+        )?;
+
+        Ok(())
+    }
+
+    /// Cleanup pending images on startup (crash recovery)
+    /// Returns the number of images marked as failed
+    pub fn cleanup_pending_images(&self) -> Result<usize> {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs() as i64;
+
+        let count = self.conn.execute(
+            "UPDATE images SET status = ?1, updated_at = ?2
+             WHERE status = ?3 OR status = ?4",
+            params!["failed", now, "pending", "processing"],
+        )?;
+
+        Ok(count)
+    }
+
+    /// Query images by session and status
+    pub fn get_images_by_session_status(
+        &self,
+        session_id: &str,
+        status: &str,
+        limit: i64,
+    ) -> Result<Vec<GalleryImage>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, file_path, thumbnail_path, created_at, width, height,
+                    file_size, is_favorite, prompt, negative_prompt, model_name,
+                    steps, cfg_scale, seed, sampler, status, session_id, updated_at
+             FROM images
+             WHERE session_id = ?1 AND status = ?2
+             ORDER BY created_at DESC
+             LIMIT ?3"
+        )?;
+
+        let images = stmt.query_map(params![session_id, status, limit], |row| {
+            let image_id: String = row.get(0)?;
+            let tags = self.get_image_tags(&image_id).unwrap_or_default();
+            let folder_ids = self.get_image_folder_ids(&image_id).unwrap_or_default();
+
+            Ok(GalleryImage {
+                id: image_id,
+                file_path: row.get(1)?,
+                thumbnail_path: row.get(2)?,
+                created_at: row.get(3)?,
+                width: row.get(4)?,
+                height: row.get(5)?,
+                file_size: row.get(6)?,
+                is_favorite: row.get::<_, i32>(7)? != 0,
+                prompt: row.get(8)?,
+                negative_prompt: row.get(9)?,
+                model_name: row.get(10)?,
+                steps: row.get(11)?,
+                cfg_scale: row.get(12)?,
+                seed: row.get(13)?,
+                sampler: row.get(14)?,
+                tags,
+                folder_ids,
+                status: row.get(15)?,
+                session_id: row.get(16)?,
+                updated_at: row.get(17)?,
+            })
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(images)
+    }
+
+    /// Query images by status only (for gallery - all sessions)
+    pub fn get_images_by_status(&self, status: &str, limit: i64) -> Result<Vec<GalleryImage>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, file_path, thumbnail_path, created_at, width, height,
+                    file_size, is_favorite, prompt, negative_prompt, model_name,
+                    steps, cfg_scale, seed, sampler, status, session_id, updated_at
+             FROM images
+             WHERE status = ?1
+             ORDER BY created_at DESC
+             LIMIT ?2"
+        )?;
+
+        let images = stmt.query_map(params![status, limit], |row| {
+            let image_id: String = row.get(0)?;
+            let tags = self.get_image_tags(&image_id).unwrap_or_default();
+            let folder_ids = self.get_image_folder_ids(&image_id).unwrap_or_default();
+
+            Ok(GalleryImage {
+                id: image_id,
+                file_path: row.get(1)?,
+                thumbnail_path: row.get(2)?,
+                created_at: row.get(3)?,
+                width: row.get(4)?,
+                height: row.get(5)?,
+                file_size: row.get(6)?,
+                is_favorite: row.get::<_, i32>(7)? != 0,
+                prompt: row.get(8)?,
+                negative_prompt: row.get(9)?,
+                model_name: row.get(10)?,
+                steps: row.get(11)?,
+                cfg_scale: row.get(12)?,
+                seed: row.get(13)?,
+                sampler: row.get(14)?,
+                tags,
+                folder_ids,
+                status: row.get(15)?,
+                session_id: row.get(16)?,
+                updated_at: row.get(17)?,
+            })
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(images)
+    }
 }
 
 #[cfg(test)]
@@ -2136,13 +2433,13 @@ mod tests {
         // Insert test ImageMetadata
         let test_metadata = ImageMetadata {
             id: "test-id-123".to_string(),
-            file_path: "/path/to/test.png".to_string(),
+            file_path: Some("/path/to/test.png".to_string()),
             thumbnail_path: None,
             prompt: "test prompt".to_string(),
             created_at: 1234567890,
-            width: 1024,
-            height: 1024,
-            file_size: 123456,
+            width: Some(1024),
+            height: Some(1024),
+            file_size: Some(123456),
             model_name: "flux-schnell".to_string(),
             negative_prompt: None,
             steps: Some(4),
@@ -2150,6 +2447,9 @@ mod tests {
             seed: Some(42),
             sampler: Some("Euler".to_string()),
             generation_time_ms: Some(5000),
+            status: "completed".to_string(),
+            session_id: Some("test-session".to_string()),
+            updated_at: 1234567890,
         };
         db.insert_image(&test_metadata).unwrap();
 

@@ -126,6 +126,21 @@ impl FluxPipeline {
             self.flux.is_some(),
         )
     }
+
+    /// Unload T5 and CLIP encoders to free VRAM
+    ///
+    /// Call after encoding is complete, before loading transformer.
+    /// This enables staged loading for memory-constrained GPUs.
+    pub fn unload_text_encoders(&mut self) {
+        if self.t5.is_some() {
+            tracing::info!("Unloading T5 encoder to free VRAM");
+            self.t5 = None;
+        }
+        if self.clip.is_some() {
+            tracing::info!("Unloading CLIP encoder to free VRAM");
+            self.clip = None;
+        }
+    }
 }
 
 #[cfg(test)]

@@ -3,13 +3,7 @@
     <!-- Header with Scan Button -->
     <div class="flex items-center justify-between mb-4">
       <h3 class="text-lg font-semibold">Model Bundles</h3>
-      <Button
-        label="Scan Models"
-        icon="pi pi-refresh"
-        size="small"
-        :loading="bundlesStore.isScanning"
-        @click="handleScan"
-      />
+      <Button label="Scan Models" icon="pi pi-refresh" size="small" :loading="bundlesStore.isScanning" @click="handleScan" />
     </div>
 
     <!-- Scan Result Message -->
@@ -28,8 +22,8 @@
     </div>
 
     <!-- Empty State -->
-    <div v-else-if="bundlesStore.bundles.length === 0" class="text-center py-8 text-surface-500">
-      <i class="pi pi-inbox text-4xl mb-3"></i>
+    <div v-else-if="bundlesStore.bundles.length === 0" class="py-8 text-center text-surface-500">
+      <i class="mb-3 text-4xl pi pi-inbox"></i>
       <p class="mb-2">No model bundles found</p>
       <p class="text-sm">Click "Scan Models" to detect installed models</p>
     </div>
@@ -39,27 +33,16 @@
       <div
         v-for="bundle in bundlesStore.bundles"
         :key="bundle.id"
-        class="bundle-card border border-surface-200 rounded-lg p-4 hover:border-primary transition-colors cursor-pointer"
+        class="p-4 transition-colors border rounded-lg cursor-pointer bundle-card border-surface-200 hover:border-primary"
         :class="{ 'border-primary bg-primary-50': bundle.isActive }"
-        @click="handleActivate(bundle)"
-      >
+        @click="handleActivate(bundle)">
         <!-- Bundle Header -->
         <div class="flex items-start justify-between mb-2">
           <div class="flex-1">
             <div class="flex items-center gap-2 mb-1">
               <h4 class="font-semibold">{{ bundle.name }}</h4>
-              <Tag
-                v-if="bundle.isActive"
-                value="Active"
-                severity="success"
-                class="text-xs"
-              />
-              <Tag
-                v-if="!bundle.isComplete"
-                value="Incomplete"
-                severity="warning"
-                class="text-xs"
-              />
+              <Tag v-if="bundle.isActive" value="Active" severity="success" class="text-xs" />
+              <Tag v-if="!bundle.isComplete" value="Incomplete" severity="warning" class="text-xs" />
             </div>
             <p v-if="bundle.description" class="text-sm text-surface-600">
               {{ bundle.description }}
@@ -75,8 +58,7 @@
               rounded
               size="small"
               severity="secondary"
-              @click.stop="$emit('editBundle', bundle)"
-            />
+              @click.stop="$emit('editBundle', bundle)" />
             <Button
               v-if="bundle.bundleType === 'user_created'"
               icon="pi pi-trash"
@@ -84,13 +66,12 @@
               rounded
               size="small"
               severity="danger"
-              @click.stop="handleDelete(bundle)"
-            />
+              @click.stop="handleDelete(bundle)" />
           </div>
         </div>
 
         <!-- Bundle Metadata -->
-        <div class="flex flex-wrap gap-3 text-sm text-surface-600 mb-3">
+        <div class="flex flex-wrap gap-3 mb-3 text-sm text-surface-600">
           <div class="flex items-center gap-1">
             <i class="pi pi-tag"></i>
             <span>{{ formatBundleType(bundle.bundleType) }}</span>
@@ -111,14 +92,8 @@
 
         <!-- Component List -->
         <div class="grid grid-cols-2 gap-2">
-          <div
-            v-for="comp in bundle.components"
-            :key="comp.id"
-            class="text-xs px-2 py-1 bg-surface-100 rounded flex items-center gap-1"
-          >
-            <i
-              :class="comp.isAvailable ? 'pi pi-check-circle text-green-500' : 'pi pi-times-circle text-red-500'"
-            ></i>
+          <div v-for="comp in bundle.components" :key="comp.id" class="flex items-center gap-1 px-2 py-1 text-xs rounded bg-surface-100">
+            <i :class="comp.isAvailable ? 'pi pi-check-circle text-green-500' : 'pi pi-times-circle text-red-500'"></i>
             <span class="truncate">{{ formatComponentRole(comp.role) }}</span>
             <span v-if="comp.quantization" class="text-surface-500">({{ comp.quantization }})</span>
           </div>
@@ -129,43 +104,43 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useBundlesStore } from '@/stores/bundles'
-import type { BundleInfo } from '@/stores/bundles'
-import { useConfirm } from 'primevue/useconfirm'
-import { useToast } from 'primevue/usetoast'
-import Button from 'primevue/button'
-import Tag from 'primevue/tag'
-import Message from 'primevue/message'
-import ProgressSpinner from 'primevue/progressspinner'
+import { ref, onMounted } from 'vue';
+import { useBundlesStore } from '@/stores/bundles';
+import type { BundleInfo } from '@/stores/bundles';
+import { useConfirm } from 'primevue/useconfirm';
+import { useToast } from 'primevue/usetoast';
+import Button from 'primevue/button';
+import Tag from 'primevue/tag';
+import Message from 'primevue/message';
+import ProgressSpinner from 'primevue/progressspinner';
 
-const emit = defineEmits<{
-  editBundle: [bundle: BundleInfo]
-}>()
+defineEmits<{
+  editBundle: [bundle: BundleInfo];
+}>();
 
-const bundlesStore = useBundlesStore()
-const confirm = useConfirm()
-const toast = useToast()
+const bundlesStore = useBundlesStore();
+const confirm = useConfirm();
+const toast = useToast();
 
-const scanMessage = ref<string | null>(null)
-const scanSeverity = ref<'success' | 'info' | 'warn' | 'error'>('success')
+const scanMessage = ref<string | null>(null);
+const scanSeverity = ref<'success' | 'info' | 'warn' | 'error'>('success');
 
 onMounted(async () => {
-  await bundlesStore.initialize()
-})
+  await bundlesStore.initialize();
+});
 
 async function handleScan() {
-  scanMessage.value = null
+  scanMessage.value = null;
 
   try {
-    const result = await bundlesStore.scanModels()
+    const result = await bundlesStore.scanBundles();
 
     if (result.componentsAdded > 0 || result.bundlesCreated > 0) {
-      scanMessage.value = `Found ${result.componentsFound} components, added ${result.componentsAdded} new, created ${result.bundlesCreated} bundles`
-      scanSeverity.value = 'success'
+      scanMessage.value = `Found ${result.componentsFound} components, added ${result.componentsAdded} new, created ${result.bundlesCreated} bundles`;
+      scanSeverity.value = 'success';
     } else {
-      scanMessage.value = 'Scan complete. No new models found.'
-      scanSeverity.value = 'info'
+      scanMessage.value = 'Scan complete. No new models found.';
+      scanSeverity.value = 'info';
     }
 
     toast.add({
@@ -173,16 +148,16 @@ async function handleScan() {
       summary: 'Scan Complete',
       detail: scanMessage.value,
       life: 3000,
-    })
+    });
   } catch (err) {
-    scanSeverity.value = 'error'
-    scanMessage.value = `Scan failed: ${err}`
+    scanSeverity.value = 'error';
+    scanMessage.value = `Scan failed: ${err}`;
   }
 }
 
 async function handleActivate(bundle: BundleInfo) {
   if (bundle.isActive) {
-    return // Already active
+    return; // Already active
   }
 
   if (!bundle.isComplete) {
@@ -191,26 +166,26 @@ async function handleActivate(bundle: BundleInfo) {
       summary: 'Incomplete Bundle',
       detail: 'This bundle is missing required components',
       life: 3000,
-    })
-    return
+    });
+    return;
   }
 
   try {
-    await bundlesStore.setActiveBundle(bundle.id)
+    await bundlesStore.setActiveBundle(bundle.id);
 
     toast.add({
       severity: 'success',
       summary: 'Bundle Activated',
       detail: `${bundle.name} is now active`,
       life: 3000,
-    })
+    });
   } catch (err) {
     toast.add({
       severity: 'error',
       summary: 'Activation Failed',
       detail: String(err),
       life: 5000,
-    })
+    });
   }
 }
 
@@ -222,36 +197,36 @@ function handleDelete(bundle: BundleInfo) {
     acceptClass: 'p-button-danger',
     accept: async () => {
       try {
-        await bundlesStore.deleteBundle(bundle.id)
+        await bundlesStore.deleteBundle(bundle.id);
 
         toast.add({
           severity: 'success',
           summary: 'Bundle Deleted',
           detail: `${bundle.name} has been deleted`,
           life: 3000,
-        })
+        });
       } catch (err) {
         toast.add({
           severity: 'error',
           summary: 'Deletion Failed',
           detail: String(err),
           life: 5000,
-        })
+        });
       }
     },
-  })
+  });
 }
 
 function formatBundleType(type: string): string {
   switch (type) {
     case 'auto_discovered':
-      return 'Auto-Discovered'
+      return 'Auto-Discovered';
     case 'user_created':
-      return 'User Created'
+      return 'User Created';
     case 'system':
-      return 'System'
+      return 'System';
     default:
-      return type
+      return type;
   }
 }
 
@@ -263,8 +238,8 @@ function formatComponentRole(role: string): string {
     vae: 'VAE Decoder',
     clip_tokenizer: 'CLIP Tokenizer',
     t5_tokenizer: 'T5 Tokenizer',
-  }
-  return roleMap[role] || role
+  };
+  return roleMap[role] || role;
 }
 </script>
 
