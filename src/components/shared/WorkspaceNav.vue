@@ -22,7 +22,6 @@ import WorkspaceNavItem, { type Workspace } from './WorkspaceNavItem.vue';
 const workspaces: Workspace[] = [
   { label: 'Generate', path: '/generate', icon: 'sparkles', enabled: true },
   { label: 'Gallery', path: '/gallery', icon: 'images', enabled: true },
-  { label: 'Compare', path: '/compare', icon: 'code-compare', enabled: false },
   { label: 'Models', path: '/models', icon: 'database', enabled: true },
 ];
 

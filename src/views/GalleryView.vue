@@ -3,30 +3,27 @@
     <!-- Sidebar -->
     <WorkspaceActions>
       <template #toolbar>
-        <div class="w-full grid grid-cols-3 border rounded-md shadow-xs border-surface-600">
-          <Button
-            :severity="foldersStore.currentViewType === 'all' ? 'primary' : 'secondary'"
-            :variant="foldersStore.currentViewType === 'all' ? '' : ''"
-            @click="handleSelectAll"
-            size="small"
-            class="border-0 rounded-none rounded-l-md">
-            <div class="content-center">
-              <fa :icon="['fal', 'images']" size="sm" />
-              All Images
-            </div>
-          </Button>
-          <Button
-            :severity="foldersStore.currentViewType === 'uncategorized' ? 'primary' : 'secondary'"
-            :variant="foldersStore.currentViewType === 'uncategorized' ? '' : ''"
-            @click="handleSelectUncategorized"
-            size="small"
-            class="border-0 rounded-none">
-            <div class="content-center">
-              <fa :icon="['fal', 'folder']" size="sm" />
-              Uncategorized
-            </div>
-          </Button>
-          <Button @click="openCreateFolderDialog()" severity="secondary" size="small" class="border-0 rounded-none rounded-r-md">
+        <div class="flex flex-row gap-2">
+          <div class="grid grid-cols-2 border rounded-md shadow-xs border-surface-600 grow">
+            <ToggleButton :model-value="showAllImages" severity="secondary" size="small" class="border-0 rounded-none rounded-l-md" @change="handleSelectAll()">
+              <div class="content-center">
+                <fa :icon="['fal', 'images']" size="sm" />
+                All Images
+              </div>
+            </ToggleButton>
+            <ToggleButton
+              :model-value="showUncategorized"
+              severity="secondary"
+              size="small"
+              class="border-0 rounded-none rounded-r-md"
+              @change="handleSelectUncategorized()">
+              <div class="content-center">
+                <fa :icon="['fal', 'folder']" size="sm" />
+                Uncategorized
+              </div>
+            </ToggleButton>
+          </div>
+          <Button @click="openCreateFolderDialog()" severity="primary" variant="outlined" size="small" class="">
             <div class="content-center">
               <fa :icon="['fal', 'plus']" size="sm" />
               Create Folder
@@ -47,25 +44,34 @@
     <main class="flex flex-col flex-1 h-full overflow-hidden">
       <div class="p-4">
         <!-- Breadcrumb -->
-        <div class="flex items-center gap-1 mb-3 text-sm">
-          <template v-if="foldersStore.currentViewType === 'all'">
-            <span class="text-surface-200 active">All Images</span>
-          </template>
-          <template v-else-if="foldersStore.currentViewType === 'uncategorized'">
-            <span class="text-surface-200 active">Uncategorized</span>
-          </template>
-          <template v-else-if="foldersStore.currentFolder">
-            <span class="text-surface-200 clickable" @click="handleSelectAll">All Images</span>
-
-            <fa :icon="['fal', 'chevron-right']" size="lg" class="mx-1 text-xs text-surface-200" />
-            <template v-for="(name, index) in foldersStore.currentBreadcrumb" :key="index">
-              <span v-if="index < foldersStore.currentBreadcrumb.length - 1" class="text-surface-200 clickable" @click="navigateToBreadcrumb(index)">
-                {{ name }}
-              </span>
-              <span v-else class="text-surface-200 active">{{ name }}</span>
-              <fa v-if="index < foldersStore.currentBreadcrumb.length - 1" :icon="['fal', 'chevron-right']" size="lg" class="mx-1 text-xs text-surface-200" />
+        <div class="flex flex-row">
+          <div class="flex items-center gap-1 mb-3 text-sm grow">
+            <template v-if="foldersStore.currentViewType === 'all'">
+              <span class="text-surface-200 active">All Images</span>
             </template>
-          </template>
+            <template v-else-if="foldersStore.currentViewType === 'uncategorized'">
+              <span class="text-surface-200 active">Uncategorized</span>
+            </template>
+            <template v-else-if="foldersStore.currentFolder">
+              <span class="text-surface-200 clickable" @click="handleSelectAll">All Images</span>
+
+              <fa :icon="['fal', 'chevron-right']" size="lg" class="mx-1 text-xs text-surface-200" />
+              <template v-for="(name, index) in foldersStore.currentBreadcrumb" :key="index">
+                <span v-if="index < foldersStore.currentBreadcrumb.length - 1" class="text-surface-200 clickable" @click="navigateToBreadcrumb(index)">
+                  {{ name }}
+                </span>
+                <span v-else class="text-surface-200 active">{{ name }}</span>
+                <fa v-if="index < foldersStore.currentBreadcrumb.length - 1" :icon="['fal', 'chevron-right']" size="lg" class="mx-1 text-xs text-surface-200" />
+              </template>
+            </template>
+          </div>
+          <div>
+            <Button v-if="galleryStore.selectedImages.size == 0" title="Select All" severity="secondary" variant="outlined" @click="galleryStore.selectAll"><fa :icon="['fal', 'square-check']" size="sm" /></Button>
+            <Button v-if="galleryStore.selectedImages.size > 0" title="Clear Selection" severity="secondary" variant="outlined" @click="galleryStore.clearSelection" :disabled="galleryStore.selectedImages.size === 0">
+              <fa :icon="['fal', 'xmark']" size="sm" />
+            </Button>
+            <span class="text-sm text-surface-200"> {{ galleryStore.selectedImages.size }} selected </span>
+          </div>
         </div>
 
         <div class="flex items-center gap-4">
@@ -85,11 +91,6 @@
               <div class="flex items-center gap-2"><fa :icon="['fal', 'trash']" size="sm" /> Delete</div>
             </Button>
             <AutoTagButton @open-settings="openAutoTagSettings" @tagging-complete="handleTaggingComplete" />
-            <Button label="Select All" severity="secondary" @click="galleryStore.selectAll"><fa :icon="['fal', 'square-check']" size="sm" /></Button>
-            <Button label="Clear" severity="secondary" @click="galleryStore.clearSelection" :disabled="galleryStore.selectedImages.size === 0">
-              <fa :icon="['fal', 'xmark']" size="sm" />
-            </Button>
-            <span class="text-sm text-surface-200"> {{ galleryStore.selectedImages.size }} selected </span>
           </div>
         </div>
       </div>
@@ -170,6 +171,7 @@ import Button from 'primevue/button';
 import Menu from 'primevue/menu';
 import ConfirmDialog from 'primevue/confirmdialog';
 import Toast from 'primevue/toast';
+import ToggleButton from 'primevue/togglebutton';
 import WorkspaceActions from '@/components/shared/WorkspaceActions.vue';
 import type { GalleryImage } from '@/stores/gallery';
 
@@ -199,6 +201,13 @@ const bulkTagMenuRef = ref<InstanceType<typeof Menu> | null>(null);
 // Image detail modal
 const imageDetailVisible = ref(false);
 const selectedImage = ref<GalleryImage | null>(null);
+
+const showAllImages = computed(() => {
+  return foldersStore.currentViewType === 'all';
+});
+const showUncategorized = computed(() => {
+  return foldersStore.currentViewType === 'uncategorized';
+});
 
 // Sync selectedImage changes back to gallery store (for tag/folder edits in modal)
 watch(
@@ -387,6 +396,15 @@ const handleSelectAll = () => {
 const handleSelectUncategorized = () => {
   foldersStore.setViewType('uncategorized');
   galleryStore.loadUncategorizedImages();
+};
+
+const handleToggleAllImages = () => {
+  console.log('showAllImages: ', showAllImages.value);
+};
+
+const handleToggleUncategorized = () => {
+  showUncategorized.value = !showUncategorized.value;
+  console.log('showUncategorized: ', showUncategorized.value);
 };
 
 const navigateToBreadcrumb = (index: number) => {
