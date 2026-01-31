@@ -106,6 +106,7 @@ pub fn scan_all_components_with_progress(
 }
 
 /// Scans the HuggingFace cache for ALL model components with full callback support
+/// Skips hash computation by default for faster scanning
 pub fn scan_all_components_with_callbacks(
     progress_callback: Option<ScanProgressCallback>,
     hash_progress_callback: Option<HashProgressCallback>,
@@ -117,7 +118,7 @@ pub fn scan_all_components_with_callbacks(
         hash_progress_callback,
         repo_completion_callback,
         repo_skip_callback,
-        false, // compute hashes
+        true, // skip hashes by default
     )
 }
 
@@ -1150,6 +1151,13 @@ fn scan_directory_for_models_full(
             callback(idx + 1, total_files, filename);
         }
 
+        // Check if this is an unsupported model variant (Kontext, Fill, etc.)
+        let filename_lower = filename.to_lowercase();
+        if is_unsupported_model(&filename_lower) {
+            info!("   ⏭ [{}/{}] {} -> Unsupported model variant, skipping", idx + 1, total_files, filename);
+            continue;
+        }
+
         // Try to identify the component type
         match identify_model_file(file_path) {
             Ok(Some(component_type)) => {
@@ -1162,6 +1170,11 @@ fn scan_directory_for_models_full(
                     hash_progress_callback.as_ref(),
                     skip_hash,
                 ) {
+                    // Skip sharded models (not currently supported)
+                    if component.is_sharded {
+                        info!("   ⏭ Skipping sharded model: {}", filename);
+                        continue;
+                    }
                     components.push(component);
                 }
             }
@@ -1522,6 +1535,21 @@ fn identify_component_from_tensor_names(tensor_names: &[&str]) -> Option<Compone
     }
 
     None
+}
+
+/// Check if a model filename indicates an unsupported variant
+/// Filters out FLUX Kontext, FLUX Fill, and other unsupported model types
+fn is_unsupported_model(filename_lower: &str) -> bool {
+    // FLUX Kontext - context-aware models, not standard FLUX
+    filename_lower.contains("kontext") ||
+    // FLUX Fill - inpainting models, different architecture
+    filename_lower.contains("fill") ||
+    // FLUX Canny - ControlNet variants
+    filename_lower.contains("canny") ||
+    // FLUX Depth - ControlNet variants
+    filename_lower.contains("depth") ||
+    // Redux - image prompt models
+    filename_lower.contains("redux")
 }
 
 /// Create a DiscoveredComponent from a loose file (not in HF cache structure)

@@ -879,14 +879,14 @@ async fn scan_and_discover_models(
     use std::sync::{Arc, Mutex as StdMutex};
 
     // Skip scan in dev mode if SKIP_SCAN_IN_DEV is set
-    if cfg!(debug_assertions) && std::env::var("SKIP_SCAN_IN_DEV").is_ok() {
-        info!("⏭️  Skipping model scan (dev mode + SKIP_SCAN_IN_DEV set)");
-        return Ok(ScanResult {
-            components_found: 0,
-            components_added: 0,
-            bundles_created: 0,
-        });
-    }
+    // if cfg!(debug_assertions) && std::env::var("SKIP_SCAN_IN_DEV").is_ok() {
+    //     info!("⏭️  Skipping model scan (dev mode + SKIP_SCAN_IN_DEV set)");
+    //     return Ok(ScanResult {
+    //         components_found: 0,
+    //         components_added: 0,
+    //         bundles_created: 0,
+    //     });
+    // }
 
     info!("🔄 ========================================");
     info!("🔄 scan_and_discover_models COMMAND CALLED");

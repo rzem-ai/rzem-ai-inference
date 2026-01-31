@@ -78,6 +78,7 @@ impl ModelPaths {
     }
 
     /// Create ModelPaths from individual component IDs
+    /// Tokenizers are automatically derived from their associated encoders
     pub fn from_component_ids(
         db: &crate::gallery::GalleryDb,
         transformer_id: &str,
@@ -91,13 +92,25 @@ impl ModelPaths {
         let transformer = db.get_component(transformer_id)?;
         component_paths.insert(ComponentRole::Transformer, PathBuf::from(&transformer.file_path));
 
-        // Load required components
+        // Load T5 encoder and find its tokenizer
         let t5 = db.get_component(t5_id)?;
-        component_paths.insert(ComponentRole::T5, PathBuf::from(&t5.file_path));
+        let t5_path = PathBuf::from(&t5.file_path);
+        component_paths.insert(ComponentRole::T5, t5_path.clone());
 
+        // Find T5 tokenizer: first try database, then derive from encoder path
+        let t5_tokenizer_path = Self::find_tokenizer_for_encoder(db, &t5, "t5_tokenizer")?;
+        component_paths.insert(ComponentRole::T5Tokenizer, t5_tokenizer_path);
+
+        // Load CLIP encoder and find its tokenizer
         let clip = db.get_component(clip_id)?;
-        component_paths.insert(ComponentRole::Clip, PathBuf::from(&clip.file_path));
+        let clip_path = PathBuf::from(&clip.file_path);
+        component_paths.insert(ComponentRole::Clip, clip_path.clone());
 
+        // Find CLIP tokenizer: first try database, then derive from encoder path
+        let clip_tokenizer_path = Self::find_tokenizer_for_encoder(db, &clip, "clip_tokenizer")?;
+        component_paths.insert(ComponentRole::ClipTokenizer, clip_tokenizer_path);
+
+        // Load VAE
         let vae = db.get_component(vae_id)?;
         component_paths.insert(ComponentRole::Vae, PathBuf::from(&vae.file_path));
 
@@ -116,6 +129,181 @@ impl ModelPaths {
             bundle_id: Some(format!("custom-{:x}", hash)),
             bundle_components: component_paths,
         })
+    }
+
+    /// Find the tokenizer associated with an encoder component
+    /// Strategy:
+    /// 1. Look in database for tokenizer with same repo_id
+    /// 2. Look in encoder's directory structure for tokenizer files
+    fn find_tokenizer_for_encoder(
+        db: &crate::gallery::GalleryDb,
+        encoder: &crate::gallery::ComponentRecord,
+        tokenizer_type: &str,
+    ) -> Result<PathBuf> {
+        // Strategy 1: Find tokenizer in database with matching repo_id
+        if let Some(ref repo_id) = encoder.repo_id {
+            if let Ok(tokenizer) = db.find_component_by_repo_and_type(repo_id, tokenizer_type) {
+                return Ok(PathBuf::from(&tokenizer.file_path));
+            }
+        }
+
+        // Strategy 2: Derive tokenizer path from encoder's location
+        let encoder_path = PathBuf::from(&encoder.file_path);
+
+        // For T5 tokenizer, look in common locations relative to encoder
+        if tokenizer_type == "t5_tokenizer" {
+            // Check if encoder is a GGUF file (quantized T5)
+            if encoder_path.extension().and_then(|e| e.to_str()) == Some("gguf") {
+                // For GGUF T5, tokenizer is usually in a separate location
+                // Try to find it via the HuggingFace cache structure
+                if let Some(tokenizer_path) = Self::find_t5_tokenizer_in_cache()? {
+                    return Ok(tokenizer_path);
+                }
+            }
+
+            // For safetensors T5, look in parent directory structure
+            if let Some(parent) = encoder_path.parent() {
+                // Check for tokenizer_2 directory (FLUX structure)
+                let tokenizer_dir = parent.join("tokenizer_2");
+                let tokenizer_json = tokenizer_dir.join("tokenizer.json");
+                if tokenizer_json.exists() {
+                    return Ok(tokenizer_json);
+                }
+
+                // Check for spiece.model (SentencePiece format)
+                let spiece = tokenizer_dir.join("spiece.model");
+                if spiece.exists() {
+                    return Ok(spiece);
+                }
+
+                // Check sibling directory for standalone tokenizers
+                if let Some(grandparent) = parent.parent() {
+                    let standalone = grandparent.join("t5-v1_1-xxl.tokenizer.json");
+                    if standalone.exists() {
+                        return Ok(standalone);
+                    }
+                }
+            }
+        }
+
+        // For CLIP tokenizer
+        if tokenizer_type == "clip_tokenizer" {
+            if let Some(parent) = encoder_path.parent() {
+                // CLIP encoder is usually in text_encoder/model.safetensors
+                // Tokenizer is in sibling tokenizer/ directory
+                let tokenizer_dir = if parent.ends_with("text_encoder") {
+                    parent.parent().map(|p| p.join("tokenizer"))
+                } else {
+                    Some(parent.join("tokenizer"))
+                };
+
+                if let Some(dir) = tokenizer_dir {
+                    let tokenizer_json = dir.join("tokenizer.json");
+                    if tokenizer_json.exists() {
+                        return Ok(tokenizer_json);
+                    }
+
+                    let vocab_json = dir.join("vocab.json");
+                    if vocab_json.exists() {
+                        return Ok(vocab_json);
+                    }
+                }
+            }
+        }
+
+        anyhow::bail!(
+            "Could not find {} for encoder at {}. \
+            Tokenizer must be in the same repository or directory as the encoder.",
+            tokenizer_type,
+            encoder_path.display()
+        )
+    }
+
+    /// Search HuggingFace cache for T5 tokenizer
+    fn find_t5_tokenizer_in_cache() -> Result<Option<PathBuf>> {
+        let cache_dir = Self::get_hf_cache_dir()?;
+
+        // Look for common T5 tokenizer repos
+        let tokenizer_repos = [
+            "models--lmz--mt5-tokenizers",
+            "models--google--t5-v1_1-xxl",
+        ];
+
+        for repo_name in &tokenizer_repos {
+            let repo_dir = cache_dir.join(repo_name);
+            if !repo_dir.exists() {
+                continue;
+            }
+
+            // Find the active snapshot
+            let refs_main = repo_dir.join("refs").join("main");
+            let snapshot_hash = if refs_main.exists() {
+                std::fs::read_to_string(&refs_main).ok()
+            } else {
+                None
+            };
+
+            let snapshot_dir = if let Some(hash) = snapshot_hash {
+                repo_dir.join("snapshots").join(hash.trim())
+            } else {
+                // Find first snapshot directory
+                let snapshots = repo_dir.join("snapshots");
+                if let Ok(entries) = std::fs::read_dir(&snapshots) {
+                    entries
+                        .flatten()
+                        .find(|e| e.path().is_dir())
+                        .map(|e| e.path())
+                        .unwrap_or_default()
+                } else {
+                    continue;
+                }
+            };
+
+            if !snapshot_dir.exists() {
+                continue;
+            }
+
+            // Check for tokenizer files
+            let tokenizer_json = snapshot_dir.join("t5-v1_1-xxl.tokenizer.json");
+            if tokenizer_json.exists() {
+                return Ok(Some(tokenizer_json));
+            }
+
+            // Check tokenizer_2 subdirectory
+            let tokenizer_2 = snapshot_dir.join("tokenizer_2").join("tokenizer.json");
+            if tokenizer_2.exists() {
+                return Ok(Some(tokenizer_2));
+            }
+        }
+
+        Ok(None)
+    }
+
+    /// Get HuggingFace cache directory
+    fn get_hf_cache_dir() -> Result<PathBuf> {
+        // Check environment variables first
+        if let Ok(hf_cache) = std::env::var("HF_HUB_CACHE") {
+            return Ok(PathBuf::from(hf_cache));
+        }
+
+        if let Ok(hf_home) = std::env::var("HF_HOME") {
+            return Ok(PathBuf::from(hf_home).join("hub"));
+        }
+
+        let home = dirs::home_dir()
+            .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?;
+
+        // macOS location
+        #[cfg(target_os = "macos")]
+        {
+            let macos_cache = home.join("Library/Caches/huggingface/hub");
+            if macos_cache.exists() {
+                return Ok(macos_cache);
+            }
+        }
+
+        // Default Linux/fallback location
+        Ok(home.join(".cache/huggingface/hub"))
     }
 
     /// Get database path (matches frontend: ~/.rzem-ai-inference/gallery.db)

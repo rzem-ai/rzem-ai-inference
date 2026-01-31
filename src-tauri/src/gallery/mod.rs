@@ -1903,6 +1903,47 @@ impl GalleryDb {
         Ok(components)
     }
 
+    /// Find a component by repo_id and component_type
+    /// Used to find tokenizers associated with encoders from the same repo
+    pub fn find_component_by_repo_and_type(&self, repo_id: &str, comp_type: &str) -> Result<ComponentRecord> {
+        self.conn.query_row(
+            "SELECT id, component_type, format, file_path, file_size, file_hash, name,
+                    repo_id, repo_snapshot, architecture, quantization, supports_loras,
+                    is_sharded, shard_count, vram_mb, discovered_at, last_verified_at,
+                    is_available, metadata
+             FROM model_components
+             WHERE repo_id = ?1 AND component_type = ?2 AND is_available = 1
+             LIMIT 1",
+            params![repo_id, comp_type],
+            |row| {
+                let metadata_json: Option<String> = row.get(18)?;
+                let metadata = metadata_json.and_then(|s| serde_json::from_str(&s).ok());
+
+                Ok(ComponentRecord {
+                    id: row.get(0)?,
+                    component_type: row.get(1)?,
+                    format: row.get(2)?,
+                    file_path: row.get(3)?,
+                    file_size: row.get(4)?,
+                    file_hash: row.get(5)?,
+                    name: row.get(6)?,
+                    repo_id: row.get(7)?,
+                    repo_snapshot: row.get(8)?,
+                    architecture: row.get(9)?,
+                    quantization: row.get(10)?,
+                    supports_loras: row.get::<_, i32>(11)? != 0,
+                    is_sharded: row.get::<_, i32>(12)? != 0,
+                    shard_count: row.get(13)?,
+                    vram_mb: row.get(14)?,
+                    discovered_at: row.get(15)?,
+                    last_verified_at: row.get(16)?,
+                    is_available: row.get::<_, i32>(17)? != 0,
+                    metadata,
+                })
+            },
+        ).map_err(|e| anyhow::anyhow!("Component not found: {}", e))
+    }
+
     /// Update component availability
     pub fn update_component_availability(&self, id: &str, available: bool) -> Result<()> {
         self.conn.execute(

@@ -52,6 +52,7 @@
             <div class="flex items-center gap-2">
               <Tag v-if="slotProps.option.isBundle" value="Bundle" severity="info" class="text-xs" />
               <Tag v-if="slotProps.option.isActive" value="Active" severity="success" class="text-xs" />
+              <Tag v-if="slotProps.option.quantization" :value="slotProps.option.quantization" severity="warn" class="text-xs" />
               <span v-if="slotProps.option.vram" class="text-xs text-surface-400">
                 {{ slotProps.option.vram }}
               </span>
@@ -233,13 +234,11 @@
 
 <script setup lang="ts">
 import { computed, onMounted } from 'vue';
-import { useModelsStore } from '@/stores/models';
 import { useGenerationStore } from '@/stores/generation';
 import { useBundlesStore } from '@/stores/bundles';
 import type { BundleInfo, ComponentRecord } from '@/stores/bundles';
 import { Select, Tag, Message } from 'primevue';
 
-const modelsStore = useModelsStore();
 const generationStore = useGenerationStore();
 const bundlesStore = useBundlesStore();
 
@@ -339,13 +338,14 @@ defineExpose({
   isValidConfiguration,
 });
 
-// Build options list with bundles first, then individual models
+// Build options list with bundles first, then individual transformer models
 interface SelectOption {
   label: string;
   value: string;
   isBundle: boolean;
   isActive?: boolean;
   vram?: string;
+  quantization?: string;
 }
 
 interface OptionGroup {
@@ -357,7 +357,7 @@ interface OptionGroup {
 const allOptions = computed(() => {
   const groups: OptionGroup[] = [];
 
-  // Group 1: Bundles
+  // Group 1: Bundles (pre-configured complete setups)
   if (bundlesStore.bundles.length > 0) {
     const bundleOptions: SelectOption[] = bundlesStore.bundles
       .filter((b) => b.isComplete) // Only show complete bundles
@@ -378,21 +378,22 @@ const allOptions = computed(() => {
     }
   }
 
-  // Group 2: Individual Models
-  const modelOptions: SelectOption[] = modelsStore.models
-    .filter((m) => m.isDownloaded)
-    .map((m) => ({
-      label: m.name,
-      value: m.id,
+  // Group 2: Individual Transformer Models (FLUX models that can be paired with custom components)
+  const transformerOptions: SelectOption[] = bundlesStore.transformerComponents
+    .filter((c) => c.isAvailable)
+    .map((c) => ({
+      label: c.name,
+      value: c.id,
       isBundle: false,
-      vram: m.metadata?.vramMb ? bundlesStore.formatVram(m.metadata.vramMb) : undefined,
+      vram: c.vramMb ? bundlesStore.formatVram(c.vramMb) : undefined,
+      quantization: c.quantization,
     }));
 
-  if (modelOptions.length > 0) {
+  if (transformerOptions.length > 0) {
     groups.push({
-      label: 'Individual Models',
+      label: 'FLUX Models',
       icon: 'microchip-ai',
-      items: modelOptions,
+      items: transformerOptions,
     });
   }
 
@@ -509,8 +510,9 @@ function getOptionLabel(value: string | undefined): string {
     const bundle = bundlesStore.bundles.find((b) => b.id === bundleId);
     return bundle?.name || value;
   }
-  const model = modelsStore.models.find((m) => m.id === value);
-  return model?.name || value;
+  // Look up in transformer components
+  const transformer = bundlesStore.transformerComponents.find((c) => c.id === value);
+  return transformer?.name || value;
 }
 
 function getOptionVram(value: string | undefined): string | undefined {
@@ -520,8 +522,9 @@ function getOptionVram(value: string | undefined): string | undefined {
     const bundle = bundlesStore.bundles.find((b) => b.id === bundleId);
     return bundle?.totalVramMb ? bundlesStore.formatVram(bundle.totalVramMb) : undefined;
   }
-  const model = modelsStore.models.find((m) => m.id === value);
-  return model?.metadata?.vramMb ? bundlesStore.formatVram(model.metadata.vramMb) : undefined;
+  // Look up in transformer components
+  const transformer = bundlesStore.transformerComponents.find((c) => c.id === value);
+  return transformer?.vramMb ? bundlesStore.formatVram(transformer.vramMb) : undefined;
 }
 
 function getComponentById(id: string, components: ComponentRecord[]): ComponentRecord | null {
@@ -557,15 +560,15 @@ function inferVaeIdFromBundle(bundle: BundleInfo): string {
 onMounted(async () => {
   await bundlesStore.initialize();
 
-  // If no selection yet, try to use active bundle, or first available model
+  // If no selection yet, try to use active bundle, or first available transformer
   if (!selectedOption.value) {
     if (bundlesStore.activeBundle) {
       selectedOption.value = `bundle:${bundlesStore.activeBundle.id}`;
-    } else if (modelsStore.models.length > 0) {
-      // Fall back to first downloaded model
-      const firstModel = modelsStore.models.find((m) => m.isDownloaded);
-      if (firstModel) {
-        selectedOption.value = firstModel.id;
+    } else if (bundlesStore.transformerComponents.length > 0) {
+      // Fall back to first available transformer
+      const firstTransformer = bundlesStore.transformerComponents.find((c) => c.isAvailable);
+      if (firstTransformer) {
+        selectedOption.value = firstTransformer.id;
       }
     }
   }
