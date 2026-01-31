@@ -4,7 +4,6 @@ use anyhow::Result;
 use candle_core::Tensor;
 use tracing::{debug, info};
 
-use crate::models::{ClipTextEncoder, FluxTransformer, ModelPaths, T5TextEncoder, VaeDecoder};
 use crate::inference::cache::ModelCacheConfig;
 use crate::inference::embedding_cache::{CachedEmbedding, EmbeddingCache};
 use crate::inference::metadata::{ImageMetadata, encode_png_with_metadata};
@@ -52,46 +51,7 @@ impl FluxPipeline {
         }
 
         // Need to encode - ensure T5 and CLIP are loaded
-        if self.t5.is_none() || self.clip.is_none() {
-            // Reload encoders if they were unloaded
-            let db_path = ModelPaths::get_db_path()?;
-            let db = crate::gallery::GalleryDb::new(&db_path)?;
-            let paths = ModelPaths::new(&db)?;
-
-            if self.t5.is_none() {
-                let t5_timer = Timer::start();
-                let model_path = paths.t5_path()?;
-                let tokenizer_path = paths.t5_tokenizer_path()?;
-                info!(
-                    model = %model_path.display(),
-                    tokenizer = %tokenizer_path.display(),
-                    "Reloading T5 encoder from bundle"
-                );
-                self.t5 = Some(T5TextEncoder::load(
-                    model_path,
-                    tokenizer_path,
-                    self.device.clone(),
-                )?);
-                stats.t5_load_ms = Some(t5_timer.stop());
-            }
-
-            if self.clip.is_none() {
-                let model_path = paths.clip_path()?.join("model.safetensors");
-                let tokenizer_path = paths.tokenizer_path()?;
-                info!(
-                    model = %model_path.display(),
-                    tokenizer = %tokenizer_path.display(),
-                    "Reloading CLIP encoder"
-                );
-                let clip_timer = Timer::start();
-                self.clip = Some(ClipTextEncoder::load(
-                    model_path,
-                    tokenizer_path,
-                    self.device.clone(),
-                )?);
-                stats.clip_load_ms = Some(clip_timer.stop());
-            }
-        }
+        self.ensure_text_encoders_loaded(stats)?;
 
         // Encode with T5
         let t5 = self.t5.as_mut().ok_or_else(|| anyhow::anyhow!("T5 not loaded"))?;
@@ -144,38 +104,7 @@ impl FluxPipeline {
         stats.steps = steps;
 
         // Ensure FLUX and VAE are loaded
-        if self.flux.is_none() || self.vae.is_none() {
-            let db_path = ModelPaths::get_db_path()?;
-            let db = crate::gallery::GalleryDb::new(&db_path)?;
-            let paths = ModelPaths::new(&db)?;
-
-            if self.flux.is_none() {
-                let flux_timer = Timer::start();
-                let model_path = paths.transformer_path()?;
-                info!(
-                    model = %self.model_type,
-                    path = %model_path.display(),
-                    "Reloading transformer from bundle"
-                );
-                self.flux = Some(FluxTransformer::load(
-                    model_path,
-                    self.device.clone(),
-                    self.model_type.clone(),
-                )?);
-                stats.flux_load_ms = Some(flux_timer.stop());
-            }
-
-            if self.vae.is_none() {
-                let model_path = paths.vae_path()?;
-                info!(
-                    model = %model_path.display(),
-                    "Reloading VAE decoder"
-                );
-                let vae_timer = Timer::start();
-                self.vae = Some(VaeDecoder::load(model_path, self.device.clone())?);
-                stats.vae_load_ms = Some(vae_timer.stop());
-            }
-        }
+        self.ensure_diffusion_models_loaded(stats)?;
 
         let flux = self.flux.as_ref().ok_or_else(|| anyhow::anyhow!("FLUX not loaded"))?;
 
@@ -203,18 +132,18 @@ impl FluxPipeline {
         let png_timer = Timer::start();
         let rgb_data = vae.tensor_to_rgb(&image)?;
 
-        let metadata = ImageMetadata {
-            prompt: prompt.to_string(),
-            negative_prompt: None,
-            steps: steps as u32,
-            cfg_scale: guidance,
-            width: width as u32,
-            height: height as u32,
-            seed: seed as i64,
-            model: self.model_type.to_string(),
-            sampler: Some(sampler.to_string()),
-            scheduler: Some(scheduler.to_string()),
-        };
+        let metadata = ImageMetadata::from_generation(
+            prompt,
+            None,
+            steps as u32,
+            guidance,
+            width as u32,
+            height as u32,
+            seed as i64,
+            self.model_type.to_string(),
+            Some(sampler.to_string()),
+            Some(scheduler.to_string()),
+        );
 
         let png_data = encode_png_with_metadata(&rgb_data, width as u32, height as u32, &metadata)?;
         stats.png_encode_ms = png_timer.stop();
@@ -304,17 +233,19 @@ impl FluxPipeline {
         let png_timer = Timer::start();
         let rgb_data = vae.tensor_to_rgb(&image)?;
 
-        let final_metadata = metadata.unwrap_or_else(|| ImageMetadata {
-            prompt: prompt.to_string(),
-            negative_prompt: None,
-            steps: steps as u32,
-            cfg_scale: guidance,
-            width: width as u32,
-            height: height as u32,
-            seed: seed as i64,
-            model: self.model_type.to_string(),
-            sampler: Some(sampler.to_string()),
-            scheduler: Some(scheduler.to_string()),
+        let final_metadata = metadata.unwrap_or_else(|| {
+            ImageMetadata::from_generation(
+                prompt,
+                None,
+                steps as u32,
+                guidance,
+                width as u32,
+                height as u32,
+                seed as i64,
+                self.model_type.to_string(),
+                Some(sampler.to_string()),
+                Some(scheduler.to_string()),
+            )
         });
 
         let png_data = encode_png_with_metadata(&rgb_data, width as u32, height as u32, &final_metadata)?;

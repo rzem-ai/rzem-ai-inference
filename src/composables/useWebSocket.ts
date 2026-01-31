@@ -28,6 +28,7 @@ export interface JobProgressPayload {
   eta_seconds?: number
   current_step?: number
   total_steps?: number
+  preview_data?: string
 }
 
 type JobUpdateCallback = (payload: JobUpdatePayload) => void
@@ -128,12 +129,13 @@ class WebSocketClient {
         // Map server message to job progress payload
         const progressPayload: JobProgressPayload = {
           job_id: message.job_id,
-          stage: message.stage,
+          stage: message.stage || 'loading_models',
           stage_progress: message.stage_progress || 0,
           overall_progress: message.progress || 0,
           message: message.message || '',
           current_step: message.current_step,
           total_steps: message.total_steps,
+          preview_data: message.preview_data,
         }
         this.progressCallbacks.forEach(cb => cb(progressPayload))
         break

@@ -24,6 +24,33 @@ pub struct ImageMetadata {
 }
 
 impl ImageMetadata {
+    /// Build metadata for a generation run.
+    pub fn from_generation(
+        prompt: impl Into<String>,
+        negative_prompt: Option<String>,
+        steps: u32,
+        cfg_scale: f64,
+        width: u32,
+        height: u32,
+        seed: i64,
+        model: impl Into<String>,
+        sampler: Option<String>,
+        scheduler: Option<String>,
+    ) -> Self {
+        Self {
+            prompt: prompt.into(),
+            negative_prompt,
+            steps,
+            cfg_scale,
+            width,
+            height,
+            seed,
+            model: model.into(),
+            sampler,
+            scheduler,
+        }
+    }
+
     /// Format metadata as A1111-compatible parameters string
     /// This format is widely recognized by other AI image tools
     pub fn to_parameters_string(&self) -> String {

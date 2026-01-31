@@ -262,6 +262,7 @@ async fn process_next_job(
         model_cache,
         lora_manager,
         app_handle,
+        ws_state,
     ).await;
 
     // Handle result and emit completion/failure event
@@ -350,6 +351,7 @@ async fn execute_generation(
     model_cache: &Arc<ModelCache>,
     lora_manager: &Arc<tokio::sync::Mutex<LoraManager>>,
     app_handle: &AppHandle,
+    ws_state: &Option<Arc<crate::server::ws_state::WsState>>,
 ) -> Result<(String, GenerationStats)> {
     use crate::inference::{GenerationProgress, ImageMetadata};
     use crate::models::LoraAdapter;
@@ -442,6 +444,7 @@ async fn execute_generation(
     let job_id_clone = job_id.to_string();
     let app_handle_clone = app_handle.clone();
     let queue_manager_clone = queue_manager.clone();
+    let ws_state_clone = ws_state.clone();
 
     // Progress callback that emits Tauri events
     let on_progress = move |progress: GenerationProgress| {
@@ -451,11 +454,33 @@ async fn execute_generation(
             "stage": progress.stage,
             "stage_progress": progress.stage_progress,
             "overall_progress": progress.overall_progress,
-            "message": progress.message,
+            "message": progress.message.clone(),
             "eta_seconds": progress.eta_seconds,
             "current_step": progress.current_step,
             "total_steps": progress.total_steps,
+            "preview_data": progress.preview_data.clone(),
         }));
+
+        if let Some(ws_state) = &ws_state_clone {
+            let message = crate::server::websocket::ServerMessage::JobProgress {
+                job_id: job_id_clone.clone(),
+                status: "running".to_string(),
+                progress: progress.overall_progress,
+                stage: Some(progress.stage),
+                stage_progress: Some(progress.stage_progress),
+                message: Some(progress.message.clone()),
+                eta_seconds: progress.eta_seconds,
+                current_step: progress.current_step.map(|value| value as u32),
+                total_steps: progress.total_steps.map(|value| value as u32),
+                preview_data: progress.preview_data.clone(),
+            };
+
+            let ws_state = ws_state.clone();
+            let job_id = job_id_clone.clone();
+            tokio::spawn(async move {
+                crate::server::websocket::broadcast_job_update(&ws_state, &job_id, message).await;
+            });
+        }
 
         // Also update job progress in queue manager (fire-and-forget)
         let qm = queue_manager_clone.clone();
@@ -483,18 +508,18 @@ async fn execute_generation(
         format!("component:{}", params.model_component_id)
     };
 
-    let metadata = ImageMetadata {
-        prompt: params.prompt.clone(),
-        negative_prompt: params.negative_prompt.clone(),
-        steps: params.steps,
-        cfg_scale: guidance,
-        width: params.width,
-        height: params.height,
-        seed: params.seed,
-        model: model_name,
-        sampler: Some(sampler.to_string()),
-        scheduler: Some(scheduler.to_string()),
-    };
+    let metadata = ImageMetadata::from_generation(
+        params.prompt.clone(),
+        params.negative_prompt.clone(),
+        params.steps,
+        guidance,
+        params.width,
+        params.height,
+        params.seed,
+        model_name,
+        Some(sampler.to_string()),
+        Some(scheduler.to_string()),
+    );
 
     // Use the cached pipeline for generation
     // Choose between standard and staged loading based on VRAM availability
@@ -749,8 +774,12 @@ async fn emit_job_event(
                 status: status.to_string(),
                 progress,
                 stage: None,
+                stage_progress: None,
+                message: None,
+                eta_seconds: None,
                 current_step: None,
                 total_steps: None,
+                preview_data: None,
             }
         };
 

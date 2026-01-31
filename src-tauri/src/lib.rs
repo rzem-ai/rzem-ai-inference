@@ -2090,8 +2090,12 @@ pub async fn emit_job_update(
                 status: status.to_string(),
                 progress,
                 stage: None,
+                stage_progress: None,
+                message: None,
+                eta_seconds: None,
                 current_step: None,
                 total_steps: None,
+                preview_data: None,
             }
         };
 

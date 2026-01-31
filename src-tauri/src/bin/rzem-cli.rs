@@ -317,18 +317,18 @@ fn cmd_generate(
         };
 
         // Create metadata for embedding in the PNG
-        let metadata = ImageMetadata {
-            prompt: prompt.clone(),
-            negative_prompt: None,
-            steps: steps as u32,
-            cfg_scale: guidance,
-            width: width as u32,
-            height: height as u32,
-            seed: actual_seed,
-            model: bundle.name.clone(),
-            sampler: Some("euler".to_string()),
-            scheduler: Some("normal".to_string()),
-        };
+        let metadata = ImageMetadata::from_generation(
+            prompt.clone(),
+            None,
+            steps as u32,
+            guidance,
+            width as u32,
+            height as u32,
+            actual_seed,
+            bundle.name.clone(),
+            Some("euler".to_string()),
+            Some("normal".to_string()),
+        );
 
         // Generate image
         let result = pipeline.generate_with_progress(

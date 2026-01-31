@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use tracing::{info, warn, error, debug};
 use tokio::sync::mpsc;
 
+use crate::inference::PipelineStage;
 use crate::server::state::ServerState;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -40,9 +41,14 @@ pub enum ServerMessage {
         job_id: String,
         status: String,
         progress: f32,
-        stage: Option<String>,
+        stage: Option<PipelineStage>,
+        stage_progress: Option<f32>,
+        message: Option<String>,
+        eta_seconds: Option<f32>,
         current_step: Option<u32>,
         total_steps: Option<u32>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        preview_data: Option<String>,
     },
     JobComplete {
         job_id: String,
@@ -248,8 +254,12 @@ async fn handle_client_message(
                     status: format!("{:?}", job.status).to_lowercase(),
                     progress: job.progress,
                     stage: None,
+                    stage_progress: None,
+                    message: None,
+                    eta_seconds: None,
                     current_step: None,
                     total_steps: None,
+                    preview_data: None,
                 };
 
                 if let Ok(json) = serde_json::to_string(&status_msg) {

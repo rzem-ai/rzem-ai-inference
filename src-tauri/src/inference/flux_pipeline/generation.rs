@@ -8,6 +8,7 @@ use crate::inference::metadata::{ImageMetadata, encode_png_with_metadata};
 use crate::inference::samplers::{SamplerType, SchedulerType};
 use crate::inference::stats::{GenerationStats, GenerationResult, Timer};
 use crate::inference::{GenerationProgress, PipelineStage};
+use crate::utils::{format_bytes, get_gpu_memory_stats};
 use super::FluxPipeline;
 
 /// Encode RGB data as JPEG and return base64 string
@@ -38,48 +39,6 @@ fn encode_jpeg_base64(rgb_data: &[u8], width: u32, height: u32, quality: u8) -> 
     // Base64 encode
     let base64 = general_purpose::STANDARD.encode(jpeg_data.into_inner());
     Ok(base64)
-}
-
-/// Get current GPU memory stats using nvidia-smi
-fn get_gpu_memory_stats() -> Option<(u64, u64, f32)> {
-    let output = std::process::Command::new("nvidia-smi")
-        .args([
-            "--query-gpu=memory.used,memory.total",
-            "--format=csv,noheader,nounits",
-        ])
-        .output();
-
-    match output {
-        Ok(output) if output.status.success() => {
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            let line = stdout.lines().next().unwrap_or("");
-            let parts: Vec<&str> = line.split(',').map(|s| s.trim()).collect();
-
-            if parts.len() >= 2 {
-                let mem_used = parts[0].parse::<u64>().ok()?;
-                let mem_total = parts[1].parse::<u64>().ok()?;
-                let mem_percent = (mem_used as f64 / mem_total as f64 * 100.0) as f32;
-
-                // Return in bytes
-                return Some((mem_used * 1024 * 1024, mem_total * 1024 * 1024, mem_percent));
-            }
-        }
-        _ => {}
-    }
-
-    None
-}
-
-/// Format bytes into human-readable string
-fn format_bytes(bytes: u64) -> String {
-    const GB: u64 = 1024 * 1024 * 1024;
-    const MB: u64 = 1024 * 1024;
-
-    if bytes >= GB {
-        format!("{:.2} GB", bytes as f64 / GB as f64)
-    } else {
-        format!("{:.2} MB", bytes as f64 / MB as f64)
-    }
 }
 
 impl FluxPipeline {
@@ -179,18 +138,18 @@ impl FluxPipeline {
         let rgb_data = vae.tensor_to_rgb(&image)?;
 
         // Create metadata for embedding
-        let metadata = ImageMetadata {
-            prompt: prompt.to_string(),
-            negative_prompt: None,
-            steps: steps as u32,
-            cfg_scale: guidance,
-            width: width as u32,
-            height: height as u32,
-            seed: seed as i64,
-            model: self.model_type.to_string(),
-            sampler: Some(sampler.to_string()),
-            scheduler: Some(scheduler.to_string()),
-        };
+        let metadata = ImageMetadata::from_generation(
+            prompt,
+            None,
+            steps as u32,
+            guidance,
+            width as u32,
+            height as u32,
+            seed as i64,
+            self.model_type.to_string(),
+            Some(sampler.to_string()),
+            Some(scheduler.to_string()),
+        );
 
         // Encode PNG with embedded metadata
         let png_data = encode_png_with_metadata(&rgb_data, width as u32, height as u32, &metadata)?;
@@ -380,17 +339,19 @@ impl FluxPipeline {
         }
 
         // Use provided metadata or create default
-        let final_metadata = metadata.unwrap_or_else(|| ImageMetadata {
-            prompt: prompt.to_string(),
-            negative_prompt: None,
-            steps: steps as u32,
-            cfg_scale: guidance,
-            width: width as u32,
-            height: height as u32,
-            seed: seed as i64,
-            model: self.model_type.to_string(),
-            sampler: Some(sampler.to_string()),
-            scheduler: Some(scheduler.to_string()),
+        let final_metadata = metadata.unwrap_or_else(|| {
+            ImageMetadata::from_generation(
+                prompt,
+                None,
+                steps as u32,
+                guidance,
+                width as u32,
+                height as u32,
+                seed as i64,
+                self.model_type.to_string(),
+                Some(sampler.to_string()),
+                Some(scheduler.to_string()),
+            )
         });
 
         // Encode PNG with embedded metadata
@@ -588,17 +549,19 @@ impl FluxPipeline {
         }
 
         // Use provided metadata or create default
-        let final_metadata = metadata.unwrap_or_else(|| ImageMetadata {
-            prompt: prompt.to_string(),
-            negative_prompt: None,
-            steps: steps as u32,
-            cfg_scale: guidance,
-            width: width as u32,
-            height: height as u32,
-            seed: seed as i64,
-            model: self.model_type.to_string(),
-            sampler: Some(sampler.to_string()),
-            scheduler: Some(scheduler.to_string()),
+        let final_metadata = metadata.unwrap_or_else(|| {
+            ImageMetadata::from_generation(
+                prompt,
+                None,
+                steps as u32,
+                guidance,
+                width as u32,
+                height as u32,
+                seed as i64,
+                self.model_type.to_string(),
+                Some(sampler.to_string()),
+                Some(scheduler.to_string()),
+            )
         });
 
         let png_data = encode_png_with_metadata(&rgb_data, width as u32, height as u32, &final_metadata)?;
