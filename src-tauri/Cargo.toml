@@ -27,6 +27,7 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 dirs = "5.0"
 chrono = "0.4"
 blake2 = "0.10"
+blake3 = "1.5"
 
 # Candle ML framework - GPU features are platform-specific (see below)
 candle-core = "0.8.4"

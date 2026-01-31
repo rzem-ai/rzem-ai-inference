@@ -1,5 +1,6 @@
 pub mod inference;
 pub mod models;
+pub mod model_manager;
 mod queue;
 pub mod gallery;
 mod settings;
