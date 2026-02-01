@@ -2,13 +2,13 @@
 
 #[cfg(test)]
 mod tests {
-    use rzem_ai_inference::gallery::{BundleRecord, ComponentRecord, GalleryDb};
+    use rzem_ai_inference::db::{BundleRecord, ComponentRecord, InferenceDb};
     use rzem_ai_inference::models::{ComponentRole, ModelPaths};
 
     #[test]
     fn test_bundle_aware_paths() {
         // Create in-memory database
-        let db = GalleryDb::new(":memory:").unwrap();
+        let db = InferenceDb::new(":memory:").unwrap();
         db.init_schema().unwrap();
 
         // Create a test component
@@ -95,7 +95,7 @@ mod tests {
     #[test]
     fn test_model_paths_requires_active_bundle() {
         // Create in-memory database with no active bundle
-        let db = GalleryDb::new(":memory:").unwrap();
+        let db = InferenceDb::new(":memory:").unwrap();
         db.init_schema().unwrap();
 
         // Should fail without active bundle in database
@@ -108,7 +108,7 @@ mod tests {
     #[test]
     fn test_model_paths_from_active_bundle() {
         // Create in-memory database
-        let db = GalleryDb::new(":memory:").unwrap();
+        let db = InferenceDb::new(":memory:").unwrap();
         db.init_schema().unwrap();
 
         // Create complete bundle with all components
@@ -178,7 +178,7 @@ mod tests {
     #[test]
     fn test_model_paths_requires_all_component_ids() {
         // Create in-memory database
-        let db = GalleryDb::new(":memory:").unwrap();
+        let db = InferenceDb::new(":memory:").unwrap();
         db.init_schema().unwrap();
 
         // Create components
@@ -236,7 +236,7 @@ mod tests {
 
     #[test]
     fn test_bundle_operations() {
-        let db = GalleryDb::new(":memory:").unwrap();
+        let db = InferenceDb::new(":memory:").unwrap();
         db.init_schema().unwrap();
 
         // Test component insertion
@@ -319,7 +319,7 @@ mod tests {
 
     #[test]
     fn test_multiple_bundles() {
-        let db = GalleryDb::new(":memory:").unwrap();
+        let db = InferenceDb::new(":memory:").unwrap();
         db.init_schema().unwrap();
 
         // Create multiple bundles
