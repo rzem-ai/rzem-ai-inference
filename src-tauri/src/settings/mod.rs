@@ -98,7 +98,7 @@ impl AppSettings {
     }
 
     /// Load settings from database
-    pub fn load_from_db(db: &crate::gallery::GalleryDb) -> Result<Self> {
+    pub fn load_from_db(db: &crate::db::InferenceDb) -> Result<Self> {
         Ok(Self {
             hf_token: db.get_setting("hf_token")?,
             claude_api_key: db.get_setting("claude_api_key")?,
@@ -107,7 +107,7 @@ impl AppSettings {
     }
 
     /// Save settings to database
-    pub fn save_to_db(&self, db: &crate::gallery::GalleryDb) -> Result<()> {
+    pub fn save_to_db(&self, db: &crate::db::InferenceDb) -> Result<()> {
         if let Some(token) = &self.hf_token {
             db.set_setting("hf_token", token)?;
         } else {

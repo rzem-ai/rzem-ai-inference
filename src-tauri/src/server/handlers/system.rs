@@ -57,7 +57,7 @@ pub async fn list_models(
     use crate::models::ModelPaths;
 
     let db_path = ModelPaths::get_db_path().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let db = crate::gallery::GalleryDb::new(&db_path).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let db = crate::db::InferenceDb::new(&db_path).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let paths = ModelPaths::new(&db)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 

@@ -49,12 +49,12 @@ pub struct ModelPaths {
 impl ModelPaths {
     /// Create new ModelPaths - loads from active bundle
     /// This is the primary constructor that should be used
-    pub fn new(db: &crate::gallery::GalleryDb) -> Result<Self> {
+    pub fn new(db: &crate::db::InferenceDb) -> Result<Self> {
         Self::from_active_bundle(db)
     }
 
     /// Create ModelPaths from active bundle in database
-    pub fn from_active_bundle(db: &crate::gallery::GalleryDb) -> Result<Self> {
+    pub fn from_active_bundle(db: &crate::db::InferenceDb) -> Result<Self> {
         let bundle_info = db.get_active_bundle()?
             .ok_or_else(|| anyhow::anyhow!("No active bundle configured"))?;
 
@@ -62,7 +62,7 @@ impl ModelPaths {
     }
 
     /// Create ModelPaths from a BundleInfo
-    pub fn from_bundle_info(bundle: &crate::gallery::BundleInfo) -> Result<Self> {
+    pub fn from_bundle_info(bundle: &crate::db::BundleInfo) -> Result<Self> {
         let mut component_paths = HashMap::new();
 
         for comp in &bundle.components {
@@ -80,7 +80,7 @@ impl ModelPaths {
     /// Create ModelPaths from individual component IDs
     /// Tokenizers are automatically derived from their associated encoders
     pub fn from_component_ids(
-        db: &crate::gallery::GalleryDb,
+        db: &crate::db::InferenceDb,
         transformer_id: &str,
         t5_id: &str,
         clip_id: &str,
@@ -136,8 +136,8 @@ impl ModelPaths {
     /// 1. Look in database for tokenizer with same repo_id
     /// 2. Look in encoder's directory structure for tokenizer files
     fn find_tokenizer_for_encoder(
-        db: &crate::gallery::GalleryDb,
-        encoder: &crate::gallery::ComponentRecord,
+        db: &crate::db::InferenceDb,
+        encoder: &crate::db::ComponentRecord,
         tokenizer_type: &str,
     ) -> Result<PathBuf> {
         // Strategy 1: Find tokenizer in database with matching repo_id
@@ -306,14 +306,14 @@ impl ModelPaths {
         Ok(home.join(".cache/huggingface/hub"))
     }
 
-    /// Get database path (matches frontend: ~/.rzem-ai-inference/gallery.db)
+    /// Get database path (~/.rzem-ai-inference/inference.db)
     pub fn get_db_path() -> Result<String> {
         let app_dir = dirs::home_dir()
             .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?
             .join(".rzem-ai-inference");
 
         std::fs::create_dir_all(&app_dir)?;
-        Ok(app_dir.join("gallery.db").to_string_lossy().to_string())
+        Ok(app_dir.join("inference.db").to_string_lossy().to_string())
     }
 
     /// Get component path by role
@@ -425,7 +425,7 @@ impl ModelPaths {
     #[cfg(test)]
     pub fn new_for_test() -> Result<Self> {
         let db_path = Self::get_db_path()?;
-        let db = crate::gallery::GalleryDb::new(&db_path)?;
+        let db = crate::db::InferenceDb::new(&db_path)?;
         Self::new(&db)
     }
 }
@@ -433,7 +433,7 @@ impl ModelPaths {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::gallery::{GalleryDb, BundleRecord, ComponentRecord};
+    use crate::db::{InferenceDb, BundleRecord, ComponentRecord};
 
     #[test]
     fn test_component_role_conversion() {
@@ -454,7 +454,7 @@ mod tests {
     #[test]
     fn test_paths_requires_active_bundle() {
         // Create in-memory database with no active bundle
-        let db = GalleryDb::new(":memory:").unwrap();
+        let db = InferenceDb::new(":memory:").unwrap();
         db.init_schema().unwrap();
 
         // ModelPaths::new() should fail without active bundle
@@ -467,7 +467,7 @@ mod tests {
     #[test]
     fn test_paths_from_complete_bundle() {
         // Create in-memory database
-        let db = GalleryDb::new(":memory:").unwrap();
+        let db = InferenceDb::new(":memory:").unwrap();
         db.init_schema().unwrap();
 
         // Create bundle
@@ -540,7 +540,7 @@ mod tests {
     #[test]
     fn test_from_component_ids_requires_all_four() {
         // Create in-memory database
-        let db = GalleryDb::new(":memory:").unwrap();
+        let db = InferenceDb::new(":memory:").unwrap();
         db.init_schema().unwrap();
 
         // Create test components
@@ -595,7 +595,7 @@ mod tests {
     #[test]
     fn test_from_component_ids_fails_with_missing_component() {
         // Create in-memory database
-        let db = GalleryDb::new(":memory:").unwrap();
+        let db = InferenceDb::new(":memory:").unwrap();
         db.init_schema().unwrap();
 
         // Create only 3 components (missing one)

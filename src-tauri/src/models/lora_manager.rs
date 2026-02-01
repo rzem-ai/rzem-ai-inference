@@ -19,14 +19,14 @@ pub struct LoraManager {
     /// Cached loaded adapters (keyed by ID)
     loaded: Arc<RwLock<HashMap<String, Arc<LoraAdapter>>>>,
     /// Database for persistent storage
-    db: Arc<tokio::sync::Mutex<Option<crate::gallery::GalleryDb>>>,
+    db: Arc<tokio::sync::Mutex<Option<crate::db::InferenceDb>>>,
 }
 
 impl LoraManager {
     /// Create a new LoRA manager
     ///
     /// Uses ~/.rzem-ai-inference/loras/ as the storage directory
-    pub fn new(db: Arc<tokio::sync::Mutex<Option<crate::gallery::GalleryDb>>>) -> Result<Self> {
+    pub fn new(db: Arc<tokio::sync::Mutex<Option<crate::db::InferenceDb>>>) -> Result<Self> {
         let home = dirs::home_dir()
             .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?;
 
