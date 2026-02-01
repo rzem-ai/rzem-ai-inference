@@ -386,7 +386,7 @@ const allOptions = computed(() => {
       value: c.id,
       isBundle: false,
       vram: c.vramMb ? bundlesStore.formatVram(c.vramMb) : undefined,
-      quantization: c.quantization,
+      quantization: c.quantization ?? undefined,
     }));
 
   if (transformerOptions.length > 0) {
@@ -402,15 +402,15 @@ const allOptions = computed(() => {
 
 // Get compatible components based on selected model
 const compatibleT5Components = computed(() => {
-  return filterCompatibleComponents(bundlesStore.t5Components, generationStore.currentParams.modelComponentId);
+  return filterCompatibleComponents(bundlesStore.t5Components, generationStore.currentParams.modelComponentId ?? '');
 });
 
 const compatibleClipComponents = computed(() => {
-  return filterCompatibleComponents(bundlesStore.clipComponents, generationStore.currentParams.modelComponentId);
+  return filterCompatibleComponents(bundlesStore.clipComponents, generationStore.currentParams.modelComponentId ?? '');
 });
 
 const compatibleVaeComponents = computed(() => {
-  return filterCompatibleComponents(bundlesStore.vaeComponents, generationStore.currentParams.modelComponentId);
+  return filterCompatibleComponents(bundlesStore.vaeComponents, generationStore.currentParams.modelComponentId ?? '');
 });
 
 // Filter components by compatibility with selected model

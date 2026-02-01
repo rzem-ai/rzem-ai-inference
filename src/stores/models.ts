@@ -1,8 +1,7 @@
 import { defineStore } from 'pinia';
 import { invoke } from '@tauri-apps/api/core';
-import type { Model, LoRA, LoraFileInfo, LoraConfig } from '@/types';
+import type { ModelInfo, LoRA, LoraFileInfo, LoraConfig } from '@/types';
 
-// Backend LoraInfo structure (snake_case from Rust)
 interface BackendLoraInfo {
   id: string;
   name: string;
@@ -14,7 +13,6 @@ interface BackendLoraInfo {
   metadata?: Record<string, string>;
 }
 
-// Backend LoraFileInfo structure
 interface BackendLoraFileInfo {
   path: string;
   size_bytes: number;
@@ -23,7 +21,6 @@ interface BackendLoraFileInfo {
   total_params: number;
 }
 
-// Convert backend LoraInfo to frontend LoRA
 function mapLoraInfo(info: BackendLoraInfo, existingLora?: LoRA): LoRA {
   return {
     id: info.id,
@@ -34,13 +31,11 @@ function mapLoraInfo(info: BackendLoraInfo, existingLora?: LoRA): LoRA {
     sizeBytes: info.size_bytes,
     createdAt: info.created_at,
     metadata: info.metadata,
-    // Preserve existing frontend state or use defaults
     strength: existingLora?.strength ?? 1.0,
     isActive: existingLora?.isActive ?? false,
   };
 }
 
-// Convert backend LoraFileInfo to frontend
 function mapLoraFileInfo(info: BackendLoraFileInfo): LoraFileInfo {
   return {
     path: info.path,
@@ -51,166 +46,135 @@ function mapLoraFileInfo(info: BackendLoraFileInfo): LoraFileInfo {
   };
 }
 
-// Selected model info for the Models view (shared between sidebar and detail panel)
-export interface SelectedModelInfo {
-  id: string;
-  name: string;
-  description: string;
-  size: string;
-  type: string;
-  category: 'generation' | 'vision' | 'component';
-  categoryLabel: string;
-  format: string;
-  license: string;
-  source: string;
-  tags: string[];
-  icon: string;
-  iconClass: string;
-  isDownloaded: boolean;
-  docsUrl?: string;
-  defaultSettings?: {
-    steps: number;
-    guidance: number;
-  };
-  features?: string[];
-  notes?: string;
-  hasQuantized?: boolean;
-  quantizedDownloaded?: boolean;
-}
-
 export const useModelsStore = defineStore('models', {
   state: () => ({
-    models: [] as Model[],
+    models: [] as ModelInfo[],
+    selectedModel: null as ModelInfo | null,
+    scanning: false,
+    scanProgress: { stage: '', message: '', progress: 0 },
     loras: [] as LoRA[],
-    selectedModelId: 'dev',
-    selectedViewComponent: null as SelectedModelInfo | null,
     lorasLoading: false,
     lorasError: null as string | null,
-    modelsLoading: false,
-    modelsError: null as string | null,
   }),
 
   getters: {
-    activeModel(state): Model | undefined {
-      return state.models.find((m) => m.id === state.selectedModelId);
+    modelsByType(state) {
+      const grouped: Record<string, ModelInfo[]> = {};
+      for (const model of state.models) {
+        if (!grouped[model.modelType]) grouped[model.modelType] = [];
+        grouped[model.modelType].push(model);
+      }
+      // Sort each group by displayName
+      for (const key of Object.keys(grouped)) {
+        grouped[key].sort((a, b) => a.displayName.localeCompare(b.displayName));
+      }
+      return grouped;
+    },
+
+    typeOrder(): string[] {
+      return ['checkpoint', 'text_encoder', 'vae', 'tokenizer', 'lora', 'scheduler'];
     },
 
     activeLoras(state): LoRA[] {
       return state.loras.filter((l) => l.isActive);
     },
-
-    downloadedModels(state): Model[] {
-      return state.models.filter((m) => m.isDownloaded);
-    },
   },
 
   actions: {
-    // ============ Model Backend Integration ============
+    async loadModels() {
+      this.models = await invoke<ModelInfo[]>('get_all_models');
+    },
 
-    // Load all models from database
-    // NOTE: Models are now derived from the bundle/component system
-    // This loads bundles and creates model records from transformer components
-    async loadModels(): Promise<void> {
-      this.modelsLoading = true;
-      this.modelsError = null;
+    async scanDirectory(path: string) {
+      this.scanning = true;
+      this.scanProgress = { stage: 'scanning', message: 'Scanning...', progress: 0 };
       try {
-        // Import bundle store types
-        const { useBundlesStore } = await import('./bundles');
-        const bundlesStore = useBundlesStore();
-
-        // Load bundles from database
-        await bundlesStore.loadBundles();
-
-        // Create model records from bundles
-        // Each complete bundle with a transformer becomes a "model"
-        this.models = bundlesStore.completeBundles.map((bundle): Model => {
-          const transformer = bundle.components.find((c) => c.componentType === 'transformer');
-
-          return {
-            id: bundle.id,
-            name: bundle.name,
-            type: bundle.modelFamily === 'flux' ? 'flux-schnell' : 'flux-schnell',
-            path: transformer?.filePath,
-            sizeBytes: transformer?.fileSize,
-            isDownloaded: bundle.isComplete,
-            isActive: bundle.isActive,
-            createdAt: bundle.createdAt,
-            lastUsedAt: bundle.updatedAt,
-            metadata: {
-              description: bundle.description || '',
-              category: 'generation',
-              format: transformer?.format || 'safetensors',
-              source: 'huggingface',
-              license: 'Apache 2.0',
-              docsUrl: undefined,
-              repoId: undefined,
-              supportsLoras: transformer?.format === 'safetensors',
-              vramFull: bundle.totalVramMb,
-              vramQuantized: undefined,
-            },
-            description: bundle.description || '',
-            defaultSteps: bundle.defaultSteps || 4,
-            defaultGuidance: bundle.defaultGuidance || 3.5,
-          };
-        });
-
-        // Set default selected model if none selected or selected model not available
-        if (!this.selectedModelId || !this.models.find((m) => m.id === this.selectedModelId)) {
-          // Prefer active bundle, then LoRA-compatible, then any downloaded
-          const activeModel = this.models.find((m) => m.isActive);
-          const loraCompatible = this.models.find((m) => m.isDownloaded && m.metadata?.supportsLoras);
-          const anyDownloaded = this.models.find((m) => m.isDownloaded);
-          this.selectedModelId = activeModel?.id || loraCompatible?.id || anyDownloaded?.id || this.models[0]?.id || 'dev';
-        }
-      } catch (error) {
-        this.modelsError = String(error);
-        console.error('Failed to load models:', error);
+        const result = await invoke<{ componentsFound: number; bundlesCreated: number }>('scan_directory_for_models', { directoryPath: path });
+        await this.loadModels();
+        return result;
       } finally {
-        this.modelsLoading = false;
+        this.scanning = false;
+        this.scanProgress = { stage: 'complete', message: 'Done', progress: 100 };
       }
     },
 
-    addModel(model: Model) {
-      this.models.push(model);
-    },
-
-    removeModel(id: string): boolean {
-      const index = this.models.findIndex((m) => m.id === id);
-      if (index !== -1) {
-        this.models.splice(index, 1);
-        return true;
+    async scanHfCache() {
+      this.scanning = true;
+      this.scanProgress = { stage: 'scanning', message: 'Scanning HF cache...', progress: 0 };
+      try {
+        const result = await invoke<{ componentsFound: number; bundlesCreated: number }>('scan_and_discover_models');
+        await this.loadModels();
+        return result;
+      } finally {
+        this.scanning = false;
+        this.scanProgress = { stage: 'complete', message: 'Done', progress: 100 };
       }
-      return false;
     },
 
-    selectModel(id: string): boolean {
-      const model = this.models.find((m) => m.id === id);
-      if (model && model.isDownloaded) {
-        // Deactivate all models
-        this.models = this.models.map((m) => ({
-          ...m,
-          isActive: m.id === id,
-        }));
-        this.selectedModelId = id;
-        return true;
+    selectModel(modelOrId: ModelInfo | string | null) {
+      if (typeof modelOrId === 'string') {
+        this.selectedModel = this.models.find((m) => m.id === modelOrId) ?? null;
+      } else {
+        this.selectedModel = modelOrId;
       }
-      return false;
     },
 
-    // Set the selected component for the Models view detail panel
-    setSelectedViewComponent(component: SelectedModelInfo | null) {
-      this.selectedViewComponent = component;
+    async updateModel(modelId: string, displayName?: string, description?: string) {
+      await invoke('update_model', { modelId, displayName: displayName ?? null, description: description ?? null });
+      // Update local state
+      const model = this.models.find((m) => m.id === modelId);
+      if (model) {
+        if (displayName !== undefined) model.displayName = displayName;
+        if (description !== undefined) model.description = description;
+      }
+      if (this.selectedModel?.id === modelId) {
+        if (displayName !== undefined) this.selectedModel.displayName = displayName;
+        if (description !== undefined) this.selectedModel.description = description;
+      }
     },
 
-    // ============ LoRA Backend Integration ============
+    async addTag(modelId: string, tag: string) {
+      await invoke('add_model_tag', { modelId, tag });
+      const model = this.models.find((m) => m.id === modelId);
+      if (model && !model.tags.includes(tag)) model.tags.push(tag);
+      if (this.selectedModel?.id === modelId && !this.selectedModel.tags.includes(tag)) {
+        this.selectedModel.tags.push(tag);
+      }
+    },
 
-    // Load all LoRAs from backend
-    async loadLoras(): Promise<void> {
+    async removeTag(modelId: string, tag: string) {
+      await invoke('remove_model_tag', { modelId, tag });
+      const model = this.models.find((m) => m.id === modelId);
+      if (model) model.tags = model.tags.filter((t) => t !== tag);
+      if (this.selectedModel?.id === modelId) {
+        this.selectedModel.tags = this.selectedModel.tags.filter((t) => t !== tag);
+      }
+    },
+
+    async addExample(modelId: string, exampleType: 'image' | 'prompt', content: string) {
+      const id = await invoke<string>('add_example', { entityType: 'model', entityId: modelId, exampleType, content });
+      const model = this.models.find((m) => m.id === modelId);
+      const example = { id, entityType: 'model' as const, entityId: modelId, exampleType, content, createdAt: new Date().toISOString() };
+      if (model) model.examples.push(example);
+      if (this.selectedModel?.id === modelId) this.selectedModel.examples.push(example);
+    },
+
+    async removeExample(modelId: string, exampleId: string) {
+      await invoke('remove_example', { exampleId });
+      const model = this.models.find((m) => m.id === modelId);
+      if (model) model.examples = model.examples.filter((e) => e.id !== exampleId);
+      if (this.selectedModel?.id === modelId) {
+        this.selectedModel.examples = this.selectedModel.examples.filter((e) => e.id !== exampleId);
+      }
+    },
+
+    // ============ LoRA Management ============
+
+    async loadLoras() {
       this.lorasLoading = true;
       this.lorasError = null;
       try {
         const backendLoras = await invoke<BackendLoraInfo[]>('get_loras');
-        // Map backend data, preserving frontend state for existing LoRAs
         this.loras = backendLoras.map((info) => {
           const existing = this.loras.find((l) => l.id === info.id);
           return mapLoraInfo(info, existing);
@@ -223,7 +187,6 @@ export const useModelsStore = defineStore('models', {
       }
     },
 
-    // Import a new LoRA from file
     async importLora(sourcePath: string, name: string, triggerWords?: string): Promise<LoRA | null> {
       try {
         const info = await invoke<BackendLoraInfo>('import_lora', {
@@ -240,81 +203,39 @@ export const useModelsStore = defineStore('models', {
       }
     },
 
-    // Remove a LoRA (deletes from disk via backend)
-    async removeLora(id: string): Promise<boolean> {
+    async removeLora(id: string) {
       try {
         await invoke('remove_lora', { id });
-        const index = this.loras.findIndex((l) => l.id === id);
-        if (index !== -1) {
-          this.loras.splice(index, 1);
-        }
-        return true;
+        this.loras = this.loras.filter((l) => l.id !== id);
       } catch (error) {
         console.error('Failed to remove LoRA:', error);
         throw error;
       }
     },
 
-    // Get file info before importing (preview)
     async getLoraFileInfo(path: string): Promise<LoraFileInfo> {
-      try {
-        const info = await invoke<BackendLoraFileInfo>('get_lora_file_info', { path });
-        return mapLoraFileInfo(info);
-      } catch (error) {
-        console.error('Failed to get LoRA file info:', error);
-        throw error;
-      }
+      const info = await invoke<BackendLoraFileInfo>('get_lora_file_info', { path });
+      return mapLoraFileInfo(info);
     },
 
-    // ============ Local LoRA State Management ============
-
-    toggleLora(id: string): boolean {
+    toggleLora(id: string) {
       const lora = this.loras.find((l) => l.id === id);
-      if (lora) {
-        lora.isActive = !lora.isActive;
-        return true;
-      }
-      return false;
+      if (lora) lora.isActive = !lora.isActive;
     },
 
-    updateLoraStrength(id: string, strength: number): boolean {
+    updateLoraStrength(id: string, strength: number) {
       const lora = this.loras.find((l) => l.id === id);
-      if (lora) {
-        // Clamp strength to valid range (0.0 to 2.0)
-        lora.strength = Math.max(0, Math.min(2, strength));
-        return true;
-      }
-      return false;
-    },
-
-    // Get active LoRAs as config for generation params
-    getLoraConfigs(): LoraConfig[] {
-      return this.loras.map((l) => ({
-        id: l.id,
-        strength: l.strength,
-      }));
+      if (lora) lora.strength = Math.max(0, Math.min(2, strength));
     },
 
     getActiveLoraConfigs(): LoraConfig[] {
       return this.loras
         .filter((l) => l.isActive)
-        .map((l) => ({
-          id: l.id,
-          strength: l.strength,
-        }));
+        .map((l) => ({ id: l.id, strength: l.strength }));
     },
 
-    // ============ Model Backend Integration ============
-
-    // Fetch model availability from backend
-    // NOTE: Now pulls from bundle system instead of removed model_bundles table
-    async refreshModelAvailability(): Promise<void> {
-      try {
-        // Reload models from bundle system to get latest availability
-        await this.loadModels();
-      } catch (error) {
-        console.error('Failed to refresh model availability:', error);
-      }
+    async refreshModelAvailability() {
+      await this.loadModels();
     },
   },
 });

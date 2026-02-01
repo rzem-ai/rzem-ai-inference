@@ -503,9 +503,10 @@ fn find_vae_decoders(
         }
     }
 
-    // Check for vae directory (alternative location)
+    // Check for vae directory (alternative location) — only if ae.safetensors wasn't found,
+    // since both are the same model in different layouts (native vs diffusers).
     let vae_dir = snapshot.join("vae");
-    if vae_dir.exists() {
+    if components.is_empty() && vae_dir.exists() {
         let vae_model = vae_dir.join("diffusion_pytorch_model.safetensors");
         if vae_model.exists() {
             if let Some(component) = create_component_from_file(
@@ -1618,6 +1619,21 @@ fn create_component_from_loose_file(
         vram_mb,
         metadata: serde_json::json!({"source": "directory_scan"}),
     })
+}
+
+/// Filter out sharded components when non-sharded alternatives exist in the same repo.
+/// Sharded models are only kept when they are the only models found for that repo.
+pub fn filter_sharded_components(components: Vec<DiscoveredComponent>) -> Vec<DiscoveredComponent> {
+    use std::collections::HashSet;
+
+    let repos_with_non_sharded: HashSet<String> = components.iter()
+        .filter(|c| !c.is_sharded)
+        .map(|c| c.repo_id.clone())
+        .collect();
+
+    components.into_iter()
+        .filter(|c| !c.is_sharded || !repos_with_non_sharded.contains(&c.repo_id))
+        .collect()
 }
 
 #[cfg(test)]

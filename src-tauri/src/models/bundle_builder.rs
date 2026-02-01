@@ -327,9 +327,47 @@ fn component_id(comp: &DiscoveredComponent) -> String {
     format!("comp-{:x}", hasher.finish())
 }
 
-/// Generate display name for component using the filename
+/// Try to extract a meaningful name from config files in the component's directory.
+/// CLIP encoders use architectures[0] from config.json;
+/// tokenizers use tokenizer_class from tokenizer_config.json.
+fn read_config_name(comp: &DiscoveredComponent) -> Option<String> {
+    let dir = comp.path.parent()?;
+
+    match comp.component_type {
+        ComponentType::ClipEncoder => {
+            let config: serde_json::Value = serde_json::from_str(
+                &std::fs::read_to_string(dir.join("config.json")).ok()?
+            ).ok()?;
+            config.get("architectures")?
+                .as_array()?
+                .first()?
+                .as_str()
+                .map(|s| s.to_string())
+        }
+        ComponentType::ClipTokenizer | ComponentType::T5Tokenizer => {
+            let config: serde_json::Value = serde_json::from_str(
+                &std::fs::read_to_string(dir.join("tokenizer_config.json")).ok()?
+            ).ok()?;
+            config.get("tokenizer_class")?
+                .as_str()
+                .map(|s| s.to_string())
+        }
+        _ => None,
+    }
+}
+
+/// Generate display name for component, preferring config-derived names over filenames
 fn generate_component_name(comp: &DiscoveredComponent) -> String {
-    // Use filename as the base name
+    // Try config-derived name first
+    if let Some(name) = read_config_name(comp) {
+        return if comp.is_sharded {
+            format!("{} [Sharded]", name)
+        } else {
+            name
+        };
+    }
+
+    // Fall back to filename as the base name
     let filename = comp.path.file_name()
         .and_then(|n| n.to_str())
         .unwrap_or("unknown");

@@ -1,257 +1,144 @@
 <template>
-  <div class="flex-1 h-full p-6 overflow-y-auto rounded-xl bg-surface-950">
-    <template v-if="selectedBundle">
-      <!-- Bundle Header -->
-      <div class="flex items-start justify-between pb-6 mb-6 border-b border-surface-800">
-        <div class="flex-1">
-          <div class="flex items-center gap-2 mb-2">
-            <h2 class="m-0 text-xl font-semibold text-surface-50">{{ selectedBundle.name }}</h2>
-            <Tag v-if="selectedBundle.isActive" value="Active" severity="success" />
-            <Tag v-if="!selectedBundle.isComplete" value="Incomplete" severity="warning" />
-          </div>
-          <p v-if="selectedBundle.description" class="m-0 text-sm text-surface-400">
-            {{ selectedBundle.description }}
-          </p>
-        </div>
-
-        <div class="flex gap-2">
-          <Button
-            v-if="!selectedBundle.isActive && selectedBundle.isComplete"
-            label="Activate"
-            icon="pi pi-check"
-            size="small"
-            @click="handleActivateBundle(selectedBundle)" />
-          <Button
-            v-if="selectedBundle.bundleType === 'user_created'"
-            icon="pi pi-trash"
-            size="small"
-            severity="danger"
-            outlined
-            @click="handleDeleteBundle(selectedBundle)" />
+  <div class="flex h-full">
+    <!-- Bundles List -->
+    <div class="w-80 flex flex-col border-r border-surface-700 bg-surface-900">
+      <div class="p-3 border-b border-surface-700 flex items-center justify-between">
+        <span class="text-sm font-semibold text-surface-300">Bundles</span>
+        <div class="flex gap-1">
+          <Button severity="secondary" size="small" @click="scanBundles" :loading="scanning">
+            <template #icon><fa :icon="['fal', 'magnifying-glass']" /></template>
+          </Button>
+          <Button severity="secondary" size="small" @click="createNewBundle">
+            <template #icon><fa :icon="['fal', 'plus']" /></template>
+          </Button>
         </div>
       </div>
 
-      <!-- Bundle Info -->
-      <div class="mb-6">
-        <h3 class="mb-3 text-sm font-semibold tracking-wider uppercase text-surface-400">Bundle Information</h3>
-        <div class="grid grid-cols-2 gap-4">
-          <div class="flex flex-col gap-1">
-            <span class="text-xs text-surface-500">Type</span>
-            <span class="text-sm font-medium text-surface-200">{{ formatBundleType(selectedBundle.bundleType) }}</span>
+      <div v-if="bundlesStore.bundles.length === 0" class="flex-1 flex items-center justify-center">
+        <p class="text-sm text-surface-500 text-center px-4">No bundles yet.<br />Scan to discover bundles.</p>
+      </div>
+
+      <div v-else class="flex-1 overflow-y-auto">
+        <div
+          v-for="bundle in bundlesStore.bundles"
+          :key="bundle.id"
+          class="p-3 border-b border-surface-800 cursor-pointer hover:bg-surface-800 transition-colors"
+          :class="{ 'bg-surface-800': selectedBundleId === bundle.id }"
+          @click="selectedBundleId = bundle.id"
+        >
+          <div class="flex items-center justify-between">
+            <span class="text-sm font-medium text-surface-200 truncate">{{ bundle.displayName }}</span>
+            <div class="flex items-center gap-1 ml-2 shrink-0">
+              <Tag v-if="bundle.isActive" value="Active" severity="success" class="text-xs" />
+              <Tag v-if="!bundle.isComplete" value="Incomplete" severity="warn" class="text-xs" />
+            </div>
           </div>
-          <div class="flex flex-col gap-1">
-            <span class="text-xs text-surface-500">Model Family</span>
-            <span class="text-sm font-medium text-surface-200">{{ selectedBundle.modelFamily.toUpperCase() }}</span>
+          <div class="flex items-center gap-2 mt-1">
+            <span class="text-xs text-surface-500">{{ bundle.items.length }} components</span>
+            <span v-if="bundle.totalVramMb" class="text-xs text-surface-500">• {{ bundlesStore.formatVram(bundle.totalVramMb) }}</span>
           </div>
-          <div class="flex flex-col gap-1">
-            <span class="text-xs text-surface-500">Total VRAM</span>
-            <span class="text-sm font-medium text-surface-200">
-              {{ bundlesStore.formatVram(selectedBundle.totalVramMb) }}
+          <div v-if="bundle.tags.length" class="flex flex-wrap gap-1 mt-1">
+            <span v-for="tag in bundle.tags" :key="tag" class="text-xs bg-surface-700 text-surface-300 px-1.5 py-0.5 rounded">{{ tag }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Details Panel -->
+    <div class="flex-1 p-4 overflow-y-auto">
+      <div v-if="selectedBundle">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-lg font-semibold text-surface-100">{{ selectedBundle.displayName }}</h2>
+          <div class="flex gap-2">
+            <Button v-if="!selectedBundle.isActive" severity="secondary" size="small" @click="bundlesStore.setActiveBundle(selectedBundle.id)">
+              Set Active
+            </Button>
+            <Button severity="danger" size="small" @click="deleteBundle(selectedBundle.id)">
+              <template #icon><fa :icon="['fal', 'trash-can']" /></template>
+            </Button>
+          </div>
+        </div>
+
+        <p v-if="selectedBundle.description" class="text-sm text-surface-400 mb-4">{{ selectedBundle.description }}</p>
+
+        <!-- Components -->
+        <div class="mb-4">
+          <h3 class="text-sm font-semibold text-surface-300 mb-2">Components</h3>
+          <div class="space-y-2">
+            <div v-for="item in selectedBundle.items" :key="item.id" class="flex items-center justify-between p-2 rounded bg-surface-800">
+              <div class="flex items-center gap-2">
+                <span class="text-xs text-surface-500 w-20 uppercase">{{ item.role }}</span>
+                <span class="text-sm text-surface-200">{{ item.modelDisplayName }}</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <Tag v-if="item.modelQuantization" :value="item.modelQuantization" severity="info" class="text-xs" />
+                <span v-if="item.modelVramMb" class="text-xs text-surface-500">{{ bundlesStore.formatVram(item.modelVramMb) }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tags -->
+        <div class="mb-4">
+          <h3 class="text-sm font-semibold text-surface-300 mb-2">Tags</h3>
+          <div class="flex flex-wrap gap-1">
+            <span v-for="tag in selectedBundle.tags" :key="tag" class="text-xs bg-surface-700 text-surface-300 px-2 py-1 rounded flex items-center gap-1">
+              {{ tag }}
+              <fa :icon="['fal', 'xmark']" size="xs" class="cursor-pointer hover:text-red-400" @click="bundlesStore.deleteBundle" />
             </span>
           </div>
-          <div class="flex flex-col gap-1">
-            <span class="text-xs text-surface-500">Components</span>
-            <span class="text-sm font-medium text-surface-200">{{ selectedBundle.components.length }}</span>
-          </div>
         </div>
-      </div>
 
-      <!-- Components List -->
-      <div class="mb-6">
-        <h3 class="mb-3 text-sm font-semibold tracking-wider uppercase text-surface-400">Components</h3>
-        <div class="space-y-2">
-          <div v-for="comp in selectedBundle.components" :key="comp.id" class="p-3 rounded-lg bg-surface-800">
-            <div class="flex items-start justify-between mb-2">
-              <div class="flex items-center gap-2">
-                <fa v-if="comp.isAvailable" :icon="['fal', 'file-check']" size="xl" class="text-green-400" />
-                <fa v-else :icon="['fal', 'file-slash']" size="xl" class="text-red-400" />
-                <span class="text-sm font-medium text-surface-200">{{ comp.name }}</span>
-                <Tag v-if="comp.quantization" :value="comp.quantization" severity="info" class="text-xs" />
-              </div>
-            </div>
-            <div class="grid grid-cols-3 gap-3 text-xs text-surface-500">
-              <div>
-                <span>Role:</span>
-                <span class="ml-1 text-surface-300">{{ formatComponentRole(comp.role) }}</span>
-              </div>
-              <div>
-                <span>Format:</span>
-                <span class="ml-1 text-surface-300">{{ comp.format }}</span>
-              </div>
-              <div v-if="comp.vramMb">
-                <span>VRAM:</span>
-                <span class="ml-1 text-surface-300">{{ bundlesStore.formatVram(comp.vramMb) }}</span>
-              </div>
+        <!-- Examples -->
+        <div>
+          <h3 class="text-sm font-semibold text-surface-300 mb-2">Examples</h3>
+          <div v-if="selectedBundle.examples.length === 0" class="text-sm text-surface-500">No examples added.</div>
+          <div v-else class="space-y-1">
+            <div v-for="ex in selectedBundle.examples" :key="ex.id" class="text-sm text-surface-400 p-2 rounded bg-surface-800">
+              <span class="text-xs text-surface-500 uppercase mr-2">{{ ex.exampleType }}</span>
+              {{ ex.content }}
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Default Settings (if available) -->
-      <div v-if="selectedBundle.defaultSteps || selectedBundle.defaultGuidance" class="mb-6">
-        <h3 class="mb-3 text-sm font-semibold tracking-wider uppercase text-surface-400">Default Settings</h3>
-        <div class="grid grid-cols-2 gap-4 p-4 rounded-lg bg-surface-800">
-          <div v-if="selectedBundle.defaultSteps" class="flex items-center justify-between">
-            <span class="text-sm text-surface-400">Steps</span>
-            <span class="text-sm font-medium text-surface-200">{{ selectedBundle.defaultSteps }}</span>
-          </div>
-          <div v-if="selectedBundle.defaultGuidance" class="flex items-center justify-between">
-            <span class="text-sm text-surface-400">Guidance</span>
-            <span class="text-sm font-medium text-surface-200">{{ selectedBundle.defaultGuidance }}</span>
-          </div>
-        </div>
+      <div v-else class="flex items-center justify-center h-full">
+        <p class="text-sm text-surface-500">Select a bundle to view details.</p>
       </div>
-    </template>
-
-    <!-- Empty State -->
-    <div v-else class="flex flex-col items-center justify-center h-full gap-4 text-surface-500">
-      <i class="text-6xl pi pi-box"></i>
-      <p class="m-0 text-sm">Select a bundle to view details</p>
-      <Button label="Create Bundle" icon="pi pi-plus" size="small" @click="showBundleCreator = true" />
     </div>
   </div>
-
-  <!-- Bundle Creator Dialog -->
-  <BundleCreator v-model:visible="showBundleCreator" :bundle="editingBundle" @created="handleBundleCreated" @updated="handleBundleUpdated" />
-
-  <!-- Confirmation Dialog -->
-  <ConfirmDialog />
-  <Toast />
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue';
-import Button from 'primevue/button';
-import Tag from 'primevue/tag';
-import ConfirmDialog from 'primevue/confirmdialog';
-import Toast from 'primevue/toast';
+import { ref, computed } from 'vue';
 import { useBundlesStore } from '@/stores/bundles';
-import type { BundleInfo } from '@/stores/bundles';
-import { useToast } from 'primevue/usetoast';
-import { useConfirm } from 'primevue/useconfirm';
-import BundleCreator from '@/components/models/BundleCreator.vue';
+import { Button, Tag } from 'primevue';
 
 const bundlesStore = useBundlesStore();
-const toast = useToast();
-const confirm = useConfirm();
 
-const showBundleCreator = ref(false);
-const editingBundle = ref<BundleInfo | undefined>(undefined);
+const selectedBundleId = ref<string | null>(null);
+const scanning = ref(false);
 
-const selectedBundle = computed(() => bundlesStore.activeBundle);
-
-// Expose selectedBundle for parent to set
-defineExpose({ selectedBundle });
-
-async function handleActivateBundle(bundle: BundleInfo) {
-  if (!bundle.isComplete) {
-    toast.add({
-      severity: 'warn',
-      summary: 'Incomplete Bundle',
-      detail: 'This bundle is missing required components',
-      life: 3000,
-    });
-    return;
-  }
-
-  try {
-    await bundlesStore.setActiveBundle(bundle.id);
-
-    toast.add({
-      severity: 'success',
-      summary: 'Bundle Activated',
-      detail: `${bundle.name} is now active`,
-      life: 3000,
-    });
-  } catch (err) {
-    toast.add({
-      severity: 'error',
-      summary: 'Activation Failed',
-      detail: String(err),
-      life: 5000,
-    });
-  }
-}
-
-function handleDeleteBundle(bundle: BundleInfo) {
-  confirm.require({
-    message: `Delete bundle "${bundle.name}"? This cannot be undone.`,
-    header: 'Confirm Deletion',
-    icon: 'pi pi-exclamation-triangle',
-    acceptClass: 'p-button-danger',
-    accept: async () => {
-      try {
-        await bundlesStore.deleteBundle(bundle.id);
-
-        toast.add({
-          severity: 'success',
-          summary: 'Bundle Deleted',
-          detail: `${bundle.name} has been deleted`,
-          life: 3000,
-        });
-
-        //selectedBundle.value = null;
-      } catch (err) {
-        toast.add({
-          severity: 'error',
-          summary: 'Deletion Failed',
-          detail: String(err),
-          life: 5000,
-        });
-      }
-    },
-  });
-}
-
-function handleBundleCreated() {
-  editingBundle.value = undefined;
-  toast.add({
-    severity: 'success',
-    summary: 'Bundle Created',
-    detail: 'New bundle has been created',
-    life: 3000,
-  });
-}
-
-function handleBundleUpdated() {
-  editingBundle.value = undefined;
-  toast.add({
-    severity: 'success',
-    summary: 'Bundle Updated',
-    detail: 'Bundle has been updated',
-    life: 3000,
-  });
-}
-
-function formatBundleType(type: string): string {
-  switch (type) {
-    case 'auto_discovered':
-      return 'Auto-Discovered';
-    case 'user_created':
-      return 'User Created';
-    case 'system':
-      return 'System';
-    default:
-      return type;
-  }
-}
-
-function formatComponentRole(role: string): string {
-  const roleMap: Record<string, string> = {
-    transformer: 'Transformer',
-    t5: 'T5 Encoder',
-    clip: 'CLIP Encoder',
-    vae: 'VAE Decoder',
-    clip_tokenizer: 'CLIP Tokenizer',
-    t5_tokenizer: 'T5 Tokenizer',
-  };
-  return roleMap[role] || role;
-}
-
-onMounted(() => {
-  // Auto-select first bundle
-  if (bundlesStore.bundles.length > 0) {
-    //selectedBundle.value = bundlesStore.bundles[0];
-  }
+const selectedBundle = computed(() => {
+  if (!selectedBundleId.value) return null;
+  return bundlesStore.bundles.find((b) => b.id === selectedBundleId.value) ?? null;
 });
+
+async function scanBundles() {
+  scanning.value = true;
+  try {
+    await bundlesStore.scanHfCache();
+  } finally {
+    scanning.value = false;
+  }
+}
+
+function createNewBundle() {
+  // TODO: open bundle builder wizard
+}
+
+async function deleteBundle(id: string) {
+  await bundlesStore.deleteBundle(id);
+  if (selectedBundleId.value === id) selectedBundleId.value = null;
+}
 </script>
