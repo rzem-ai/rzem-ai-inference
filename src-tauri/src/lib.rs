@@ -1,6 +1,5 @@
 pub mod inference;
 pub mod models;
-pub mod model_manager;
 mod queue;
 pub mod gallery;
 mod settings;
@@ -864,6 +863,7 @@ async fn get_component_availability(
 // ========== Model Bundle System Commands ==========
 
 #[derive(serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct ScanResult {
     components_found: usize,
     components_added: usize,
@@ -965,6 +965,7 @@ async fn scan_and_discover_models(
     let new_bundles_clone = new_bundles_count.clone();
 
     let repo_completion_callback = Box::new(move |repo_name: &str, repo_components: Vec<models::DiscoveredComponent>| {
+        let repo_components = models::filter_sharded_components(repo_components);
         info!("🎁 Processing repo: {} with {} components", repo_name, repo_components.len());
 
         // Update total component count
@@ -1196,6 +1197,8 @@ async fn scan_directory_for_models(
     let db = db_guard.as_ref()
         .ok_or_else(|| "Database not initialized".to_string())?;
 
+    let components = models::filter_sharded_components(components);
+
     for component in &components {
         // Convert to database record
         let record = to_component_record(component);
@@ -1242,11 +1245,11 @@ async fn scan_directory_for_models(
 #[command]
 async fn get_all_bundles(
     app_state: State<'_, AppState>,
-) -> Result<Vec<gallery::BundleInfo>, String> {
+) -> Result<Vec<gallery::BundleInfoResponse>, String> {
     let db_guard = app_state.gallery_db.lock().await;
     let db = db_guard.as_ref()
         .ok_or_else(|| "Database not initialized".to_string())?;
-    db.get_all_bundles().map_err(|e| e.to_string())
+    db.get_all_bundles_response().map_err(|e| e.to_string())
 }
 
 /// Get a specific bundle by ID
@@ -1265,36 +1268,40 @@ async fn get_bundle(
 #[command]
 async fn create_bundle(
     app_state: State<'_, AppState>,
-    name: String,
+    display_name: String,
     description: Option<String>,
-    model_family: String,
-    component_map: std::collections::HashMap<String, String>,
+    items: Vec<(String, String)>,
 ) -> Result<String, String> {
     let db_guard = app_state.gallery_db.lock().await;
     let db = db_guard.as_ref()
         .ok_or_else(|| "Database not initialized".to_string())?;
 
-    // Validate components exist
-    for (role, comp_id) in &component_map {
-        db.get_component(comp_id)
-            .map_err(|e| format!("Component {} not found: {}", role, e))?;
+    // Validate components exist and infer family from transformer
+    let mut model_family = "other".to_string();
+    for (role, comp_id) in &items {
+        let comp = db.get_component(comp_id)
+            .map_err(|e| format!("Component for role '{}' not found: {}", role, e))?;
+        if role == "transformer" {
+            model_family = match comp.architecture.as_deref() {
+                Some(a) if a.contains("z-image") => "zindex".to_string(),
+                Some(a) if a.contains("flux") || a.contains("schnell") || a.contains("dev") => "flux".to_string(),
+                _ => "other".to_string(),
+            };
+        }
     }
 
-    // Create bundle
     let bundle_id = uuid::Uuid::new_v4().to_string();
     let now = chrono::Utc::now().timestamp();
 
-    // Calculate total VRAM
-    let total_vram: i32 = component_map.values()
-        .filter_map(|comp_id| {
-            db.get_component(comp_id).ok()
-                .and_then(|c| c.vram_mb)
+    let total_vram: i32 = items.iter()
+        .filter_map(|(_, comp_id)| {
+            db.get_component(comp_id).ok().and_then(|c| c.vram_mb)
         })
         .sum();
 
     let bundle = gallery::BundleRecord {
         id: bundle_id.clone(),
-        name,
+        name: display_name,
         description,
         bundle_type: "user_created".to_string(),
         model_family,
@@ -1303,7 +1310,7 @@ async fn create_bundle(
         step_min: Some(1),
         step_max: Some(50),
         total_vram_mb: Some(total_vram),
-        is_complete: component_map.len() >= 4,
+        is_complete: items.len() >= 4,
         is_active: false,
         created_at: now,
         updated_at: now,
@@ -1313,10 +1320,9 @@ async fn create_bundle(
     db.insert_bundle(&bundle)
         .map_err(|e| format!("Failed to create bundle: {}", e))?;
 
-    // Add components to bundle
-    for (role, comp_id) in component_map {
-        db.add_component_to_bundle(&bundle_id, &comp_id, &role, true, 0)
-            .map_err(|e| format!("Failed to add component {} to bundle: {}", role, e))?;
+    for (role, comp_id) in &items {
+        db.add_component_to_bundle(&bundle_id, comp_id, role, true, 0)
+            .map_err(|e| format!("Failed to add component '{}' to bundle: {}", role, e))?;
     }
 
     Ok(bundle_id)
@@ -1327,14 +1333,14 @@ async fn create_bundle(
 async fn update_bundle(
     app_state: State<'_, AppState>,
     bundle_id: String,
-    name: Option<String>,
+    display_name: Option<String>,
     description: Option<String>,
 ) -> Result<(), String> {
     let db_guard = app_state.gallery_db.lock().await;
     let db = db_guard.as_ref()
         .ok_or_else(|| "Database not initialized".to_string())?;
 
-    db.update_bundle(&bundle_id, name.as_deref(), description.as_deref())
+    db.update_bundle(&bundle_id, display_name.as_deref(), description.as_deref())
         .map_err(|e| e.to_string())
 }
 
@@ -1371,6 +1377,103 @@ async fn get_available_components(
     let db = db_guard.as_ref()
         .ok_or_else(|| "Database not initialized".to_string())?;
     db.get_all_components().map_err(|e| e.to_string())
+}
+
+/// Get all models as ModelInfoResponse
+#[command]
+async fn get_all_models(
+    app_state: State<'_, AppState>,
+) -> Result<Vec<gallery::ModelInfoResponse>, String> {
+    let db_guard = app_state.gallery_db.lock().await;
+    let db = db_guard.as_ref()
+        .ok_or_else(|| "Database not initialized".to_string())?;
+    db.get_all_models_response().map_err(|e| e.to_string())
+}
+
+/// Update model display name or description
+#[command]
+async fn update_model(
+    app_state: State<'_, AppState>,
+    model_id: String,
+    display_name: Option<String>,
+    _description: Option<String>,
+) -> Result<(), String> {
+    let db_guard = app_state.gallery_db.lock().await;
+    let db = db_guard.as_ref()
+        .ok_or_else(|| "Database not initialized".to_string())?;
+
+    if let Some(name) = display_name {
+        db.update_model_name(&model_id, &name).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+/// Add a tag to a model
+#[command]
+async fn add_model_tag(
+    app_state: State<'_, AppState>,
+    model_id: String,
+    tag: String,
+) -> Result<(), String> {
+    let db_guard = app_state.gallery_db.lock().await;
+    let db = db_guard.as_ref()
+        .ok_or_else(|| "Database not initialized".to_string())?;
+    db.add_model_tag(&model_id, &tag).map_err(|e| e.to_string())
+}
+
+/// Remove a tag from a model
+#[command]
+async fn remove_model_tag(
+    app_state: State<'_, AppState>,
+    model_id: String,
+    tag: String,
+) -> Result<(), String> {
+    let db_guard = app_state.gallery_db.lock().await;
+    let db = db_guard.as_ref()
+        .ok_or_else(|| "Database not initialized".to_string())?;
+    db.remove_model_tag(&model_id, &tag).map_err(|e| e.to_string())
+}
+
+/// Add an example to a model or bundle
+#[command]
+async fn add_example(
+    app_state: State<'_, AppState>,
+    entity_type: String,
+    entity_id: String,
+    example_type: String,
+    content: String,
+) -> Result<String, String> {
+    let db_guard = app_state.gallery_db.lock().await;
+    let db = db_guard.as_ref()
+        .ok_or_else(|| "Database not initialized".to_string())?;
+    db.add_example(&entity_type, &entity_id, &example_type, &content)
+        .map_err(|e| e.to_string())
+}
+
+/// Remove an example by ID
+#[command]
+async fn remove_example(
+    app_state: State<'_, AppState>,
+    example_id: String,
+) -> Result<(), String> {
+    let db_guard = app_state.gallery_db.lock().await;
+    let db = db_guard.as_ref()
+        .ok_or_else(|| "Database not initialized".to_string())?;
+    db.remove_example(&example_id).map_err(|e| e.to_string())
+}
+
+/// Get compatible models for a base model and target type
+#[command]
+async fn get_compatible_models(
+    app_state: State<'_, AppState>,
+    base_model_id: String,
+    target_type: String,
+) -> Result<Vec<gallery::ModelInfoResponse>, String> {
+    let db_guard = app_state.gallery_db.lock().await;
+    let db = db_guard.as_ref()
+        .ok_or_else(|| "Database not initialized".to_string())?;
+    db.get_compatible_models(&base_model_id, &target_type)
+        .map_err(|e| e.to_string())
 }
 
 // ========== End of Bundle System Commands ==========
@@ -2478,6 +2581,13 @@ pub fn run_with_config(runtime_config: shared::protocol::RuntimeConfig, port: Op
             delete_bundle,
             set_active_bundle,
             get_available_components,
+            get_all_models,
+            update_model,
+            add_model_tag,
+            remove_model_tag,
+            add_example,
+            remove_example,
+            get_compatible_models,
             // Model configuration commands
             get_model_configs,
             get_model_config,

@@ -49,7 +49,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref } from 'vue';
 import { useToast } from 'primevue/usetoast';
 import Dialog from 'primevue/dialog';
 
@@ -59,7 +59,6 @@ import ImageDimensions from '@/components/generation/actions/ImageDimensions.vue
 import LoraPanel from '@/components/generation/actions/LoraPanel.vue';
 import PresetSelector from '@/components/generation/actions/PresetSelector.vue';
 import { useGenerationStore } from '@/stores/generation';
-import { useModelsStore } from '@/stores/models';
 import { analyzeImageForPrompt, fileToDataUrl, isValidImageFile } from '@/services/imageAnalysis';
 import { readFile } from '@tauri-apps/plugin-fs';
 import QualitySelector from './actions/QualitySelector.vue';
@@ -71,7 +70,7 @@ const emit = defineEmits<{
 }>();
 
 const generationStore = useGenerationStore();
-const modelsStore = useModelsStore();
+
 const toast = useToast();
 
 const handleGenerate = () => {
@@ -85,24 +84,7 @@ const dragCounter = ref(0);
 
 const showPresetModal = ref(false);
 
-// Watch for model changes and update default parameters
-// Note: The ModelSelector component now handles syncing both stores
-// This watch only updates the default steps/guidance when model changes
-watch(
-  () => generationStore.currentParams.modelComponentId,
-  (newModelId) => {
-    const model = modelsStore.models.find((m) => m.id === newModelId);
-    if (model) {
-      // Update defaults
-      if (model.defaultSteps) {
-        generationStore.currentParams.steps = model.defaultSteps;
-      }
-      if (model.defaultGuidance !== undefined) {
-        generationStore.currentParams.cfgScale = model.defaultGuidance;
-      }
-    }
-  },
-);
+// Model defaults are now applied via bundle selection in EnhancedModelSelector
 
 // Drag and drop handlers
 const hasImageContent = (dataTransfer: DataTransfer | null): boolean => {

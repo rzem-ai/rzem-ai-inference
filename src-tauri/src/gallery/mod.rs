@@ -210,6 +210,120 @@ pub struct BundleInfo {
     pub components: Vec<ComponentInfo>,
 }
 
+// ========== Response DTOs (match frontend TypeScript types) ==========
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelFileInfoResponse {
+    pub id: String,
+    pub model_id: String,
+    pub path: String,
+    pub resolved_path: String,
+    pub sha256: Option<String>,
+    pub size_bytes: i64,
+    pub is_symlink: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExampleResponse {
+    pub id: String,
+    pub entity_type: String,
+    pub entity_id: String,
+    pub example_type: String,
+    pub content: String,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelPrefsBaseResponse {
+    pub model_id: String,
+    pub preferred_steps: Option<i32>,
+    pub preferred_cfg: Option<f64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelPrefsLoraResponse {
+    pub model_id: String,
+    pub strength_min: Option<f64>,
+    pub strength_max: Option<f64>,
+    pub strength_default: Option<f64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelInfoResponse {
+    pub id: String,
+    pub model_type: String,
+    pub family: String,
+    pub display_name: String,
+    pub description: Option<String>,
+    pub files: Vec<ModelFileInfoResponse>,
+    pub tags: Vec<String>,
+    pub examples: Vec<ExampleResponse>,
+    pub prefs_base: Option<ModelPrefsBaseResponse>,
+    pub prefs_lora: Option<ModelPrefsLoraResponse>,
+    pub trigger_words: Vec<String>,
+    pub architecture: Option<String>,
+    pub quantization: Option<String>,
+    pub vram_mb: Option<i32>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BundleItemInfoResponse {
+    pub id: String,
+    pub model_id: String,
+    pub role: String,
+    pub model_display_name: String,
+    pub model_family: String,
+    pub model_type: String,
+    pub model_vram_mb: Option<i32>,
+    pub model_quantization: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BundleInfoResponse {
+    pub id: String,
+    pub display_name: String,
+    pub description: Option<String>,
+    pub is_active: bool,
+    pub is_complete: bool,
+    pub total_vram_mb: i32,
+    pub tags: Vec<String>,
+    pub items: Vec<BundleItemInfoResponse>,
+    pub examples: Vec<ExampleResponse>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+/// Map scanner component_type to frontend model_type taxonomy
+fn component_type_to_model_type(comp_type: &str) -> &'static str {
+    match comp_type {
+        "transformer" => "checkpoint",
+        "t5_encoder" => "text_encoder",
+        "clip_encoder" => "text_encoder",
+        "vae" => "vae",
+        "t5_tokenizer" => "tokenizer",
+        "clip_tokenizer" => "tokenizer",
+        _ => "other",
+    }
+}
+
+/// Infer model family from architecture string
+fn infer_family(architecture: Option<&str>) -> &'static str {
+    match architecture {
+        Some(a) if a.contains("z-image") => "zindex",
+        Some(a) if a.contains("flux") || a.contains("schnell") || a.contains("dev") => "flux",
+        _ => "other",
+    }
+}
+
 pub struct GalleryDb {
     conn: Connection,
 }
@@ -506,6 +620,35 @@ impl GalleryDb {
                 FOREIGN KEY (component_id) REFERENCES model_components(id) ON DELETE CASCADE,
                 UNIQUE (bundle_id, component_role, component_id)
             )",
+            [],
+        )?;
+
+        // Create model_tags table
+        self.conn.execute(
+            "CREATE TABLE IF NOT EXISTS model_tags (
+                model_id TEXT NOT NULL,
+                tag TEXT NOT NULL,
+                PRIMARY KEY (model_id, tag),
+                FOREIGN KEY (model_id) REFERENCES model_components(id) ON DELETE CASCADE
+            )",
+            [],
+        )?;
+
+        // Create examples table
+        self.conn.execute(
+            "CREATE TABLE IF NOT EXISTS examples (
+                id TEXT PRIMARY KEY,
+                entity_type TEXT NOT NULL,
+                entity_id TEXT NOT NULL,
+                example_type TEXT NOT NULL,
+                content TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )",
+            [],
+        )?;
+
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_examples_entity ON examples(entity_type, entity_id)",
             [],
         )?;
 
@@ -2456,6 +2599,202 @@ impl GalleryDb {
         .collect::<Result<Vec<_>, _>>()?;
 
         Ok(images)
+    }
+
+    // ========== New Model/Bundle Response Methods ==========
+
+    /// Convert a ComponentRecord into a ModelInfoResponse (for frontend API)
+    fn component_to_model_info(&self, comp: &ComponentRecord) -> Result<ModelInfoResponse> {
+        let tags = self.get_model_tags(&comp.id)?;
+        let examples = self.get_examples("model", &comp.id)?;
+
+        Ok(ModelInfoResponse {
+            id: comp.id.clone(),
+            model_type: component_type_to_model_type(&comp.component_type).to_string(),
+            family: infer_family(comp.architecture.as_deref()).to_string(),
+            display_name: comp.name.clone(),
+            description: None,
+            files: vec![ModelFileInfoResponse {
+                id: comp.id.clone(),
+                model_id: comp.id.clone(),
+                path: comp.file_path.clone(),
+                resolved_path: comp.file_path.clone(),
+                sha256: comp.file_hash.clone(),
+                size_bytes: comp.file_size,
+                is_symlink: false,
+            }],
+            tags,
+            examples,
+            prefs_base: None,
+            prefs_lora: None,
+            trigger_words: vec![],
+            architecture: comp.architecture.clone(),
+            quantization: comp.quantization.clone(),
+            vram_mb: comp.vram_mb,
+            created_at: chrono::DateTime::from_timestamp(comp.discovered_at, 0)
+                .map(|dt| dt.format("%Y-%m-%dT%H:%M:%SZ").to_string())
+                .unwrap_or_default(),
+            updated_at: comp.last_verified_at
+                .and_then(|ts| chrono::DateTime::from_timestamp(ts, 0))
+                .map(|dt| dt.format("%Y-%m-%dT%H:%M:%SZ").to_string())
+                .unwrap_or_default(),
+        })
+    }
+
+    /// Get all models as frontend-compatible ModelInfoResponse
+    pub fn get_all_models_response(&self) -> Result<Vec<ModelInfoResponse>> {
+        let components = self.get_all_components()?;
+        let mut models = Vec::with_capacity(components.len());
+        for comp in &components {
+            models.push(self.component_to_model_info(comp)?);
+        }
+        Ok(models)
+    }
+
+    /// Convert BundleInfo to BundleInfoResponse
+    fn bundle_to_response(&self, bundle: &BundleInfo) -> Result<BundleInfoResponse> {
+        let items: Vec<BundleItemInfoResponse> = bundle.components.iter().map(|c| {
+            BundleItemInfoResponse {
+                id: c.id.clone(),
+                model_id: c.id.clone(),
+                role: c.role.clone(),
+                model_display_name: c.name.clone(),
+                model_family: {
+                    // Look up the component to get architecture for family inference
+                    self.get_component(&c.id).ok()
+                        .map(|comp| infer_family(comp.architecture.as_deref()).to_string())
+                        .unwrap_or_else(|| "other".to_string())
+                },
+                model_type: component_type_to_model_type(&c.component_type).to_string(),
+                model_vram_mb: c.vram_mb,
+                model_quantization: c.quantization.clone(),
+            }
+        }).collect();
+
+        let examples = self.get_examples("bundle", &bundle.id)?;
+
+        Ok(BundleInfoResponse {
+            id: bundle.id.clone(),
+            display_name: bundle.name.clone(),
+            description: bundle.description.clone(),
+            is_active: bundle.is_active,
+            is_complete: bundle.is_complete,
+            total_vram_mb: bundle.total_vram_mb.unwrap_or(0),
+            tags: vec![],
+            items,
+            examples,
+            created_at: chrono::DateTime::from_timestamp(bundle.created_at, 0)
+                .map(|dt| dt.format("%Y-%m-%dT%H:%M:%SZ").to_string())
+                .unwrap_or_default(),
+            updated_at: chrono::DateTime::from_timestamp(bundle.updated_at, 0)
+                .map(|dt| dt.format("%Y-%m-%dT%H:%M:%SZ").to_string())
+                .unwrap_or_default(),
+        })
+    }
+
+    /// Get all bundles as frontend-compatible BundleInfoResponse
+    pub fn get_all_bundles_response(&self) -> Result<Vec<BundleInfoResponse>> {
+        let bundles = self.get_all_bundles()?;
+        let mut responses = Vec::with_capacity(bundles.len());
+        for bundle in &bundles {
+            responses.push(self.bundle_to_response(bundle)?);
+        }
+        Ok(responses)
+    }
+
+    /// Update model display name
+    pub fn update_model_name(&self, model_id: &str, name: &str) -> Result<()> {
+        self.conn.execute(
+            "UPDATE model_components SET name = ?1 WHERE id = ?2",
+            params![name, model_id],
+        )?;
+        Ok(())
+    }
+
+    /// Get tags for a model
+    pub fn get_model_tags(&self, model_id: &str) -> Result<Vec<String>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT tag FROM model_tags WHERE model_id = ?1 ORDER BY tag"
+        )?;
+        let tags = stmt.query_map(params![model_id], |row| {
+            row.get::<_, String>(0)
+        })?.collect::<std::result::Result<Vec<_>, _>>()?;
+        Ok(tags)
+    }
+
+    /// Add a tag to a model
+    pub fn add_model_tag(&self, model_id: &str, tag: &str) -> Result<()> {
+        self.conn.execute(
+            "INSERT OR IGNORE INTO model_tags (model_id, tag) VALUES (?1, ?2)",
+            params![model_id, tag],
+        )?;
+        Ok(())
+    }
+
+    /// Remove a tag from a model
+    pub fn remove_model_tag(&self, model_id: &str, tag: &str) -> Result<()> {
+        self.conn.execute(
+            "DELETE FROM model_tags WHERE model_id = ?1 AND tag = ?2",
+            params![model_id, tag],
+        )?;
+        Ok(())
+    }
+
+    /// Get examples for an entity
+    pub fn get_examples(&self, entity_type: &str, entity_id: &str) -> Result<Vec<ExampleResponse>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, entity_type, entity_id, example_type, content, created_at
+             FROM examples WHERE entity_type = ?1 AND entity_id = ?2 ORDER BY created_at"
+        )?;
+        let examples = stmt.query_map(params![entity_type, entity_id], |row| {
+            Ok(ExampleResponse {
+                id: row.get(0)?,
+                entity_type: row.get(1)?,
+                entity_id: row.get(2)?,
+                example_type: row.get(3)?,
+                content: row.get(4)?,
+                created_at: row.get(5)?,
+            })
+        })?.collect::<std::result::Result<Vec<_>, _>>()?;
+        Ok(examples)
+    }
+
+    /// Add an example
+    pub fn add_example(&self, entity_type: &str, entity_id: &str, example_type: &str, content: &str) -> Result<String> {
+        let id = uuid::Uuid::new_v4().to_string();
+        let now = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+        self.conn.execute(
+            "INSERT INTO examples (id, entity_type, entity_id, example_type, content, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![id, entity_type, entity_id, example_type, content, now],
+        )?;
+        Ok(id)
+    }
+
+    /// Remove an example by ID
+    pub fn remove_example(&self, example_id: &str) -> Result<()> {
+        self.conn.execute(
+            "DELETE FROM examples WHERE id = ?1",
+            params![example_id],
+        )?;
+        Ok(())
+    }
+
+    /// Get compatible models for a given base model and target type
+    pub fn get_compatible_models(&self, _base_model_id: &str, target_type: &str) -> Result<Vec<ModelInfoResponse>> {
+        // Compatibility is family-based: return all models of target_type matching the base model's family
+        let base = self.get_component(_base_model_id)?;
+        let family = infer_family(base.architecture.as_deref());
+
+        let all_components = self.get_all_components()?;
+        let mut results = Vec::new();
+        for comp in &all_components {
+            let comp_model_type = component_type_to_model_type(&comp.component_type);
+            let comp_family = infer_family(comp.architecture.as_deref());
+            if comp_model_type == target_type && comp_family == family {
+                results.push(self.component_to_model_info(comp)?);
+            }
+        }
+        Ok(results)
     }
 }
 
