@@ -24,7 +24,7 @@ const router = createRouter({
     },
     {
       path: '/models',
-      component: import('@/views/ModelsView.vue'),
+      component: () => import('@/views/ModelsView.vue'),
       redirect: '/models/bundles',
       children: [
         {
@@ -48,7 +48,7 @@ const router = createRouter({
     {
       path: '/settings',
       name: 'settings',
-      component: import('@/views/SettingsView.vue'),
+      component: () => import('@/views/SettingsView.vue'),
       redirect: '/settings/apikeys',
       children: [
         {
