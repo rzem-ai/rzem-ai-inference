@@ -366,12 +366,6 @@ impl GalleryDb {
             [],
         )?;
 
-        // Add new columns to existing images table (migration for existing databases)
-        // These will fail silently if columns already exist
-        let _ = self.conn.execute("ALTER TABLE images ADD COLUMN status TEXT NOT NULL DEFAULT 'completed'", []);
-        let _ = self.conn.execute("ALTER TABLE images ADD COLUMN session_id TEXT", []);
-        let _ = self.conn.execute("ALTER TABLE images ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0", []);
-
         // Create index for efficient session queries
         self.conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_images_session_status

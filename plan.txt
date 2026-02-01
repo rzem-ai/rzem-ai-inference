@@ -1,0 +1,37 @@
+I've completed exploring all three codebases. Here's a summary of what I found:                                                                                                             
+                                                                                                                                                                                              
+  ★ Insight ─────────────────────────────────────                                                                                                                                             
+  Candle Quantization Architecture:                                                                                                                                                           
+  - QTensor stores weights in compressed block formats (Q4_0, Q4_K, Q8_K, etc.)                                                                                                               
+  - QMatMul has three strategies: stay quantized, dequantize to F32, or dequantize to F16                                                                                                     
+  - Dequantization happens via self.base.dequantize(&device) - exactly what the plan proposes                                                                                                 
+                                                                                                                                                                                              
+  Candle-LoRA Pattern:                                                                                                                                                                        
+  - Uses FrozenLinear (detached base weights) + learnable ff_a/ff_b matrices                                                                                                                  
+  - Delta computation: scale * ff_b(ff_a(input)) or merged: base + B @ A                                                                                                                      
+  - No quantized support exists - designed only for float layers                                                                                                                              
+                                                                                                                                                                                              
+  rzem-ai-inference Integration:                                                                                                                                                              
+  - loader.rs:494-496 has the explicit warning we need to replace                                                                                                                             
+  - FluxTransformer already has the enum pattern (FluxModel::Regular vs FluxModel::Quantized)                                                                                                 
+  - LoRA merging in load_with_loras() uses tensor hashmap approach                                                                                                                            
+  ─────────────────────────────────────────────────                                                                                                                                           
+                                                                                                                                                                                              
+  ---                                                                                                                                                                                         
+  Understood! The exploration is complete and we're ready to implement tomorrow. The key files we'll be modifying:                                                                            
+                                                                                                                                                                                              
+  Candle contributions:                                                                                                                                                                       
+  1. /Users/alex/Dev/Work/ai/candle/candle-core/src/quantized/mod.rs - Add LoraQMatMul                                                                                                        
+  2. /Users/alex/Dev/Work/ai/candle/candle-transformers/src/quantized_nn.rs - Extend Linear with LoRA support                                                                                 
+                                                                                                                                                                                              
+  Candle-lora:                                                                                                                                                                                
+  3. /Users/alex/Dev/Work/ai/candle-lora/candle-lora/src/loralinear.rs - Add LoraQLinear                                                                                                      
+                                                                                                                                                                                              
+  rzem-ai-inference:                                                                                                                                                                          
+  4. src-tauri/src/models/flux.rs - Add load_quantized_with_loras()                                                                                                                           
+  5. src-tauri/src/inference/flux_pipeline/loader.rs - Replace the warning at line 494-496                                                                                                    
+                                                                                                                                                                                              
+  The plan's approach of runtime dequantization is well-aligned with how candle already works - QMatMul can already dequantize via env var, we just need to make it LoRA-aware.               
+                                                                                                                                                                                              
+✻ Sautéed for 1m 32s                                                                                                                                                                          
+                                                                       

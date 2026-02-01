@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { invoke } from '@tauri-apps/api/core';
 import type { ModelInfo, LoRA, LoraFileInfo, LoraConfig } from '@/types';
+import { useBundlesStore } from './bundles';
 
 interface BackendLoraInfo {
   id: string;
@@ -91,6 +92,8 @@ export const useModelsStore = defineStore('models', {
       try {
         const result = await invoke<{ componentsFound: number; bundlesCreated: number }>('scan_directory_for_models', { directoryPath: path });
         await this.loadModels();
+        // Sync bundlesStore so Model Configuration dropdown gets updated
+        await useBundlesStore().refresh();
         return result;
       } finally {
         this.scanning = false;
@@ -104,6 +107,8 @@ export const useModelsStore = defineStore('models', {
       try {
         const result = await invoke<{ componentsFound: number; bundlesCreated: number }>('scan_and_discover_models');
         await this.loadModels();
+        // Sync bundlesStore so Model Configuration dropdown gets updated
+        await useBundlesStore().refresh();
         return result;
       } finally {
         this.scanning = false;

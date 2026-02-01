@@ -8,7 +8,7 @@ use std::io::{Read, BufReader};
 use tracing::{debug, info, warn};
 
 /// Component types that can be discovered
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ComponentType {
     Transformer,
@@ -1483,6 +1483,15 @@ fn identify_component_from_tensor_names(tensor_names: &[&str]) -> Option<Compone
     // Sample tensor names for pattern matching
     let sample: Vec<&str> = tensor_names.iter().take(50).copied().collect();
 
+    // REJECT ComfyUI/InvokeAI format models - candle expects native FLUX tensor names
+    // ComfyUI format: "model.diffusion_model.double_blocks.0.img_attn..."
+    // Native format:  "double_blocks.0.img_attn..." (no prefix)
+    let has_comfyui_prefix = sample.iter().any(|n| n.starts_with("model.diffusion_model."));
+    if has_comfyui_prefix {
+        tracing::debug!("Skipping ComfyUI-format model (model.diffusion_model.* tensor names)");
+        return None;
+    }
+
     // LoRA patterns - CHECK FIRST as LoRAs can contain base model layer names
     // LoRA tensors typically have: lora_up, lora_down, lora_A, lora_B, .alpha
     let has_lora_up_down = sample.iter().any(|n| n.contains("lora_up") || n.contains("lora_down"));
@@ -1539,7 +1548,7 @@ fn identify_component_from_tensor_names(tensor_names: &[&str]) -> Option<Compone
 }
 
 /// Check if a model filename indicates an unsupported variant
-/// Filters out FLUX Kontext, FLUX Fill, and other unsupported model types
+/// Filters out FLUX Kontext, FLUX Fill, bitsandbytes quantized, and other unsupported model types
 fn is_unsupported_model(filename_lower: &str) -> bool {
     // FLUX Kontext - context-aware models, not standard FLUX
     filename_lower.contains("kontext") ||
@@ -1550,7 +1559,15 @@ fn is_unsupported_model(filename_lower: &str) -> bool {
     // FLUX Depth - ControlNet variants
     filename_lower.contains("depth") ||
     // Redux - image prompt models
-    filename_lower.contains("redux")
+    filename_lower.contains("redux") ||
+    // Bitsandbytes quantized models - candle doesn't support packed NF4/INT8 format
+    filename_lower.contains("bnb_nf4") ||
+    filename_lower.contains("bnb_int8") ||
+    filename_lower.contains("bitsandbytes") ||
+    filename_lower.contains("_nf4") ||
+    filename_lower.contains("_int8") ||
+    filename_lower.contains("-nf4-") ||
+    filename_lower.contains("-int8-")
 }
 
 /// Create a DiscoveredComponent from a loose file (not in HF cache structure)
@@ -1621,18 +1638,23 @@ fn create_component_from_loose_file(
     })
 }
 
-/// Filter out sharded components when non-sharded alternatives exist in the same repo.
-/// Sharded models are only kept when they are the only models found for that repo.
+/// Filter out sharded components when non-sharded alternatives of the same type exist.
+/// For each (repo_id, component_type) pair, sharded models are only kept when
+/// no non-sharded alternative exists for that specific component type.
 pub fn filter_sharded_components(components: Vec<DiscoveredComponent>) -> Vec<DiscoveredComponent> {
     use std::collections::HashSet;
 
-    let repos_with_non_sharded: HashSet<String> = components.iter()
+    // Build set of (repo_id, component_type) pairs that have non-sharded versions
+    let non_sharded_pairs: HashSet<(String, ComponentType)> = components.iter()
         .filter(|c| !c.is_sharded)
-        .map(|c| c.repo_id.clone())
+        .map(|c| (c.repo_id.clone(), c.component_type))
         .collect();
 
     components.into_iter()
-        .filter(|c| !c.is_sharded || !repos_with_non_sharded.contains(&c.repo_id))
+        .filter(|c| {
+            // Keep if not sharded, or if no non-sharded version of this type exists
+            !c.is_sharded || !non_sharded_pairs.contains(&(c.repo_id.clone(), c.component_type))
+        })
         .collect()
 }
 
