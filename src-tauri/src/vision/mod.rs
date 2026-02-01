@@ -85,12 +85,12 @@ impl Default for AutoTagSettings {
 
 impl AutoTagSettings {
     /// Load settings from the gallery database
-    pub fn load(db: &crate::gallery::GalleryDb) -> Self {
+    pub fn load(db: &crate::db::InferenceDb) -> Self {
         db.get_auto_tag_settings().unwrap_or_default()
     }
 
     /// Save settings to the gallery database
-    pub fn save(&self, db: &crate::gallery::GalleryDb) -> anyhow::Result<()> {
+    pub fn save(&self, db: &crate::db::InferenceDb) -> anyhow::Result<()> {
         db.set_auto_tag_settings(self)
     }
 

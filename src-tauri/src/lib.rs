@@ -1,7 +1,7 @@
 pub mod inference;
 pub mod models;
 mod queue;
-pub mod gallery;
+pub mod db;
 mod settings;
 mod utils;
 mod claude;
@@ -21,11 +21,11 @@ use tauri::State;
 use tokio::sync::Mutex;
 use tracing::{warn, info};
 use queue::QueueProcessor;
-use gallery::GalleryDb;
+use db::InferenceDb;
 
 #[derive(Clone)]
 pub struct AppState {
-    pub gallery_db: Arc<Mutex<Option<gallery::GalleryDb>>>,
+    pub inference_db: Arc<Mutex<Option<db::InferenceDb>>>,
     pub queue_manager: Arc<queue::QueueManager>,
     pub queue_processor: Arc<QueueProcessor>,
     pub model_config_cache: Arc<models::ModelConfigCache>,
@@ -51,14 +51,14 @@ async fn init_database(app_state: State<'_, AppState>, db_path: String) -> Resul
             .map_err(|e| format!("Failed to create database directory: {}", e))?;
     }
 
-    let db = gallery::GalleryDb::new(&db_path)
+    let db = db::InferenceDb::new(&db_path)
         .map_err(|e| format!("Failed to open database: {}", e))?;
 
     db.init_schema()
         .map_err(|e| format!("Failed to initialize schema: {}", e))?;
 
 
-    *app_state.gallery_db.lock().await = Some(db);
+    *app_state.inference_db.lock().await = Some(db);
 
     // Load model configs into cache
     app_state.model_config_cache.load_all().await
@@ -88,7 +88,7 @@ async fn generate_image(
     seed: i64,
 ) -> Result<String, String> {
     use crate::inference::{InferenceEngine, FluxPipeline};
-    use crate::gallery::ImageMetadata;
+    use crate::db::ImageMetadata;
     use std::fs;
 
     // Get or create inference engine
@@ -135,7 +135,7 @@ async fn generate_image(
         .map_err(|e| format!("Failed to write image: {}", e))?;
 
     // Insert into gallery database
-    let db = app_state.gallery_db.lock().await;
+    let db = app_state.inference_db.lock().await;
     if let Some(db) = db.as_ref() {
         let image_id = uuid::Uuid::new_v4().to_string();
 
@@ -180,8 +180,8 @@ async fn generate_image(
 async fn get_gallery_images(
     app_state: State<'_, AppState>,
     limit: usize,
-) -> Result<Vec<gallery::GalleryImage>, String> {
-    let db = app_state.gallery_db.lock().await;
+) -> Result<Vec<db::GalleryImage>, String> {
+    let db = app_state.inference_db.lock().await;
     let db = db.as_ref().ok_or("Database not initialized")?;
 
     // Get all COMPLETED images regardless of session (for gallery view)
@@ -193,8 +193,8 @@ async fn get_gallery_images(
 async fn get_queue_images(
     app_state: State<'_, AppState>,
     limit: Option<i64>,
-) -> Result<Vec<gallery::GalleryImage>, String> {
-    let db_guard = app_state.gallery_db.lock().await;
+) -> Result<Vec<db::GalleryImage>, String> {
+    let db_guard = app_state.inference_db.lock().await;
     let db = db_guard.as_ref().ok_or("Database not initialized")?;
 
     // Get current session ID
@@ -212,8 +212,8 @@ async fn get_queue_images(
 async fn get_history_images(
     app_state: State<'_, AppState>,
     limit: Option<i64>,
-) -> Result<Vec<gallery::GalleryImage>, String> {
-    let db_guard = app_state.gallery_db.lock().await;
+) -> Result<Vec<db::GalleryImage>, String> {
+    let db_guard = app_state.inference_db.lock().await;
     let db = db_guard.as_ref().ok_or("Database not initialized")?;
 
     // Get current session ID
@@ -231,8 +231,8 @@ async fn get_history_images(
 async fn search_gallery_images(
     app_state: State<'_, AppState>,
     query: String,
-) -> Result<Vec<gallery::ImageMetadata>, String> {
-    let db = app_state.gallery_db.lock().await;
+) -> Result<Vec<db::ImageMetadata>, String> {
+    let db = app_state.inference_db.lock().await;
     let db = db.as_ref().ok_or("Database not initialized")?;
 
     db.search_gallery_images(&query)
@@ -244,7 +244,7 @@ async fn toggle_favorite(
     app_state: State<'_, AppState>,
     image_id: String,
 ) -> Result<String, String> {
-    let db = app_state.gallery_db.lock().await;
+    let db = app_state.inference_db.lock().await;
     let db = db.as_ref().ok_or("Database not initialized")?;
 
     db.toggle_favorite(&image_id)
@@ -259,7 +259,7 @@ async fn add_image_tag(
     image_id: String,
     tag: String,
 ) -> Result<String, String> {
-    let db = app_state.gallery_db.lock().await;
+    let db = app_state.inference_db.lock().await;
     let db = db.as_ref().ok_or("Database not initialized")?;
 
     db.add_image_tag(&image_id, &tag)
@@ -274,7 +274,7 @@ async fn remove_image_tag(
     image_id: String,
     tag: String,
 ) -> Result<String, String> {
-    let db = app_state.gallery_db.lock().await;
+    let db = app_state.inference_db.lock().await;
     let db = db.as_ref().ok_or("Database not initialized")?;
 
     db.remove_image_tag(&image_id, &tag)
@@ -289,7 +289,7 @@ async fn delete_gallery_image(
     image_id: String,
 ) -> Result<String, String> {
     let db = app_state
-        .gallery_db
+        .inference_db
         .lock()
         .await;
 
@@ -326,8 +326,8 @@ async fn create_folder(
     parent_id: Option<String>,
     color: Option<String>,
     icon: Option<String>,
-) -> Result<gallery::Folder, String> {
-    let db = app_state.gallery_db.lock().await;
+) -> Result<db::Folder, String> {
+    let db = app_state.inference_db.lock().await;
     let db = db.as_ref().ok_or("Database not initialized")?;
 
     db.create_folder(&name, parent_id.as_deref(), color.as_deref(), icon.as_deref())
@@ -342,7 +342,7 @@ async fn update_folder(
     color: Option<String>,
     icon: Option<String>,
 ) -> Result<String, String> {
-    let db = app_state.gallery_db.lock().await;
+    let db = app_state.inference_db.lock().await;
     let db = db.as_ref().ok_or("Database not initialized")?;
 
     db.update_folder(&id, name.as_deref(), color.as_deref(), icon.as_deref())
@@ -356,7 +356,7 @@ async fn delete_folder(
     app_state: State<'_, AppState>,
     id: String,
 ) -> Result<String, String> {
-    let db = app_state.gallery_db.lock().await;
+    let db = app_state.inference_db.lock().await;
     let db = db.as_ref().ok_or("Database not initialized")?;
 
     db.delete_folder(&id)
@@ -371,7 +371,7 @@ async fn move_folder(
     id: String,
     new_parent_id: Option<String>,
 ) -> Result<String, String> {
-    let db = app_state.gallery_db.lock().await;
+    let db = app_state.inference_db.lock().await;
     let db = db.as_ref().ok_or("Database not initialized")?;
 
     db.move_folder(&id, new_parent_id.as_deref())
@@ -383,8 +383,8 @@ async fn move_folder(
 #[command]
 async fn get_folder_tree(
     app_state: State<'_, AppState>,
-) -> Result<Vec<gallery::FolderNode>, String> {
-    let db = app_state.gallery_db.lock().await;
+) -> Result<Vec<db::FolderNode>, String> {
+    let db = app_state.inference_db.lock().await;
     let db = db.as_ref().ok_or("Database not initialized")?;
 
     db.get_folder_tree()
@@ -397,7 +397,7 @@ async fn add_images_to_folder(
     image_ids: Vec<String>,
     folder_id: String,
 ) -> Result<String, String> {
-    let db = app_state.gallery_db.lock().await;
+    let db = app_state.inference_db.lock().await;
     let db = db.as_ref().ok_or("Database not initialized")?;
 
     db.add_images_to_folder(&image_ids, &folder_id)
@@ -412,7 +412,7 @@ async fn remove_images_from_folder(
     image_ids: Vec<String>,
     folder_id: String,
 ) -> Result<String, String> {
-    let db = app_state.gallery_db.lock().await;
+    let db = app_state.inference_db.lock().await;
     let db = db.as_ref().ok_or("Database not initialized")?;
 
     db.remove_images_from_folder(&image_ids, &folder_id)
@@ -427,8 +427,8 @@ async fn get_folder_images(
     folder_id: String,
     include_descendants: bool,
     limit: usize,
-) -> Result<Vec<gallery::GalleryImage>, String> {
-    let db = app_state.gallery_db.lock().await;
+) -> Result<Vec<db::GalleryImage>, String> {
+    let db = app_state.inference_db.lock().await;
     let db = db.as_ref().ok_or("Database not initialized")?;
 
     db.get_folder_images(&folder_id, include_descendants, limit)
@@ -439,8 +439,8 @@ async fn get_folder_images(
 async fn get_uncategorized_images(
     app_state: State<'_, AppState>,
     limit: usize,
-) -> Result<Vec<gallery::GalleryImage>, String> {
-    let db = app_state.gallery_db.lock().await;
+) -> Result<Vec<db::GalleryImage>, String> {
+    let db = app_state.inference_db.lock().await;
     let db = db.as_ref().ok_or("Database not initialized")?;
 
     db.get_uncategorized_images(limit)
@@ -452,8 +452,8 @@ async fn get_uncategorized_images(
 #[command]
 async fn get_all_tags(
     app_state: State<'_, AppState>,
-) -> Result<Vec<gallery::Tag>, String> {
-    let db = app_state.gallery_db.lock().await;
+) -> Result<Vec<db::Tag>, String> {
+    let db = app_state.inference_db.lock().await;
     let db = db.as_ref().ok_or("Database not initialized")?;
 
     db.get_all_tags()
@@ -468,7 +468,7 @@ async fn update_tag(
     color: Option<String>,
     category: Option<String>,
 ) -> Result<String, String> {
-    let db = app_state.gallery_db.lock().await;
+    let db = app_state.inference_db.lock().await;
     let db = db.as_ref().ok_or("Database not initialized")?;
 
     db.update_tag(id, name.as_deref(), color.as_deref(), category.as_deref())
@@ -483,7 +483,7 @@ async fn bulk_add_tag(
     image_ids: Vec<String>,
     tag: String,
 ) -> Result<String, String> {
-    let db = app_state.gallery_db.lock().await;
+    let db = app_state.inference_db.lock().await;
     let db = db.as_ref().ok_or("Database not initialized")?;
 
     db.bulk_add_tag(&image_ids, &tag)
@@ -498,7 +498,7 @@ async fn bulk_remove_tag(
     image_ids: Vec<String>,
     tag: String,
 ) -> Result<String, String> {
-    let db = app_state.gallery_db.lock().await;
+    let db = app_state.inference_db.lock().await;
     let db = db.as_ref().ok_or("Database not initialized")?;
 
     db.bulk_remove_tag(&image_ids, &tag)
@@ -512,7 +512,7 @@ async fn delete_tag(
     app_state: State<'_, AppState>,
     tag_id: i64,
 ) -> Result<String, String> {
-    let db = app_state.gallery_db.lock().await;
+    let db = app_state.inference_db.lock().await;
     let db = db.as_ref().ok_or("Database not initialized")?;
 
     db.delete_tag(tag_id)
@@ -526,7 +526,7 @@ async fn reorder_folders(
     app_state: State<'_, AppState>,
     folder_ids: Vec<String>,
 ) -> Result<String, String> {
-    let db = app_state.gallery_db.lock().await;
+    let db = app_state.inference_db.lock().await;
     let db = db.as_ref().ok_or("Database not initialized")?;
 
     db.reorder_folders(&folder_ids)
@@ -545,7 +545,7 @@ async fn add_to_queue(
 
     // Get current session ID from settings
     let session_id = {
-        let db_guard = app_state.gallery_db.lock().await;
+        let db_guard = app_state.inference_db.lock().await;
         if let Some(db) = db_guard.as_ref() {
             db.get_setting("current_session_id")
                 .ok()
@@ -558,7 +558,7 @@ async fn add_to_queue(
 
     // Create pending image entry BEFORE queueing job
     {
-        let db_guard = app_state.gallery_db.lock().await;
+        let db_guard = app_state.inference_db.lock().await;
         if let Some(db) = db_guard.as_ref() {
             db.create_pending_image(&image_id, &params, &session_id)
                 .map_err(|e| format!("Failed to create pending image: {}", e))?;
@@ -725,7 +725,7 @@ async fn get_available_models(
     use crate::models::ModelPaths;
 
     // Use shared database from AppState
-    let db_guard = app_state.gallery_db.lock().await;
+    let db_guard = app_state.inference_db.lock().await;
     let db = db_guard.as_ref()
         .ok_or_else(|| "Database not initialized".to_string())?;
 
@@ -760,7 +760,7 @@ async fn get_model_status(
     use crate::models::ModelPaths;
 
     // Use shared database from AppState
-    let db_guard = app_state.gallery_db.lock().await;
+    let db_guard = app_state.inference_db.lock().await;
     let db = db_guard.as_ref()
         .ok_or_else(|| "Database not initialized".to_string())?;
 
@@ -795,7 +795,7 @@ async fn get_component_availability(
     use crate::models::ModelPaths;
 
     // Use shared database from AppState
-    let db_guard = app_state.gallery_db.lock().await;
+    let db_guard = app_state.inference_db.lock().await;
     let db = db_guard.as_ref()
         .ok_or_else(|| "Database not initialized".to_string())?;
 
@@ -930,7 +930,7 @@ async fn scan_and_discover_models(
     });
 
     // Create repo skip callback - checks if repo+snapshot already exists in DB
-    let db_arc2 = app_state.gallery_db.clone();
+    let db_arc2 = app_state.inference_db.clone();
     let repo_skip_callback = Box::new(move |repo_id: &str, snapshot_hash: &str| -> bool {
         // Get database access
         let db_guard = tokio::runtime::Handle::current().block_on(async {
@@ -958,7 +958,7 @@ async fn scan_and_discover_models(
     });
 
     // Create repo completion callback - called after each repo is scanned
-    let db_arc = app_state.gallery_db.clone();
+    let db_arc = app_state.inference_db.clone();
     let app_handle3 = app_state.app_handle.clone();
     let total_components_clone = total_components.clone();
     let new_components_clone = new_components_count.clone();
@@ -1193,7 +1193,7 @@ async fn scan_directory_for_models(
         "progress": 80
     }));
 
-    let db_guard = app_state.gallery_db.lock().await;
+    let db_guard = app_state.inference_db.lock().await;
     let db = db_guard.as_ref()
         .ok_or_else(|| "Database not initialized".to_string())?;
 
@@ -1245,8 +1245,8 @@ async fn scan_directory_for_models(
 #[command]
 async fn get_all_bundles(
     app_state: State<'_, AppState>,
-) -> Result<Vec<gallery::BundleInfoResponse>, String> {
-    let db_guard = app_state.gallery_db.lock().await;
+) -> Result<Vec<db::BundleInfoResponse>, String> {
+    let db_guard = app_state.inference_db.lock().await;
     let db = db_guard.as_ref()
         .ok_or_else(|| "Database not initialized".to_string())?;
     db.get_all_bundles_response().map_err(|e| e.to_string())
@@ -1257,8 +1257,8 @@ async fn get_all_bundles(
 async fn get_bundle(
     app_state: State<'_, AppState>,
     bundle_id: String,
-) -> Result<gallery::BundleInfo, String> {
-    let db_guard = app_state.gallery_db.lock().await;
+) -> Result<db::BundleInfo, String> {
+    let db_guard = app_state.inference_db.lock().await;
     let db = db_guard.as_ref()
         .ok_or_else(|| "Database not initialized".to_string())?;
     db.get_bundle(&bundle_id).map_err(|e| e.to_string())
@@ -1272,7 +1272,7 @@ async fn create_bundle(
     description: Option<String>,
     items: Vec<(String, String)>,
 ) -> Result<String, String> {
-    let db_guard = app_state.gallery_db.lock().await;
+    let db_guard = app_state.inference_db.lock().await;
     let db = db_guard.as_ref()
         .ok_or_else(|| "Database not initialized".to_string())?;
 
@@ -1299,7 +1299,7 @@ async fn create_bundle(
         })
         .sum();
 
-    let bundle = gallery::BundleRecord {
+    let bundle = db::BundleRecord {
         id: bundle_id.clone(),
         name: display_name,
         description,
@@ -1336,7 +1336,7 @@ async fn update_bundle(
     display_name: Option<String>,
     description: Option<String>,
 ) -> Result<(), String> {
-    let db_guard = app_state.gallery_db.lock().await;
+    let db_guard = app_state.inference_db.lock().await;
     let db = db_guard.as_ref()
         .ok_or_else(|| "Database not initialized".to_string())?;
 
@@ -1350,7 +1350,7 @@ async fn delete_bundle(
     app_state: State<'_, AppState>,
     bundle_id: String,
 ) -> Result<(), String> {
-    let db_guard = app_state.gallery_db.lock().await;
+    let db_guard = app_state.inference_db.lock().await;
     let db = db_guard.as_ref()
         .ok_or_else(|| "Database not initialized".to_string())?;
     db.delete_bundle(&bundle_id).map_err(|e| e.to_string())
@@ -1362,7 +1362,7 @@ async fn set_active_bundle(
     app_state: State<'_, AppState>,
     bundle_id: String,
 ) -> Result<(), String> {
-    let db_guard = app_state.gallery_db.lock().await;
+    let db_guard = app_state.inference_db.lock().await;
     let db = db_guard.as_ref()
         .ok_or_else(|| "Database not initialized".to_string())?;
     db.set_bundle_active(&bundle_id, true).map_err(|e| e.to_string())
@@ -1372,8 +1372,8 @@ async fn set_active_bundle(
 #[command]
 async fn get_available_components(
     app_state: State<'_, AppState>,
-) -> Result<Vec<gallery::ComponentRecord>, String> {
-    let db_guard = app_state.gallery_db.lock().await;
+) -> Result<Vec<db::ComponentRecord>, String> {
+    let db_guard = app_state.inference_db.lock().await;
     let db = db_guard.as_ref()
         .ok_or_else(|| "Database not initialized".to_string())?;
     db.get_all_components().map_err(|e| e.to_string())
@@ -1383,8 +1383,8 @@ async fn get_available_components(
 #[command]
 async fn get_all_models(
     app_state: State<'_, AppState>,
-) -> Result<Vec<gallery::ModelInfoResponse>, String> {
-    let db_guard = app_state.gallery_db.lock().await;
+) -> Result<Vec<db::ModelInfoResponse>, String> {
+    let db_guard = app_state.inference_db.lock().await;
     let db = db_guard.as_ref()
         .ok_or_else(|| "Database not initialized".to_string())?;
     db.get_all_models_response().map_err(|e| e.to_string())
@@ -1398,7 +1398,7 @@ async fn update_model(
     display_name: Option<String>,
     _description: Option<String>,
 ) -> Result<(), String> {
-    let db_guard = app_state.gallery_db.lock().await;
+    let db_guard = app_state.inference_db.lock().await;
     let db = db_guard.as_ref()
         .ok_or_else(|| "Database not initialized".to_string())?;
 
@@ -1415,7 +1415,7 @@ async fn add_model_tag(
     model_id: String,
     tag: String,
 ) -> Result<(), String> {
-    let db_guard = app_state.gallery_db.lock().await;
+    let db_guard = app_state.inference_db.lock().await;
     let db = db_guard.as_ref()
         .ok_or_else(|| "Database not initialized".to_string())?;
     db.add_model_tag(&model_id, &tag).map_err(|e| e.to_string())
@@ -1428,7 +1428,7 @@ async fn remove_model_tag(
     model_id: String,
     tag: String,
 ) -> Result<(), String> {
-    let db_guard = app_state.gallery_db.lock().await;
+    let db_guard = app_state.inference_db.lock().await;
     let db = db_guard.as_ref()
         .ok_or_else(|| "Database not initialized".to_string())?;
     db.remove_model_tag(&model_id, &tag).map_err(|e| e.to_string())
@@ -1443,7 +1443,7 @@ async fn add_example(
     example_type: String,
     content: String,
 ) -> Result<String, String> {
-    let db_guard = app_state.gallery_db.lock().await;
+    let db_guard = app_state.inference_db.lock().await;
     let db = db_guard.as_ref()
         .ok_or_else(|| "Database not initialized".to_string())?;
     db.add_example(&entity_type, &entity_id, &example_type, &content)
@@ -1456,7 +1456,7 @@ async fn remove_example(
     app_state: State<'_, AppState>,
     example_id: String,
 ) -> Result<(), String> {
-    let db_guard = app_state.gallery_db.lock().await;
+    let db_guard = app_state.inference_db.lock().await;
     let db = db_guard.as_ref()
         .ok_or_else(|| "Database not initialized".to_string())?;
     db.remove_example(&example_id).map_err(|e| e.to_string())
@@ -1468,8 +1468,8 @@ async fn get_compatible_models(
     app_state: State<'_, AppState>,
     base_model_id: String,
     target_type: String,
-) -> Result<Vec<gallery::ModelInfoResponse>, String> {
-    let db_guard = app_state.gallery_db.lock().await;
+) -> Result<Vec<db::ModelInfoResponse>, String> {
+    let db_guard = app_state.inference_db.lock().await;
     let db = db_guard.as_ref()
         .ok_or_else(|| "Database not initialized".to_string())?;
     db.get_compatible_models(&base_model_id, &target_type)
@@ -1480,7 +1480,7 @@ async fn get_compatible_models(
 
 #[command]
 async fn get_hf_token(app_state: State<'_, AppState>) -> Result<Option<String>, String> {
-    let db = app_state.gallery_db.lock().await;
+    let db = app_state.inference_db.lock().await;
     let db = db.as_ref().ok_or("Database not initialized")?;
 
     db.get_setting("hf_token").map_err(|e| e.to_string())
@@ -1491,7 +1491,7 @@ async fn set_hf_token(
     app_state: State<'_, AppState>,
     token: Option<String>,
 ) -> Result<String, String> {
-    let db = app_state.gallery_db.lock().await;
+    let db = app_state.inference_db.lock().await;
     let db = db.as_ref().ok_or("Database not initialized")?;
 
     if let Some(token) = token.filter(|t| !t.trim().is_empty()) {
@@ -1505,7 +1505,7 @@ async fn set_hf_token(
 
 #[command]
 async fn get_claude_api_key(app_state: State<'_, AppState>) -> Result<Option<String>, String> {
-    let db = app_state.gallery_db.lock().await;
+    let db = app_state.inference_db.lock().await;
     let db = db.as_ref().ok_or("Database not initialized")?;
 
     db.get_setting("claude_api_key").map_err(|e| e.to_string())
@@ -1516,7 +1516,7 @@ async fn set_claude_api_key(
     app_state: State<'_, AppState>,
     key: Option<String>,
 ) -> Result<String, String> {
-    let db = app_state.gallery_db.lock().await;
+    let db = app_state.inference_db.lock().await;
     let db = db.as_ref().ok_or("Database not initialized")?;
 
     if let Some(key) = key.filter(|k| !k.trim().is_empty()) {
@@ -1530,7 +1530,7 @@ async fn set_claude_api_key(
 
 #[command]
 async fn get_fal_key(app_state: State<'_, AppState>) -> Result<Option<String>, String> {
-    let db = app_state.gallery_db.lock().await;
+    let db = app_state.inference_db.lock().await;
     let db = db.as_ref().ok_or("Database not initialized")?;
 
     db.get_setting("fal_key").map_err(|e| e.to_string())
@@ -1541,7 +1541,7 @@ async fn set_fal_key(
     app_state: State<'_, AppState>,
     key: Option<String>,
 ) -> Result<String, String> {
-    let db = app_state.gallery_db.lock().await;
+    let db = app_state.inference_db.lock().await;
     let db = db.as_ref().ok_or("Database not initialized")?;
 
     if let Some(key) = key.filter(|k| !k.trim().is_empty()) {
@@ -1746,7 +1746,7 @@ async fn clear_vision_model_locks() -> Result<String, String> {
 async fn get_auto_tag_settings(
     app_state: State<'_, AppState>,
 ) -> Result<vision::AutoTagSettings, String> {
-    let db = app_state.gallery_db.lock().await;
+    let db = app_state.inference_db.lock().await;
     let db = db.as_ref().ok_or("Database not initialized")?;
 
     Ok(db.get_auto_tag_settings().unwrap_or_default())
@@ -1758,7 +1758,7 @@ async fn update_auto_tag_settings(
     app_state: State<'_, AppState>,
     settings: vision::AutoTagSettings,
 ) -> Result<String, String> {
-    let db = app_state.gallery_db.lock().await;
+    let db = app_state.inference_db.lock().await;
     let db = db.as_ref().ok_or("Database not initialized")?;
 
     db.set_auto_tag_settings(&settings)
@@ -1782,7 +1782,7 @@ async fn auto_tag_images(
 
     // Phase 1: Get settings and image paths from database, then release lock
     let (settings, image_paths, mut results, effective_backend) = {
-        let db = app_state.gallery_db.lock().await;
+        let db = app_state.inference_db.lock().await;
         let db = db.as_ref().ok_or("Database not initialized")?;
 
         // Get settings
@@ -1924,7 +1924,7 @@ async fn auto_tag_images(
 
     // Phase 3: Save tags to database
     {
-        let db = app_state.gallery_db.lock().await;
+        let db = app_state.inference_db.lock().await;
         let db = db.as_ref().ok_or("Database not initialized")?;
 
         for (image_id, result) in tagging_results {
@@ -2304,7 +2304,7 @@ async fn analyze_image_for_prompt(
     media_type: Option<String>,
 ) -> Result<String, String> {
     // Load Claude API key from database
-    let db = app_state.gallery_db.lock().await;
+    let db = app_state.inference_db.lock().await;
     let db = db.as_ref().ok_or("Database not initialized")?;
 
     let api_key = db.get_setting("claude_api_key")
@@ -2354,7 +2354,7 @@ async fn chat_refine_prompt(
     }
 
     // Local/Server mode: Load API key from database
-    let db = app_state.gallery_db.lock().await;
+    let db = app_state.inference_db.lock().await;
     let db = db.as_ref().ok_or("Database not initialized")?;
 
     let api_key = db.get_setting("claude_api_key")
@@ -2407,9 +2407,9 @@ pub fn run_with_config(runtime_config: shared::protocol::RuntimeConfig, port: Op
     // Initialize logging (defaults to info level, use RUST_LOG to override)
     init_logging("info");
 
-    let gallery_db = Arc::new(Mutex::new(None));
+    let inference_db = Arc::new(Mutex::new(None));
     let queue_manager = Arc::new(queue::QueueManager::new(1)); // Max 1 concurrent for now
-    let model_config_cache = Arc::new(models::ModelConfigCache::new(gallery_db.clone()));
+    let model_config_cache = Arc::new(models::ModelConfigCache::new(inference_db.clone()));
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
@@ -2443,7 +2443,7 @@ pub fn run_with_config(runtime_config: shared::protocol::RuntimeConfig, port: Op
             let queue_processor = Arc::new(
                 QueueProcessor::new(
                     queue_manager.clone(),
-                    gallery_db.clone(),
+                    inference_db.clone(),
                     app_handle.clone(),
                     ws_state.clone(),
                 ).expect("Failed to create queue processor")
@@ -2451,7 +2451,7 @@ pub fn run_with_config(runtime_config: shared::protocol::RuntimeConfig, port: Op
 
             // Store in managed state
             let app_state = Arc::new(AppState {
-                gallery_db: gallery_db.clone(),
+                inference_db: inference_db.clone(),
                 queue_manager: queue_manager.clone(),
                 queue_processor: queue_processor.clone(),
                 model_config_cache: model_config_cache.clone(),
@@ -2475,9 +2475,9 @@ pub fn run_with_config(runtime_config: shared::protocol::RuntimeConfig, port: Op
 
             // Initialize session management
             tauri::async_runtime::spawn({
-                let gallery_db = gallery_db.clone();
+                let inference_db = inference_db.clone();
                 async move {
-                    let db_guard = gallery_db.lock().await;
+                    let db_guard = inference_db.lock().await;
                     if let Some(db) = db_guard.as_ref() {
                         // Cleanup: Mark any PENDING or PROCESSING images as FAILED (crash recovery)
                         match db.cleanup_pending_images() {

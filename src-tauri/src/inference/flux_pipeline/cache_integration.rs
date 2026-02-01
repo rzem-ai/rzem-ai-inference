@@ -55,7 +55,7 @@ impl FluxPipeline {
         if self.t5.is_none() || self.clip.is_none() {
             // Reload encoders if they were unloaded
             let db_path = ModelPaths::get_db_path()?;
-            let db = crate::gallery::GalleryDb::new(&db_path)?;
+            let db = crate::db::InferenceDb::new(&db_path)?;
             let paths = ModelPaths::new(&db)?;
 
             if self.t5.is_none() {
@@ -146,7 +146,7 @@ impl FluxPipeline {
         // Ensure FLUX and VAE are loaded
         if self.flux.is_none() || self.vae.is_none() {
             let db_path = ModelPaths::get_db_path()?;
-            let db = crate::gallery::GalleryDb::new(&db_path)?;
+            let db = crate::db::InferenceDb::new(&db_path)?;
             let paths = ModelPaths::new(&db)?;
 
             if self.flux.is_none() {

@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use tracing::{debug, info};
 
 use super::scanner::{ComponentType, DiscoveredComponent};
-use crate::gallery::{BundleRecord, ComponentRecord};
+use crate::db::{BundleRecord, ComponentRecord};
 
 /// Bundle definition before database insertion
 #[derive(Debug, Clone)]

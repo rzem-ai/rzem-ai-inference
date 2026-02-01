@@ -7,11 +7,11 @@ use super::ModelConfig;
 /// In-memory cache for model configurations
 pub struct ModelConfigCache {
     configs: Arc<RwLock<HashMap<String, ModelConfig>>>,
-    db: Arc<Mutex<Option<crate::gallery::GalleryDb>>>,
+    db: Arc<Mutex<Option<crate::db::InferenceDb>>>,
 }
 
 impl ModelConfigCache {
-    pub fn new(db: Arc<Mutex<Option<crate::gallery::GalleryDb>>>) -> Self {
+    pub fn new(db: Arc<Mutex<Option<crate::db::InferenceDb>>>) -> Self {
         Self {
             configs: Arc::new(RwLock::new(HashMap::new())),
             db,

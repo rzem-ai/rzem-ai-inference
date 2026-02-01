@@ -7,7 +7,7 @@ use rzem_ai_inference::models::scanner::{
     scan_all_components_with_callbacks, scan_all_components_fast, DiscoveredComponent,
 };
 use rzem_ai_inference::models::bundle_builder::{BundleBuilder, to_component_record};
-use rzem_ai_inference::gallery::GalleryDb;
+use rzem_ai_inference::db::InferenceDb;
 use rzem_ai_inference::inference::samplers::{SamplerType, SchedulerType};
 
 #[derive(Parser)]
@@ -186,7 +186,7 @@ fn cmd_generate(
 
     // Get database and resolve bundle
     let db_path = ModelPaths::get_db_path()?;
-    let db = GalleryDb::new(&db_path)?;
+    let db = InferenceDb::new(&db_path)?;
 
     // Find the bundle to use
     let bundle = if let Some(name) = bundle_name {
@@ -403,7 +403,7 @@ fn cmd_generate(
 
 fn cmd_models_list() -> Result<()> {
     let db_path = ModelPaths::get_db_path()?;
-    let db = rzem_ai_inference::gallery::GalleryDb::new(&db_path)?;
+    let db = rzem_ai_inference::db::InferenceDb::new(&db_path)?;
     let paths = ModelPaths::new(&db)?;
 
     println!("FLUX Models");
@@ -476,7 +476,7 @@ fn cmd_info() -> Result<()> {
     println!("Device:  {}", device_name);
 
     let db_path = ModelPaths::get_db_path()?;
-    let db = rzem_ai_inference::gallery::GalleryDb::new(&db_path)?;
+    let db = rzem_ai_inference::db::InferenceDb::new(&db_path)?;
     let paths = ModelPaths::new(&db)?;
     if let Some(bundle_id) = paths.bundle_id() {
         println!("Bundle:  {}", bundle_id);
@@ -498,7 +498,7 @@ fn cmd_info() -> Result<()> {
 
 fn cmd_bundles_list() -> Result<()> {
     let db_path = ModelPaths::get_db_path()?;
-    let db = GalleryDb::new(&db_path)?;
+    let db = InferenceDb::new(&db_path)?;
 
     let bundles = db.get_all_bundles()?;
 
@@ -539,7 +539,7 @@ fn cmd_bundles_list() -> Result<()> {
 
 fn cmd_bundles_info(bundle_name: String) -> Result<()> {
     let db_path = ModelPaths::get_db_path()?;
-    let db = GalleryDb::new(&db_path)?;
+    let db = InferenceDb::new(&db_path)?;
 
     let bundle = find_bundle_by_name_or_id(&db, &bundle_name)?
         .ok_or_else(|| anyhow::anyhow!("Bundle not found: {}", bundle_name))?;
@@ -598,7 +598,7 @@ fn cmd_bundles_info(bundle_name: String) -> Result<()> {
 
 fn cmd_bundles_use(bundle_name: String) -> Result<()> {
     let db_path = ModelPaths::get_db_path()?;
-    let db = GalleryDb::new(&db_path)?;
+    let db = InferenceDb::new(&db_path)?;
 
     let bundle = find_bundle_by_name_or_id(&db, &bundle_name)?
         .ok_or_else(|| anyhow::anyhow!("Bundle not found: {}", bundle_name))?;
@@ -615,7 +615,7 @@ fn cmd_bundles_use(bundle_name: String) -> Result<()> {
 
 fn cmd_bundles_scan(skip_hash: bool) -> Result<()> {
     let db_path = ModelPaths::get_db_path()?;
-    let db = GalleryDb::new(&db_path)?;
+    let db = InferenceDb::new(&db_path)?;
 
     println!("Rzem Model Scanner");
     println!("════════════════════════════════════════════════════════════════════════════════");
@@ -727,7 +727,7 @@ fn cmd_bundles_scan(skip_hash: bool) -> Result<()> {
 
 // ===== Helper Functions =====
 
-fn find_bundle_by_name_or_id(db: &GalleryDb, name_or_id: &str) -> Result<Option<rzem_ai_inference::gallery::BundleInfo>> {
+fn find_bundle_by_name_or_id(db: &InferenceDb, name_or_id: &str) -> Result<Option<rzem_ai_inference::db::BundleInfo>> {
     // First try exact ID match
     if let Ok(bundle) = db.get_bundle(name_or_id) {
         return Ok(Some(bundle));

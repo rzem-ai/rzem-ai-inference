@@ -88,7 +88,7 @@ impl FluxPipeline {
 
         let paths = if let Some(bundle_id) = context.bundle_id {
             let db_path = ModelPaths::get_db_path()?;
-            let db = crate::gallery::GalleryDb::new(&db_path)?;
+            let db = crate::db::InferenceDb::new(&db_path)?;
             let bundle_info = db.get_bundle(&bundle_id)?;
             ModelPaths::from_bundle_info(&bundle_info)?
         } else {
@@ -102,7 +102,7 @@ impl FluxPipeline {
                 .ok_or_else(|| anyhow::anyhow!("vae_component_id required"))?;
 
             let db_path = ModelPaths::get_db_path()?;
-            let db = crate::gallery::GalleryDb::new(&db_path)?;
+            let db = crate::db::InferenceDb::new(&db_path)?;
             ModelPaths::from_component_ids(&db, model_id, t5_id, clip_id, vae_id)?
         };
 
@@ -145,7 +145,7 @@ impl FluxPipeline {
 
         let paths = if let Some(bundle_id) = context.bundle_id {
             let db_path = ModelPaths::get_db_path()?;
-            let db = crate::gallery::GalleryDb::new(&db_path)?;
+            let db = crate::db::InferenceDb::new(&db_path)?;
             let bundle_info = db.get_bundle(&bundle_id)?;
             ModelPaths::from_bundle_info(&bundle_info)?
         } else {
@@ -159,7 +159,7 @@ impl FluxPipeline {
                 .ok_or_else(|| anyhow::anyhow!("vae_component_id required"))?;
 
             let db_path = ModelPaths::get_db_path()?;
-            let db = crate::gallery::GalleryDb::new(&db_path)?;
+            let db = crate::db::InferenceDb::new(&db_path)?;
             ModelPaths::from_component_ids(&db, model_id, t5_id, clip_id, vae_id)?
         };
 
@@ -207,7 +207,7 @@ impl FluxPipeline {
             paths
         } else {
             let db_path = ModelPaths::get_db_path()?;
-            let db = crate::gallery::GalleryDb::new(&db_path)?;
+            let db = crate::db::InferenceDb::new(&db_path)?;
             ModelPaths::new(&db)?
         };
 
@@ -270,7 +270,7 @@ impl FluxPipeline {
         let paths = if let Some(bundle_id) = context.bundle_id {
             // Use bundle
             let db_path = ModelPaths::get_db_path()?;
-            let db = crate::gallery::GalleryDb::new(&db_path)?;
+            let db = crate::db::InferenceDb::new(&db_path)?;
             let bundle_info = db.get_bundle(&bundle_id)?;
             info!(bundle_id = %bundle_id, "Loading models from bundle");
             ModelPaths::from_bundle_info(&bundle_info)?
@@ -294,7 +294,7 @@ impl FluxPipeline {
             );
 
             let db_path = ModelPaths::get_db_path()?;
-            let db = crate::gallery::GalleryDb::new(&db_path)?;
+            let db = crate::db::InferenceDb::new(&db_path)?;
             ModelPaths::from_component_ids(&db, model_id, t5_id, clip_id, vae_id)?
         };
 

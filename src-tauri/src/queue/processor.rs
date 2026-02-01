@@ -2,7 +2,7 @@
 
 use super::{QueueManager, JobStatus};
 use crate::inference::{InferenceEngine, GenerationStats, ModelCache, ModelCacheConfig};
-use crate::gallery::{GalleryDb, ImageMetadata};
+use crate::db::{InferenceDb, ImageMetadata};
 use crate::models::{LoraManager, ModelType, ModelPaths};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -15,7 +15,7 @@ use tracing::{debug, error, info, warn};
 /// Infer model type from transformer component
 async fn infer_model_type_from_component(component_id: &str) -> Result<ModelType> {
     let db_path = ModelPaths::get_db_path()?;
-    let db = GalleryDb::new(&db_path)?;
+    let db = InferenceDb::new(&db_path)?;
     let component = db.get_component(component_id)?;
 
     let arch = component.architecture.unwrap_or_default().to_lowercase();
@@ -33,7 +33,7 @@ async fn infer_model_type_from_component(component_id: &str) -> Result<ModelType
 
 pub struct QueueProcessor {
     queue_manager: Arc<QueueManager>,
-    gallery_db: Arc<tokio::sync::Mutex<Option<GalleryDb>>>,
+    inference_db: Arc<tokio::sync::Mutex<Option<InferenceDb>>>,
     inference_engine: Arc<InferenceEngine>,
     model_cache: Arc<ModelCache>,
     lora_manager: Arc<tokio::sync::Mutex<LoraManager>>,
@@ -46,7 +46,7 @@ pub struct QueueProcessor {
 impl QueueProcessor {
     pub fn new(
         queue_manager: Arc<QueueManager>,
-        gallery_db: Arc<tokio::sync::Mutex<Option<GalleryDb>>>,
+        inference_db: Arc<tokio::sync::Mutex<Option<InferenceDb>>>,
         app_handle: AppHandle,
         ws_state: Option<Arc<crate::server::ws_state::WsState>>,
     ) -> Result<Self> {
@@ -57,11 +57,11 @@ impl QueueProcessor {
         let model_cache = ModelCache::new(device, ModelCacheConfig::default());
 
         // Create LoRA manager
-        let lora_manager = Arc::new(tokio::sync::Mutex::new(LoraManager::new(gallery_db.clone())?));
+        let lora_manager = Arc::new(tokio::sync::Mutex::new(LoraManager::new(inference_db.clone())?));
 
         Ok(Self {
             queue_manager,
-            gallery_db,
+            inference_db,
             inference_engine,
             model_cache,
             lora_manager,
@@ -96,7 +96,7 @@ impl QueueProcessor {
         }
 
         let queue_manager = self.queue_manager.clone();
-        let gallery_db = self.gallery_db.clone();
+        let inference_db = self.inference_db.clone();
         let model_cache = self.model_cache.clone();
         let lora_manager = self.lora_manager.clone();
         let running = self.running.clone();
@@ -132,7 +132,7 @@ impl QueueProcessor {
                 // Try to process next job
                 if let Err(e) = process_next_job(
                     &queue_manager,
-                    &gallery_db,
+                    &inference_db,
                     &model_cache,
                     &lora_manager,
                     &app_handle,
@@ -213,7 +213,7 @@ impl Drop for RunningGuard {
 
 async fn process_next_job(
     queue_manager: &Arc<QueueManager>,
-    gallery_db: &Arc<tokio::sync::Mutex<Option<GalleryDb>>>,
+    inference_db: &Arc<tokio::sync::Mutex<Option<InferenceDb>>>,
     model_cache: &Arc<ModelCache>,
     lora_manager: &Arc<tokio::sync::Mutex<LoraManager>>,
     app_handle: &AppHandle,
@@ -238,7 +238,7 @@ async fn process_next_job(
 
     // Update database: PENDING → PROCESSING
     if let Some(ref img_id) = image_id {
-        let db_guard = gallery_db.lock().await;
+        let db_guard = inference_db.lock().await;
         if let Some(db) = db_guard.as_ref() {
             let _ = db.update_image_status(img_id, "processing");
         }
@@ -269,7 +269,7 @@ async fn process_next_job(
         Ok((image_path, stats)) => {
             // Update database: PROCESSING → COMPLETED
             if let Some(ref img_id) = image_id {
-                let db_guard = gallery_db.lock().await;
+                let db_guard = inference_db.lock().await;
                 if let Some(db) = db_guard.as_ref() {
                     // Generate thumbnail
                     let thumbnail_path = match generate_thumbnail(&image_path, 400) {
@@ -304,12 +304,12 @@ async fn process_next_job(
                     }
 
                     // Auto-tag if enabled (runs asynchronously, non-blocking)
-                    let gallery_db = gallery_db.clone();
+                    let inference_db = inference_db.clone();
                     let app_handle = app_handle.clone();
                     let image_path_clone = image_path.clone();
                     let img_id_clone = img_id.clone();
                     tokio::spawn(async move {
-                        auto_tag_if_enabled(&img_id_clone, &image_path_clone, &gallery_db, &app_handle).await;
+                        auto_tag_if_enabled(&img_id_clone, &image_path_clone, &inference_db, &app_handle).await;
                     });
                 }
             }
@@ -325,7 +325,7 @@ async fn process_next_job(
 
             // Update database: PROCESSING → FAILED
             if let Some(ref img_id) = image_id {
-                let db_guard = gallery_db.lock().await;
+                let db_guard = inference_db.lock().await;
                 if let Some(db) = db_guard.as_ref() {
                     let _ = db.update_image_on_failure(img_id, &error_msg);
                 }
@@ -608,14 +608,14 @@ fn generate_thumbnail(image_path: &str, thumbnail_size: u32) -> Result<String> {
 async fn auto_tag_if_enabled(
     image_id: &str,
     image_path: &str,
-    gallery_db: &Arc<tokio::sync::Mutex<Option<GalleryDb>>>,
+    inference_db: &Arc<tokio::sync::Mutex<Option<InferenceDb>>>,
     app_handle: &AppHandle,
 ) {
     use crate::vision::{AutoTagSettings, TaggingBackend, ClaudeTagger, TagWithConfidence};
 
     // Phase 1: Get settings (with lock)
     let settings: AutoTagSettings = {
-        let db_guard = gallery_db.lock().await;
+        let db_guard = inference_db.lock().await;
         let Some(db) = db_guard.as_ref() else {
             return; // Database not initialized
         };
@@ -671,7 +671,7 @@ async fn auto_tag_if_enabled(
     match tags_result {
         Ok(tags) => {
             let tag_count = tags.len();
-            let db_guard = gallery_db.lock().await;
+            let db_guard = inference_db.lock().await;
             if let Some(db) = db_guard.as_ref() {
                 if let Err(e) = db.bulk_add_tags_with_category(image_id, &tags) {
                     warn!(error = %e, "Failed to save auto-tags to database");
