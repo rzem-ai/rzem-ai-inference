@@ -24,7 +24,7 @@ export function useAppInit() {
 
       // Get home directory
       const home = await homeDir();
-      const dbPath = await join(home, '.rzem-ai-inference', 'gallery.db');
+      const dbPath = await join(home, '.rzem-ai-inference', 'inference.db');
 
       // Initialize database
       await invoke('init_database', { dbPath });

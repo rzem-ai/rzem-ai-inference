@@ -54,7 +54,7 @@ pub fn batch_generate_combinations(data: BatchData) -> Result<BatchData, String>
 pub async fn batch_get_recent_templates(
     app_state: State<'_, AppState>,
 ) -> Result<Vec<TemplateHistoryEntry>, String> {
-    let db = app_state.gallery_db.lock().await;
+    let db = app_state.inference_db.lock().await;
     let db = db.as_ref().ok_or("Database not initialized")?;
 
     db.get_recent_template_history()
@@ -68,7 +68,7 @@ pub async fn batch_save_template(
     template: String,
     image_count: i64,
 ) -> Result<(), String> {
-    let db = app_state.gallery_db.lock().await;
+    let db = app_state.inference_db.lock().await;
     let db = db.as_ref().ok_or("Database not initialized")?;
 
     db.save_template_to_history(&template, image_count)
