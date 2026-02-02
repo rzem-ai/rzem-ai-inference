@@ -5,15 +5,20 @@ use anyhow::Result;
 impl InferenceDb {
 
     pub fn insert_image(&self, metadata: &ImageMetadata) -> Result<()> {
+        // Serialize loras to JSON if present
+        let loras_json = metadata.loras.as_ref()
+            .map(|loras| serde_json::to_string(loras).ok())
+            .flatten();
+
         // Insert into images table with all metadata
         self.conn.execute(
             "INSERT INTO images (
                 id, file_path, thumbnail_path, prompt, created_at,
                 width, height, file_size, model_name, negative_prompt,
                 steps, cfg_scale, seed, sampler, generation_time_ms,
-                status, session_id, updated_at
+                status, session_id, updated_at, loras
              )
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)",
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)",
             params![
                 metadata.id,
                 metadata.file_path,
@@ -33,6 +38,7 @@ impl InferenceDb {
                 metadata.status,
                 metadata.session_id,
                 metadata.updated_at,
+                loras_json,
             ],
         )?;
 
@@ -56,13 +62,17 @@ impl InferenceDb {
             "SELECT id, file_path, thumbnail_path, prompt, created_at,
                     width, height, file_size, model_name, negative_prompt,
                     steps, cfg_scale, seed, sampler, generation_time_ms,
-                    status, session_id, updated_at
+                    status, session_id, updated_at, loras
              FROM images
              ORDER BY created_at DESC
              LIMIT ?1"
         )?;
 
         let images = stmt.query_map(params![limit], |row| {
+            // Parse loras JSON if present
+            let loras: Option<Vec<super::LoraInfo>> = row.get::<_, Option<String>>(18)?
+                .and_then(|s| serde_json::from_str(&s).ok());
+
             Ok(ImageMetadata {
                 id: row.get(0)?,
                 file_path: row.get(1)?,
@@ -82,6 +92,7 @@ impl InferenceDb {
                 status: row.get(15)?,
                 session_id: row.get(16)?,
                 updated_at: row.get(17)?,
+                loras,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
@@ -94,13 +105,17 @@ impl InferenceDb {
         let mut stmt = self.conn.prepare(
             "SELECT id, file_path, thumbnail_path, created_at, width, height,
                     file_size, is_favorite, prompt, negative_prompt, model_name,
-                    steps, cfg_scale, seed, sampler, status, session_id, updated_at
+                    steps, cfg_scale, seed, sampler, status, session_id, updated_at, loras
              FROM images
              ORDER BY created_at DESC
              LIMIT ?1"
         )?;
 
         let mut images: Vec<GalleryImage> = stmt.query_map(params![limit], |row| {
+            // Parse loras JSON if present
+            let loras: Option<Vec<super::LoraInfo>> = row.get::<_, Option<String>>(18)?
+                .and_then(|s| serde_json::from_str(&s).ok());
+
             Ok(GalleryImage {
                 id: row.get(0)?,
                 file_path: row.get(1)?,
@@ -122,6 +137,7 @@ impl InferenceDb {
                 status: row.get(15)?,
                 session_id: row.get(16)?,
                 updated_at: row.get(17)?,
+                loras,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
@@ -141,7 +157,7 @@ impl InferenceDb {
             "SELECT i.id, i.file_path, i.thumbnail_path, i.prompt, i.created_at,
                     i.width, i.height, i.file_size, i.model_name, i.negative_prompt,
                     i.steps, i.cfg_scale, i.seed, i.sampler, i.generation_time_ms,
-                    i.status, i.session_id, i.updated_at
+                    i.status, i.session_id, i.updated_at, i.loras
              FROM images i
              JOIN images_fts fts ON i.id = fts.image_id
              WHERE images_fts MATCH ?1
@@ -150,6 +166,10 @@ impl InferenceDb {
         )?;
 
         let images = stmt.query_map(params![query], |row| {
+            // Parse loras JSON if present
+            let loras: Option<Vec<super::LoraInfo>> = row.get::<_, Option<String>>(18)?
+                .and_then(|s| serde_json::from_str(&s).ok());
+
             Ok(ImageMetadata {
                 id: row.get(0)?,
                 file_path: row.get(1)?,
@@ -169,6 +189,7 @@ impl InferenceDb {
                 status: row.get(15)?,
                 session_id: row.get(16)?,
                 updated_at: row.get(17)?,
+                loras,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
@@ -182,7 +203,7 @@ impl InferenceDb {
             "SELECT id, file_path, thumbnail_path, prompt, created_at,
                     width, height, file_size, model_name, negative_prompt,
                     steps, cfg_scale, seed, sampler, generation_time_ms,
-                    status, session_id, updated_at
+                    status, session_id, updated_at, loras
              FROM images
              WHERE id = ?1"
         )?;
@@ -190,6 +211,10 @@ impl InferenceDb {
         let mut rows = stmt.query(params![image_id])?;
 
         if let Some(row) = rows.next()? {
+            // Parse loras JSON if present
+            let loras: Option<Vec<super::LoraInfo>> = row.get::<_, Option<String>>(18)?
+                .and_then(|s| serde_json::from_str(&s).ok());
+
             Ok(Some(ImageMetadata {
                 id: row.get(0)?,
                 file_path: row.get(1)?,
@@ -209,6 +234,7 @@ impl InferenceDb {
                 status: row.get(15)?,
                 session_id: row.get(16)?,
                 updated_at: row.get(17)?,
+                loras,
             }))
         } else {
             Ok(None)
@@ -262,12 +288,19 @@ impl InferenceDb {
         // Convert sampler enum to string
         let sampler = params.sampler.as_ref().map(|s| format!("{:?}", s));
 
+        // Serialize loras to JSON if present
+        let loras_json = if !params.loras.is_empty() {
+            Some(serde_json::to_string(&params.loras).ok()).flatten()
+        } else {
+            None
+        };
+
         self.conn.execute(
             "INSERT INTO images (
                 id, prompt, negative_prompt, model_name, steps, cfg_scale, seed, sampler,
-                created_at, updated_at, status, session_id
+                created_at, updated_at, status, session_id, loras
              )
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
             params![
                 image_id,
                 params.prompt,
@@ -281,6 +314,7 @@ impl InferenceDb {
                 now,
                 "pending",
                 session_id,
+                loras_json,
             ],
         )?;
 
@@ -384,7 +418,7 @@ impl InferenceDb {
         let mut stmt = self.conn.prepare(
             "SELECT id, file_path, thumbnail_path, created_at, width, height,
                     file_size, is_favorite, prompt, negative_prompt, model_name,
-                    steps, cfg_scale, seed, sampler, status, session_id, updated_at
+                    steps, cfg_scale, seed, sampler, status, session_id, updated_at, loras
              FROM images
              WHERE session_id = ?1 AND status = ?2
              ORDER BY created_at DESC
@@ -395,6 +429,10 @@ impl InferenceDb {
             let image_id: String = row.get(0)?;
             let tags = self.get_image_tags(&image_id).unwrap_or_default();
             let folder_ids = self.get_image_folder_ids(&image_id).unwrap_or_default();
+
+            // Parse loras JSON if present
+            let loras: Option<Vec<super::LoraInfo>> = row.get::<_, Option<String>>(18)?
+                .and_then(|s| serde_json::from_str(&s).ok());
 
             Ok(GalleryImage {
                 id: image_id,
@@ -417,6 +455,7 @@ impl InferenceDb {
                 status: row.get(15)?,
                 session_id: row.get(16)?,
                 updated_at: row.get(17)?,
+                loras,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
@@ -429,7 +468,7 @@ impl InferenceDb {
         let mut stmt = self.conn.prepare(
             "SELECT id, file_path, thumbnail_path, created_at, width, height,
                     file_size, is_favorite, prompt, negative_prompt, model_name,
-                    steps, cfg_scale, seed, sampler, status, session_id, updated_at
+                    steps, cfg_scale, seed, sampler, status, session_id, updated_at, loras
              FROM images
              WHERE status = ?1
              ORDER BY created_at DESC
@@ -440,6 +479,10 @@ impl InferenceDb {
             let image_id: String = row.get(0)?;
             let tags = self.get_image_tags(&image_id).unwrap_or_default();
             let folder_ids = self.get_image_folder_ids(&image_id).unwrap_or_default();
+
+            // Parse loras JSON if present
+            let loras: Option<Vec<super::LoraInfo>> = row.get::<_, Option<String>>(18)?
+                .and_then(|s| serde_json::from_str(&s).ok());
 
             Ok(GalleryImage {
                 id: image_id,
@@ -462,6 +505,7 @@ impl InferenceDb {
                 status: row.get(15)?,
                 session_id: row.get(16)?,
                 updated_at: row.get(17)?,
+                loras,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
@@ -480,7 +524,7 @@ impl InferenceDb {
         let query = format!(
             "SELECT id, file_path, thumbnail_path, created_at, width, height,
                     file_size, is_favorite, prompt, negative_prompt, model_name,
-                    steps, cfg_scale, seed, sampler, status, session_id, updated_at
+                    steps, cfg_scale, seed, sampler, status, session_id, updated_at, loras
              FROM images
              WHERE id IN ({})
              ORDER BY created_at DESC",
@@ -491,6 +535,10 @@ impl InferenceDb {
         let params: Vec<&dyn rusqlite::ToSql> = image_ids.iter().map(|s| s as &dyn rusqlite::ToSql).collect();
 
         let mut images: Vec<GalleryImage> = stmt.query_map(params.as_slice(), |row| {
+            // Parse loras JSON if present
+            let loras: Option<Vec<super::LoraInfo>> = row.get::<_, Option<String>>(18)?
+                .and_then(|s| serde_json::from_str(&s).ok());
+
             Ok(GalleryImage {
                 id: row.get(0)?,
                 file_path: row.get(1)?,
@@ -512,6 +560,7 @@ impl InferenceDb {
                 status: row.get(15)?,
                 session_id: row.get(16)?,
                 updated_at: row.get(17)?,
+                loras,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;

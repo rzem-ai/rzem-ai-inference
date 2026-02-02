@@ -8,6 +8,13 @@ use png::{Encoder, Decoder, BitDepth, ColorType};
 use std::io::{Cursor, Read};
 use serde::{Deserialize, Serialize};
 
+/// LoRA configuration for metadata
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LoraInfo {
+    pub id: String,
+    pub strength: f32,
+}
+
 /// Generation metadata to embed in images
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImageMetadata {
@@ -21,6 +28,8 @@ pub struct ImageMetadata {
     pub model: String,
     pub sampler: Option<String>,
     pub scheduler: Option<String>,
+    #[serde(default)]
+    pub loras: Vec<LoraInfo>,
 }
 
 impl ImageMetadata {
@@ -51,6 +60,13 @@ impl ImageMetadata {
 
         if let Some(ref scheduler) = self.scheduler {
             params.push_str(&format!(", Scheduler: {}", scheduler));
+        }
+
+        if !self.loras.is_empty() {
+            let lora_strs: Vec<String> = self.loras.iter()
+                .map(|l| format!("{}:{:.2}", l.id, l.strength))
+                .collect();
+            params.push_str(&format!(", LoRA: {}", lora_strs.join(", ")));
         }
 
         params
@@ -90,6 +106,7 @@ impl ImageMetadata {
         let mut model = String::from("unknown");
         let mut sampler = None;
         let mut scheduler = None;
+        let mut loras = Vec::new();
 
         for part in settings.split(',') {
             let part = part.trim();
@@ -110,6 +127,18 @@ impl ImageMetadata {
                 sampler = Some(val.trim().to_string());
             } else if let Some(val) = part.strip_prefix("Scheduler:") {
                 scheduler = Some(val.trim().to_string());
+            } else if let Some(val) = part.strip_prefix("LoRA:") {
+                // Parse LoRA format: "id1:0.75, id2:1.00"
+                for lora_str in val.split(',') {
+                    if let Some((id, strength_str)) = lora_str.trim().split_once(':') {
+                        if let Ok(strength) = strength_str.trim().parse::<f32>() {
+                            loras.push(LoraInfo {
+                                id: id.trim().to_string(),
+                                strength,
+                            });
+                        }
+                    }
+                }
             }
         }
 
@@ -124,6 +153,7 @@ impl ImageMetadata {
             model,
             sampler,
             scheduler,
+            loras,
         })
     }
 }
@@ -214,6 +244,16 @@ mod tests {
             model: "flux-schnell".to_string(),
             sampler: Some("euler".to_string()),
             scheduler: Some("normal".to_string()),
+            loras: vec![
+                LoraInfo {
+                    id: "lora1-uuid".to_string(),
+                    strength: 0.75,
+                },
+                LoraInfo {
+                    id: "lora2-uuid".to_string(),
+                    strength: 1.0,
+                },
+            ],
         };
 
         let params_str = metadata.to_parameters_string();
@@ -222,5 +262,8 @@ mod tests {
         assert_eq!(parsed.prompt, metadata.prompt);
         assert_eq!(parsed.steps, metadata.steps);
         assert_eq!(parsed.seed, metadata.seed);
+        assert_eq!(parsed.loras.len(), 2);
+        assert_eq!(parsed.loras[0].id, "lora1-uuid");
+        assert_eq!(parsed.loras[0].strength, 0.75);
     }
 }
