@@ -84,6 +84,15 @@
             <Button :disabled="galleryStore.selectedImages.size == 0" size="small" severity="secondary" @click="showAddToFolderMenu">
               <div class="flex items-center gap-2"><fa :icon="['fal', 'folder']" size="sm" /> Add to Folder</div>
             </Button>
+            <Button
+              v-if="foldersStore.currentViewType === 'folder' && foldersStore.currentFolderId"
+              :disabled="galleryStore.selectedImages.size == 0"
+              size="small"
+              severity="secondary"
+              @click="confirmRemoveFromFolder"
+              v-tooltip.top="'Remove from folder'">
+              <fa :icon="['fal', 'folder-minus']" size="sm" />
+            </Button>
             <Button :disabled="galleryStore.selectedImages.size == 0" size="small" severity="secondary" @click="showBulkTagMenu">
               <div class="flex items-center gap-2"><fa :icon="['fal', 'tag']" size="sm" /> Manage Tags</div>
             </Button>
@@ -118,12 +127,15 @@
         :images="galleryStore.filteredImages"
         :selected-ids="galleryStore.selectedImages"
         :folders="folderOptions"
+        :current-folder-id="foldersStore.currentFolderId"
+        :current-folder-name="foldersStore.currentFolder?.name"
         @select="handleSelectImage"
         @open-detail="handleOpenDetail"
         @toggle-favorite="handleToggleFavorite"
         @add-to-compare="handleAddToCompare"
         @add-to-folder="handleAddToFolder"
         @add-to-new-folder="handleAddToNewFolder"
+        @remove-from-folder="handleRemoveFromFolder"
         @delete="handleDeleteImage" />
     </main>
 
@@ -138,9 +150,6 @@
 
     <!-- Image Detail Modal -->
     <ImageDetailModal v-model:visible="imageDetailVisible" v-model:image="selectedImage" />
-
-    <!-- Delete Confirmation -->
-    <ConfirmDialog />
 
     <!-- Auto-Tag Settings Dialog -->
     <AutoTagSettings v-model:visible="autoTagSettingsVisible" />
@@ -169,7 +178,6 @@ import ImageDetailModal from '@/components/gallery/ImageDetailModal.vue';
 import InputText from 'primevue/inputtext';
 import Button from 'primevue/button';
 import Menu from 'primevue/menu';
-import ConfirmDialog from 'primevue/confirmdialog';
 import Toast from 'primevue/toast';
 import ToggleButton from 'primevue/togglebutton';
 import WorkspaceActions from '@/components/shared/WorkspaceActions.vue';
@@ -545,6 +553,45 @@ const bulkRemoveTag = async (tagName: string) => {
     });
     await galleryStore.loadImages(); // Refresh
   }
+};
+
+// Remove from folder handlers
+const handleRemoveFromFolder = async (imageIds: string[], folderId: string) => {
+  // Single image removal - no confirmation needed
+  await galleryStore.removeFromFolder(imageIds, folderId);
+  await foldersStore.loadFolders(); // Refresh counts
+
+  // Reload current folder view
+  if (foldersStore.currentFolderId) {
+    await galleryStore.loadFolderImages(foldersStore.currentFolderId);
+  }
+
+  toast.add({
+    severity: 'success',
+    summary: 'Removed from Folder',
+    detail: `Removed ${imageIds.length} image${imageIds.length > 1 ? 's' : ''} from folder`,
+    life: 3000,
+  });
+};
+
+const confirmRemoveFromFolder = () => {
+  if (!foldersStore.currentFolderId || !foldersStore.currentFolder) return;
+
+  const count = galleryStore.selectedImages.size;
+  const folderName = foldersStore.currentFolder.name;
+
+  confirm.require({
+    message: `Remove ${count} image${count > 1 ? 's' : ''} from "${folderName}"? Images will remain in the gallery.`,
+    header: 'Remove from Folder',
+    icon: 'pi pi-folder-open',
+    rejectClass: 'p-button-secondary',
+    acceptClass: 'p-button-primary',
+    accept: async () => {
+      const imageIds = Array.from(galleryStore.selectedImages);
+      await handleRemoveFromFolder(imageIds, foldersStore.currentFolderId!);
+      galleryStore.clearSelection();
+    },
+  });
 };
 
 // Auto-tagging handlers

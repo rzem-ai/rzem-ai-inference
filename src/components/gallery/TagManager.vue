@@ -60,9 +60,6 @@
     <!-- Context Menu -->
     <ContextMenu ref="contextMenuRef" :model="contextMenuItems" />
 
-    <!-- Delete Confirmation -->
-    <ConfirmDialog />
-
     <!-- Edit Tag Dialog -->
     <Dialog v-model:visible="editDialogVisible" header="Edit Tag" modal :style="{ width: '350px' }">
       <div v-if="editingTag" class="edit-tag-form">
@@ -109,7 +106,6 @@ import { useGalleryStore } from '@/stores/gallery'
 import Chip from 'primevue/chip'
 import Button from 'primevue/button'
 import ContextMenu from 'primevue/contextmenu'
-import ConfirmDialog from 'primevue/confirmdialog'
 import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
 
