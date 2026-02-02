@@ -1,5 +1,5 @@
 <template>
-  <GenerationAction :collapsed="false" :toggleable="false" icon="pen-to-square" label="Image Description">
+  <GenerationAction icon="pen-to-square" label="Image Description">
     <div class="relative">
       <PromptEditor v-model="prompt" label="Prompt" placeholder="Describe the image you want to generate..." :rows="4" />
     </div>

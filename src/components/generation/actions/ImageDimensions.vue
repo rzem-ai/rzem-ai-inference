@@ -1,5 +1,5 @@
 <template>
-  <GenerationAction :collapsed="false" :toggleable="false" icon="sliders" label="Image Dimensions">
+  <GenerationAction icon="sliders" label="Image Dimensions">
     <!-- Aspect Ratio Pills -->
     <div class="flex flex-col">
       <div class="flex items-center gap-1 text-surface-300">

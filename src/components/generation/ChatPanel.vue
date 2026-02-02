@@ -39,13 +39,15 @@
 
         <!-- Messages List -->
         <div v-else ref="messagesContainer" class="flex-1 min-h-0 overflow-y-auto">
-          <div class="flex flex-col gap-3">
+          <div class="flex flex-col w-full gap-3">
             <ChatMessage v-for="(msg, index) in chatStore.messages" :key="index" :message="msg" @apply-prompt="handleApplyPrompt" />
 
             <!-- Loading Indicator -->
-            <div v-if="chatStore.isLoading" class="flex items-center gap-2 p-3 mr-4 rounded-lg bg-surface-700">
+            <div v-if="chatStore.isLoading" class="flex justify-center p-3 mr-4 border rounded-lg bg-surface-500/10 border-surface-500/40">
+              <div class="flex gap-2">
               <ProgressSpinner style="width: 16px; height: 16px" strokeWidth="4" />
-              <span class="text-sm text-surface-400">Thinking...</span>
+              <span class="text-sm font-medium text-surface-400">Thinking ...</span>
+              </div>
             </div>
           </div>
         </div>
@@ -97,7 +99,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, watch } from 'vue';
+import { ref, computed, onMounted, nextTick, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import Button from 'primevue/button';
 import InputText from 'primevue/inputtext';
@@ -106,6 +108,7 @@ import ChatMessage from './ChatMessage.vue';
 import { useChatbotStore, QUICK_SUGGESTIONS } from '@/stores/chatbot';
 import { useGenerationStore } from '@/stores/generation';
 import { Card, Message } from 'primevue';
+import { TextureLoader } from 'three';
 
 const chatStore = useChatbotStore();
 const generationStore = useGenerationStore();
@@ -164,6 +167,10 @@ watch(
     }
   },
 );
+
+onMounted(() => {
+  //chatStore.isLoading = true;
+});
 </script>
 
 <style scoped>

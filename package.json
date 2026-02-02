@@ -13,7 +13,7 @@
     "tauri:build:bundles": "tauri bundle -- --bundles app,dmg",
     "tauri:build:deb": "tauri bundle -- --bundles deb",
     "tauri:build:appimage": "tauri bundle -- --bundles appimage",
-    "tauri:dev": "tauri dev",
+    "tauri:dev": "cross-env RUST_LOG=debug tauri dev",
     "tauri:dev1": "cross-env SKIP_SCAN_IN_DEV=1 RUST_LOG=info tauri dev",
     "tauri:dev:release": "tauri dev -- --release",
     "tauri:dev:server": "cross-env RZEM_SERVER_MODE=1 RZEM_PORT=8080 tauri dev",
@@ -44,6 +44,7 @@
     "interactjs": "^1.10.27",
     "lodash": "^4.17.21",
     "lucide-vue-next": "^0.562.0",
+    "marked": "^17.0.1",
     "ogl": "^1.0.11",
     "pinia": "^3.0.4",
     "primevue": "^4.5.4",
@@ -52,7 +53,8 @@
     "three": "^0.182.0",
     "vue": "^3.5.13",
     "vue-grid-layout": "^2.4.0",
-    "vue-router": "^4.6.4"
+    "vue-router": "^4.6.4",
+    "vue3-perfect-scrollbar": "^2.0.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.18",

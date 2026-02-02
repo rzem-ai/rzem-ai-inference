@@ -190,6 +190,7 @@ impl FluxPipeline {
             model: self.model_type.to_string(),
             sampler: Some(sampler.to_string()),
             scheduler: Some(scheduler.to_string()),
+            loras: Vec::new(),  // No LoRAs in simple generate
         };
 
         // Encode PNG with embedded metadata
@@ -391,6 +392,7 @@ impl FluxPipeline {
             model: self.model_type.to_string(),
             sampler: Some(sampler.to_string()),
             scheduler: Some(scheduler.to_string()),
+            loras: Vec::new(),  // No LoRAs if metadata not provided
         });
 
         // Encode PNG with embedded metadata
@@ -599,6 +601,7 @@ impl FluxPipeline {
             model: self.model_type.to_string(),
             sampler: Some(sampler.to_string()),
             scheduler: Some(scheduler.to_string()),
+            loras: Vec::new(),  // No LoRAs if metadata not provided
         });
 
         let png_data = encode_png_with_metadata(&rgb_data, width as u32, height as u32, &final_metadata)?;

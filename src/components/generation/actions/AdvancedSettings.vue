@@ -1,10 +1,5 @@
 <template>
-  <GenerationAction
-    :collapsed="false"
-    :toggleable="true"
-    icon="layer-group"
-    label="Advanced Settings"
-    panelClass="border border-red-200 rounded-lg px-2 pb-2 bg-surface-950">
+  <GenerationAction icon="layer-group" label="Advanced Settings" panelClass="border border-red-300 rounded-lg px-2 my-2 pb-2 bg-surface-950">
     <template #header>
       <div class="flex gap-2 px-0 py-2 text-xs font-semibold tracking-wider uppercase text-surface-300">
         <fa :icon="['fal', 'gears']" size="sm" />
@@ -16,9 +11,8 @@
       <div class="flex flex-col gap-1">
         <div class="flex items-center justify-between">
           <label class="text-xs font-medium tracking-wide text-surface-300">Lock Seed</label>
-          <ToggleSwitch v-model="seedLocked" v-tooltip.top="seedLocked ? 'Locked' : 'Random'" />
         </div>
-        <div class="flex gap-2">
+        <div class="flex gap-1">
           <InputNumber
             v-model="seed"
             :min="0"
@@ -28,8 +22,11 @@
             :useGrouping="false"
             size="small"
             fluid />
-          <Button @click="randomizeSeed" :disabled="!seedLocked" v-tooltip.top="'Generate new random seed'">
-            <fa :icon="['fal', 'seedling']" size="sm" />
+          <Button @click="randomizeSeed" :disabled="!seedLocked" v-tooltip.top="seedLocked ? 'Create a new random seed' : ''" raised>
+            <fa :icon="['fal', 'arrows-rotate']" size="sm" rotation="90"/>
+          </Button>
+          <Button @click="toggleSeedGeneration" v-tooltip.top="seedLocked ? 'The same seed is used for each generation': 'A new random seed is used\n for each generation'" raised>
+            <fa :icon="['fal', seedLocked ? 'lock': 'shuffle']" size="sm" />
           </Button>
         </div>
       </div>
@@ -49,19 +46,21 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useGenerationStore } from '@/stores/generation';
 import Button from 'primevue/button';
-
 import Select from 'primevue/select';
 import InputNumber from 'primevue/inputnumber';
 import ToggleSwitch from 'primevue/toggleswitch';
-import type { Sampler, Scheduler } from '@/types';
 import GenerationAction from './GenerationAction.vue';
 
-defineProps(['collapsed', 'icon', 'label', 'toggleable']);
+import type { Sampler, Scheduler } from '@/types';
+
+defineProps(['icon', 'label']);
 
 const generationStore = useGenerationStore();
+
+const randomiserEnabled = ref(false);
 
 const seed = computed({
   get: () => generationStore.currentParams.seed,
@@ -85,6 +84,10 @@ const seedLocked = computed({
 
 const randomizeSeed = () => {
   seed.value = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
+};
+
+const toggleSeedGeneration = () => {
+  seedLocked.value = !seedLocked.value;
 };
 
 // Sampler and Scheduler options

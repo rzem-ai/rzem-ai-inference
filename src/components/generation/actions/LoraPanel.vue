@@ -1,5 +1,5 @@
 <template>
-  <GenerationAction :collapsed="false" :toggleable="true" icon="layer-group" label="Style Selection">
+  <GenerationAction icon="layer-group" label="Style Selection">
     <!-- Loading State -->
     <div v-if="modelsStore.lorasLoading" class="flex items-center justify-center py-4 text-surface-400">
       <i class="mr-2 pi pi-spin pi-spinner"></i>

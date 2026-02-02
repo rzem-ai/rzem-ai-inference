@@ -493,18 +493,30 @@ impl FluxPipeline {
 
         if is_gguf {
             if has_loras {
-                warn!("LoRAs are not supported with quantized GGUF models, ignoring LoRAs");
+                info!(
+                    model = %self.model_type,
+                    path = %model_path.display(),
+                    lora_count = self.active_loras.len(),
+                    "Loading quantized transformer (GGUF) with LoRAs"
+                );
+                self.flux = Some(FluxTransformer::load_quantized_with_loras(
+                    model_path,
+                    self.device.clone(),
+                    self.model_type.clone(),
+                    &self.active_loras,
+                )?);
+            } else {
+                info!(
+                    model = %self.model_type,
+                    path = %model_path.display(),
+                    "Loading quantized transformer (GGUF)"
+                );
+                self.flux = Some(FluxTransformer::load_quantized(
+                    model_path,
+                    self.device.clone(),
+                    self.model_type.clone(),
+                )?);
             }
-            info!(
-                model = %self.model_type,
-                path = %model_path.display(),
-                "Loading quantized transformer (GGUF)"
-            );
-            self.flux = Some(FluxTransformer::load_quantized(
-                model_path,
-                self.device.clone(),
-                self.model_type.clone(),
-            )?);
         } else if has_loras {
             info!(
                 model = %self.model_type,

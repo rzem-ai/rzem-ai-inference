@@ -71,6 +71,13 @@ pub struct Tag {
     pub usage_count: i32,
 }
 
+/// LoRA configuration for database storage
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LoraInfo {
+    pub id: String,
+    pub strength: f32,
+}
+
 /// Image metadata for internal use (snake_case)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImageMetadata {
@@ -92,6 +99,7 @@ pub struct ImageMetadata {
     pub status: String,  // "pending", "processing", "completed", "failed"
     pub session_id: Option<String>,  // UUID for session tracking
     pub updated_at: i64,  // Unix timestamp of last update
+    pub loras: Option<Vec<LoraInfo>>,  // LoRA adapters with strengths
 }
 
 /// Image metadata for frontend API (camelCase)
@@ -119,6 +127,7 @@ pub struct GalleryImage {
     pub status: String,  // "pending", "processing", "completed", "failed"
     pub session_id: Option<String>,  // UUID for session tracking
     pub updated_at: i64,  // Unix timestamp of last update
+    pub loras: Option<Vec<LoraInfo>>,  // LoRA adapters with strengths
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -303,6 +312,12 @@ impl InferenceDb {
             "UPDATE images SET updated_at = created_at WHERE updated_at = 0",
             [],
         )?;
+
+        // Add loras column if it doesn't exist (stores JSON array of {id, strength})
+        self.conn.execute(
+            "ALTER TABLE images ADD COLUMN loras TEXT",
+            [],
+        ).ok(); // Ignore if column already exists
 
         // Create tags table with color and category support
         self.conn.execute(

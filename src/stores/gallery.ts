@@ -1,6 +1,11 @@
 import { defineStore } from 'pinia'
 import { invoke } from '@tauri-apps/api/core'
 
+export interface LoraInfo {
+  id: string
+  strength: number
+}
+
 export interface GalleryImage {
   id: string
   filePath?: string  // Nullable for pending images
@@ -22,6 +27,7 @@ export interface GalleryImage {
   status: 'pending' | 'processing' | 'completed' | 'failed'
   sessionId?: string
   updatedAt: number
+  loras?: LoraInfo[]  // LoRA adapters with strengths
 }
 
 export interface GalleryFilters {

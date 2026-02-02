@@ -116,6 +116,18 @@ export const useModelsStore = defineStore('models', {
       }
     },
 
+    async convertComfyuiModel(inputPath: string, outputPath?: string) {
+      try {
+        const result = await invoke<string>('convert_comfyui_model', {
+          inputPath,
+          outputPath: outputPath ?? null,
+        });
+        return result;
+      } catch (error) {
+        throw new Error(`Conversion failed: ${error}`);
+      }
+    },
+
     selectModel(modelOrId: ModelInfo | string | null) {
       if (typeof modelOrId === 'string') {
         this.selectedModel = this.models.find((m) => m.id === modelOrId) ?? null;

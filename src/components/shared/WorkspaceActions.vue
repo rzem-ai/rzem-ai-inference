@@ -1,7 +1,5 @@
 <template>
   <aside class="flex flex-col h-full overflow-hidden w-120 min-w-120">
-
-
     <!-- -->
     <div v-if="$slots.header" class="pt-4 shrink">
       <div class="flex items-start justify-between px-2">
@@ -20,8 +18,12 @@
     </div>
 
     <!-- -->
-    <div v-if="$slots.body" class="overflow-y-scroll grow">
-      <slot name="body"> </slot>
+    <div v-if="$slots.body" class="overflow-hidden grow">
+      <CustomScrollbar class="h-full">
+        <div class="pr-4">
+          <slot name="body"> </slot>
+        </div>
+      </CustomScrollbar>
     </div>
 
     <!-- -->
@@ -31,6 +33,17 @@
     </div>
   </aside>
 </template>
-<script setup lang="ts">
 
+<script setup lang="ts">
+import CustomScrollbar from '@/components/CustomScrollbar.vue';
 </script>
+
+<style scoped>
+@reference "tailwindcss";
+
+/* Ensure the scrollable area has proper height constraints */
+.grow {
+  min-height: 0; /* Critical for flex containers with overflow */
+}
+
+</style>

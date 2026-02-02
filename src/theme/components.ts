@@ -13,6 +13,7 @@ import { tabs } from './component.tabs';
 import { togglebutton } from './component.togglebutton';
 import { toggleswitch } from './component.toggleswitch';
 import { toolbar } from './component.toolbar';
+import { tooltip } from './component.tooltip';
 
 export const components: ComponentsDesignTokens = {
   button,
@@ -29,4 +30,5 @@ export const components: ComponentsDesignTokens = {
   togglebutton,
   toggleswitch,
   toolbar,
+  tooltip,
 };

@@ -225,6 +225,101 @@ impl FluxTransformer {
         })
     }
 
+    /// Load quantized FLUX transformer from GGUF file with LoRA adapters
+    /// Combines the memory efficiency of quantization (~12GB) with LoRA flexibility
+    ///
+    /// # Arguments
+    /// * `model_path` - Path to flux GGUF file
+    /// * `device` - Device to load model on
+    /// * `model_type` - Which FLUX model variant (Schnell or Dev)
+    /// * `loras` - List of LoRA adapters with their strengths
+    pub fn load_quantized_with_loras<P: AsRef<Path>>(
+        model_path: P,
+        device: Device,
+        model_type: ModelType,
+        loras: &[(Arc<LoraAdapter>, f32)],
+    ) -> Result<Self> {
+        use candle_transformers::quantized_var_builder::VarBuilder as QVarBuilder;
+        use std::collections::HashMap;
+
+        let model_path = model_path.as_ref();
+
+        if loras.is_empty() {
+            // No LoRAs, use standard quantized loading
+            return Self::load_quantized(model_path, device, model_type);
+        }
+
+        info!(
+            lora_count = loras.len(),
+            "Loading quantized FLUX with LoRA adapters"
+        );
+
+        // Load quantized model
+        let vb = QVarBuilder::from_gguf(model_path, &device)?;
+        let cfg = match model_type.id() {
+            "schnell" => flux::model::Config::schnell(),
+            "dev" => flux::model::Config::dev(),
+            _ => anyhow::bail!("Unsupported model type for FLUX: {}", model_type),
+        };
+        let mut model = flux::quantized_model::Flux::new(&cfg, vb)?;
+
+        // Prepare LoRA weights for injection
+        let mut lora_map: HashMap<String, (Tensor, Tensor, f32)> = HashMap::new();
+
+        for (lora, strength) in loras {
+            debug!(
+                lora_id = %lora.id,
+                lora_name = %lora.name,
+                strength = strength,
+                weights = lora.weight_count(),
+                "Preparing LoRA for injection"
+            );
+
+            for (layer_name, lora_weight) in &lora.weights {
+                // Map LoRA layer name to FLUX model tensor name
+                let flux_tensor_name = map_lora_to_flux_tensor(layer_name);
+
+                // Compute LoRA scale: (alpha / rank) * strength
+                let scale = (lora_weight.alpha as f32 / lora_weight.rank as f32) * strength;
+
+                // Convert LoRA tensors to f32 for computation
+                // NOTE: LoRA files store tensors as [rank, in] and [out, rank]
+                // But quantized_nn expects [in, rank] and [rank, out] for (x @ A) @ B computation
+                // So we need to transpose both tensors
+                let lora_a = lora_weight.lora_down.to_dtype(DType::F32)?.to_device(&device)?.t()?;
+                let lora_b = lora_weight.lora_up.to_dtype(DType::F32)?.to_device(&device)?.t()?;
+
+                debug!(
+                    layer = %layer_name,
+                    flux_name = %flux_tensor_name,
+                    rank = lora_weight.rank,
+                    alpha = lora_weight.alpha,
+                    scale = scale,
+                    lora_a_shape = ?lora_a.shape(),
+                    lora_b_shape = ?lora_b.shape(),
+                    "Mapped LoRA layer"
+                );
+
+                // Store in map (will be injected into model)
+                lora_map.insert(flux_tensor_name.clone(), (lora_a, lora_b, scale));
+            }
+        }
+
+        // Inject LoRAs into the quantized model
+        let injected_count = model.inject_loras(&lora_map)?;
+        info!(
+            total_loras = lora_map.len(),
+            injected = injected_count,
+            "LoRA adapters injected into quantized model"
+        );
+
+        Ok(Self {
+            model: FluxModel::Quantized(model),
+            device,
+            is_quantized: true,
+        })
+    }
+
     /// Check if this is a quantized model
     pub fn is_quantized(&self) -> bool {
         self.is_quantized

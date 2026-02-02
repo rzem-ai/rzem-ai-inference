@@ -1,5 +1,5 @@
 <template>
-  <GenerationAction :collapsed="props.collapsed" :toggleable="props.toggleable" :icon="props.icon" :label="props.label">
+  <GenerationAction :icon="props.icon" :label="props.label">
     <div class="flex flex-col gap-4">
       <!-- Quality (Steps) -->
       <div class="flex flex-col">
@@ -9,7 +9,7 @@
             <fa
               :icon="['fal', 'circle-info']"
               size="sm"
-              class="text-surface-400 hover:text-blue-500 cursor-help transition-colors"
+              class="transition-colors text-surface-400 hover:text-blue-500 cursor-help"
               v-tooltip.top="'Number of denoising steps (1-50). Higher values produce more refined images but take longer to generate.'" />
           </div>
           <span class="font-mono text-xs font-semibold text-blue-600">{{ steps }}</span>
@@ -25,8 +25,10 @@
             <fa
               :icon="['fal', 'circle-info']"
               size="sm"
-              class="text-surface-400 hover:text-blue-500 cursor-help transition-colors"
-              v-tooltip.top="'Classifier-Free Guidance Scale (0-20). Controls how strictly the model follows your prompt. Higher = more literal, Lower = more creative.'" />
+              class="transition-colors text-surface-400 hover:text-blue-500 cursor-help"
+              v-tooltip.top="
+                'Classifier-Free Guidance Scale (0-20). Controls how strictly the model follows your prompt. Higher = more literal, Lower = more creative.'
+              " />
           </div>
           <span class="font-mono text-xs font-semibold text-blue-600">{{ cfgScale.toFixed(1) }}</span>
         </div>
@@ -42,7 +44,7 @@ import Slider from 'primevue/slider';
 import { useGenerationStore } from '@/stores/generation';
 import GenerationAction from './GenerationAction.vue';
 
-const props = defineProps(['collapsed', 'icon', 'label', 'toggleable']);
+const props = defineProps(['icon', 'label']);
 
 const generationStore = useGenerationStore();
 
