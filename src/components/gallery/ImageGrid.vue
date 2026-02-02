@@ -87,10 +87,14 @@ interface Props {
   images: GalleryImage[];
   selectedIds: Set<string>;
   folders?: FolderOption[];
+  currentFolderId?: string | null;
+  currentFolderName?: string | null;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   folders: () => [],
+  currentFolderId: null,
+  currentFolderName: null,
 });
 
 const emit = defineEmits<{
@@ -101,6 +105,7 @@ const emit = defineEmits<{
   delete: [imageId: string];
   addToFolder: [imageIds: string[], folderId: string];
   addToNewFolder: [imageIds: string[]];
+  removeFromFolder: [imageIds: string[], folderId: string];
 }>();
 
 const contextMenuRef = ref<InstanceType<typeof ContextMenu> | null>(null);
@@ -132,7 +137,7 @@ const contextMenuItems = computed(() => {
           },
         ];
 
-  return [
+  const menuItems = [
     {
       label: 'Open',
       icon: 'pi pi-eye',
@@ -170,16 +175,33 @@ const contextMenuItems = computed(() => {
         emit('addToNewFolder', imageIds);
       },
     },
+  ];
+
+  // Add "Remove from Folder" option when viewing a specific folder
+  if (props.currentFolderId && props.currentFolderName) {
+    menuItems.push({
+      label: `Remove from ${props.currentFolderName}`,
+      icon: 'pi pi-folder-open',
+      command: () => {
+        const imageIds = getImageIds();
+        emit('removeFromFolder', imageIds, props.currentFolderId!);
+      },
+    });
+  }
+
+  menuItems.push(
     { separator: true },
     {
       label: 'Delete',
       icon: 'pi pi-trash',
-      class: 'text-red-400',
+      style: { color: 'rgb(248 113 113)' },
       command: () => {
         if (contextMenuImageId.value) emit('delete', contextMenuImageId.value);
       },
-    },
-  ];
+    } as any,
+  );
+
+  return menuItems;
 });
 
 function handleContextMenu(event: MouseEvent, image: GalleryImage) {
