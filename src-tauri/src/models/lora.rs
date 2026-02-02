@@ -113,9 +113,19 @@ impl LoraAdapter {
             if key.ends_with(".alpha") {
                 // Extract alpha value
                 let tensor = load_tensor_from_safetensors(&tensors, &key, device, dtype)?;
-                let alpha = tensor.to_scalar::<f32>().unwrap_or(1.0);
+                // Convert to F32 and move to CPU to safely extract scalar value
+                let alpha = tensor
+                    .to_dtype(DType::F32)?
+                    .to_device(&Device::Cpu)?
+                    .to_scalar::<f32>()?;
                 let base_name = key.strip_suffix(".alpha").unwrap();
                 let normalized = normalize_lora_key(base_name);
+                debug!(
+                    key = %key,
+                    alpha = alpha,
+                    normalized = %normalized,
+                    "Extracted alpha value"
+                );
                 alpha_values.insert(normalized, alpha);
             } else if key.contains(".lora_down.") || key.contains(".lora_A.") {
                 let tensor = load_tensor_from_safetensors(&tensors, &key, device, dtype)?;

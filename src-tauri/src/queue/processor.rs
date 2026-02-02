@@ -430,10 +430,8 @@ async fn execute_generation(
             vae_component_id: Some(params.vae_component_id.clone()),
         });
 
-        // Set LoRAs (will trigger reload if changed)
-        if !loaded_loras.is_empty() {
-            pipeline.set_loras(loaded_loras.clone());
-        }
+        // Set LoRAs (will trigger reload if changed, including removal)
+        pipeline.set_loras(loaded_loras.clone());
 
         Ok(())
     }).await?;
@@ -483,6 +481,14 @@ async fn execute_generation(
         format!("component:{}", params.model_component_id)
     };
 
+    // Convert LoRA configs to metadata format
+    let loras = params.loras.iter()
+        .map(|lora| crate::inference::metadata::LoraInfo {
+            id: lora.id.clone(),
+            strength: lora.strength,
+        })
+        .collect();
+
     let metadata = ImageMetadata {
         prompt: params.prompt.clone(),
         negative_prompt: params.negative_prompt.clone(),
@@ -494,6 +500,7 @@ async fn execute_generation(
         model: model_name,
         sampler: Some(sampler.to_string()),
         scheduler: Some(scheduler.to_string()),
+        loras,
     };
 
     // Use the cached pipeline for generation
