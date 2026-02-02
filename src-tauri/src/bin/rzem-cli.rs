@@ -328,6 +328,7 @@ fn cmd_generate(
             model: bundle.name.clone(),
             sampler: Some("euler".to_string()),
             scheduler: Some("normal".to_string()),
+            loras: Vec::new(),  // No LoRAs in CLI
         };
 
         // Generate image

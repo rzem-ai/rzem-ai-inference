@@ -1,51 +1,51 @@
-import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
-import { useGenerationStore } from './generation'
+import { defineStore } from 'pinia';
+import { ref, computed } from 'vue';
+import { invoke } from '@tauri-apps/api/core';
+import { useGenerationStore } from './generation';
 
 /**
  * Chat message role
  */
-export type MessageRole = 'user' | 'assistant'
+export type MessageRole = 'user' | 'assistant';
 
 /**
  * A single chat message
  */
 export interface ChatMessage {
-  role: MessageRole
-  content: string
-  timestamp: number
-  suggestedPrompt?: string
+  role: MessageRole;
+  content: string;
+  timestamp: number;
+  suggestedPrompt?: string;
 }
 
 /**
  * Context about current generation settings for the chatbot
  */
 export interface GenerationContext {
-  current_prompt: string
-  width: number
-  height: number
-  model: string
-  style_loras: string[]
-  steps: number
-  cfg_scale: number
+  current_prompt: string;
+  width: number;
+  height: number;
+  model: string;
+  style_loras: string[];
+  steps: number;
+  cfg_scale: number;
 }
 
 /**
  * Request to refine a prompt
  */
 interface RefineRequest {
-  user_message: string
-  history: Array<{ role: string; content: string; timestamp: number }>
-  context: GenerationContext
+  user_message: string;
+  history: Array<{ role: string; content: string; timestamp: number }>;
+  context: GenerationContext;
 }
 
 /**
  * Response from the chatbot
  */
 interface ChatResponse {
-  message: string
-  suggested_prompt?: string
+  message: string;
+  suggested_prompt?: string;
 }
 
 /**
@@ -58,37 +58,37 @@ export const QUICK_SUGGESTIONS = [
   'Add artistic modifiers',
   'Improve composition details',
   'Make it more photorealistic',
-] as const
+] as const;
 
 export const useChatbotStore = defineStore('chatbot', () => {
   // State
-  const messages = ref<ChatMessage[]>([])
-  const isLoading = ref(false)
-  const error = ref<string | null>(null)
-  const isPanelOpen = ref(false)
+  const messages = ref<ChatMessage[]>([]);
+  const isLoading = ref(false);
+  const error = ref<string | null>(null);
+  const isPanelOpen = ref(false);
 
   // Access generation store for context
-  const generationStore = useGenerationStore()
+  const generationStore = useGenerationStore();
 
   // Computed
-  const hasMessages = computed(() => messages.value.length > 0)
+  const hasMessages = computed(() => messages.value.length > 0);
 
   const lastAssistantMessage = computed(() => {
     for (let i = messages.value.length - 1; i >= 0; i--) {
       if (messages.value[i].role === 'assistant') {
-        return messages.value[i]
+        return messages.value[i];
       }
     }
-    return null
-  })
+    return null;
+  });
 
   const hasSuggestedPrompt = computed(() => {
-    return lastAssistantMessage.value?.suggestedPrompt !== undefined
-  })
+    return lastAssistantMessage.value?.suggestedPrompt !== undefined;
+  });
 
   // Build the generation context from current store state
   function buildContext(): GenerationContext {
-    const params = generationStore.currentParams
+    const params = generationStore.currentParams;
     return {
       current_prompt: params.prompt,
       width: params.width,
@@ -97,7 +97,7 @@ export const useChatbotStore = defineStore('chatbot', () => {
       style_loras: params.loras?.map((l) => l.id) ?? [],
       steps: params.steps,
       cfg_scale: params.cfgScale,
-    }
+    };
   }
 
   // Actions
@@ -106,19 +106,19 @@ export const useChatbotStore = defineStore('chatbot', () => {
    * Send a message to the chatbot
    */
   async function sendMessage(userMessage: string): Promise<void> {
-    if (!userMessage.trim() || isLoading.value) return
+    if (!userMessage.trim() || isLoading.value) return;
 
-    error.value = null
+    error.value = null;
 
     // Add user message
     const userMsg: ChatMessage = {
       role: 'user',
       content: userMessage.trim(),
       timestamp: Date.now(),
-    }
-    messages.value.push(userMsg)
+    };
+    messages.value.push(userMsg);
 
-    isLoading.value = true
+    isLoading.value = true;
 
     try {
       // Build request with history and context
@@ -130,11 +130,17 @@ export const useChatbotStore = defineStore('chatbot', () => {
           timestamp: msg.timestamp,
         })),
         context: buildContext(),
-      }
+      };
+
+      console.log('request:', request);
 
       const response = await invoke<ChatResponse>('chat_refine_prompt', {
         request,
-      })
+      });
+
+      console.log('response:', response);
+      console.log('response:message:', response.message);
+      console.log('response:prompt:', response.suggested_prompt);
 
       // Add assistant response
       const assistantMsg: ChatMessage = {
@@ -142,21 +148,21 @@ export const useChatbotStore = defineStore('chatbot', () => {
         content: response.message,
         timestamp: Date.now(),
         suggestedPrompt: response.suggested_prompt,
-      }
-      messages.value.push(assistantMsg)
+      };
+      messages.value.push(assistantMsg);
     } catch (e) {
-      const errorMessage = String(e)
-      error.value = errorMessage
+      const errorMessage = String(e);
+      error.value = errorMessage;
 
       // If it's an API key error, provide helpful message
       if (errorMessage.includes('API key not configured')) {
-        error.value = 'Claude API key required. Configure it in Settings.'
+        error.value = 'Claude API key required. Configure it in Settings.';
       }
 
       // Remove user message on error
-      messages.value.pop()
+      messages.value.pop();
     } finally {
-      isLoading.value = false
+      isLoading.value = false;
     }
   }
 
@@ -164,16 +170,16 @@ export const useChatbotStore = defineStore('chatbot', () => {
    * Apply a suggested prompt to the generation params
    */
   function applyPrompt(prompt: string): void {
-    generationStore.currentParams.prompt = prompt
+    generationStore.currentParams.prompt = prompt;
   }
 
   /**
    * Apply the last suggested prompt
    */
   function applyLastSuggestion(): void {
-    const suggestion = lastAssistantMessage.value?.suggestedPrompt
+    const suggestion = lastAssistantMessage.value?.suggestedPrompt;
     if (suggestion) {
-      applyPrompt(suggestion)
+      applyPrompt(suggestion);
     }
   }
 
@@ -181,29 +187,29 @@ export const useChatbotStore = defineStore('chatbot', () => {
    * Clear all chat messages
    */
   function clearChat(): void {
-    messages.value = []
-    error.value = null
+    messages.value = [];
+    error.value = null;
   }
 
   /**
    * Toggle the chat panel visibility
    */
   function togglePanel(): void {
-    isPanelOpen.value = !isPanelOpen.value
+    isPanelOpen.value = !isPanelOpen.value;
   }
 
   /**
    * Open the chat panel
    */
   function openPanel(): void {
-    isPanelOpen.value = true
+    isPanelOpen.value = true;
   }
 
   /**
    * Close the chat panel
    */
   function closePanel(): void {
-    isPanelOpen.value = false
+    isPanelOpen.value = false;
   }
 
   return {
@@ -224,5 +230,5 @@ export const useChatbotStore = defineStore('chatbot', () => {
     togglePanel,
     openPanel,
     closePanel,
-  }
-})
+  };
+});

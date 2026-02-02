@@ -14,5 +14,5 @@
   </li>
 </template>
 <script setup lang="ts">
-const props = defineProps(['collapsed', 'icon', 'label', 'toggleable', 'panelClass', 'slotClass']);
+const props = defineProps(['icon', 'label', 'panelClass', 'slotClass']);
 </script>

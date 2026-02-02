@@ -2,6 +2,7 @@
 
 pub mod bundle_builder;
 mod clip;
+pub mod converter;
 mod downloader;
 mod flux;
 pub mod lora;
@@ -19,6 +20,7 @@ mod zimage;
 
 pub use bundle_builder::{BundleBuilder, BundleDefinition, to_component_record};
 pub use clip::ClipTextEncoder;
+pub use converter::{convert_comfyui_to_native, is_comfyui_format};
 pub use downloader::ModelDownloader;
 pub use flux::FluxTransformer;
 pub use lora::{LoraAdapter, LoraConfig, LoraInfo, LoraFileInfo, LoraWeight};

@@ -11,7 +11,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 
 import StatusBar from '@/components/shared/StatusBar.vue';
 import WorkspaceNav from '@/components/shared/WorkspaceNav.vue';

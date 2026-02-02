@@ -1,8 +1,15 @@
 import { defineStore } from 'pinia';
 import type { GenerationJob, GenerationParams, GenerationProgress } from '@/types';
 
+export interface UiSectionVisibility {
+  quality: boolean;
+  style: boolean;
+  advanced: boolean;
+}
+
 const STORAGE_KEY = 'generation-params';
 const SEED_RANDOMIZE_KEY = 'generation-randomize-seed';
+const SECTION_VISIBILITY_KEY = 'generation-section-visibility';
 
 const defaultParams: GenerationParams = {
   mode: 'txt2img',
@@ -49,11 +56,31 @@ function loadRandomizeSeed(): boolean {
   return true;
 }
 
+function loadSectionVisibility(): UiSectionVisibility {
+  try {
+    const stored = localStorage.getItem(SECTION_VISIBILITY_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      // Merge with defaults to handle missing fields gracefully
+      return {
+        quality: parsed.quality ?? true,
+        style: parsed.style ?? false,
+        advanced: parsed.advanced ?? false,
+      };
+    }
+  } catch (e) {
+    console.warn('Failed to load section visibility from localStorage:', e);
+  }
+  // Defaults: quality visible, style and advanced hidden
+  return { quality: true, style: false, advanced: false };
+}
+
 export const useGenerationStore = defineStore('generation', {
   state: () => ({
     jobs: [] as GenerationJob[],
     currentParams: loadParams(),
     randomizeSeedOnGenerate: loadRandomizeSeed(),
+    sectionVisibility: loadSectionVisibility(),
     activeProgress: {} as Record<string, GenerationProgress>,
     _unsubscribe: null as (() => void) | null,
   }),
@@ -108,6 +135,8 @@ export const useGenerationStore = defineStore('generation', {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(state.currentParams));
             // Persist randomizeSeedOnGenerate
             localStorage.setItem(SEED_RANDOMIZE_KEY, JSON.stringify(state.randomizeSeedOnGenerate));
+            // Persist section visibility
+            localStorage.setItem(SECTION_VISIBILITY_KEY, JSON.stringify(state.sectionVisibility));
           } catch (e) {
             console.warn('Failed to save generation params to localStorage:', e);
           }
@@ -147,6 +176,14 @@ export const useGenerationStore = defineStore('generation', {
 
     clearProgress(jobId: string) {
       delete this.activeProgress[jobId];
+    },
+
+    toggleSection(section: keyof UiSectionVisibility) {
+      this.sectionVisibility[section] = !this.sectionVisibility[section];
+    },
+
+    setSectionVisibility(section: keyof UiSectionVisibility, visible: boolean) {
+      this.sectionVisibility[section] = visible;
     },
   },
 });

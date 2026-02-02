@@ -163,6 +163,7 @@ async fn generate_image(
             status: "completed".to_string(),
             session_id: None,
             updated_at: timestamp as i64,
+            loras: None,  // No LoRAs in test command
         };
         if let Err(e) = db.insert_image(&metadata) {
             warn!(error = %e, "Failed to insert image into gallery");
@@ -1239,6 +1240,68 @@ async fn scan_directory_for_models(
         components_added: new_components,
         bundles_created: 0,
     })
+}
+
+/// Convert a ComfyUI/InvokeAI format model to native FLUX format
+#[command]
+async fn convert_comfyui_model(
+    app_state: State<'_, AppState>,
+    input_path: String,
+    output_path: Option<String>,
+) -> Result<String, String> {
+    use crate::models::convert_comfyui_to_native;
+    use std::path::Path;
+
+    info!("🔄 ========================================");
+    info!("🔄 convert_comfyui_model COMMAND CALLED");
+    info!("🔄 Input: {}", input_path);
+    if let Some(ref out) = output_path {
+        info!("🔄 Output: {}", out);
+    } else {
+        info!("🔄 Output: (auto-generated)");
+    }
+    info!("🔄 ========================================");
+
+    let input = Path::new(&input_path);
+    let output = output_path.as_ref().map(|p| Path::new(p.as_str()));
+
+    // Emit conversion start event
+    let _ = app_state.app_handle.emit("model-conversion-progress", serde_json::json!({
+        "stage": "starting",
+        "message": "Starting ComfyUI format conversion...",
+        "progress": 0
+    }));
+
+    // Perform conversion
+    match convert_comfyui_to_native(input, output) {
+        Ok(output_path) => {
+            let output_str = output_path.to_string_lossy().to_string();
+
+            // Emit completion event
+            let _ = app_state.app_handle.emit("model-conversion-progress", serde_json::json!({
+                "stage": "complete",
+                "message": "Conversion complete!",
+                "progress": 100,
+                "outputPath": &output_str
+            }));
+
+            info!("✅ Conversion successful: {}", output_str);
+            Ok(output_str)
+        }
+        Err(e) => {
+            let error_msg = format!("Conversion failed: {}", e);
+            warn!("❌ {}", error_msg);
+
+            // Emit error event
+            let _ = app_state.app_handle.emit("model-conversion-progress", serde_json::json!({
+                "stage": "error",
+                "message": &error_msg,
+                "progress": 0
+            }));
+
+            Err(error_msg)
+        }
+    }
 }
 
 /// Get all bundles with component details
@@ -2574,6 +2637,7 @@ pub fn run_with_config(runtime_config: shared::protocol::RuntimeConfig, port: Op
             // Model bundle system commands
             scan_and_discover_models,
             scan_directory_for_models,
+            convert_comfyui_model,
             get_all_bundles,
             get_bundle,
             create_bundle,

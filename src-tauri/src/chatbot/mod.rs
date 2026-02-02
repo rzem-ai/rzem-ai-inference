@@ -129,6 +129,13 @@ your refined prompt here
 
 This allows the user to easily copy and apply it.
 
+## Response Formatting
+Your conversational response is rendered as markdown, so use it naturally:
+- Use **bold** to highlight key terms or important points
+- Use bullet or numbered lists when offering multiple suggestions
+- Use *italic* for style names or subtle emphasis
+- Everything outside the ```prompt block is rendered as markdown, so structure your response accordingly
+
 ## Guidelines
 - Keep responses concise and actionable
 - Focus on visual elements that FLUX can render well
@@ -172,14 +179,6 @@ fn extract_suggested_prompt(text: &str) -> Option<String> {
 
         if let Some(end_idx) = remaining[content_start..].find(end_marker) {
             let prompt = &remaining[content_start..content_start + end_idx];
-            return Some(prompt.trim().to_string());
-        }
-    }
-
-    // Fallback: look for [SUGGESTED PROMPT] markers (legacy format)
-    if let Some(start) = text.find("[SUGGESTED PROMPT]") {
-        if let Some(end) = text.find("[/SUGGESTED PROMPT]") {
-            let prompt = &text[start + 18..end];
             return Some(prompt.trim().to_string());
         }
     }
@@ -307,20 +306,6 @@ This prompt focuses on the key elements."#;
                     .to_string()
             )
         );
-    }
-
-    #[test]
-    fn test_extract_suggested_prompt_legacy() {
-        let text = r#"Here's my suggestion:
-
-[SUGGESTED PROMPT]
-A beautiful landscape
-[/SUGGESTED PROMPT]
-
-This prompt focuses on the key elements."#;
-
-        let result = extract_suggested_prompt(text);
-        assert_eq!(result, Some("A beautiful landscape".to_string()));
     }
 
     #[test]

@@ -20,7 +20,7 @@
         option-group-children="items"
         placeholder="Select model or bundle"
         size="small"
-        class="w-full mb-2">
+        class="w-full">
         <template #value="slotProps">
           <div class="flex items-center justify-between w-full gap-2">
             <div class="flex items-center gap-2">
@@ -37,17 +37,17 @@
         </template>
 
         <template #optiongroup="slotProps">
-          <div class="flex items-center gap-2 px-1 py-2 font-semibold text-surface-300 bg-surface-800/50">
+          <div class="flex items-center gap-2 py-2 font-semibold text-surface-300 bg-surface-800/50">
             <fa :icon="['far', slotProps.option.icon]" />
             <span class="text-sm tracking-wider uppercase"> {{ slotProps.option.label }} </span>
           </div>
         </template>
 
         <template #option="slotProps">
-          <div class="flex items-center justify-between w-full gap-2">
+          <div class="flex items-center justify-between w-full px-2">
             <div class="flex items-center gap-2">
               <fa :icon="['fal', getOptionIcon(slotProps.option.value)]" />
-              <span class="font-medium">{{ slotProps.option.label }}</span>
+              <span class="font-normal">{{ slotProps.option.label }}</span>
             </div>
             <div class="flex items-center gap-2">
               <Tag v-if="slotProps.option.isBundle" value="Bundle" severity="info" class="text-xs" />
@@ -62,20 +62,20 @@
       </Select>
 
       <!-- Bundle Description -->
-      <div class="px-1">
-        <Message v-if="selectedBundle" class="">
+      <div v-if="selectedBundle" class="px-1 mt-2">
+        <Message class="">
           <template #icon><fa :icon="['fal', 'circle-info']" /></template>
           <div class="flex flex-row">
             <div v-if="selectedBundle.description" class="text-sm text-surface-300">
               {{ selectedBundle.description }}
             </div>
             <div class="flex flex-col text-xs text-surface-400">
-              <div class="text-nowrap"
-                >Components: <span class="font-semibold text-mono text-surface-300">{{ selectedBundle.components.length }}</span></div
-              >
-              <div class="text-nowrap" v-if="selectedBundle.totalVramMb"
-                >VRAM: <span class="font-semibold text-mono text-surface-300">{{ bundlesStore.formatVram(selectedBundle.totalVramMb) }}</span></div
-              >
+              <div class="text-nowrap">
+                Components: <span class="font-semibold text-mono text-surface-300">{{ selectedBundle.components.length }}</span>
+              </div>
+              <div class="text-nowrap" v-if="selectedBundle.totalVramMb">
+                VRAM: <span class="font-semibold text-mono text-surface-300">{{ bundlesStore.formatVram(selectedBundle.totalVramMb) }}</span>
+              </div>
             </div>
           </div>
         </Message>
@@ -84,9 +84,9 @@
 
     <!-- Component Selectors (shown when individual model selected) -->
     <template v-if="isIndividualModel">
-      <div class="p-3 border rounded-lg bg-surface-800/30 border-surface-700">
+      <div class="p-3 border-2 border-dashed rounded-lg border-surface-700">
         <div class="flex items-center gap-2 mb-3">
-          <i class="pi pi-cog text-surface-400"></i>
+          <fa :icon="['fal', 'cog']" size="sm" />
           <span class="text-sm font-medium text-surface-300">Component Configuration</span>
         </div>
 

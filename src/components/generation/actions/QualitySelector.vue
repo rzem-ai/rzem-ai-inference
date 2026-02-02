@@ -1,5 +1,5 @@
 <template>
-  <GenerationAction :collapsed="false" :toggleable="false" icon="star" label="Image Quality">
+  <GenerationAction icon="star" label="Image Quality">
     <!-- Enhanced Model Selector with Bundles -->
     <EnhancedModelSelector />
 

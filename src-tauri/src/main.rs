@@ -29,6 +29,10 @@ struct Args {
 }
 
 fn main() {
+    // Disable GTK overlay scrollbars to prevent z-index issues on Linux
+    // This must be set before GTK initialization (before the Tauri builder runs)
+    std::env::set_var("GTK_OVERLAY_SCROLLING", "0");
+
     let args = Args::parse();
 
     // Check environment variables for dev mode support

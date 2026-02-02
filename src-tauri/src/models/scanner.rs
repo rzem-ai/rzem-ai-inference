@@ -1180,7 +1180,7 @@ fn scan_directory_for_models_full(
                 }
             }
             Ok(None) => {
-                debug!("   - [{}/{}] {} -> Unknown type, skipping", idx + 1, total_files, filename);
+                info!("   ⏭ [{}/{}] {} -> Unknown/unsupported format, skipping", idx + 1, total_files, filename);
             }
             Err(e) => {
                 warn!("   ✗ [{}/{}] {} -> Error: {}", idx + 1, total_files, filename, e);
@@ -1488,7 +1488,7 @@ fn identify_component_from_tensor_names(tensor_names: &[&str]) -> Option<Compone
     // Native format:  "double_blocks.0.img_attn..." (no prefix)
     let has_comfyui_prefix = sample.iter().any(|n| n.starts_with("model.diffusion_model."));
     if has_comfyui_prefix {
-        tracing::debug!("Skipping ComfyUI-format model (model.diffusion_model.* tensor names)");
+        tracing::info!("ComfyUI/InvokeAI format detected (unsupported - use native FLUX format)");
         return None;
     }
 
