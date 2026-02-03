@@ -7,7 +7,7 @@ use anyhow::{Context, Result};
 use candle_core::{DType, Device, Tensor};
 use safetensors::SafeTensors;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use tracing::{debug, warn};
 
@@ -73,6 +73,30 @@ pub struct LoraInfo {
     pub created_at: i64,
     #[serde(default)]
     pub metadata: HashMap<String, String>,
+    #[serde(default = "default_lora_strength")]
+    pub default_strength: f32,
+    #[serde(default = "default_lora_strength_min")]
+    pub strength_min: f32,
+    #[serde(default = "default_lora_strength_max")]
+    pub strength_max: f32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub download_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub civitai_model_id: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub civitai_version_id: Option<i64>,
+}
+
+fn default_lora_strength() -> f32 {
+    1.0
+}
+
+fn default_lora_strength_min() -> f32 {
+    0.5
+}
+
+fn default_lora_strength_max() -> f32 {
+    1.5
 }
 
 /// Configuration for applying a LoRA during generation
@@ -278,9 +302,135 @@ fn extract_lora_base_name(key: &str) -> String {
     }
 }
 
+/// Validates that a safetensors file contains a valid LoRA
+/// Returns (weight_pairs_count, rank, is_flux_compatible)
+pub fn validate_lora_safetensors(file_data: &[u8]) -> Result<(usize, Option<usize>, bool)> {
+    // 1. Deserialize safetensors
+    let tensors = SafeTensors::deserialize(file_data)
+        .context("Not a valid safetensors file")?;
+
+    // 2. Find all down/up tensors
+    let mut down_tensors: HashMap<String, (usize, usize)> = HashMap::new();
+    let mut up_tensors: HashSet<String> = HashSet::new();
+    let mut rank: Option<usize> = None;
+
+    for (key, _) in tensors.tensors() {
+        if key.contains(".lora_down.") || key.contains(".lora_A.") {
+            let normalized = normalize_lora_key(&extract_lora_base_name(&key));
+
+            let tensor_view = tensors.tensor(&key)
+                .with_context(|| format!("Failed to get tensor: {}", key))?;
+            let shape = tensor_view.shape();
+
+            // Validate 2D tensor
+            if shape.len() != 2 {
+                anyhow::bail!("LoRA tensor {} is not a 2D matrix", key);
+            }
+
+            // Extract rank from first dimension
+            if rank.is_none() {
+                rank = Some(shape[0]);
+            }
+
+            down_tensors.insert(normalized, (shape[0], shape[1]));
+        } else if key.contains(".lora_up.") || key.contains(".lora_B.") {
+            let normalized = normalize_lora_key(&extract_lora_base_name(&key));
+            up_tensors.insert(normalized);
+        }
+    }
+
+    // 3. Validate at least one complete pair exists
+    if down_tensors.is_empty() {
+        anyhow::bail!("No LoRA weight tensors found (expected .lora_down or .lora_A)");
+    }
+
+    let mut pair_count = 0;
+    for (layer_name, _) in &down_tensors {
+        if up_tensors.contains(layer_name) {
+            pair_count += 1;
+        }
+    }
+
+    if pair_count == 0 {
+        anyhow::bail!("No matching LoRA up/down pairs found");
+    }
+
+    // 4. Check FLUX compatibility
+    let is_flux = check_flux_compatibility(&down_tensors);
+
+    Ok((pair_count, rank, is_flux))
+}
+
+/// Check if LoRA layer names indicate FLUX compatibility
+fn check_flux_compatibility(down_tensors: &HashMap<String, (usize, usize)>) -> bool {
+    // Common FLUX layer patterns (after normalization)
+    let flux_patterns = [
+        "double.blocks.",
+        "single.blocks.",
+        "double_blocks.",
+        "single_blocks.",
+        "img.attn.",
+        "txt.attn.",
+        "img.mlp.",
+        "txt.mlp.",
+        "img_attn.",
+        "txt_attn.",
+        "img_mlp.",
+        "txt_mlp.",
+        "transformer.blocks.",
+    ];
+
+    // Incompatible patterns from SD1.5/SDXL
+    let incompatible_patterns = [
+        "down.blocks.",
+        "up.blocks.",
+        "mid.block.",
+        "down_blocks.",
+        "up_blocks.",
+        "mid_block.",
+        "input.blocks.",
+        "output.blocks.",
+        "input_blocks.",
+        "output_blocks.",
+    ];
+
+    // Check for incompatible architectures first
+    let has_incompatible_layers = down_tensors.keys()
+        .any(|name| incompatible_patterns.iter().any(|p| name.contains(p)));
+
+    if has_incompatible_layers {
+        debug!("LoRA has incompatible layer patterns (SD1.5/SDXL)");
+        return false;
+    }
+
+    // Check for FLUX patterns
+    let has_flux_layers = down_tensors.keys()
+        .any(|name| flux_patterns.iter().any(|p| name.contains(p)));
+
+    // If it has LoRA pairs and no SD patterns, assume FLUX compatible
+    // This is more permissive and avoids false negatives
+    if has_flux_layers {
+        debug!("LoRA has FLUX layer patterns");
+        return true;
+    }
+
+    // If no clear FLUX patterns but also no incompatible patterns,
+    // log the layer names for debugging and assume compatible
+    if !down_tensors.is_empty() {
+        debug!(
+            "LoRA has no clear FLUX patterns but also no incompatible patterns. Sample layers: {:?}",
+            down_tensors.keys().take(5).collect::<Vec<_>>()
+        );
+        // Assume FLUX compatible if it's a valid LoRA without SD patterns
+        return true;
+    }
+
+    false
+}
+
 /// Normalize LoRA key to FLUX transformer layer name
 /// Converts various LoRA naming conventions to the internal FLUX layer names
-fn normalize_lora_key(key: &str) -> String {
+pub fn normalize_lora_key(key: &str) -> String {
     // Common FLUX LoRA patterns:
     // "lora_unet_double_blocks_0_img_attn_qkv" -> "double_blocks.0.img_attn.qkv"
     // "transformer.transformer_blocks.0.attn.to_q" -> "transformer_blocks.0.attn.to_q"
@@ -320,28 +470,16 @@ fn normalize_lora_key(key: &str) -> String {
 /// Preview info about a LoRA file without fully loading it
 pub fn get_lora_file_info<P: AsRef<Path>>(path: P) -> Result<LoraFileInfo> {
     let path = path.as_ref();
-    let file_data = std::fs::read(path)?;
-    let tensors = SafeTensors::deserialize(&file_data)?;
+    let file_data = std::fs::read(path)
+        .with_context(|| format!("Failed to read file: {}", path.display()))?;
 
-    let mut weight_count = 0;
-    let mut total_params: u64 = 0;
-    let mut rank = None;
+    // Use validation function
+    let (weight_count, rank, is_flux) = validate_lora_safetensors(&file_data)?;
 
-    for (key, _) in tensors.tensors() {
-        if key.contains(".lora_down.") || key.contains(".lora_A.") {
-            weight_count += 1;
-            let view = tensors.tensor(&key)?;
-            let shape = view.shape();
-            if rank.is_none() && !shape.is_empty() {
-                rank = Some(shape[0]);
-            }
-            total_params += shape.iter().product::<usize>() as u64;
-        } else if key.contains(".lora_up.") || key.contains(".lora_B.") {
-            let view = tensors.tensor(&key)?;
-            total_params += view.shape().iter().product::<usize>() as u64;
-        }
-    }
+    // Calculate total parameters
+    let total_params = calculate_params(&file_data)?;
 
+    // Get file size
     let metadata = std::fs::metadata(path)?;
 
     Ok(LoraFileInfo {
@@ -350,7 +488,22 @@ pub fn get_lora_file_info<P: AsRef<Path>>(path: P) -> Result<LoraFileInfo> {
         weight_count,
         rank,
         total_params,
+        is_flux_compatible: is_flux,
     })
+}
+
+/// Calculate total parameters in a safetensors file
+fn calculate_params(file_data: &[u8]) -> Result<u64> {
+    let tensors = SafeTensors::deserialize(file_data)?;
+    let mut total = 0u64;
+
+    for (_, tensor_view) in tensors.tensors() {
+        let shape = tensor_view.shape();
+        let count: u64 = shape.iter().map(|&d| d as u64).product();
+        total += count;
+    }
+
+    Ok(total)
 }
 
 /// Basic info about a LoRA file
@@ -361,6 +514,7 @@ pub struct LoraFileInfo {
     pub weight_count: usize,
     pub rank: Option<usize>,
     pub total_params: u64,
+    pub is_flux_compatible: bool,
 }
 
 #[cfg(test)]

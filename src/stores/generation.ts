@@ -83,6 +83,9 @@ export const useGenerationStore = defineStore('generation', {
     sectionVisibility: loadSectionVisibility(),
     activeProgress: {} as Record<string, GenerationProgress>,
     _unsubscribe: null as (() => void) | null,
+    // Style support
+    selectedStyleId: null as string | null,
+    appliedTemplate: null as string | null,
   }),
 
   getters: {
@@ -184,6 +187,63 @@ export const useGenerationStore = defineStore('generation', {
 
     setSectionVisibility(section: keyof UiSectionVisibility, visible: boolean) {
       this.sectionVisibility[section] = visible;
+    },
+
+    async applyStyle(styleId: string) {
+      const { useStylesStore } = await import('./styles');
+      const { useModelsStore } = await import('./models');
+
+      const stylesStore = useStylesStore();
+      const modelsStore = useModelsStore();
+
+      // Load style detail if not already loaded
+      if (!stylesStore.selectedStyle || stylesStore.selectedStyle.id !== styleId) {
+        await stylesStore.loadStyleDetail(styleId);
+      }
+
+      const style = stylesStore.selectedStyle;
+      if (!style) {
+        throw new Error('Style not found');
+      }
+
+      // Apply template
+      this.appliedTemplate = style.promptTemplate;
+      this.selectedStyleId = styleId;
+
+      // Apply style's LoRAs to models store
+      // First, deactivate all LoRAs
+      modelsStore.loras.forEach((lora) => {
+        lora.isActive = false;
+      });
+
+      // Then activate and configure LoRAs from the style
+      style.loras.forEach((styleLora) => {
+        const lora = modelsStore.loras.find((l) => l.id === styleLora.loraId);
+        if (lora) {
+          lora.isActive = true;
+          lora.strength = styleLora.strength;
+        }
+      });
+    },
+
+    clearStyle() {
+      this.selectedStyleId = null;
+      this.appliedTemplate = null;
+
+      // Optionally clear LoRA activations
+      // (commented out to preserve user's manual LoRA selections if they want)
+      // const { useModelsStore } = require('./models');
+      // const modelsStore = useModelsStore();
+      // modelsStore.loras.forEach((lora) => {
+      //   lora.isActive = false;
+      // });
+    },
+
+    getFinalPrompt(userPrompt: string): string {
+      if (this.appliedTemplate) {
+        return this.appliedTemplate.replace(/\{\{prompt\}\}/g, userPrompt);
+      }
+      return userPrompt;
     },
   },
 });

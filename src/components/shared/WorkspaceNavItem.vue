@@ -28,6 +28,7 @@
 export interface Workspace {
   label: string;
   path: string;
+  to: string;
   icon: string;
   enabled: boolean;
 }

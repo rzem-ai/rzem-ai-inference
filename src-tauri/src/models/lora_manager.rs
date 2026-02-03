@@ -5,11 +5,12 @@
 use super::lora::{LoraAdapter, LoraInfo, LoraFileInfo, get_lora_file_info};
 use anyhow::{Context, Result};
 use candle_core::{DType, Device};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 use uuid::Uuid;
 
 /// Manages the collection of available LoRAs
@@ -94,6 +95,12 @@ impl LoraManager {
                             size_bytes: metadata.len(),
                             created_at: chrono::Utc::now().timestamp(),
                             metadata: HashMap::new(),
+                            default_strength: 1.0,
+                            strength_min: 0.5,
+                            strength_max: 1.5,
+                            download_url: None,
+                            civitai_model_id: None,
+                            civitai_version_id: None,
                         };
 
                         new_loras.push(info);
@@ -144,6 +151,7 @@ impl LoraManager {
         db.get_all_loras()
     }
 
+    /// Recursively scan a directory for LoRA files and import them
     /// Get info about a specific LoRA
     pub async fn get_lora_info(&self, id: &str) -> Result<Option<LoraInfo>> {
         let db_guard = self.db.lock().await;
@@ -171,6 +179,30 @@ impl LoraManager {
             anyhow::bail!("LoRA file must be a .safetensors file");
         }
 
+        // Validate LoRA structure BEFORE copying
+        info!(path = %source_path.display(), "Validating LoRA file...");
+        let file_data = std::fs::read(source_path)
+            .with_context(|| format!("Failed to read source file: {}", source_path.display()))?;
+
+        let (weight_pairs, rank, is_flux) = super::lora::validate_lora_safetensors(&file_data)
+            .with_context(|| format!("Invalid LoRA file: {}", source_path.display()))?;
+
+        // Reject non-FLUX LoRAs
+        if !is_flux {
+            anyhow::bail!(
+                "LoRA is not compatible with FLUX (detected {} weight pairs but no FLUX layer patterns). \
+                 This LoRA appears to be for a different model architecture (SD1.5, SDXL, etc.)",
+                weight_pairs
+            );
+        }
+
+        info!(
+            path = %source_path.display(),
+            weight_pairs = weight_pairs,
+            rank = ?rank,
+            "LoRA validation passed"
+        );
+
         // Generate new ID and destination path
         let id = Uuid::new_v4().to_string();
         let dest_filename = format!("{}.safetensors", id);
@@ -191,6 +223,12 @@ impl LoraManager {
             size_bytes: metadata.len(),
             created_at: chrono::Utc::now().timestamp(),
             metadata: HashMap::new(),
+            default_strength: 1.0,
+            strength_min: 0.5,
+            strength_max: 1.5,
+            download_url: None,
+            civitai_model_id: None,
+            civitai_version_id: None,
         };
 
         // Add to database

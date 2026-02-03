@@ -11,6 +11,7 @@ pub mod generation;
 pub mod loras;
 pub mod settings;
 pub mod models;
+pub mod styles;
 
 pub use models::{
     ModelFileInfoResponse,
@@ -267,7 +268,7 @@ impl InferenceDb {
         let conn = Connection::open(db_path)?;
         let db = Self { conn };
         // Always initialize schema on new connection
-        db.init_schema()?;
+        //db.init_schema()?;
         Ok(db)
     }
 
@@ -395,7 +396,6 @@ impl InferenceDb {
             )",
             [],
         )?;
-
 
         // Create loras table
         self.conn.execute(
@@ -586,7 +586,7 @@ impl InferenceDb {
             [],
         )?;
 
-        tracing::info!("✅ Model bundle tables created");
+
 
         // Create indexes for model bundle system
         self.conn.execute(
@@ -622,6 +622,118 @@ impl InferenceDb {
             [],
         )?;
 
+        // ===== Style Management System Tables =====
+
+        // Create styles table
+        self.conn.execute(
+            "CREATE TABLE IF NOT EXISTS styles (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                description TEXT,
+                prompt_template TEXT NOT NULL,
+                default_strength REAL DEFAULT 1.0,
+                strength_min REAL DEFAULT 0.5,
+                strength_max REAL DEFAULT 1.5,
+                category TEXT,
+                thumbnail_path TEXT,
+                is_favorite INTEGER DEFAULT 0,
+                usage_count INTEGER DEFAULT 0,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+            )",
+            [],
+        )?;
+
+        // Create indexes for styles
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_styles_category ON styles(category)",
+            [],
+        )?;
+
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_styles_favorite ON styles(is_favorite)",
+            [],
+        )?;
+
+        // Create style_loras association table (many-to-many)
+        self.conn.execute(
+            "CREATE TABLE IF NOT EXISTS style_loras (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                style_id TEXT NOT NULL,
+                lora_id TEXT NOT NULL,
+                strength REAL NOT NULL DEFAULT 1.0,
+                priority INTEGER DEFAULT 0,
+                FOREIGN KEY (style_id) REFERENCES styles(id) ON DELETE CASCADE,
+                FOREIGN KEY (lora_id) REFERENCES loras(id) ON DELETE CASCADE,
+                UNIQUE (style_id, lora_id)
+            )",
+            [],
+        )?;
+
+        // Create indexes for style_loras
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_style_loras_style ON style_loras(style_id)",
+            [],
+        )?;
+
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_style_loras_lora ON style_loras(lora_id)",
+            [],
+        )?;
+
+        // Create style_examples table
+        self.conn.execute(
+            "CREATE TABLE IF NOT EXISTS style_examples (
+                id TEXT PRIMARY KEY,
+                style_id TEXT NOT NULL,
+                example_type TEXT NOT NULL,  -- 'prompt' or 'image'
+                content TEXT NOT NULL,       -- prompt text or image_id
+                generation_params TEXT,      -- JSON
+                created_at INTEGER NOT NULL,
+                FOREIGN KEY (style_id) REFERENCES styles(id) ON DELETE CASCADE
+            )",
+            [],
+        )?;
+
+        // Create index for style_examples
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_style_examples_style ON style_examples(style_id)",
+            [],
+        )?;
+
+        // Add strength range columns to loras table if they don't exist
+        self.conn.execute(
+            "ALTER TABLE loras ADD COLUMN default_strength REAL DEFAULT 1.0",
+            [],
+        ).ok(); // Ignore if column already exists
+
+        self.conn.execute(
+            "ALTER TABLE loras ADD COLUMN strength_min REAL DEFAULT 0.5",
+            [],
+        ).ok();
+
+        self.conn.execute(
+            "ALTER TABLE loras ADD COLUMN strength_max REAL DEFAULT 1.5",
+            [],
+        ).ok();
+
+        // Add CivitAI download fields
+        self.conn.execute(
+            "ALTER TABLE loras ADD COLUMN download_url TEXT",
+            [],
+        ).ok(); // Ignore if column already exists
+
+        self.conn.execute(
+            "ALTER TABLE loras ADD COLUMN civitai_model_id INTEGER",
+            [],
+        ).ok();
+
+        self.conn.execute(
+            "ALTER TABLE loras ADD COLUMN civitai_version_id INTEGER",
+            [],
+        ).ok();
+
+        tracing::info!("✅ Model bundle tables created");
         tracing::info!("✅ Database schema initialization complete");
         Ok(())
     }

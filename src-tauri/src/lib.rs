@@ -995,9 +995,15 @@ async fn scan_and_discover_models(
             }
         };
 
-        // Insert components from this repo
+        // Insert components from this repo (excluding LoRAs)
         let mut repo_new_components = 0;
         for comp in &repo_components {
+            // Skip LoRAs - they are managed through the LoRA system, not model components
+            if comp.component_type == models::ComponentType::Lora {
+                info!("   ⊘ Skipping LoRA (managed separately): {}", comp.repo_id);
+                continue;
+            }
+
             let record = to_component_record(comp);
             match db.insert_component(&record) {
                 Ok(_) => {
@@ -1201,6 +1207,15 @@ async fn scan_directory_for_models(
     let components = models::filter_sharded_components(components);
 
     for component in &components {
+        // Skip LoRAs - they are managed through the LoRA system, not model components
+        if component.component_type == models::ComponentType::Lora {
+            let filename = component.path.file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("unknown");
+            info!("   ⊘ Skipping LoRA (managed separately): {}", filename);
+            continue;
+        }
+
         // Convert to database record
         let record = to_component_record(component);
 
@@ -2048,14 +2063,54 @@ async fn import_lora(
     trigger_words: Option<String>,
 ) -> Result<models::LoraInfo, String> {
     let lora_manager = app_state.queue_processor.lora_manager().lock().await;
-    lora_manager
+    let lora_info = lora_manager
         .import_lora(
             std::path::Path::new(&source_path),
             &name,
             trigger_words.as_deref(),
         )
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+
+    // Auto-create default style for this LoRA
+    let style_id = uuid::Uuid::new_v4().to_string();
+    let prompt_template = if let Some(ref tw) = trigger_words {
+        if !tw.is_empty() {
+            format!("{}, {{{{prompt}}}}", tw)
+        } else {
+            "{{prompt}}".to_string()
+        }
+    } else {
+        "{{prompt}}".to_string()
+    };
+
+    let style_request = models::StyleRequest {
+        name: format!("{} (default)", name),
+        description: Some(format!("Auto-generated style for {}", name)),
+        prompt_template,
+        default_strength: 1.0,
+        strength_min: 0.5,
+        strength_max: 1.5,
+        category: Some("lora".to_string()),
+        is_favorite: false,
+    };
+
+    // Create style in database
+    {
+        let db_guard = app_state.inference_db.lock().await;
+        if let Some(db) = db_guard.as_ref() {
+            if let Err(e) = db.upsert_style(&style_id, &style_request) {
+                warn!("Failed to create default style for LoRA {}: {}", name, e);
+            } else {
+                // Link LoRA to style
+                if let Err(e) = db.add_lora_to_style(&style_id, &lora_info.id, 1.0, 0) {
+                    warn!("Failed to link LoRA to style: {}", e);
+                }
+            }
+        }
+    }
+
+    Ok(lora_info)
 }
 
 /// Remove a LoRA from the collection
@@ -2099,6 +2154,230 @@ async fn get_lora_file_info(
     lora_manager
         .get_file_info(std::path::Path::new(&path))
         .map_err(|e| e.to_string())
+}
+
+// ========== Style Management Commands ==========
+
+/// Get all styles
+#[command]
+async fn get_all_styles(
+    app_state: State<'_, AppState>,
+) -> Result<Vec<models::StyleInfo>, String> {
+    let db_guard = app_state.inference_db.lock().await;
+    let db = db_guard.as_ref()
+        .ok_or_else(|| "Database not initialized".to_string())?;
+    db.get_all_styles().map_err(|e| e.to_string())
+}
+
+/// Get complete style detail including LoRAs and examples
+#[command]
+async fn get_style_detail(
+    app_state: State<'_, AppState>,
+    style_id: String,
+) -> Result<Option<models::StyleDetail>, String> {
+    let db_guard = app_state.inference_db.lock().await;
+    let db = db_guard.as_ref()
+        .ok_or_else(|| "Database not initialized".to_string())?;
+    db.get_style_detail(&style_id).map_err(|e| e.to_string())
+}
+
+/// Create a new style
+#[command]
+async fn create_style(
+    app_state: State<'_, AppState>,
+    request: models::StyleRequest,
+) -> Result<models::StyleInfo, String> {
+    let style_id = uuid::Uuid::new_v4().to_string();
+    let db_guard = app_state.inference_db.lock().await;
+    let db = db_guard.as_ref()
+        .ok_or_else(|| "Database not initialized".to_string())?;
+    db.upsert_style(&style_id, &request).map_err(|e| e.to_string())
+}
+
+/// Update an existing style
+#[command]
+async fn update_style(
+    app_state: State<'_, AppState>,
+    style_id: String,
+    request: models::StyleRequest,
+) -> Result<models::StyleInfo, String> {
+    let db_guard = app_state.inference_db.lock().await;
+    let db = db_guard.as_ref()
+        .ok_or_else(|| "Database not initialized".to_string())?;
+    db.upsert_style(&style_id, &request).map_err(|e| e.to_string())
+}
+
+/// Delete a style
+#[command]
+async fn delete_style(
+    app_state: State<'_, AppState>,
+    style_id: String,
+) -> Result<String, String> {
+    let db_guard = app_state.inference_db.lock().await;
+    let db = db_guard.as_ref()
+        .ok_or_else(|| "Database not initialized".to_string())?;
+    db.delete_style(&style_id).map_err(|e| e.to_string())?;
+    Ok("Style deleted".to_string())
+}
+
+/// Upload a thumbnail for a style
+#[command]
+async fn upload_style_thumbnail(
+    app_state: State<'_, AppState>,
+    style_id: String,
+    image_data: String, // Base64 encoded image
+) -> Result<String, String> {
+    use base64::{Engine as _, engine::general_purpose};
+    use std::io::Write;
+
+    // Decode base64 image data
+    let image_bytes = general_purpose::STANDARD
+        .decode(&image_data)
+        .map_err(|e| format!("Failed to decode base64 image: {}", e))?;
+
+    // Create thumbnails directory if it doesn't exist
+    let app_handle = &app_state.app_handle;
+    let app_data_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to get app data directory: {}", e))?;
+    let thumbnails_dir = app_data_dir.join("thumbnails");
+    std::fs::create_dir_all(&thumbnails_dir)
+        .map_err(|e| format!("Failed to create thumbnails directory: {}", e))?;
+
+    // Save thumbnail as {style_id}.png
+    let filename = format!("{}.png", style_id);
+    let thumbnail_path = thumbnails_dir.join(&filename);
+    let mut file = std::fs::File::create(&thumbnail_path)
+        .map_err(|e| format!("Failed to create thumbnail file: {}", e))?;
+    file.write_all(&image_bytes)
+        .map_err(|e| format!("Failed to write thumbnail: {}", e))?;
+
+    // Convert to string path
+    let thumbnail_path_str = thumbnail_path
+        .to_str()
+        .ok_or_else(|| "Invalid thumbnail path".to_string())?
+        .to_string();
+
+    // Update database with thumbnail path
+    let db_guard = app_state.inference_db.lock().await;
+    let db = db_guard.as_ref()
+        .ok_or_else(|| "Database not initialized".to_string())?;
+    db.update_style_thumbnail(&style_id, Some(&thumbnail_path_str))
+        .map_err(|e| format!("Failed to update database: {}", e))?;
+
+    Ok(thumbnail_path_str)
+}
+
+/// Delete a thumbnail for a style
+#[command]
+async fn delete_style_thumbnail(
+    app_state: State<'_, AppState>,
+    style_id: String,
+) -> Result<(), String> {
+    let app_handle = &app_state.app_handle;
+    let app_data_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to get app data directory: {}", e))?;
+    let thumbnails_dir = app_data_dir.join("thumbnails");
+    let thumbnail_path = thumbnails_dir.join(format!("{}.png", style_id));
+
+    // Delete file if it exists
+    if thumbnail_path.exists() {
+        std::fs::remove_file(&thumbnail_path)
+            .map_err(|e| format!("Failed to delete thumbnail file: {}", e))?;
+    }
+
+    // Update database to remove thumbnail path
+    let db_guard = app_state.inference_db.lock().await;
+    let db = db_guard.as_ref()
+        .ok_or_else(|| "Database not initialized".to_string())?;
+    db.update_style_thumbnail(&style_id, None)
+        .map_err(|e| format!("Failed to update database: {}", e))?;
+
+    Ok(())
+}
+
+/// Add a LoRA to a style
+#[command]
+async fn add_lora_to_style(
+    app_state: State<'_, AppState>,
+    style_id: String,
+    lora_id: String,
+    strength: f32,
+    priority: i32,
+) -> Result<String, String> {
+    let db_guard = app_state.inference_db.lock().await;
+    let db = db_guard.as_ref()
+        .ok_or_else(|| "Database not initialized".to_string())?;
+    db.add_lora_to_style(&style_id, &lora_id, strength, priority).map_err(|e| e.to_string())?;
+    Ok("LoRA added to style".to_string())
+}
+
+/// Remove a LoRA from a style
+#[command]
+async fn remove_lora_from_style(
+    app_state: State<'_, AppState>,
+    style_id: String,
+    lora_id: String,
+) -> Result<String, String> {
+    let db_guard = app_state.inference_db.lock().await;
+    let db = db_guard.as_ref()
+        .ok_or_else(|| "Database not initialized".to_string())?;
+    db.remove_lora_from_style(&style_id, &lora_id).map_err(|e| e.to_string())?;
+    Ok("LoRA removed from style".to_string())
+}
+
+/// Add an example to a style
+#[command]
+async fn add_style_example(
+    app_state: State<'_, AppState>,
+    style_id: String,
+    example_type: String,
+    content: String,
+    generation_params: Option<String>,
+) -> Result<String, String> {
+    let db_guard = app_state.inference_db.lock().await;
+    let db = db_guard.as_ref()
+        .ok_or_else(|| "Database not initialized".to_string())?;
+    db.add_style_example(&style_id, &example_type, &content, generation_params.as_deref())
+        .map_err(|e| e.to_string())
+}
+
+/// Remove an example from a style
+#[command]
+async fn remove_style_example(
+    app_state: State<'_, AppState>,
+    example_id: String,
+) -> Result<String, String> {
+    let db_guard = app_state.inference_db.lock().await;
+    let db = db_guard.as_ref()
+        .ok_or_else(|| "Database not initialized".to_string())?;
+    db.remove_style_example(&example_id).map_err(|e| e.to_string())?;
+    Ok("Example removed".to_string())
+}
+
+/// Render a style template with user prompt (for preview)
+#[command]
+fn render_style_template(
+    template: String,
+    user_prompt: String,
+) -> Result<String, String> {
+    Ok(models::render_template(&template, &user_prompt))
+}
+
+/// Increment usage count for a style
+#[command]
+async fn increment_style_usage(
+    app_state: State<'_, AppState>,
+    style_id: String,
+) -> Result<String, String> {
+    let db_guard = app_state.inference_db.lock().await;
+    let db = db_guard.as_ref()
+        .ok_or_else(|| "Database not initialized".to_string())?;
+    db.increment_style_usage(&style_id).map_err(|e| e.to_string())?;
+    Ok("Style usage incremented".to_string())
 }
 
 // ========== System Stats Commands ==========
@@ -2689,6 +2968,20 @@ pub fn run_with_config(runtime_config: shared::protocol::RuntimeConfig, port: Op
             remove_lora,
             update_lora,
             get_lora_file_info,
+            // Style management commands
+            get_all_styles,
+            get_style_detail,
+            create_style,
+            update_style,
+            delete_style,
+            upload_style_thumbnail,
+            delete_style_thumbnail,
+            add_lora_to_style,
+            remove_lora_from_style,
+            add_style_example,
+            remove_style_example,
+            render_style_template,
+            increment_style_usage,
             // Batch scripting commands
             batch::batch_parse_data,
             batch::batch_render_template,

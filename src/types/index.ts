@@ -99,6 +99,12 @@ export interface LoRA {
   metadata?: Record<string, string>;
   strength: number;
   isActive: boolean;
+  defaultStrength: number;
+  strengthMin: number;
+  strengthMax: number;
+  downloadUrl?: string;
+  civitaiModelId?: number;
+  civitaiVersionId?: number;
 }
 
 export interface LoraFileInfo {
@@ -107,6 +113,58 @@ export interface LoraFileInfo {
   weightCount: number;
   rank?: number;
   totalParams: number;
+  isFluxCompatible: boolean;
+}
+
+// ========== Style Management Types ==========
+
+export interface StyleInfo {
+  id: string;
+  name: string;
+  description?: string;
+  promptTemplate: string;
+  defaultStrength: number;
+  strengthMin: number;
+  strengthMax: number;
+  category?: string;
+  thumbnailPath?: string;
+  isFavorite: boolean;
+  usageCount: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface StyleLoraWithInfo {
+  loraId: string;
+  loraName: string;
+  loraTriggerWords?: string;
+  strength: number;
+  priority: number;
+}
+
+export interface StyleExample {
+  id: string;
+  styleId: string;
+  exampleType: 'prompt' | 'image';
+  content: string;
+  generationParams?: string;
+  createdAt: number;
+}
+
+export interface StyleDetail extends StyleInfo {
+  loras: StyleLoraWithInfo[];
+  examples: StyleExample[];
+}
+
+export interface StyleRequest {
+  name: string;
+  description?: string;
+  promptTemplate: string;
+  defaultStrength: number;
+  strengthMin: number;
+  strengthMax: number;
+  category?: string;
+  isFavorite: boolean;
 }
 
 // ========== Model Manager Types ==========

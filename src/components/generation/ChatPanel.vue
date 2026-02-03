@@ -45,8 +45,8 @@
             <!-- Loading Indicator -->
             <div v-if="chatStore.isLoading" class="flex justify-center p-3 mr-4 border rounded-lg bg-surface-500/10 border-surface-500/40">
               <div class="flex gap-2">
-              <ProgressSpinner style="width: 16px; height: 16px" strokeWidth="4" />
-              <span class="text-sm font-medium text-surface-400">Thinking ...</span>
+                <ProgressSpinner style="width: 16px; height: 16px" strokeWidth="4" />
+                <span class="text-sm font-medium text-surface-400">Thinking ...</span>
               </div>
             </div>
           </div>
@@ -108,7 +108,6 @@ import ChatMessage from './ChatMessage.vue';
 import { useChatbotStore, QUICK_SUGGESTIONS } from '@/stores/chatbot';
 import { useGenerationStore } from '@/stores/generation';
 import { Card, Message } from 'primevue';
-import { TextureLoader } from 'three';
 
 const chatStore = useChatbotStore();
 const generationStore = useGenerationStore();
