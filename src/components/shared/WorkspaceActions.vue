@@ -12,7 +12,7 @@
 
     <!-- -->
     <div v-if="$slots.toolbar" class="shrink">
-      <div class="p-2">
+      <div class="py-2 pl-2 pr-4">
         <slot name="toolbar"> </slot>
       </div>
     </div>
@@ -20,7 +20,7 @@
     <!-- -->
     <div v-if="$slots.body" class="overflow-hidden grow">
       <CustomScrollbar class="h-full">
-        <div class="pr-4">
+        <div class="pl-2 pr-4">
           <slot name="body"> </slot>
         </div>
       </CustomScrollbar>

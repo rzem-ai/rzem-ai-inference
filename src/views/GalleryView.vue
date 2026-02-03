@@ -406,14 +406,14 @@ const handleSelectUncategorized = () => {
   galleryStore.loadUncategorizedImages();
 };
 
-const handleToggleAllImages = () => {
-  console.log('showAllImages: ', showAllImages.value);
-};
+// const handleToggleAllImages = () => {
+//   console.log('showAllImages: ', showAllImages.value);
+// };
 
-const handleToggleUncategorized = () => {
-  showUncategorized.value = !showUncategorized.value;
-  console.log('showUncategorized: ', showUncategorized.value);
-};
+// const handleToggleUncategorized = () => {
+//   showUncategorized.value = !showUncategorized.value;
+//   console.log('showUncategorized: ', showUncategorized.value);
+// };
 
 const navigateToBreadcrumb = (index: number) => {
   // Navigate to ancestor folder

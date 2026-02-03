@@ -12,6 +12,9 @@ interface BackendLoraInfo {
   size_bytes: number;
   created_at: number;
   metadata?: Record<string, string>;
+  default_strength: number;
+  strength_min: number;
+  strength_max: number;
 }
 
 interface BackendLoraFileInfo {
@@ -32,8 +35,11 @@ function mapLoraInfo(info: BackendLoraInfo, existingLora?: LoRA): LoRA {
     sizeBytes: info.size_bytes,
     createdAt: info.created_at,
     metadata: info.metadata,
-    strength: existingLora?.strength ?? 1.0,
+    strength: existingLora?.strength ?? info.default_strength ?? 1.0,
     isActive: existingLora?.isActive ?? false,
+    defaultStrength: info.default_strength ?? 1.0,
+    strengthMin: info.strength_min ?? 0.5,
+    strengthMax: info.strength_max ?? 1.5,
   };
 }
 
@@ -44,6 +50,7 @@ function mapLoraFileInfo(info: BackendLoraFileInfo): LoraFileInfo {
     weightCount: info.weight_count,
     rank: info.rank,
     totalParams: info.total_params,
+    isFluxCompatible: true, // FIXME
   };
 }
 

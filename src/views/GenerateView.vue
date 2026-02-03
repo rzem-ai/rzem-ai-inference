@@ -10,16 +10,26 @@
       <template #header>Generate Images</template>
       <template #toolbar>
         <div class="w-full grid grid-cols-3 border rounded-md shadow-xs border-surface-600">
-          <ToggleButton :model-value="sectionVisibility.quality" severity="secondary" size="small" class="border-0 rounded-none rounded-l-md" @change="handleToggleQuality()">
-            <div class="content-center">
-              <fa :icon="['fal', 'star']" size="sm" />
-              Quality
-            </div>
-          </ToggleButton>
-          <ToggleButton :model-value="sectionVisibility.style" severity="secondary" size="small" class="border-0 rounded-none" @change="handleToggleStyle()">
+          <ToggleButton
+            :model-value="sectionVisibility.style"
+            severity="secondary"
+            size="small"
+            class="border-0 rounded-none rounded-l-md"
+            @change="handleToggleStyle()">
             <div class="content-center">
               <fa :icon="['fal', 'layer-group']" size="sm" />
               Style
+            </div>
+          </ToggleButton>
+          <ToggleButton
+            :model-value="sectionVisibility.quality"
+            severity="secondary"
+            size="small"
+            class="border-0 rounded-none"
+            @change="handleToggleQuality()">
+            <div class="content-center">
+              <fa :icon="['fal', 'star']" size="sm" />
+              Quality
             </div>
           </ToggleButton>
           <ToggleButton
@@ -34,9 +44,21 @@
             </div>
           </ToggleButton>
         </div>
+        <div class="flex flex-col gap-2 py-2">
+          <SplitButton :loading="queueStore.hasRunningJobs" raised fluid size="small" @click="handleGenerate" :model="generationCounts" :disabled="!canGenerate">
+            {{ queueStore.queueLength > 0 ? `Generate` : 'Generate' }} ( {{ imageCount }} )
+          </SplitButton>
+          <Button  severity="help" size="small" fluid @click="showBatchDialog = true"><fa :icon="['fal', 'list']" size="sm" /> Batch Script</Button>
+        </div>
       </template>
 
-      <template #body><GenerateActions @generate="handleGenerate" :showQuality="sectionVisibility.quality" :showStyle="sectionVisibility.style" :showAdvanced="sectionVisibility.advanced" /></template>
+      <template #body
+        ><GenerateActions
+          @generate="handleGenerate"
+          :showQuality="sectionVisibility.quality"
+          :showStyle="sectionVisibility.style"
+          :showAdvanced="sectionVisibility.advanced"
+      /></template>
     </WorkspaceActions>
 
     <!-- Chatbot Panel (expands from sidebar, positioned between sidebar and main content) -->
@@ -98,14 +120,17 @@
         </div>
       </div>
     </div>
+
+    <!-- Batch Script Dialog -->
+    <BatchScriptDialog v-model:visible="showBatchDialog" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted } from 'vue';
+import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useToast } from 'primevue/usetoast';
-import { convertFileSrc } from '@tauri-apps/api/core';
+import { convertFileSrc, invoke } from '@tauri-apps/api/core';
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeFile, readFile } from '@tauri-apps/plugin-fs';
 import GenerateActions from '@/components/generation/GenerateActions.vue';
@@ -120,6 +145,9 @@ import WorkspaceActions from '@/components/shared/WorkspaceActions.vue';
 import HistoryPanel from '@/components/generation/HistoryPanel.vue';
 import ChatPanel from '@/components/generation/ChatPanel.vue';
 import ToggleButton from 'primevue/togglebutton';
+import SplitButton from 'primevue/splitbutton';
+import Button from 'primevue/button';
+import BatchScriptDialog from '@/components/generation/batch/BatchScriptDialog.vue';
 import { analyzeImageForPrompt, fileToDataUrl, isValidImageFile } from '@/services/imageAnalysis';
 
 const queueStore = useQueueStore();
@@ -151,6 +179,49 @@ const pendingCount = ref(0);
 const isDragging = ref(false);
 const isAnalyzing = ref(false);
 const dragCounter = ref(0);
+
+// Batch dialog visibility
+const showBatchDialog = ref(false);
+
+const canGenerate = computed(() => {
+  const hasPrompt = generationStore.currentParams.prompt.trim().length > 0;
+  const hasValidConfig = generationStore.isValidConfiguration;
+  return hasPrompt && hasValidConfig;
+});
+
+const imageCount = computed({
+  get: () => generationStore.currentParams.batchSize,
+  set: (value: number) => {
+    generationStore.currentParams.batchSize = value;
+  },
+});
+
+const generationCounts = [
+  {
+    label: 'Generate 1 Image',
+    command: () => {
+      imageCount.value = 1;
+    },
+  },
+  {
+    label: 'Generate 2 Images',
+    command: () => {
+      imageCount.value = 2;
+    },
+  },
+  {
+    label: 'Generate 3 Images',
+    command: () => {
+      imageCount.value = 3;
+    },
+  },
+  {
+    label: 'Generate 4 Images',
+    command: () => {
+      imageCount.value = 4;
+    },
+  },
+];
 
 function handleToggleQuality() {
   generationStore.toggleSection('quality');
@@ -305,8 +376,11 @@ const handleGenerate = async () => {
       }));
       console.log('activeLoraConfigs:', activeLoraConfigs);
 
+      // Apply style template if a style is selected
+      const finalPrompt = generationStore.getFinalPrompt(params.prompt);
+
       const queueParams: GenerationParams = {
-        prompt: params.prompt,
+        prompt: finalPrompt,
         steps: params.steps,
         cfg_scale: params.cfgScale,
         width: params.width,
@@ -328,6 +402,15 @@ const handleGenerate = async () => {
 
       const jobId = await queueStore.addToQueue(queueParams);
       currentBatchJobIds.value.add(jobId);
+    }
+
+    // Increment style usage counter if a style was applied
+    if (generationStore.selectedStyleId) {
+      try {
+        await invoke('increment_style_usage', { styleId: generationStore.selectedStyleId });
+      } catch (error) {
+        console.warn('Failed to increment style usage:', error);
+      }
     }
   } catch (error) {
     console.error('Failed to add to queue:', error);

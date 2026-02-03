@@ -23,7 +23,13 @@ const router = createRouter({
       component: () => import('@/views/CompareView.vue'),
     },
     {
+      path: '/styles',
+      name: 'styles',
+      component: () => import('@/views/StylesView.vue'),
+    },
+    {
       path: '/models',
+      name: 'models',
       component: () => import('@/views/ModelsView.vue'),
       redirect: '/models/bundles',
       children: [
@@ -31,16 +37,16 @@ const router = createRouter({
           path: 'bundles',
           name: 'models-bundles',
           components: {
-            default: () => import('@/views/models/BundlesView.vue'),
-            sidebar: () => import('@/views/models/BundlesSidebar.vue'),
+            default: () => import('@/components/models/BundlesView.vue'),
+            sidebar: () => import('@/components/models/BundlesSidebar.vue'),
           },
         },
         {
           path: 'models',
           name: 'models-models',
           components: {
-            default: () => import('@/views/models/ModelsView.vue'),
-            sidebar: () => import('@/views/models/ModelsSidebar.vue'),
+            default: () => import('@/components/models/ModelsView.vue'),
+            sidebar: () => import('@/components/models/ModelsSidebar.vue'),
           },
         },
       ],
@@ -55,14 +61,14 @@ const router = createRouter({
           path: 'apikeys',
           name: 'apikeys',
           components: {
-            default: () => import('@/views/settings/APIKeys.vue'),
+            default: () => import('@/components/settings/APIKeys.vue'),
           },
         },
         {
           path: 'cache',
           name: 'cache',
           components: {
-            default: () => import('@/views/settings/Cache.vue'),
+            default: () => import('@/components/settings/Cache.vue'),
           },
         },
       ],

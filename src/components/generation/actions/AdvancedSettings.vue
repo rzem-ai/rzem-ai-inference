@@ -23,10 +23,13 @@
             size="small"
             fluid />
           <Button @click="randomizeSeed" :disabled="!seedLocked" v-tooltip.top="seedLocked ? 'Create a new random seed' : ''" raised>
-            <fa :icon="['fal', 'arrows-rotate']" size="sm" rotation="90"/>
+            <fa :icon="['fal', 'arrows-rotate']" size="sm" rotation="90" />
           </Button>
-          <Button @click="toggleSeedGeneration" v-tooltip.top="seedLocked ? 'The same seed is used for each generation': 'A new random seed is used\n for each generation'" raised>
-            <fa :icon="['fal', seedLocked ? 'lock': 'shuffle']" size="sm" />
+          <Button
+            @click="toggleSeedGeneration"
+            v-tooltip.top="seedLocked ? 'The same seed is used for each generation' : 'A new random seed is used\n for each generation'"
+            raised>
+            <fa :icon="['fal', seedLocked ? 'lock' : 'shuffle']" size="sm" />
           </Button>
         </div>
       </div>
@@ -46,12 +49,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed } from 'vue';
 import { useGenerationStore } from '@/stores/generation';
 import Button from 'primevue/button';
 import Select from 'primevue/select';
 import InputNumber from 'primevue/inputnumber';
-import ToggleSwitch from 'primevue/toggleswitch';
 import GenerationAction from './GenerationAction.vue';
 
 import type { Sampler, Scheduler } from '@/types';
@@ -59,8 +61,6 @@ import type { Sampler, Scheduler } from '@/types';
 defineProps(['icon', 'label']);
 
 const generationStore = useGenerationStore();
-
-const randomiserEnabled = ref(false);
 
 const seed = computed({
   get: () => generationStore.currentParams.seed,
