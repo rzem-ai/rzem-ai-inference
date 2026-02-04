@@ -25,17 +25,13 @@ export function useAppInit() {
 
       // 4. Pre-load frequently used components (non-blocking)
       // This caches the webpack chunks so navigation is instant
-      Promise.all([
-        import('@/views/GalleryView.vue'),
-        import('@/views/GenerateView.vue'),
-        import('@/views/StylesView.vue'),
-      ]).catch(err => {
+      Promise.all([]).catch((err) => {
         console.error('[App Init] Component preload failed:', err);
       });
 
       // 5. Initialize data stores in background (non-blocking)
       // App becomes interactive immediately, data loads progressively
-      initializeDataStores().catch(err => {
+      initializeDataStores().catch((err) => {
         console.error('[App Init] Background data initialization failed:', err);
       });
     } catch (error) {

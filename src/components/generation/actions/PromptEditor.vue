@@ -5,7 +5,10 @@
         <EditorContent :editor="editor" class="w-full editor-content text-surface-300" />
       </CustomScrollbar>
       <!-- Wand Icon Button (Positioned in top-right of prompt) -->
-      <div class="absolute z-10 justify-center px-1 border rounded top-2 right-2 text-primary-400 border-primary-200 bg-primary-100/50 hover:border hover:border-primary-400 hover:text-primary-600" v-tooltip.top="'AI Prompt Assistant'" @click="chatStore.togglePanel()">
+      <div
+        class="absolute z-10 justify-center px-1 border rounded top-2 right-2 text-primary-400 border-primary-200 bg-primary-100/50 hover:border hover:border-primary-400 hover:text-primary-600"
+        v-tooltip.top="'AI Prompt Assistant'"
+        @click="chatStore.togglePanel()">
         <fa :icon="['fal', 'wand-magic-sparkles']" class="w-4 h-4" />
       </div>
     </div>
@@ -156,23 +159,11 @@ onUnmounted(() => {
 
 /* Custom scrollbar styling */
 :deep(.ps__rail-y) {
-  @apply bg-gray-200!;
-  width: 12px !important;
-}
-
-:deep(.ps__rail-y:hover),
-:deep(.ps__rail-y:focus) {
-  @apply bg-gray-300!;
+  width: 6px !important;
 }
 
 :deep(.ps__thumb-y) {
-  @apply bg-gray-400!;
-  width: 10px !important;
+  width: 4px !important;
   border-radius: 6px !important;
-}
-
-:deep(.ps__thumb-y:hover),
-:deep(.ps__thumb-y:focus) {
-  @apply bg-gray-600!;
 }
 </style>

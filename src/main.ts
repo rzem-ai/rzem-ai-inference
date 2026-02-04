@@ -4,7 +4,7 @@ import PrimeVue from 'primevue/config';
 import ToastService from 'primevue/toastservice';
 import ConfirmationService from 'primevue/confirmationservice';
 import Tooltip from 'primevue/tooltip';
-import MasonryWall from '@/components/shared/wall/masonry-wall';
+
 import router from './router';
 import App from './App.vue';
 
@@ -36,7 +36,7 @@ app.use(pinia);
 app.use(router);
 app.use(ToastService);
 app.use(ConfirmationService);
-app.use(MasonryWall);
+
 app.use(PrimeVue, {
   theme: {
     preset: AuraPlus,

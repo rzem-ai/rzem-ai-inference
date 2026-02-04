@@ -1,5 +1,15 @@
 import { createRouter, createWebHistory } from 'vue-router';
 
+import GenerateView from '@/views/GenerateView.vue';
+import GalleryView from '@/views/GalleryView.vue';
+import ModelsView from '@/views/ModelsView.vue';
+import BundlesView from '@/components/models/BundlesView.vue';
+import BundlesSidebar from '@/components/models/BundlesSidebar.vue';
+import SettingsView from '@/views/SettingsView.vue';
+import SettingsAPIKeys from '@/components/settings/APIKeys.vue';
+import SettingsCache from '@/components/settings/Cache.vue';
+import StylesView from '@/views/StylesView.vue';
+
 const router = createRouter({
   history: createWebHistory(),
   routes: [
@@ -10,12 +20,12 @@ const router = createRouter({
     {
       path: '/generate',
       name: 'generate',
-      component: () => import('@/views/GenerateView.vue'),
+      component: GenerateView,
     },
     {
       path: '/gallery',
       name: 'gallery',
-      component: () => import('@/views/GalleryView.vue'),
+      component: GalleryView,
     },
     {
       path: '/compare',
@@ -25,7 +35,7 @@ const router = createRouter({
     {
       path: '/styles',
       name: 'styles',
-      component: () => import('@/views/StylesView.vue'),
+      component: StylesView,
       children: [
         {
           path: '',
@@ -47,15 +57,15 @@ const router = createRouter({
     {
       path: '/models',
       name: 'models',
-      component: () => import('@/views/ModelsView.vue'),
+      component: ModelsView,
       redirect: '/models/bundles',
       children: [
         {
           path: 'bundles',
           name: 'models-bundles',
           components: {
-            default: () => import('@/components/models/BundlesView.vue'),
-            sidebar: () => import('@/components/models/BundlesSidebar.vue'),
+            default: BundlesView,
+            sidebar: BundlesSidebar,
           },
         },
         {
@@ -71,21 +81,21 @@ const router = createRouter({
     {
       path: '/settings',
       name: 'settings',
-      component: () => import('@/views/SettingsView.vue'),
+      component: SettingsView,
       redirect: '/settings/apikeys',
       children: [
         {
           path: 'apikeys',
           name: 'apikeys',
           components: {
-            default: () => import('@/components/settings/APIKeys.vue'),
+            default: SettingsAPIKeys,
           },
         },
         {
           path: 'cache',
           name: 'cache',
           components: {
-            default: () => import('@/components/settings/Cache.vue'),
+            default: SettingsCache,
           },
         },
       ],

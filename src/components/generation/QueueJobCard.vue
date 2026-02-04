@@ -7,15 +7,6 @@
       'border-green-500/50 bg-surface-900 shadow': job.status === 'completed',
       'border-red-500 bg-red-50 shadow': job.status === 'failed',
     }">
-    <!-- Preview overlay (shown when preview available and job running) -->
-    <div v-if="job.previewData && job.status === 'running'" class="absolute top-2 right-2 z-10 preview-thumbnail">
-      <img
-        :src="`data:image/jpeg;base64,${job.previewData}`"
-        alt="Generation preview"
-        class="w-20 h-20 rounded-lg object-cover shadow-lg border-2 border-blue-400" />
-      <div class="preview-badge">Preview</div>
-    </div>
-
     <!-- Status Icon -->
     <div
       class="flex items-center justify-center w-8 h-8 rounded-full"
@@ -154,25 +145,6 @@ const getStepDisplay = computed(() => (job: GenerationJob) => {
 
 <style scoped>
 @reference "tailwindcss";
-
-.preview-thumbnail {
-  position: relative;
-  animation: fadeIn 0.3s ease-in;
-}
-
-.preview-badge {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: rgba(0, 0, 0, 0.8);
-  color: white;
-  font-size: 0.625rem;
-  text-align: center;
-  padding: 2px 4px;
-  border-bottom-left-radius: 0.5rem;
-  border-bottom-right-radius: 0.5rem;
-}
 
 @keyframes fadeIn {
   from {
