@@ -1,7 +1,7 @@
 <template>
   <div ref="containerRef" class="h-full pl-4" :class="{ 'scroll-container': true }">
     <CustomScrollbar class="pr-2">
-      <MasonryWall :items="shownImages" :column-width="320" :gap="20" :min-columns="1" :max-columns="8">
+      <MasonryWall v-if="isVisible" :items="shownImages" :column-width="320" :gap="20" :min-columns="1" :max-columns="8">
         <template #default="{ item }">
           <div
             :style="{ height: `320px` }"
@@ -221,7 +221,8 @@ defineExpose({
 watch(isVisible, (visible) => {
   console.log(`[ImageGrid] Visibility changed: ${visible}`);
   nextTick().then(() => {
-    shownImages.value = images.slice(0,1);
+    //shownImages.value = images.slice(0,Math.min(images.length, 20));
+    shownImages.value = images;
   });
 });
 
@@ -243,11 +244,13 @@ const getThumbnailSrc = (image: GalleryImage) => {
 };
 
 onMounted(() => {
+  console.log(`[ImageGrid] onMounted: ${isVisible.value}`);
   // Set up Intersection Observer to track visibility
   if (containerRef.value) {
     visibilityObserver = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
+          console.log("added visibility observer for ", entry, entry.isIntersecting)
           isVisible.value = entry.isIntersecting;
         });
       },
