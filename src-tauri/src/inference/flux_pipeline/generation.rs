@@ -3,11 +3,13 @@
 use anyhow::Result;
 use tracing::{debug, info, trace, warn};
 use base64::{engine::general_purpose, Engine as _};
+use candle_core::Tensor;
 
 use crate::inference::metadata::{ImageMetadata, encode_png_with_metadata};
 use crate::inference::samplers::{SamplerType, SchedulerType};
 use crate::inference::stats::{GenerationStats, GenerationResult, Timer};
 use crate::inference::{GenerationProgress, PipelineStage};
+use candle_transformers::models::flux;
 use super::FluxPipeline;
 
 /// Encode RGB data as JPEG and return base64 string
@@ -150,7 +152,7 @@ impl FluxPipeline {
         };
         info!(steps = steps, guidance = guidance, model = %stats.model_type, seed = seed, sampler = ?sampler, scheduler = ?scheduler, "Drawing");
         let denoise_timer = Timer::start();
-        let latents = flux.denoise(&t5_emb, &clip_emb, height, width, steps, guidance, seed, sampler, scheduler, None::<fn(usize, usize)>)?;
+        let latents = flux.denoise(&t5_emb, &clip_emb, height, width, steps, guidance, seed, sampler, scheduler, None::<fn(usize, usize, &Tensor)>)?;
         stats.denoise_ms = denoise_timer.stop();
         stats.latent_shape = latents.dims().to_vec();
         debug!(shape = ?latents.dims(), time_ms = stats.denoise_ms, "Latent");
@@ -320,6 +322,19 @@ impl FluxPipeline {
         }
 
         let denoise_timer = Timer::start();
+
+        // Calculate preview interval (generate 5 previews total: 20%, 40%, 60%, 80%, 100%)
+        let preview_interval = (steps / 5).max(1);
+
+        // Clone VAE Arc and dimensions for callback closure
+        let vae_for_callback = self.vae.clone();
+        let width_for_callback = width;
+        let height_for_callback = height;
+
+        // Wrap on_progress in Arc so it can be shared between closure and code after denoise
+        let on_progress = std::sync::Arc::new(on_progress);
+        let on_progress_clone = on_progress.clone();
+
         let latents = flux.denoise(
             &t5_emb,
             &clip_emb,
@@ -330,8 +345,83 @@ impl FluxPipeline {
             seed,
             sampler,
             scheduler,
-            Some(|current_step: usize, total_steps: usize| {
-                on_progress(GenerationProgress::denoising_step(current_step, total_steps));
+            Some(move |current_step: usize, total_steps: usize, latent: &Tensor| {
+                // Always report progress
+                let mut progress = GenerationProgress::denoising_step(current_step, total_steps);
+
+                // Generate preview at intervals or final step
+                if current_step % preview_interval == 0 || current_step == total_steps {
+                    debug!(
+                        step = current_step,
+                        total = total_steps,
+                        interval = preview_interval,
+                        "Generating preview"
+                    );
+                    match vae_for_callback.as_ref() {
+                        Some(vae) => {
+                            // Unpack latent from packed format [1, 2048, H] to VAE format [1, 16, H/8, W/8]
+                            match flux::sampling::unpack(latent, height_for_callback, width_for_callback) {
+                                Ok(unpacked_latent) => {
+                                    // Convert to BF16 for VAE (VAE expects BF16 on CUDA, F32 on CPU)
+                                    let latent_for_vae = if unpacked_latent.device().is_cuda() {
+                                        match unpacked_latent.to_dtype(candle_core::DType::BF16) {
+                                            Ok(converted) => converted,
+                                            Err(e) => {
+                                                warn!(step = current_step, error = ?e, "Failed to convert latent dtype");
+                                                return on_progress_clone(progress);
+                                            }
+                                        }
+                                    } else {
+                                        unpacked_latent
+                                    };
+
+                                    // Decode latent to RGB image
+                                    match vae.decode(&latent_for_vae) {
+                                        Ok(image) => {
+                                            match vae.tensor_to_rgb(&image) {
+                                                Ok(rgb_data) => {
+                                                    // Encode as JPEG with lower quality (60) for speed
+                                                    match encode_jpeg_base64(
+                                                        &rgb_data,
+                                                        width_for_callback as u32,
+                                                        height_for_callback as u32,
+                                                        60  // Lower quality than final (75) for faster encoding
+                                                    ) {
+                                                        Ok(preview_base64) => {
+                                                            debug!(
+                                                                step = current_step,
+                                                                preview_size = preview_base64.len(),
+                                                                "Preview generated successfully"
+                                                            );
+                                                            progress = progress.with_preview(preview_base64);
+                                                        }
+                                                        Err(e) => {
+                                                            warn!(step = current_step, error = ?e, "Failed to encode preview JPEG");
+                                                        }
+                                                    }
+                                                }
+                                                Err(e) => {
+                                                    warn!(step = current_step, error = ?e, "Failed to convert preview to RGB");
+                                                }
+                                            }
+                                        }
+                                        Err(e) => {
+                                            warn!(step = current_step, error = ?e, "Failed to decode preview latent");
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    warn!(step = current_step, error = ?e, "Failed to unpack preview latent");
+                                }
+                            }
+                        }
+                        None => {
+                            warn!(step = current_step, "VAE not available for preview generation");
+                        }
+                    }
+                }
+
+                on_progress_clone(progress);
             }),
         )?;
         stats.denoise_ms = denoise_timer.stop();
@@ -535,6 +625,19 @@ impl FluxPipeline {
 
         // Denoise
         let denoise_timer = Timer::start();
+
+        // Calculate preview interval (generate 5 previews total: 20%, 40%, 60%, 80%, 100%)
+        let preview_interval = (steps / 5).max(1);
+
+        // Clone VAE Arc and dimensions for callback closure
+        let vae_for_callback = self.vae.clone();
+        let width_for_callback = width;
+        let height_for_callback = height;
+
+        // Wrap on_progress in Arc so it can be shared between closure and code after denoise
+        let on_progress = std::sync::Arc::new(on_progress);
+        let on_progress_clone = on_progress.clone();
+
         let latents = flux.denoise(
             &t5_emb,
             &clip_emb,
@@ -545,8 +648,83 @@ impl FluxPipeline {
             seed,
             sampler,
             scheduler,
-            Some(|current_step: usize, total_steps: usize| {
-                on_progress(GenerationProgress::denoising_step(current_step, total_steps));
+            Some(move |current_step: usize, total_steps: usize, latent: &Tensor| {
+                // Always report progress
+                let mut progress = GenerationProgress::denoising_step(current_step, total_steps);
+
+                // Generate preview at intervals or final step
+                if current_step % preview_interval == 0 || current_step == total_steps {
+                    debug!(
+                        step = current_step,
+                        total = total_steps,
+                        interval = preview_interval,
+                        "Generating preview"
+                    );
+                    match vae_for_callback.as_ref() {
+                        Some(vae) => {
+                            // Unpack latent from packed format [1, 2048, H] to VAE format [1, 16, H/8, W/8]
+                            match flux::sampling::unpack(latent, height_for_callback, width_for_callback) {
+                                Ok(unpacked_latent) => {
+                                    // Convert to BF16 for VAE (VAE expects BF16 on CUDA, F32 on CPU)
+                                    let latent_for_vae = if unpacked_latent.device().is_cuda() {
+                                        match unpacked_latent.to_dtype(candle_core::DType::BF16) {
+                                            Ok(converted) => converted,
+                                            Err(e) => {
+                                                warn!(step = current_step, error = ?e, "Failed to convert latent dtype");
+                                                return on_progress_clone(progress);
+                                            }
+                                        }
+                                    } else {
+                                        unpacked_latent
+                                    };
+
+                                    // Decode latent to RGB image
+                                    match vae.decode(&latent_for_vae) {
+                                        Ok(image) => {
+                                            match vae.tensor_to_rgb(&image) {
+                                                Ok(rgb_data) => {
+                                                    // Encode as JPEG with lower quality (60) for speed
+                                                    match encode_jpeg_base64(
+                                                        &rgb_data,
+                                                        width_for_callback as u32,
+                                                        height_for_callback as u32,
+                                                        60  // Lower quality than final (75) for faster encoding
+                                                    ) {
+                                                        Ok(preview_base64) => {
+                                                            debug!(
+                                                                step = current_step,
+                                                                preview_size = preview_base64.len(),
+                                                                "Preview generated successfully"
+                                                            );
+                                                            progress = progress.with_preview(preview_base64);
+                                                        }
+                                                        Err(e) => {
+                                                            warn!(step = current_step, error = ?e, "Failed to encode preview JPEG");
+                                                        }
+                                                    }
+                                                }
+                                                Err(e) => {
+                                                    warn!(step = current_step, error = ?e, "Failed to convert preview to RGB");
+                                                }
+                                            }
+                                        }
+                                        Err(e) => {
+                                            warn!(step = current_step, error = ?e, "Failed to decode preview latent");
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    warn!(step = current_step, error = ?e, "Failed to unpack preview latent");
+                                }
+                            }
+                        }
+                        None => {
+                            warn!(step = current_step, "VAE not available for preview generation");
+                        }
+                    }
+                }
+
+                on_progress_clone(progress);
             }),
         )?;
         stats.denoise_ms = denoise_timer.stop();

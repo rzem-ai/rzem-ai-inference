@@ -83,6 +83,7 @@ export const useAutoTagStore = defineStore('autoTag', {
     isDownloading: false,
     lastError: null as string | null,
     recentTaggingResults: [] as TaggingResult[],
+    isInitialized: false,
     // Event unlisteners
     unlisteners: [] as UnlistenFn[],
   }),
@@ -119,6 +120,34 @@ export const useAutoTagStore = defineStore('autoTag', {
   },
 
   actions: {
+    // Standard initialization method
+    async initialize(): Promise<void> {
+      // Guard: only initialize once
+      if (this.isInitialized) {
+        return
+      }
+
+      try {
+        // Load initial data
+        await this.loadSettings()
+        await this.checkModelStatus()
+
+        // Initialize event listeners
+        await this.initializeEventListeners()
+
+        this.isInitialized = true
+      } catch (err) {
+        console.error('[AutoTagStore] Initialization failed:', err)
+        throw err
+      }
+    },
+
+    // Cleanup (called on app close, not navigation)
+    cleanup() {
+      this.cleanupEventListeners()
+      this.isInitialized = false
+    },
+
     // Initialize event listeners
     async initializeEventListeners() {
       if (this.unlisteners.length > 0) return; // Already initialized

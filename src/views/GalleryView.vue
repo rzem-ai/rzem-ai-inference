@@ -121,6 +121,12 @@
         </p>
       </div>
 
+       <!-- Preparing to render grid -->
+      <div v-else-if="!showImageGrid" class="flex flex-col items-center justify-center flex-1 gap-4 text-surface-200">
+        <fa :icon="['fal', 'arrows-rotate']" size="lg" class="animate-spin" />
+        <p>Preparing gallery...</p>
+      </div>
+
       <!-- Image Grid -->
       <ImageGrid
         v-else
@@ -139,7 +145,7 @@
         @delete="handleDeleteImage" />
     </main>
 
-    <!-- Folder Form Dialog -->
+  <!-- Folder Form Dialog -->
     <FolderForm v-model:visible="folderFormVisible" :folder="editingFolder" :default-parent-id="defaultParentId" />
 
     <!-- Add to Folder Menu -->
@@ -160,7 +166,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { useConfirm } from 'primevue/useconfirm';
 import { useToast } from 'primevue/usetoast';
 import { useGalleryStore } from '@/stores/gallery';
@@ -190,6 +196,9 @@ const compareStore = useCompareStore();
 const autoTagStore = useAutoTagStore();
 const confirm = useConfirm();
 const toast = useToast();
+
+// Defer ImageGrid rendering to allow page structure to appear first
+const showImageGrid = ref(false);
 
 // Folder form state
 const folderFormVisible = ref(false);
@@ -319,17 +328,20 @@ const bulkTagMenuItems = computed(() => {
 });
 
 onMounted(async () => {
-  // Initialize event listeners for auto-tagging events
-  await autoTagStore.initializeEventListeners();
+  // Note: Gallery, folders, tags, and autoTag are already initialized at app startup
+  // via the centralized store initialization system. No need to reload here!
 
-  await Promise.all([galleryStore.loadImages(), foldersStore.loadFolders(), tagsStore.loadTags(), autoTagStore.loadSettings()]);
-  // Check model status in background (don't block initial load)
+  // Only check model status in background (non-blocking)
   autoTagStore.checkModelStatus();
+
+  // Defer ImageGrid rendering to allow page structure to render first
+  await nextTick();
+  showImageGrid.value = true;
 });
 
 onUnmounted(() => {
-  // Cleanup event listeners
-  autoTagStore.cleanupEventListeners();
+  // Note: Event listeners are initialized at app startup and remain active
+  // throughout the app session. No cleanup needed per-component.
 });
 
 const handleSearch = async () => {
@@ -531,13 +543,20 @@ const bulkAddTag = async (tagName: string) => {
   const imageIds = Array.from(galleryStore.selectedImages);
   const success = await tagsStore.bulkAddTag(imageIds, tagName);
   if (success) {
+    // Update local state instead of reloading all images
+    imageIds.forEach((imageId) => {
+      const image = galleryStore.images.find((img) => img.id === imageId);
+      if (image && !image.tags.includes(tagName)) {
+        image.tags.push(tagName);
+      }
+    });
+
     toast.add({
       severity: 'success',
       summary: 'Tags Added',
       detail: `Added "${tagName}" to ${imageIds.length} image${imageIds.length > 1 ? 's' : ''}`,
       life: 3000,
     });
-    await galleryStore.loadImages(); // Refresh to show new tags
   }
 };
 
@@ -545,13 +564,20 @@ const bulkRemoveTag = async (tagName: string) => {
   const imageIds = Array.from(galleryStore.selectedImages);
   const success = await tagsStore.bulkRemoveTag(imageIds, tagName);
   if (success) {
+    // Update local state instead of reloading all images
+    imageIds.forEach((imageId) => {
+      const image = galleryStore.images.find((img) => img.id === imageId);
+      if (image) {
+        image.tags = image.tags.filter((tag) => tag !== tagName);
+      }
+    });
+
     toast.add({
       severity: 'success',
       summary: 'Tags Removed',
       detail: `Removed "${tagName}" from ${imageIds.length} image${imageIds.length > 1 ? 's' : ''}`,
       life: 3000,
     });
-    await galleryStore.loadImages(); // Refresh
   }
 };
 

@@ -61,8 +61,10 @@ export const useBundlesStore = defineStore('bundles', {
     bundles: [] as BundleInfo[],
     models: [] as ModelInfo[],
     _initialized: false,
+    isInitialized: false,
     isScanning: false,
     scanMessage: '',
+    error: null as string | null,
   }),
 
   getters: {
@@ -104,7 +106,11 @@ export const useBundlesStore = defineStore('bundles', {
     },
 
     async initialize() {
-      if (this._initialized) return;
+      // Guard: only initialize once
+      if (this.isInitialized) return;
+
+      this.error = null;
+
       try {
         const [models, bundles] = await Promise.all([
           invoke<ModelInfo[]>('get_all_models'),
@@ -113,9 +119,19 @@ export const useBundlesStore = defineStore('bundles', {
         this.models = models;
         this.bundles = bundles.map(apiBundleToBundle);
         this._initialized = true;
-      } catch (e) {
-        console.error('Failed to initialize bundles store:', e);
+        this.isInitialized = true;
+      } catch (err) {
+        this.error = err instanceof Error ? err.message : String(err);
+        console.error('[BundlesStore] Initialization failed:', err);
+        throw err;
       }
+    },
+
+    // Force reload (for manual refresh)
+    async reload(): Promise<void> {
+      this.isInitialized = false
+      this._initialized = false
+      await this.initialize()
     },
 
     async scanHfCache() {

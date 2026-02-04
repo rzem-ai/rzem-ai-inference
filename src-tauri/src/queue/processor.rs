@@ -453,6 +453,7 @@ async fn execute_generation(
             "eta_seconds": progress.eta_seconds,
             "current_step": progress.current_step,
             "total_steps": progress.total_steps,
+            "preview_data": progress.preview_data,
         }));
 
         // Also update job progress in queue manager (fire-and-forget)

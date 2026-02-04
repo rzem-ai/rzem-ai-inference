@@ -25,13 +25,26 @@
       @dragover.prevent="handleDragOver"
       @dragleave="handleDragLeave"
       @drop="handleDrop">
-
-
       <!-- Folder Icon -->
-      <fa v-if="isExpanded && folder.children.length > 0 && activeId === folder.id" :icon="['fas', 'folder-open']" size="lg" :style="folder.color ? { color: folder.color } : {}" @click.stop="emit('toggleExpand', folder.id)"/>
-      <fa v-else-if="isExpanded && folder.children.length > 0" :icon="['fas', 'folder-arrow-down']" size="lg" :style="folder.color ? { color: folder.color } : {}" @click.stop="emit('toggleExpand', folder.id)"/>
-      <fa v-else-if="folder.children.length > 0" :icon="['fas', 'folder-plus']" size="lg" :style="folder.color ? { color: folder.color } : {}" @click.stop="emit('toggleExpand', folder.id)"/>
-      <fa v-else-if="activeId === folder.id" :icon="['fas', 'folder-open']" size="lg" :style="folder.color ? { color: folder.color } : {}"/>
+      <fa
+        v-if="isExpanded && folder.children.length > 0 && activeId === folder.id"
+        :icon="['fas', 'folder-open']"
+        size="lg"
+        :style="folder.color ? { color: folder.color } : {}"
+        @click.stop="emit('toggleExpand', folder.id)" />
+      <fa
+        v-else-if="isExpanded && folder.children.length > 0"
+        :icon="['fas', 'folder-arrow-down']"
+        size="lg"
+        :style="folder.color ? { color: folder.color } : {}"
+        @click.stop="emit('toggleExpand', folder.id)" />
+      <fa
+        v-else-if="folder.children.length > 0"
+        :icon="['fas', 'folder-plus']"
+        size="lg"
+        :style="folder.color ? { color: folder.color } : {}"
+        @click.stop="emit('toggleExpand', folder.id)" />
+      <fa v-else-if="activeId === folder.id" :icon="['fas', 'folder-open']" size="lg" :style="folder.color ? { color: folder.color } : {}" />
       <fa v-else :icon="['fas', 'folder']" size="lg" :style="folder.color ? { color: folder.color } : {}" />
 
       <!-- Folder Name -->
@@ -78,7 +91,6 @@
 <script setup lang="ts">
 import { ref, computed, inject } from 'vue';
 import type { FolderNode } from '@/stores/folders';
-import Button from 'primevue/button';
 
 interface Props {
   folder: FolderNode;
@@ -272,8 +284,6 @@ const isDescendant = (folderId: string): boolean => {
 }
 
 .folder-row {
-  
-
   &:hover {
     background-color: var(--color-gray-800);
   }
@@ -337,11 +347,9 @@ const isDescendant = (folderId: string): boolean => {
 }
 
 .folder-name {
- 
 }
 
 .image-count {
- 
 }
 
 .folder-children {

@@ -83,6 +83,7 @@ export const useGenerationStore = defineStore('generation', {
     sectionVisibility: loadSectionVisibility(),
     activeProgress: {} as Record<string, GenerationProgress>,
     _unsubscribe: null as (() => void) | null,
+    isInitialized: false,
     // Style support
     selectedStyleId: null as string | null,
     appliedTemplate: null as string | null,
@@ -126,6 +127,18 @@ export const useGenerationStore = defineStore('generation', {
   },
 
   actions: {
+    // Standard initialization method
+    async initialize(): Promise<void> {
+      // Guard: only initialize once
+      if (this.isInitialized) {
+        return
+      }
+
+      // Initialize persistence subscription
+      this.initializePersistence()
+      this.isInitialized = true
+    },
+
     // Initialize automatic localStorage persistence
     initializePersistence() {
       if (this._unsubscribe) return; // Already initialized

@@ -66,6 +66,7 @@ export const useChatbotStore = defineStore('chatbot', () => {
   const isLoading = ref(false);
   const error = ref<string | null>(null);
   const isPanelOpen = ref(false);
+  const isInitialized = ref(false);
 
   // Access generation store for context
   const generationStore = useGenerationStore();
@@ -101,6 +102,15 @@ export const useChatbotStore = defineStore('chatbot', () => {
   }
 
   // Actions
+
+  /**
+   * Minimal initialization (no backend calls needed)
+   */
+  async function initialize(): Promise<void> {
+    if (isInitialized.value) return
+    // No-op - chatbot state is local UI state
+    isInitialized.value = true
+  }
 
   /**
    * Send a message to the chatbot
@@ -218,11 +228,13 @@ export const useChatbotStore = defineStore('chatbot', () => {
     isLoading,
     error,
     isPanelOpen,
+    isInitialized,
     // Computed
     hasMessages,
     lastAssistantMessage,
     hasSuggestedPrompt,
     // Actions
+    initialize,
     sendMessage,
     applyPrompt,
     applyLastSuggestion,

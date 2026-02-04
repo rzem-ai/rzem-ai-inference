@@ -1,6 +1,7 @@
 //! Cache integration methods for FluxPipeline
 
 use anyhow::Result;
+use std::sync::Arc;
 use candle_core::Tensor;
 use tracing::{debug, info};
 
@@ -172,7 +173,7 @@ impl FluxPipeline {
                     "Reloading VAE decoder"
                 );
                 let vae_timer = Timer::start();
-                self.vae = Some(VaeDecoder::load(model_path, self.device.clone())?);
+                self.vae = Some(Arc::new(VaeDecoder::load(model_path, self.device.clone())?));
                 stats.vae_load_ms = Some(vae_timer.stop());
             }
         }
@@ -187,7 +188,7 @@ impl FluxPipeline {
 
         info!(steps = steps, guidance = guidance, seed = seed, sampler = ?sampler, scheduler = ?scheduler, "Drawing");
         let denoise_timer = Timer::start();
-        let latents = flux.denoise(t5_emb, clip_emb, height, width, steps, guidance, seed, sampler, scheduler, None::<fn(usize, usize)>)?;
+        let latents = flux.denoise(t5_emb, clip_emb, height, width, steps, guidance, seed, sampler, scheduler, None::<fn(usize, usize, &candle_core::Tensor)>)?;
         stats.denoise_ms = denoise_timer.stop();
         stats.latent_shape = latents.dims().to_vec();
 
@@ -283,7 +284,7 @@ impl FluxPipeline {
             seed,
             sampler,
             scheduler,
-            Some(|current_step: usize, total_steps: usize| {
+            Some(|current_step: usize, total_steps: usize, _latent: &candle_core::Tensor| {
                 on_progress(GenerationProgress::denoising_step(current_step, total_steps));
             }),
         )?;

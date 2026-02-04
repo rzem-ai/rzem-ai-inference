@@ -10,9 +10,17 @@ export const useSettingsStore = defineStore('settings', {
     apiToken: '',
     outputPath: '',
     modelCachePath: '',
+    isInitialized: false,
   }),
 
   actions: {
+    // Minimal initialization (no backend calls needed)
+    async initialize(): Promise<void> {
+      if (this.isInitialized) return
+      // No-op - settings loaded from runtime config
+      this.isInitialized = true
+    },
+
     setConnectionMode(mode: ConnectionMode) {
       this.connectionMode = mode
     },

@@ -18,7 +18,7 @@ pub struct FluxPipeline {
     pub(crate) model_type: ModelType,
     pub(crate) t5: Option<T5TextEncoder>,
     pub(crate) clip: Option<ClipTextEncoder>,
-    pub(crate) vae: Option<VaeDecoder>,
+    pub(crate) vae: Option<Arc<VaeDecoder>>,
     pub(crate) flux: Option<FluxTransformer>,
     /// Whether models were loaded this session (for stats)
     pub(crate) models_loaded_this_session: bool,

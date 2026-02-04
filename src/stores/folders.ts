@@ -41,6 +41,8 @@ export const useFoldersStore = defineStore('folders', {
     currentViewType: 'all' as FolderViewType,
     expandedFolderIds: new Set<string>(),
     isLoading: false,
+    isInitialized: false,
+    error: null as string | null,
   }),
 
   getters: {
@@ -74,6 +76,31 @@ export const useFoldersStore = defineStore('folders', {
   },
 
   actions: {
+    // Standard initialization method
+    async initialize(): Promise<void> {
+      // Guard: only initialize once
+      if (this.isInitialized) {
+        return
+      }
+
+      this.error = null
+
+      try {
+        await this.loadFolders()
+        this.isInitialized = true
+      } catch (err) {
+        this.error = err instanceof Error ? err.message : String(err)
+        console.error('[FoldersStore] Initialization failed:', err)
+        throw err
+      }
+    },
+
+    // Force reload (for manual refresh)
+    async reload(): Promise<void> {
+      this.isInitialized = false
+      await this.initialize()
+    },
+
     // Helper to find folder by ID recursively
     findFolderById(nodes: FolderNode[], id: string): FolderNode | null {
       return _findFolderById(nodes, id);
@@ -86,6 +113,7 @@ export const useFoldersStore = defineStore('folders', {
         this.folders = result;
       } catch (error) {
         console.error('Failed to load folders:', error);
+        throw error;
       } finally {
         this.isLoading = false;
       }

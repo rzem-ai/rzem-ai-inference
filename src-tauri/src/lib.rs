@@ -159,6 +159,7 @@ async fn generate_image(
             cfg_scale: Some(4.0), // Hardcoded guidance for FLUX Schnell
             seed: Some(seed),
             sampler: Some(format!("{:?}", inference::SamplerType::default())),
+            scheduler: Some(format!("{:?}", inference::SchedulerType::default())),
             generation_time_ms: Some(result.stats.total_ms as i64),
             status: "completed".to_string(),
             session_id: None,

@@ -83,7 +83,7 @@
         <!-- Canvas Section -->
         <div class="flex flex-1 overflow-hidden">
           <!-- Generated Results -->
-          <GeneratedResults :images="generatedImages" :pending-count="pendingCount" @download="handleDownload" />
+          <GeneratedResults :images="generatedImages" :pending-count="pendingCount" :pending-images="pendingImages" @download="handleDownload" />
         </div>
 
         <!-- Bottom Panel -->
@@ -229,6 +229,16 @@ const generationCounts = [
     },
   },
 ];
+
+// Get pending images with preview data from running jobs
+const pendingImages = computed(() => {
+  return queueStore.jobs
+    .filter(job => job.status === 'running' && currentBatchJobIds.value.has(job.id))
+    .map(job => ({
+      id: job.id,
+      previewData: job.previewData,
+    }));
+});
 
 function handleToggleQuality() {
   generationStore.toggleSection('quality');

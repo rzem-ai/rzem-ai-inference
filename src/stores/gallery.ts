@@ -22,6 +22,7 @@ export interface GalleryImage {
   cfgScale?: number
   seed?: number
   sampler?: string
+  scheduler?: string
   tags: string[]
   folderIds: string[]
   status: 'pending' | 'processing' | 'completed' | 'failed'
@@ -51,6 +52,8 @@ export const useGalleryStore = defineStore('gallery', {
       tags: [],
     } as GalleryFilters,
     isLoading: false,
+    isInitialized: false,
+    error: null as string | null,
     viewMode: 'all' as GalleryViewMode,
     currentFolderId: null as string | null,
   }),
@@ -105,6 +108,34 @@ export const useGalleryStore = defineStore('gallery', {
   },
 
   actions: {
+    // Standard initialization method
+    async initialize(): Promise<void> {
+      // Guard: only initialize once
+      if (this.isInitialized) {
+        return
+      }
+
+      this.isLoading = true
+      this.error = null
+
+      try {
+        await this.loadImages()
+        this.isInitialized = true
+      } catch (err) {
+        this.error = err instanceof Error ? err.message : String(err)
+        console.error('[GalleryStore] Initialization failed:', err)
+        throw err
+      } finally {
+        this.isLoading = false
+      }
+    },
+
+    // Force reload (for manual refresh)
+    async reload(): Promise<void> {
+      this.isInitialized = false
+      await this.initialize()
+    },
+
     async loadImages(): Promise<void> {
       this.isLoading = true
       try {
@@ -114,6 +145,7 @@ export const useGalleryStore = defineStore('gallery', {
         this.images = result
       } catch (error) {
         console.error('Failed to load gallery images:', error)
+        throw error
       } finally {
         this.isLoading = false
       }

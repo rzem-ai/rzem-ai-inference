@@ -107,6 +107,7 @@ export const useStylesStore = defineStore('styles', {
     selectedStyle: null as StyleDetail | null,
     loading: false,
     error: null as string | null,
+    isInitialized: false,
   }),
 
   getters: {
@@ -143,6 +144,29 @@ export const useStylesStore = defineStore('styles', {
   },
 
   actions: {
+    // Standard initialization method
+    async initialize(): Promise<void> {
+      // Guard: only initialize once
+      if (this.isInitialized) {
+        return
+      }
+
+      try {
+        await this.loadStyles()
+        this.isInitialized = true
+      } catch (err) {
+        this.error = err instanceof Error ? err.message : String(err)
+        console.error('[StylesStore] Initialization failed:', err)
+        throw err
+      }
+    },
+
+    // Force reload (for manual refresh)
+    async reload(): Promise<void> {
+      this.isInitialized = false
+      await this.initialize()
+    },
+
     async loadStyles() {
       this.loading = true;
       this.error = null;

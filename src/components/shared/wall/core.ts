@@ -59,6 +59,11 @@ export function useMasonryWall<T>({
   }
 
   function columnCount(): number {
+    // Safety check: ensure wall element is mounted before measuring
+    if (!wall.value) {
+      console.warn('[MasonryWall] Wall element not mounted yet, using default column count');
+      return ssrColumns.value > 0 ? ssrColumns.value : 1;
+    }
     const count = countIteratively(
       wall.value.getBoundingClientRect().width,
       gap.value,
@@ -104,6 +109,11 @@ export function useMasonryWall<T>({
       // e.g., in an onMounted hook during initial render
       return;
     }
+    // Safety check: ensure wall element is mounted before accessing children
+    if (!wall.value) {
+      console.warn('[MasonryWall] Wall element not mounted yet, skipping fillColumns');
+      return;
+    }
     const columnDivs = [...wall.value.children] as HTMLDivElement[];
     if (rtl.value) {
       columnDivs.reverse();
@@ -136,10 +146,16 @@ export function useMasonryWall<T>({
 
   onMounted(async () => {
     await redraw();
-    resizeObserver?.observe(wall.value);
+    if (wall.value) {
+      resizeObserver?.observe(wall.value);
+    }
   });
 
-  onBeforeUnmount(() => resizeObserver?.unobserve(wall.value));
+  onBeforeUnmount(() => {
+    if (wall.value) {
+      resizeObserver?.unobserve(wall.value);
+    }
+  });
 
   watch([items, rtl], () => redraw(true));
   watch([columnWidth, gap, minColumns, maxColumns], () => redraw());

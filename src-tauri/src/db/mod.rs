@@ -96,6 +96,7 @@ pub struct ImageMetadata {
     pub cfg_scale: Option<f64>,
     pub seed: Option<i64>,
     pub sampler: Option<String>,
+    pub scheduler: Option<String>,
     pub generation_time_ms: Option<i64>,
     pub status: String,  // "pending", "processing", "completed", "failed"
     pub session_id: Option<String>,  // UUID for session tracking
@@ -122,6 +123,7 @@ pub struct GalleryImage {
     pub cfg_scale: Option<f64>,
     pub seed: Option<i64>,
     pub sampler: Option<String>,
+    pub scheduler: Option<String>,
     pub tags: Vec<String>,
     /// IDs of folders this image belongs to
     pub folder_ids: Vec<String>,
@@ -317,6 +319,12 @@ impl InferenceDb {
         // Add loras column if it doesn't exist (stores JSON array of {id, strength})
         self.conn.execute(
             "ALTER TABLE images ADD COLUMN loras TEXT",
+            [],
+        ).ok(); // Ignore if column already exists
+
+        // Add scheduler column if it doesn't exist
+        self.conn.execute(
+            "ALTER TABLE images ADD COLUMN scheduler TEXT",
             [],
         ).ok(); // Ignore if column already exists
 
@@ -767,10 +775,12 @@ mod tests {
             cfg_scale: Some(3.5),
             seed: Some(42),
             sampler: Some("Euler".to_string()),
+            scheduler: Some("Normal".to_string()),
             generation_time_ms: Some(5000),
             status: "completed".to_string(),
             session_id: Some("test-session".to_string()),
             updated_at: 1234567890,
+            loras: None,
         };
         db.insert_image(&test_metadata).unwrap();
 

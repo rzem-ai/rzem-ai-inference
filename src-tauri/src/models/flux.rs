@@ -385,7 +385,7 @@ impl FluxTransformer {
         on_step: Option<F>,
     ) -> Result<Tensor>
     where
-        F: Fn(usize, usize),
+        F: Fn(usize, usize, &Tensor),
     {
         // Create initial noise with seed for reproducibility
         let img = self.create_noise(height, width, seed)?;
@@ -463,7 +463,7 @@ fn denoise_euler_impl<F>(
     on_step: Option<&F>,
 ) -> Result<Tensor>
 where
-    F: Fn(usize, usize),
+    F: Fn(usize, usize, &Tensor),
 {
     let mut img = state.img.clone();
     let b_sz = img.dim(0)?;
@@ -497,7 +497,7 @@ where
 
         // Report progress for this step
         if let Some(callback) = on_step {
-            callback(i + 1, total_steps);
+            callback(i + 1, total_steps, &img);
         }
     }
 
@@ -514,7 +514,7 @@ fn denoise_euler_impl_q<F>(
     on_step: Option<&F>,
 ) -> Result<Tensor>
 where
-    F: Fn(usize, usize),
+    F: Fn(usize, usize, &Tensor),
 {
     let mut img = state.img.clone();
     let b_sz = img.dim(0)?;
@@ -548,7 +548,7 @@ where
 
         // Report progress for this step
         if let Some(callback) = on_step {
-            callback(i + 1, total_steps);
+            callback(i + 1, total_steps, &img);
         }
     }
 
@@ -566,7 +566,7 @@ fn denoise_euler_ancestral_impl<F>(
     on_step: Option<&F>,
 ) -> Result<Tensor>
 where
-    F: Fn(usize, usize),
+    F: Fn(usize, usize, &Tensor),
 {
     let mut img = state.img.clone();
     let b_sz = img.dim(0)?;
@@ -622,7 +622,7 @@ where
 
         // Report progress for this step
         if let Some(callback) = on_step {
-            callback(i + 1, total_steps);
+            callback(i + 1, total_steps, &img);
         }
     }
 
@@ -640,7 +640,7 @@ fn denoise_euler_ancestral_impl_q<F>(
     on_step: Option<&F>,
 ) -> Result<Tensor>
 where
-    F: Fn(usize, usize),
+    F: Fn(usize, usize, &Tensor),
 {
     let mut img = state.img.clone();
     let b_sz = img.dim(0)?;
@@ -696,7 +696,7 @@ where
 
         // Report progress for this step
         if let Some(callback) = on_step {
-            callback(i + 1, total_steps);
+            callback(i + 1, total_steps, &img);
         }
     }
 
@@ -713,7 +713,7 @@ fn denoise_dpm_pp_2m_impl<F>(
     on_step: Option<&F>,
 ) -> Result<Tensor>
 where
-    F: Fn(usize, usize),
+    F: Fn(usize, usize, &Tensor),
 {
     let mut img = state.img.clone();
     let b_sz = img.dim(0)?;
@@ -769,7 +769,7 @@ where
 
         // Report progress for this step
         if let Some(callback) = on_step {
-            callback(i + 1, total_steps);
+            callback(i + 1, total_steps, &img);
         }
     }
 
@@ -786,7 +786,7 @@ fn denoise_dpm_pp_2m_impl_q<F>(
     on_step: Option<&F>,
 ) -> Result<Tensor>
 where
-    F: Fn(usize, usize),
+    F: Fn(usize, usize, &Tensor),
 {
     let mut img = state.img.clone();
     let b_sz = img.dim(0)?;
@@ -842,7 +842,7 @@ where
 
         // Report progress for this step
         if let Some(callback) = on_step {
-            callback(i + 1, total_steps);
+            callback(i + 1, total_steps, &img);
         }
     }
 

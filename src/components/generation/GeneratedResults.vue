@@ -40,8 +40,21 @@
       </div>
 
       <!-- Skeleton placeholders for pending images -->
-      <FloatingLines v-for="skeletonIndex in pendingCount" :key="`skeleton-${skeletonIndex}`" class="" :style="getCellStyle(images.length + skeletonIndex - 1)">
-        <div class="flex flex-col items-center justify-center w-full h-full text-surface-900">
+      <FloatingLines v-for="(pending, skeletonIndex) in pendingImagesArray" :key="`skeleton-${pending.id}`" class="" :style="getCellStyle(images.length + skeletonIndex)">
+        <!-- Show preview if available, otherwise show "Drawing..." -->
+        <div v-if="pending.previewData" class="relative w-full h-full">
+          <img
+            :src="`data:image/jpeg;base64,${pending.previewData}`"
+            alt="Generation preview"
+            class="object-cover w-full h-full" />
+          <div class="absolute inset-0 flex items-center justify-center bg-black/30 backdrop-blur-[1px]">
+            <div class="px-4 py-2 text-sm font-medium text-white rounded-lg bg-blue-500/80 backdrop-blur-sm">
+              <fa :icon="['fas', 'sparkles']" class="mr-2" />
+              Generating...
+            </div>
+          </div>
+        </div>
+        <div v-else class="flex flex-col items-center justify-center w-full h-full text-surface-900">
           <div class="text-lg font-medium">Drawing <fa :icon="['fas', 'ellipsis']" fade /></div>
         </div>
       </FloatingLines>
@@ -64,9 +77,15 @@ interface GeneratedImage {
   src: string;
 }
 
+interface PendingImage {
+  id: string;
+  previewData?: string;
+}
+
 interface Props {
   images: GeneratedImage[];
   pendingCount?: number;
+  pendingImages?: PendingImage[];
 }
 
 interface Emits {
@@ -76,8 +95,18 @@ interface Emits {
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
+// Create array of pending images (use provided pendingImages or generate placeholders)
+const pendingImagesArray = computed(() => {
+  if (props.pendingImages && props.pendingImages.length > 0) {
+    return props.pendingImages;
+  }
+  // Fallback: create placeholder objects for pendingCount
+  const count = props.pendingCount || 0;
+  return Array.from({ length: count }, (_, i) => ({ id: `placeholder-${i}`, previewData: undefined }));
+});
+
 // Total slots to display (images + pending skeletons)
-const totalSlots = computed(() => props.images.length + (props.pendingCount || 0));
+const totalSlots = computed(() => props.images.length + pendingImagesArray.value.length);
 
 // Track image dimensions as they load
 const imageDimensions = ref<Map<number, { width: number; height: number }>>(new Map());

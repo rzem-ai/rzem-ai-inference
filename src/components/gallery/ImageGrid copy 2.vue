@@ -1,7 +1,7 @@
 <template>
   <div ref="containerRef" class="h-full pl-4" :class="{ 'scroll-container': true }">
     <CustomScrollbar class="pr-2">
-      <MasonryWall :items="shownImages" :column-width="320" :gap="20" :min-columns="1" :max-columns="8">
+      <MasonryWall :items="images" :column-width="320" :gap="20" :min-columns="1" :max-columns="8" >
         <template #default="{ item }">
           <div
             :style="{ height: `320px` }"
@@ -67,7 +67,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import type { GalleryImage } from '@/stores/gallery';
 import Image from 'primevue/image';
@@ -89,8 +89,6 @@ interface Props {
   currentFolderId?: string | null;
   currentFolderName?: string | null;
 }
-
-const shownImages = ref<GalleryImage[]>([]);
 
 const { images, selectedIds, currentFolderId, currentFolderName, folders } = defineProps<Props>();
 
@@ -208,23 +206,6 @@ const draggedImageIds = ref<Set<string>>(new Set());
 const containerRef = ref<HTMLElement | null>(null);
 const hoveredHeartId = ref<string | null>(null);
 
-// Track visibility state
-const isVisible = ref(false);
-let visibilityObserver: IntersectionObserver | null = null;
-
-// Expose isVisible for parent component access
-defineExpose({
-  isVisible,
-});
-
-// Log visibility changes
-watch(isVisible, (visible) => {
-  console.log(`[ImageGrid] Visibility changed: ${visible}`);
-  nextTick().then(() => {
-    shownImages.value = images.slice(0,1);
-  });
-});
-
 // Chunk images into rows based on column count
 
 const getImageSrc = (image: GalleryImage) => {
@@ -242,31 +223,9 @@ const getThumbnailSrc = (image: GalleryImage) => {
   return '';
 };
 
-onMounted(() => {
-  // Set up Intersection Observer to track visibility
-  if (containerRef.value) {
-    visibilityObserver = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          isVisible.value = entry.isIntersecting;
-        });
-      },
-      {
-        threshold: 0.1, // Consider visible when 10% of component is in viewport
-      },
-    );
+onMounted(() => {});
 
-    visibilityObserver.observe(containerRef.value);
-  }
-});
-
-onUnmounted(() => {
-  // Clean up Intersection Observer
-  if (visibilityObserver) {
-    visibilityObserver.disconnect();
-    visibilityObserver = null;
-  }
-});
+onUnmounted(() => {});
 
 const handleDragStart = (event: DragEvent, image: GalleryImage) => {
   if (!event.dataTransfer) return;
