@@ -46,6 +46,7 @@
     "lucide-vue-next": "^0.562.0",
     "marked": "^17.0.1",
     "ogl": "^1.0.11",
+    "perfect-scrollbar": "^1.5.5",
     "pinia": "^3.0.4",
     "primevue": "^4.5.4",
     "splitpanes": "^4.0.4",

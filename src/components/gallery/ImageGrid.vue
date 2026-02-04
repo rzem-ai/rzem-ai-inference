@@ -1,73 +1,72 @@
 <template>
-  <div ref="containerRef" class="h-full pl-4" :class="{ 'scroll-container': true }">
-    <CustomScrollbar class="pr-2">
-      <MasonryWall v-if="isVisible" :items="shownImages" :column-width="320" :gap="20" :min-columns="1" :max-columns="8">
-        <template #default="{ item }">
-          <div
-            :style="{ height: `320px` }"
-            class="border rounded-xl image-card bg-surface-800 shaddow hover:shadow-lg hover:border-blue-400 active:cursor-grabbing;"
-            :class="{
-              'border-blue-500! ': selectedIds.has(item.id),
-              'opacity-50 scale-95': isDragging && draggedImageIds.has(item.id),
-            }"
-            draggable="true"
-            @dragstart="handleDragStart($event, item)"
-            @dragend="handleDragEnd"
-            @contextmenu.prevent="handleContextMenu($event, item)">
-            <div class="absolute z-10 p-1 top-2 left-2">
-              <Checkbox :model-value="selectedIds.has(item.id)" @change="emit('select', item.id)" binary />
-            </div>
+  <div class="h-full pl-4 overflow-y-auto">
+    <CustomScrollbar class="h-full pr-2">
+      <div
+        class="grid grid-cols-2 gap-4 2xl:grid-cols-3 3xl:grid-cols-4 4xl:grid-cols-4 5xl:grid-cols-5 6xl:grid-cols-6 7xl:grid-cols-7 8xl:grid-cols-8 justify-items-center">
+        <div
+          v-for="item in images"
+          :style="{ height: `320px` }"
+          class="border rounded-xl image-card bg-surface-800 shaddow hover:shadow-lg hover:border-blue-400 active:cursor-grabbing;"
+          :class="{
+            'border-blue-500! ': selectedIds.has(item.id),
+            'opacity-50 scale-95': isDragging && draggedImageIds.has(item.id),
+          }"
+          draggable="true"
+          @dragstart="handleDragStart($event, item)"
+          @dragend="handleDragEnd"
+          @contextmenu.prevent="handleContextMenu($event, item)">
+          <div class="absolute z-10 p-1 top-2 left-2">
+            <Checkbox :model-value="selectedIds.has(item.id)" @change="emit('select', item.id)" binary />
+          </div>
 
-            <div class="absolute top-0 right-0 z-10 flex gap-1 p-0">
-              <div
-                class="p-2 backdrop-blur-xl"
-                @click.stop="emit('toggleFavorite', item.id)"
-                @mouseenter="hoveredHeartId = item.id"
-                @mouseleave="hoveredHeartId = null"
-                :title="item.isFavorite ? 'Remove from favorites' : 'Add to favorites'">
-                <div class="p-2 rounded-full bg-white/20 backdrop-blur-xl">
-                  <fa :icon="[hoveredHeartId === item.id || item.isFavorite ? 'fas' : 'far', 'heart']" size="xl" class="text-red-500" style="" />
-                </div>
+          <div class="absolute top-0 right-0 z-10 flex gap-1 p-0">
+            <div
+              class="p-2 backdrop-blur-xl"
+              @click.stop="emit('toggleFavorite', item.id)"
+              @mouseenter="hoveredHeartId = item.id"
+              @mouseleave="hoveredHeartId = null"
+              :title="item.isFavorite ? 'Remove from favorites' : 'Add to favorites'">
+              <div class="p-2 rounded-full bg-white/20 backdrop-blur-xl">
+                <fa :icon="[hoveredHeartId === item.id || item.isFavorite ? 'fas' : 'far', 'heart']" size="xl" class="text-red-500" style="" />
               </div>
-              <!--
+            </div>
+            <!--
             <Button severity="primary" variant="outlined" @click.stop="emit('addToCompare', item)" title="Add to compare">
               <template #icon><fa :icon="['fal', 'copy']" size="sm" /></template>
             </Button>
             -->
-            </div>
+          </div>
 
-            <div class="image-container">
-              <Image :src="getThumbnailSrc(item)" :preview-src="getImageSrc(item)" :alt="item.prompt" preview />
-
-              <!-- Drag overlay showing count -->
-              <div
-                v-if="isDragging && draggedImageIds.has(item.id) && draggedImageIds.size > 1"
-                class="absolute px-2 py-1 text-xs font-bold text-white bg-blue-600 rounded-full top-2 right-2">
-                {{ draggedImageIds.size }}
-              </div>
-            </div>
-
-            <div class="image-details-container" @click="emit('openDetail', item)">
-              <p class="m-0 mb-1 text-sm leading-5 text-white line-clamp-2">{{ item.prompt }}</p>
-              <div class="flex gap-3 text-xs text-surface-600 [&_span]:flex [&_span]:items-center">
-                <span>{{ item.width }}×{{ item.height }}</span>
-                <span>{{ item.modelName }}</span>
-                <span>{{ new Date(item.createdAt * 1000).toLocaleDateString() }}</span>
-                <span v-if="item.folderIds && item.folderIds.length > 0" class="text-amber-400">
-                  <fa :icon="['fal', 'folder']" size="xs" class="mr-1" />{{ item.folderIds.length }}
-                </span>
-              </div>
+          <div class="image-container">
+            <Image :src="getImageSrc(item)" :preview-src="getThumbnailSrc(item)" :alt="item.prompt" preview />
+            <!-- Drag overlay showing count -->
+            <div
+              v-if="isDragging && draggedImageIds.has(item.id) && draggedImageIds.size > 1"
+              class="absolute px-2 py-1 text-xs font-bold text-white bg-blue-600 rounded-full top-2 right-2">
+              {{ draggedImageIds.size }}
             </div>
           </div>
-        </template>
-      </MasonryWall>
+
+          <div class="image-details-container" @click="emit('openDetail', item)">
+            <p class="m-0 mb-1 text-sm leading-5 text-white line-clamp-2">{{ item.prompt }}</p>
+            <div class="flex gap-3 text-xs text-surface-600 [&_span]:flex [&_span]:items-center">
+              <span>{{ item.width }}×{{ item.height }}</span>
+              <span>{{ item.modelName }}</span>
+              <span>{{ new Date(item.createdAt * 1000).toLocaleDateString() }}</span>
+              <span v-if="item.folderIds && item.folderIds.length > 0" class="text-amber-400">
+                <fa :icon="['fal', 'folder']" size="xs" class="mr-1" />{{ item.folderIds.length }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
     </CustomScrollbar>
     <ContextMenu ref="contextMenuRef" :model="contextMenuItems" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import type { GalleryImage } from '@/stores/gallery';
 import Image from 'primevue/image';
@@ -89,8 +88,6 @@ interface Props {
   currentFolderId?: string | null;
   currentFolderName?: string | null;
 }
-
-const shownImages = ref<GalleryImage[]>([]);
 
 const { images, selectedIds, currentFolderId, currentFolderName, folders } = defineProps<Props>();
 
@@ -205,26 +202,8 @@ function handleContextMenu(event: MouseEvent, image: GalleryImage) {
 
 const isDragging = ref(false);
 const draggedImageIds = ref<Set<string>>(new Set());
-const containerRef = ref<HTMLElement | null>(null);
+
 const hoveredHeartId = ref<string | null>(null);
-
-// Track visibility state
-const isVisible = ref(false);
-let visibilityObserver: IntersectionObserver | null = null;
-
-// Expose isVisible for parent component access
-defineExpose({
-  isVisible,
-});
-
-// Log visibility changes
-watch(isVisible, (visible) => {
-  console.log(`[ImageGrid] Visibility changed: ${visible}`);
-  nextTick().then(() => {
-    //shownImages.value = images.slice(0,Math.min(images.length, 20));
-    shownImages.value = images;
-  });
-});
 
 // Chunk images into rows based on column count
 
@@ -243,33 +222,9 @@ const getThumbnailSrc = (image: GalleryImage) => {
   return '';
 };
 
-onMounted(() => {
-  console.log(`[ImageGrid] onMounted: ${isVisible.value}`);
-  // Set up Intersection Observer to track visibility
-  if (containerRef.value) {
-    visibilityObserver = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          console.log("added visibility observer for ", entry, entry.isIntersecting)
-          isVisible.value = entry.isIntersecting;
-        });
-      },
-      {
-        threshold: 0.1, // Consider visible when 10% of component is in viewport
-      },
-    );
+onMounted(() => {});
 
-    visibilityObserver.observe(containerRef.value);
-  }
-});
-
-onUnmounted(() => {
-  // Clean up Intersection Observer
-  if (visibilityObserver) {
-    visibilityObserver.disconnect();
-    visibilityObserver = null;
-  }
-});
+onUnmounted(() => {});
 
 const handleDragStart = (event: DragEvent, image: GalleryImage) => {
   if (!event.dataTransfer) return;
@@ -356,33 +311,6 @@ const handleDragEnd = () => {
 
 <style scoped>
 @reference "tailwindcss";
-
-.row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  margin-left: -0.5rem;
-}
-
-.row > * {
-  margin-left: 0.5rem;
-  display: inline-block;
-}
-
-.row + .row {
-  margin-top: 1rem;
-}
-
-.scroll-container {
-  overflow-y: auto;
-}
-
-.image-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 16px;
-  padding-bottom: 16px;
-}
 
 .image-card {
   position: relative;

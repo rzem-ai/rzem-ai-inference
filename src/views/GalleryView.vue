@@ -66,8 +66,16 @@
             </template>
           </div>
           <div>
-            <Button v-if="galleryStore.selectedImages.size == 0" title="Select All" severity="secondary" variant="outlined" @click="galleryStore.selectAll"><fa :icon="['fal', 'square-check']" size="sm" /></Button>
-            <Button v-if="galleryStore.selectedImages.size > 0" title="Clear Selection" severity="secondary" variant="outlined" @click="galleryStore.clearSelection" :disabled="galleryStore.selectedImages.size === 0">
+            <Button v-if="galleryStore.selectedImages.size == 0" title="Select All" severity="secondary" variant="outlined" @click="galleryStore.selectAll">
+              <fa :icon="['fal', 'square-check']" size="sm" />
+            </Button>
+            <Button
+              v-if="galleryStore.selectedImages.size > 0"
+              title="Clear Selection"
+              severity="secondary"
+              variant="outlined"
+              @click="galleryStore.clearSelection"
+              :disabled="galleryStore.selectedImages.size === 0">
               <fa :icon="['fal', 'xmark']" size="sm" />
             </Button>
             <span class="text-sm text-surface-200"> {{ galleryStore.selectedImages.size }} selected </span>
@@ -121,7 +129,7 @@
         </p>
       </div>
 
-       <!-- Preparing to render grid -->
+      <!-- Preparing to render grid -->
       <div v-else-if="!showImageGrid" class="flex flex-col items-center justify-center flex-1 gap-4 text-surface-200">
         <fa :icon="['fal', 'arrows-rotate']" size="lg" class="animate-spin" />
         <p>Preparing gallery...</p>
@@ -145,7 +153,7 @@
         @delete="handleDeleteImage" />
     </main>
 
-  <!-- Folder Form Dialog -->
+    <!-- Folder Form Dialog -->
     <FolderForm v-model:visible="folderFormVisible" :folder="editingFolder" :default-parent-id="defaultParentId" />
 
     <!-- Add to Folder Menu -->
