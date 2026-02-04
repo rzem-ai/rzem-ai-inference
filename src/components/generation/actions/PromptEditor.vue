@@ -18,7 +18,7 @@ import { useEditor, EditorContent } from '@tiptap/vue-3';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import { useChatbotStore } from '@/stores/chatbot';
-import CustomScrollbar from '@/components/CustomScrollbar.vue';
+import CustomScrollbar from '@/components/shared/CustomScrollbar.vue';
 
 const props = defineProps<{
   modelValue: string;

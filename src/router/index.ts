@@ -26,6 +26,23 @@ const router = createRouter({
       path: '/styles',
       name: 'styles',
       component: () => import('@/views/StylesView.vue'),
+      children: [
+        {
+          path: '',
+          name: 'styles-home',
+          component: () => import('@/components/styles/StylesHome.vue'),
+        },
+        {
+          path: 'create',
+          name: 'styles-create',
+          component: () => import('@/components/styles/StyleCreate.vue'),
+        },
+        {
+          path: 'style/:id',
+          name: 'styles-style',
+          component: () => import('@/components/styles/StyleEditor.vue'),
+        },
+      ],
     },
     {
       path: '/models',

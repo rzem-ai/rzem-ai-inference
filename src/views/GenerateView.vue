@@ -45,10 +45,17 @@
           </ToggleButton>
         </div>
         <div class="flex flex-col gap-2 py-2">
-          <SplitButton :loading="queueStore.hasRunningJobs" raised fluid size="small" @click="handleGenerate" :model="generationCounts" :disabled="!canGenerate">
+          <SplitButton
+            :loading="queueStore.hasRunningJobs"
+            raised
+            fluid
+            size="small"
+            @click="handleGenerate"
+            :model="generationCounts"
+            :disabled="!canGenerate">
             {{ queueStore.queueLength > 0 ? `Generate` : 'Generate' }} ( {{ imageCount }} )
           </SplitButton>
-          <Button  severity="help" size="small" fluid @click="showBatchDialog = true"><fa :icon="['fal', 'list']" size="sm" /> Batch Script</Button>
+          <Button severity="help" size="small" fluid @click="showBatchDialog = true"><fa :icon="['fal', 'list']" size="sm" /> Batch Script</Button>
         </div>
       </template>
 
@@ -63,7 +70,7 @@
 
     <!-- Chatbot Panel (expands from sidebar, positioned between sidebar and main content) -->
     <Transition name="expand">
-      <div v-if="chatStore.isPanelOpen" class="flex flex-col h-full w-80 min-w-80 shrink-0">
+      <div v-if="chatStore.isPanelOpen" class="flex flex-col h-full w-100 min-w-80 shrink-0">
         <div class="h-full px-1 py-2 chat-panel-fade-in">
           <ChatPanel />
         </div>
@@ -398,7 +405,7 @@ const handleGenerate = async () => {
         //loras: [{ id: '098df4c8-384b-426d-a257-20bae1dc9327', strength: 1 }],
       };
 
-      console.log(queueParams);
+      console.log('queueParams:', queueParams);
 
       const jobId = await queueStore.addToQueue(queueParams);
       currentBatchJobIds.value.add(jobId);

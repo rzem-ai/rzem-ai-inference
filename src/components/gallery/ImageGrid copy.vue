@@ -1,67 +1,63 @@
 <template>
-  <div ref="containerRef" class="h-full pl-4" :class="{ 'scroll-container': true }">
-    <CustomScrollbar class="pr-2">
-      <MasonryWall :items="images" :column-width="320" :gap="20" :min-columns="1" :max-columns="8" >
-        <template #default="{ item }">
+  <div ref="containerRef" class="w-full h-full overflow-hidden">
+    <VirtualScroller :items="imageRows" :itemSize="ROW_HEIGHT" class="virtual-scroller" :pt="{ content: { class: 'virtual-content' } }">
+      <template #item="{ item: row }">
+        <div class="image-row" :style="{ height: ROW_HEIGHT + 'px' }">
           <div
-            :style="{ height: `320px` }"
+            v-for="image in row"
+            :key="image.id"
             class="border rounded-xl image-card bg-surface-800 shaddow hover:shadow-lg hover:border-blue-400 active:cursor-grabbing;"
             :class="{
-              'border-blue-500! ': selectedIds.has(item.id),
-              'opacity-50 scale-95': isDragging && draggedImageIds.has(item.id),
+              'border-blue-500! ': selectedIds.has(image.id),
+              'opacity-50 scale-95': isDragging && draggedImageIds.has(image.id),
             }"
             draggable="true"
-            @dragstart="handleDragStart($event, item)"
+            @dragstart="handleDragStart($event, image)"
             @dragend="handleDragEnd"
-            @contextmenu.prevent="handleContextMenu($event, item)">
+            @contextmenu.prevent="handleContextMenu($event, image)">
             <div class="absolute z-10 p-1 top-2 left-2">
-              <Checkbox :model-value="selectedIds.has(item.id)" @change="emit('select', item.id)" binary />
+              <Checkbox :model-value="selectedIds.has(image.id)" @change="emit('select', image.id)" binary />
             </div>
 
-            <div class="absolute top-0 right-0 z-10 flex gap-1 p-0">
-              <div
-                class="p-2 backdrop-blur-xl"
-                @click.stop="emit('toggleFavorite', item.id)"
-                @mouseenter="hoveredHeartId = item.id"
-                @mouseleave="hoveredHeartId = null"
-                :title="item.isFavorite ? 'Remove from favorites' : 'Add to favorites'">
-                <div class="p-2 rounded-full bg-white/20 backdrop-blur-xl">
-                  <fa :icon="[hoveredHeartId === item.id || item.isFavorite ? 'fas' : 'far', 'heart']" size="xl" class="text-red-500" style="" />
-                </div>
-              </div>
-              <!--
-            <Button severity="primary" variant="outlined" @click.stop="emit('addToCompare', item)" title="Add to compare">
-              <template #icon><fa :icon="['fal', 'copy']" size="sm" /></template>
-            </Button>
-            -->
+            <div class="absolute z-10 flex gap-1 p-1 top-2 right-2">
+              <Button
+                :severity="image.isFavorite ? 'danger' : 'primary'"
+                variant="outlined"
+                @click.stop="emit('toggleFavorite', image.id)"
+                :title="image.isFavorite ? 'Remove from favorites' : 'Add to favorites'">
+                <template #icon><fa :icon="['fal', 'heart']" size="sm" /></template>
+              </Button>
+              <Button severity="primary" variant="outlined" @click.stop="emit('addToCompare', image)" title="Add to compare">
+                <template #icon><fa :icon="['fal', 'copy']" size="sm" /></template>
+              </Button>
             </div>
 
             <div class="image-container">
-              <Image :src="getImageSrc(item)" :preview-src="getThumbnailSrc(item)" :alt="item.prompt" preview />
+              <Image :src="getImageSrc(image)" :preview-src="getThumbnailSrc(image)" :alt="image.prompt" preview />
 
               <!-- Drag overlay showing count -->
               <div
-                v-if="isDragging && draggedImageIds.has(item.id) && draggedImageIds.size > 1"
+                v-if="isDragging && draggedImageIds.has(image.id) && draggedImageIds.size > 1"
                 class="absolute px-2 py-1 text-xs font-bold text-white bg-blue-600 rounded-full top-2 right-2">
                 {{ draggedImageIds.size }}
               </div>
             </div>
 
-            <div class="image-details-container" @click="emit('openDetail', item)">
-              <p class="m-0 mb-1 text-sm leading-5 text-white line-clamp-2">{{ item.prompt }}</p>
-              <div class="flex gap-3 text-xs text-surface-600 [&_span]:flex [&_span]:items-center">
-                <span>{{ item.width }}×{{ item.height }}</span>
-                <span>{{ item.modelName }}</span>
-                <span>{{ new Date(item.createdAt * 1000).toLocaleDateString() }}</span>
-                <span v-if="item.folderIds && item.folderIds.length > 0" class="text-amber-400">
-                  <fa :icon="['fal', 'folder']" size="xs" class="mr-1" />{{ item.folderIds.length }}
+            <div class="image-details-container" @click="emit('openDetail', image)">
+              <p class="m-0 mb-1 text-sm leading-5 text-white line-clamp-2">{{ image.prompt }}</p>
+              <div class="flex gap-3 text-xs text-surface-300 [&_span]:flex [&_span]:items-center">
+                <span>{{ image.width }}×{{ image.height }}</span>
+                <span>{{ image.modelName }}</span>
+                <span>{{ new Date(image.createdAt * 1000).toLocaleDateString() }}</span>
+                <span v-if="image.folderIds && image.folderIds.length > 0" class="text-amber-400">
+                  <fa :icon="['fal', 'folder']" size="xs" class="mr-1" />{{ image.folderIds.length }}
                 </span>
               </div>
             </div>
           </div>
-        </template>
-      </MasonryWall>
-    </CustomScrollbar>
+        </div>
+      </template>
+    </VirtualScroller>
     <ContextMenu ref="contextMenuRef" :model="contextMenuItems" />
   </div>
 </template>
@@ -72,9 +68,14 @@ import { convertFileSrc } from '@tauri-apps/api/core';
 import type { GalleryImage } from '@/stores/gallery';
 import Image from 'primevue/image';
 import Checkbox from 'primevue/checkbox';
-
+import Button from 'primevue/button';
+import VirtualScroller from 'primevue/virtualscroller';
 import ContextMenu from 'primevue/contextmenu';
-import CustomScrollbar from '../shared/CustomScrollbar.vue';
+
+const CARD_MIN_WIDTH = 280;
+const CARD_GAP = 16;
+const CONTAINER_PADDING = 16;
+const ROW_HEIGHT = 320; // Approximate height of each card
 
 interface FolderOption {
   id: string;
@@ -85,12 +86,16 @@ interface FolderOption {
 interface Props {
   images: GalleryImage[];
   selectedIds: Set<string>;
-  folders: FolderOption[];
+  folders?: FolderOption[];
   currentFolderId?: string | null;
   currentFolderName?: string | null;
 }
 
-const { images, selectedIds, currentFolderId, currentFolderName, folders } = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  folders: () => [],
+  currentFolderId: null,
+  currentFolderName: null,
+});
 
 const emit = defineEmits<{
   select: [imageId: string];
@@ -109,11 +114,11 @@ const contextMenuImageId = ref<string | null>(null);
 const getImageIds = () => {
   if (!contextMenuImageId.value) return [];
   // If clicked image is selected, use all selected images; otherwise just this image
-  return selectedIds.has(contextMenuImageId.value) ? Array.from(selectedIds) : [contextMenuImageId.value];
+  return props.selectedIds.has(contextMenuImageId.value) ? Array.from(props.selectedIds) : [contextMenuImageId.value];
 };
 
 const contextMenuItems = computed(() => {
-  const folderItems = folders.map((folder) => ({
+  const folderItems = props.folders.map((folder) => ({
     label: folder.path.length > 0 ? `${folder.path.join(' / ')} / ${folder.name}` : folder.name,
     icon: 'pi pi-folder',
     command: () => {
@@ -137,7 +142,7 @@ const contextMenuItems = computed(() => {
       label: 'Open',
       icon: 'pi pi-eye',
       command: () => {
-        const image = images.find((img) => img.id === contextMenuImageId.value);
+        const image = props.images.find((img) => img.id === contextMenuImageId.value);
         if (image) emit('openDetail', image);
       },
     },
@@ -145,7 +150,7 @@ const contextMenuItems = computed(() => {
       label: 'Add to Compare',
       icon: 'pi pi-copy',
       command: () => {
-        const image = images.find((img) => img.id === contextMenuImageId.value);
+        const image = props.images.find((img) => img.id === contextMenuImageId.value);
         if (image) emit('addToCompare', image);
       },
     },
@@ -173,25 +178,28 @@ const contextMenuItems = computed(() => {
   ];
 
   // Add "Remove from Folder" option when viewing a specific folder
-  if (currentFolderId && currentFolderName) {
+  if (props.currentFolderId && props.currentFolderName) {
     menuItems.push({
-      label: `Remove from ${currentFolderName}`,
+      label: `Remove from ${props.currentFolderName}`,
       icon: 'pi pi-folder-open',
       command: () => {
         const imageIds = getImageIds();
-        emit('removeFromFolder', imageIds, currentFolderId!);
+        emit('removeFromFolder', imageIds, props.currentFolderId!);
       },
     });
   }
 
-  menuItems.push({ separator: true }, {
-    label: 'Delete',
-    icon: 'pi pi-trash',
-    style: { color: 'rgb(248 113 113)' },
-    command: () => {
-      if (contextMenuImageId.value) emit('delete', contextMenuImageId.value);
-    },
-  } as any);
+  menuItems.push(
+    { separator: true },
+    {
+      label: 'Delete',
+      icon: 'pi pi-trash',
+      style: { color: 'rgb(248 113 113)' },
+      command: () => {
+        if (contextMenuImageId.value) emit('delete', contextMenuImageId.value);
+      },
+    } as any,
+  );
 
   return menuItems;
 });
@@ -204,9 +212,16 @@ function handleContextMenu(event: MouseEvent, image: GalleryImage) {
 const isDragging = ref(false);
 const draggedImageIds = ref<Set<string>>(new Set());
 const containerRef = ref<HTMLElement | null>(null);
-const hoveredHeartId = ref<string | null>(null);
+const columnCount = ref(4);
 
 // Chunk images into rows based on column count
+const imageRows = computed(() => {
+  const rows: GalleryImage[][] = [];
+  for (let i = 0; i < props.images.length; i += columnCount.value) {
+    rows.push(props.images.slice(i, i + columnCount.value));
+  }
+  return rows;
+});
 
 const getImageSrc = (image: GalleryImage) => {
   const path = image.filePath || image.thumbnailPath || '';
@@ -223,9 +238,27 @@ const getThumbnailSrc = (image: GalleryImage) => {
   return '';
 };
 
-onMounted(() => {});
+// Calculate column count based on container width
+const updateColumnCount = () => {
+  if (!containerRef.value) return;
+  const containerWidth = containerRef.value.clientWidth - CONTAINER_PADDING * 2;
+  const cols = Math.max(1, Math.floor((containerWidth + CARD_GAP) / (CARD_MIN_WIDTH + CARD_GAP)));
+  columnCount.value = cols;
+};
 
-onUnmounted(() => {});
+let resizeObserver: ResizeObserver | null = null;
+
+onMounted(() => {
+  updateColumnCount();
+  resizeObserver = new ResizeObserver(updateColumnCount);
+  if (containerRef.value) {
+    resizeObserver.observe(containerRef.value);
+  }
+});
+
+onUnmounted(() => {
+  resizeObserver?.disconnect();
+});
 
 const handleDragStart = (event: DragEvent, image: GalleryImage) => {
   if (!event.dataTransfer) return;
@@ -233,8 +266,8 @@ const handleDragStart = (event: DragEvent, image: GalleryImage) => {
   // If dragging a selected image, drag all selected images
   // Otherwise, just drag this single image
   let imageIds: string[];
-  if (selectedIds.has(image.id)) {
-    imageIds = Array.from(selectedIds);
+  if (props.selectedIds.has(image.id)) {
+    imageIds = Array.from(props.selectedIds);
   } else {
     imageIds = [image.id];
   }
@@ -313,24 +346,19 @@ const handleDragEnd = () => {
 <style scoped>
 @reference "tailwindcss";
 
-.row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  margin-left: -0.5rem;
+.virtual-grid-container {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
 }
 
-.row > * {
-  margin-left: 0.5rem;
-  display: inline-block;
+.virtual-scroller {
+  height: 100%;
+  width: 100%;
 }
 
-.row + .row {
-  margin-top: 1rem;
-}
-
-.scroll-container {
-  overflow-y: auto;
+.virtual-scroller :deep(.p-virtualscroller-content) {
+  padding: 16px;
 }
 
 .image-row {
