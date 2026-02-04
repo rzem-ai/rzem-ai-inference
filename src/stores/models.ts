@@ -63,6 +63,8 @@ export const useModelsStore = defineStore('models', {
     loras: [] as LoRA[],
     lorasLoading: false,
     lorasError: null as string | null,
+    isInitialized: false,
+    error: null as string | null,
   }),
 
   getters: {
@@ -89,6 +91,33 @@ export const useModelsStore = defineStore('models', {
   },
 
   actions: {
+    // Standard initialization method
+    async initialize(): Promise<void> {
+      // Guard: only initialize once
+      if (this.isInitialized) {
+        return
+      }
+
+      this.error = null
+
+      try {
+        // Load both models and LoRAs
+        await this.loadModels()
+        await this.loadLoras()
+        this.isInitialized = true
+      } catch (err) {
+        this.error = err instanceof Error ? err.message : String(err)
+        console.error('[ModelsStore] Initialization failed:', err)
+        throw err
+      }
+    },
+
+    // Force reload (for manual refresh)
+    async reload(): Promise<void> {
+      this.isInitialized = false
+      await this.initialize()
+    },
+
     async loadModels() {
       this.models = await invoke<ModelInfo[]>('get_all_models');
     },

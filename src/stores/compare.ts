@@ -5,6 +5,7 @@ export const useCompareStore = defineStore('compare', {
   state: () => ({
     compareImages: [] as GalleryImage[],
     maxCompareImages: 4,
+    isInitialized: false,
   }),
 
   getters: {
@@ -18,6 +19,13 @@ export const useCompareStore = defineStore('compare', {
   },
 
   actions: {
+    // Minimal initialization (no backend calls needed)
+    async initialize(): Promise<void> {
+      if (this.isInitialized) return
+      // No-op - compare state is local UI state
+      this.isInitialized = true
+    },
+
     addToCompare(image: GalleryImage): boolean {
       if (this.compareImages.length >= this.maxCompareImages) {
         return false

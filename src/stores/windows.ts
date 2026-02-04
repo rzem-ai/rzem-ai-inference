@@ -7,9 +7,17 @@ export const useWindowsStore = defineStore('windows', {
     mainHeight: 0,
     navHeight: 0,
     windowsHeight: 0,
+    isInitialized: false,
   }),
 
   actions: {
+    // Minimal initialization (no backend calls needed)
+    async initialize(): Promise<void> {
+      if (this.isInitialized) return
+      // No-op - window dimensions managed by App.vue
+      this.isInitialized = true
+    },
+
     setMainHeight(height: number) {
       this.mainHeight = height;
     },

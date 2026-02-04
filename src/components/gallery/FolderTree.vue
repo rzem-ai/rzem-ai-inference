@@ -5,12 +5,19 @@
       <span class="text-xs font-semibold tracking-wide uppercase text-surface-500">Folders</span>
     </div>
 
-    <!-- Folder Tree -->
-    <div v-if="foldersStore.folders.length === 0" class="flex flex-col items-center gap-3 p-4 text-center">
+    <!-- Loading State -->
+    <div v-if="foldersStore.isLoading" class="flex flex-col items-center gap-3 p-4 text-center">
+      <fa :icon="['fal', 'arrows-rotate']" size="lg" class="animate-spin text-surface-500" />
+      <div class="text-sm text-surface-500">Loading folders...</div>
+    </div>
+
+    <!-- Empty State -->
+    <div v-else-if="foldersStore.folders.length === 0" class="flex flex-col items-center gap-3 p-4 text-center">
       <div class="text-sm text-surface-500">No folders yet</div>
       <Button label="Create First Folder" size="small" @click="emit('createFolder')" />
     </div>
 
+    <!-- Folder List -->
     <div v-else class="flex-1 px-2 pb-2 overflow-y-auto">
       <FolderTreeNode
         v-for="(folder, index) in foldersStore.folders"

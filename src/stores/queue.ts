@@ -109,6 +109,7 @@ export const useQueueStore = defineStore('queue', {
     isPolling: false,
     pollingInterval: null as number | null,
     error: null as string | null,
+    isInitialized: false,
     jobUpdates: null as ReturnType<typeof useJobUpdates> | null,
   }),
 
@@ -139,6 +140,33 @@ export const useQueueStore = defineStore('queue', {
   },
 
   actions: {
+    // Standard initialization method
+    async initialize(): Promise<void> {
+      // Guard: only initialize once
+      if (this.isInitialized) {
+        return
+      }
+
+      try {
+        // Load initial data
+        await this.refreshJobs()
+
+        // Initialize event listeners
+        await this.initializeEventListeners()
+
+        this.isInitialized = true
+      } catch (err) {
+        console.error('[QueueStore] Initialization failed:', err)
+        throw err
+      }
+    },
+
+    // Cleanup (called on app close, not navigation)
+    cleanup() {
+      this.cleanupEventListeners()
+      this.isInitialized = false
+    },
+
     // Initialize event listeners
     async initializeEventListeners() {
       if (this.jobUpdates) return; // Already initialized
@@ -225,7 +253,8 @@ export const useQueueStore = defineStore('queue', {
             this.jobs[jobIndex].totalSteps = total_steps;
           }
           // Update preview if included
-          if (preview_data) {
+          if (preview_data && preview_data !== this.jobs[jobIndex].previewData) {
+            console.log(`[Queue Store] Preview UPDATE for job ${job_id.substring(0,8)} at step ${current_step}/${total_steps}, size: ${preview_data.length} chars`);
             this.jobs[jobIndex].previewData = preview_data;
           }
         }

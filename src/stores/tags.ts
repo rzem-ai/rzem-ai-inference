@@ -13,6 +13,8 @@ export const useTagsStore = defineStore('tags', {
   state: () => ({
     tags: [] as Tag[],
     isLoading: false,
+    isInitialized: false,
+    error: null as string | null,
   }),
 
   getters: {
@@ -46,6 +48,31 @@ export const useTagsStore = defineStore('tags', {
   },
 
   actions: {
+    // Standard initialization method
+    async initialize(): Promise<void> {
+      // Guard: only initialize once
+      if (this.isInitialized) {
+        return
+      }
+
+      this.error = null
+
+      try {
+        await this.loadTags()
+        this.isInitialized = true
+      } catch (err) {
+        this.error = err instanceof Error ? err.message : String(err)
+        console.error('[TagsStore] Initialization failed:', err)
+        throw err
+      }
+    },
+
+    // Force reload (for manual refresh)
+    async reload(): Promise<void> {
+      this.isInitialized = false
+      await this.initialize()
+    },
+
     async loadTags(): Promise<void> {
       this.isLoading = true
       try {
@@ -53,6 +80,7 @@ export const useTagsStore = defineStore('tags', {
         this.tags = result
       } catch (error) {
         console.error('Failed to load tags:', error)
+        throw error
       } finally {
         this.isLoading = false
       }

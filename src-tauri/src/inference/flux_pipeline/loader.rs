@@ -1,6 +1,7 @@
 //! Model loading logic for FluxPipeline
 
 use anyhow::Result;
+use std::sync::Arc;
 
 #[allow(unused_imports)]
 use tracing::{debug, info, warn};
@@ -438,10 +439,10 @@ impl FluxPipeline {
         let vae_timer = Timer::start();
         let mem_before = get_gpu_memory_stats();
 
-        self.vae = Some(VaeDecoder::load(
+        self.vae = Some(Arc::new(VaeDecoder::load(
             &model_path,
             self.device.clone(),
-        )?);
+        )?));
 
         let elapsed = vae_timer.stop();
         stats.vae_load_ms = Some(elapsed);

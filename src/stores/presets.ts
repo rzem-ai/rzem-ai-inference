@@ -5,6 +5,7 @@ import { useModelsStore } from './models'
 
 export const usePresetsStore = defineStore('presets', {
   state: () => ({
+    isInitialized: false,
     presets: [
       {
         id: 'default',
@@ -55,6 +56,13 @@ export const usePresetsStore = defineStore('presets', {
   }),
 
   actions: {
+    // Minimal initialization (no backend calls needed)
+    async initialize(): Promise<void> {
+      if (this.isInitialized) return
+      // No-op - presets are hardcoded in state
+      this.isInitialized = true
+    },
+
     savePreset(name: string) {
       const generationStore = useGenerationStore()
       const modelsStore = useModelsStore()

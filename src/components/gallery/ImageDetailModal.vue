@@ -57,6 +57,10 @@
             <span class="text-xs text-surface-500">Sampler</span>
             <span class="text-sm font-medium text-surface-200">{{ image.sampler }}</span>
           </div>
+          <div v-if="image.scheduler" class="flex flex-col gap-0.5">
+            <span class="text-xs text-surface-500">Scheduler</span>
+            <span class="text-sm font-medium text-surface-200">{{ image.scheduler }}</span>
+          </div>
           <div class="flex flex-col gap-0.5">
             <span class="text-xs text-surface-500">Created</span>
             <span class="text-sm font-medium text-surface-200">{{ formatDate(image.createdAt) }}</span>
@@ -113,12 +117,20 @@
 
     <template #footer>
       <div class="flex justify-between w-full">
-        <Button
-          :severity="image?.isFavorite ? 'danger' : 'secondary'"
-          @click="toggleFavorite"
-          :label="image?.isFavorite ? 'Remove from Favorites' : 'Add to Favorites'">
-          <fa :icon="[image?.isFavorite ? 'fas' : 'fal', 'heart']" size="sm" />
-        </Button>
+        <div class="flex gap-2">
+          <Button
+            :severity="image?.isFavorite ? 'danger' : 'secondary'"
+            @click="toggleFavorite"
+            :label="image?.isFavorite ? 'Remove from Favorites' : 'Add to Favorites'">
+            <fa :icon="[image?.isFavorite ? 'fas' : 'fal', 'heart']" size="sm" />
+          </Button>
+          <Button
+            label="Use Prompt"
+            severity="info"
+            @click="usePrompt">
+            <fa :icon="['fal', 'wand-magic-sparkles']" size="sm" class="mr-2" />
+          </Button>
+        </div>
         <Button label="Close" severity="secondary" @click="visibleModel = false" />
       </div>
     </template>
@@ -128,9 +140,12 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
 import { convertFileSrc } from '@tauri-apps/api/core';
+import { useRouter } from 'vue-router';
 import { useGalleryStore, type GalleryImage } from '@/stores/gallery';
 import { useFoldersStore } from '@/stores/folders';
 import { useTagsStore } from '@/stores/tags';
+import { useGenerationStore } from '@/stores/generation';
+import { useModelsStore } from '@/stores/models';
 import Dialog from 'primevue/dialog';
 import Image from 'primevue/image';
 import Chip from 'primevue/chip';
@@ -148,9 +163,12 @@ const emit = defineEmits<{
   (e: 'update:image', value: GalleryImage | null): void;
 }>();
 
+const router = useRouter();
 const galleryStore = useGalleryStore();
 const foldersStore = useFoldersStore();
 const tagsStore = useTagsStore();
+const generationStore = useGenerationStore();
+const modelsStore = useModelsStore();
 
 const visibleModel = computed({
   get: () => props.visible,
@@ -226,6 +244,55 @@ const toggleFavorite = async () => {
   if (!props.image) return;
   await galleryStore.toggleFavorite(props.image.id);
   emit('update:image', { ...props.image, isFavorite: !props.image.isFavorite });
+};
+
+const usePrompt = async () => {
+  if (!props.image) return;
+
+  // Map image metadata to generation parameters
+  generationStore.currentParams.prompt = props.image.prompt;
+  generationStore.currentParams.negativePrompt = props.image.negativePrompt || '';
+
+  if (props.image.width) generationStore.currentParams.width = props.image.width;
+  if (props.image.height) generationStore.currentParams.height = props.image.height;
+  if (props.image.steps) generationStore.currentParams.steps = props.image.steps;
+  if (props.image.cfgScale) generationStore.currentParams.cfgScale = props.image.cfgScale;
+  if (props.image.seed) generationStore.currentParams.seed = props.image.seed;
+  if (props.image.sampler) generationStore.currentParams.sampler = props.image.sampler as any;
+  if (props.image.scheduler) generationStore.currentParams.scheduler = props.image.scheduler as any;
+
+  // Map model name to model type (schnell or dev)
+  if (props.image.modelName) {
+    const modelName = props.image.modelName.toLowerCase();
+    if (modelName.includes('schnell')) {
+      generationStore.currentParams.modelType = 'schnell';
+    } else if (modelName.includes('dev')) {
+      generationStore.currentParams.modelType = 'dev';
+    }
+  }
+
+  // Apply LoRAs if present
+  if (props.image.loras && props.image.loras.length > 0) {
+    // First, deactivate all LoRAs
+    modelsStore.loras.forEach((lora) => {
+      lora.isActive = false;
+    });
+
+    // Then activate and configure LoRAs from the image
+    props.image.loras.forEach((imageLora) => {
+      const lora = modelsStore.loras.find((l) => l.id === imageLora.id);
+      if (lora) {
+        lora.isActive = true;
+        lora.strength = imageLora.strength;
+      }
+    });
+  }
+
+  // Close the modal
+  visibleModel.value = false;
+
+  // Navigate to generation page
+  await router.push('/generate');
 };
 
 const formatDate = (timestamp: number): string => {
