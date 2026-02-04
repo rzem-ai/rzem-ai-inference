@@ -25,16 +25,14 @@
       @dragover.prevent="handleDragOver"
       @dragleave="handleDragLeave"
       @drop="handleDrop">
-      <!-- Expand/Collapse Toggle -->
-      <Button v-if="folder.children.length > 0" class="expand-btn" @click.stop="emit('toggleExpand', folder.id)">
-        <fa v-if="isExpanded" :icon="['fal', 'chevron-down']" size="sm" />
-        <fa v-else :icon="['fal', 'chevron-up']" size="sm" />
-      </Button>
-      <span v-else class="w-5"></span>
+
 
       <!-- Folder Icon -->
-      <fa v-if="isExpanded && folder.children.length > 0" :icon="['fal', 'folder-open']" size="sm" :style="folder.color ? { color: folder.color } : {}" />
-      <fa v-else :icon="['fal', 'folder']" size="sm" :style="folder.color ? { color: folder.color } : {}" />
+      <fa v-if="isExpanded && folder.children.length > 0 && activeId === folder.id" :icon="['fas', 'folder-open']" size="lg" :style="folder.color ? { color: folder.color } : {}" @click.stop="emit('toggleExpand', folder.id)"/>
+      <fa v-else-if="isExpanded && folder.children.length > 0" :icon="['fas', 'folder-arrow-down']" size="lg" :style="folder.color ? { color: folder.color } : {}" @click.stop="emit('toggleExpand', folder.id)"/>
+      <fa v-else-if="folder.children.length > 0" :icon="['fas', 'folder-plus']" size="lg" :style="folder.color ? { color: folder.color } : {}" @click.stop="emit('toggleExpand', folder.id)"/>
+      <fa v-else-if="activeId === folder.id" :icon="['fas', 'folder-open']" size="lg" :style="folder.color ? { color: folder.color } : {}"/>
+      <fa v-else :icon="['fas', 'folder']" size="lg" :style="folder.color ? { color: folder.color } : {}" />
 
       <!-- Folder Name -->
       <span class="flex-1 text-sm truncate">{{ folder.name }}</span>

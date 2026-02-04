@@ -6,7 +6,7 @@
     :style="{ width: '900px', maxWidth: '95vw' }"
     :closable="true"
     :draggable="false"
-    class="image-detail-modal">
+    class="image-detail-modal bg-surface-950">
     <div v-if="image" class="flex gap-6 max-md:flex-col">
       <!-- Image Preview -->
       <div class="shrink-0 w-100 max-md:w-full">
@@ -21,55 +21,55 @@
       <div class="flex flex-col flex-1 gap-4 overflow-y-auto max-h-125">
         <!-- Prompt -->
         <div class="flex flex-col gap-2">
-          <label class="text-xs font-semibold tracking-wide text-gray-400 uppercase">Prompt</label>
-          <p class="text-sm leading-relaxed text-gray-200 wrap-break-word">{{ image.prompt }}</p>
+          <label class="text-xs font-semibold tracking-wide uppercase text-surface-400">Prompt</label>
+          <p class="text-sm leading-relaxed text-surface-200 wrap-break-word">{{ image.prompt }}</p>
         </div>
 
         <!-- Negative Prompt -->
         <div v-if="image.negativePrompt" class="flex flex-col gap-2">
-          <label class="text-xs font-semibold tracking-wide text-gray-400 uppercase">Negative Prompt</label>
-          <p class="text-sm leading-relaxed text-gray-200 wrap-break-word">{{ image.negativePrompt }}</p>
+          <label class="text-xs font-semibold tracking-wide uppercase text-surface-400">Negative Prompt</label>
+          <p class="text-sm leading-relaxed text-surface-200 wrap-break-word">{{ image.negativePrompt }}</p>
         </div>
 
         <!-- Generation Parameters Grid -->
         <div class="grid grid-cols-2 gap-3">
           <div class="flex flex-col gap-0.5">
-            <span class="text-xs text-gray-500">Model</span>
-            <span class="text-sm font-medium text-gray-200">{{ image.modelName }}</span>
+            <span class="text-xs text-surface-500">Model</span>
+            <span class="text-sm font-medium text-surface-200">{{ image.modelName }}</span>
           </div>
           <div class="flex flex-col gap-0.5">
-            <span class="text-xs text-gray-500">Size</span>
-            <span class="text-sm font-medium text-gray-200">{{ image.width }} × {{ image.height }}</span>
+            <span class="text-xs text-surface-500">Size</span>
+            <span class="text-sm font-medium text-surface-200">{{ image.width }} × {{ image.height }}</span>
           </div>
           <div v-if="image.steps" class="flex flex-col gap-0.5">
-            <span class="text-xs text-gray-500">Steps</span>
-            <span class="text-sm font-medium text-gray-200">{{ image.steps }}</span>
+            <span class="text-xs text-surface-500">Steps</span>
+            <span class="text-sm font-medium text-surface-200">{{ image.steps }}</span>
           </div>
           <div v-if="image.cfgScale" class="flex flex-col gap-0.5">
-            <span class="text-xs text-gray-500">CFG Scale</span>
-            <span class="text-sm font-medium text-gray-200">{{ image.cfgScale }}</span>
+            <span class="text-xs text-surface-500">CFG Scale</span>
+            <span class="text-sm font-medium text-surface-200">{{ image.cfgScale }}</span>
           </div>
           <div v-if="image.seed" class="flex flex-col gap-0.5">
-            <span class="text-xs text-gray-500">Seed</span>
-            <span class="text-sm font-medium text-gray-200">{{ image.seed }}</span>
+            <span class="text-xs text-surface-500">Seed</span>
+            <span class="text-sm font-medium text-surface-200">{{ image.seed }}</span>
           </div>
           <div v-if="image.sampler" class="flex flex-col gap-0.5">
-            <span class="text-xs text-gray-500">Sampler</span>
-            <span class="text-sm font-medium text-gray-200">{{ image.sampler }}</span>
+            <span class="text-xs text-surface-500">Sampler</span>
+            <span class="text-sm font-medium text-surface-200">{{ image.sampler }}</span>
           </div>
           <div class="flex flex-col gap-0.5">
-            <span class="text-xs text-gray-500">Created</span>
-            <span class="text-sm font-medium text-gray-200">{{ formatDate(image.createdAt) }}</span>
+            <span class="text-xs text-surface-500">Created</span>
+            <span class="text-sm font-medium text-surface-200">{{ formatDate(image.createdAt) }}</span>
           </div>
           <div class="flex flex-col gap-0.5">
-            <span class="text-xs text-gray-500">File Size</span>
-            <span class="text-sm font-medium text-gray-200">{{ formatFileSize(image.fileSize) }}</span>
+            <span class="text-xs text-surface-500">File Size</span>
+            <span class="text-sm font-medium text-surface-200">{{ formatFileSize(image.fileSize) }}</span>
           </div>
         </div>
 
         <!-- Tags Section -->
         <div class="flex flex-col gap-2">
-          <label class="text-xs font-semibold tracking-wide text-gray-400 uppercase">Tags</label>
+          <label class="text-xs font-semibold tracking-wide uppercase text-surface-400">Tags</label>
           <div class="flex flex-wrap items-center gap-2">
             <Chip v-for="tag in image.tags" :key="tag" :label="tag" removable @remove="removeTag(tag)" class="text-xs" />
             <div class="flex items-center gap-1">
@@ -88,7 +88,7 @@
 
         <!-- Folders Section -->
         <div class="flex flex-col gap-2">
-          <label class="text-xs font-semibold tracking-wide text-gray-400 uppercase">Folders</label>
+          <label class="text-xs font-semibold tracking-wide uppercase text-surface-400">Folders</label>
           <div class="flex flex-wrap items-center gap-2">
             <Chip
               v-for="folderId in image.folderIds"
@@ -116,8 +116,9 @@
         <Button
           :severity="image?.isFavorite ? 'danger' : 'secondary'"
           @click="toggleFavorite"
-          :label="image?.isFavorite ? 'Remove from Favorites' : 'Add to Favorites'"
-          :icon="image?.isFavorite ? 'pi pi-heart-fill' : 'pi pi-heart'" />
+          :label="image?.isFavorite ? 'Remove from Favorites' : 'Add to Favorites'">
+          <fa :icon="[image?.isFavorite ? 'fas' : 'fal', 'heart']" size="sm" />
+        </Button>
         <Button label="Close" severity="secondary" @click="visibleModel = false" />
       </div>
     </template>

@@ -1,28 +1,5 @@
 <template>
-  <li class="flex flex-col gap-2 py-3 list-item-component">
-    <div class="flex items-center justify-between">
-      <label class="text-sm font-semibold text-surface-200">Style</label>
-      <div class="flex items-center gap-2">
-        <Button
-          v-if="generationStore.selectedStyleId"
-          @click="handleClearStyle"
-          severity="secondary"
-          variant="text"
-          size="small"
-          title="Clear style">
-          <fa :icon="['fal', 'times']" size="sm" />
-        </Button>
-        <Button
-          @click="navigateToStyles"
-          severity="secondary"
-          variant="text"
-          size="small"
-          title="Manage styles">
-          <fa :icon="['fal', 'cog']" size="sm" />
-        </Button>
-      </div>
-    </div>
-
+  <GenerationAction icon="sliders" label="Style">
     <!-- Style Selector -->
     <Select
       v-model="selectedStyleId"
@@ -31,6 +8,7 @@
       option-value="value"
       placeholder="Select a style..."
       show-clear
+      size="small"
       fluid
       @change="handleStyleChange">
       <template #value="slotProps">
@@ -66,49 +44,29 @@
       <div v-if="currentStyle.loras && currentStyle.loras.length > 0" class="pt-2 mt-2 border-t border-surface-700">
         <p class="mb-1 text-xs font-medium text-surface-400">LoRAs ({{ currentStyle.loras.length }})</p>
         <div class="flex flex-col gap-1">
-          <div
-            v-for="lora in currentStyle.loras"
-            :key="lora.loraId"
-            class="flex items-center justify-between text-xs">
+          <div v-for="lora in currentStyle.loras" :key="lora.loraId" class="flex items-center justify-between text-xs">
             <span class="truncate text-surface-300">{{ lora.loraName }}</span>
             <span class="text-surface-500">{{ lora.strength.toFixed(2) }}</span>
           </div>
         </div>
       </div>
     </div>
-
-    <!-- Apply Button -->
-    <Button
-      v-if="selectedStyleId && !isStyleApplied"
-      @click="handleApplyStyle"
-      :loading="isApplying"
-      severity="primary"
-      size="small"
-      fluid> 
-      <fa :icon="['fal', 'check']" size="sm" class="mr-2" />
-      Apply Style
-    </Button>
-    <div v-else-if="isStyleApplied" class="flex items-center gap-2 text-xs text-green-400">
-      <fa :icon="['fas', 'check-circle']" size="sm" />
-      <span>Style applied</span>
-    </div>
-  </li>
+  </GenerationAction>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
-import { useRouter } from 'vue-router';
+
 import { useStylesStore } from '@/stores/styles';
 import { useGenerationStore } from '@/stores/generation';
-import Button from 'primevue/button';
-import Select from 'primevue/select';
 
-const router = useRouter();
+import Select from 'primevue/select';
+import GenerationAction from './GenerationAction.vue';
+
 const stylesStore = useStylesStore();
 const generationStore = useGenerationStore();
 
 const selectedStyleId = ref<string | null>(null);
-const isApplying = ref(false);
 
 const styleOptions = computed(() => {
   return stylesStore.styles.map((style) => ({
@@ -124,10 +82,6 @@ const currentStyle = computed(() => {
   return stylesStore.selectedStyle;
 });
 
-const isStyleApplied = computed(() => {
-  return generationStore.selectedStyleId === selectedStyleId.value;
-});
-
 async function handleStyleChange(event: any) {
   const styleId = event.value;
   if (styleId) {
@@ -136,38 +90,41 @@ async function handleStyleChange(event: any) {
   }
 }
 
-async function handleApplyStyle() {
-  if (!selectedStyleId.value) return;
+// async function handleApplyStyle() {
+//   if (!selectedStyleId.value) return;
 
-  isApplying.value = true;
-  try {
-    await generationStore.applyStyle(selectedStyleId.value);
-  } catch (error) {
-    console.error('Failed to apply style:', error);
-  } finally {
-    isApplying.value = false;
-  }
-}
+//   isApplying.value = true;
+//   try {
+//     await generationStore.applyStyle(selectedStyleId.value);
+//   } catch (error) {
+//     console.error('Failed to apply style:', error);
+//   } finally {
+//     isApplying.value = false;
+//   }
+// }
 
-function handleClearStyle() {
-  selectedStyleId.value = null;
-  generationStore.clearStyle();
-  stylesStore.clearSelection();
-}
+// function handleClearStyle() {
+//   selectedStyleId.value = null;
+//   generationStore.clearStyle();
+//   stylesStore.clearSelection();
+// }
 
-function navigateToStyles() {
-  router.push('/styles');
-}
+// function navigateToStyles() {
+//   router.push('/styles');
+// }
 
 // Watch for external style selection changes
-watch(() => generationStore.selectedStyleId, (newStyleId) => {
-  if (newStyleId !== selectedStyleId.value) {
-    selectedStyleId.value = newStyleId;
-    if (newStyleId) {
-      stylesStore.loadStyleDetail(newStyleId);
+watch(
+  () => generationStore.selectedStyleId,
+  (newStyleId) => {
+    if (newStyleId !== selectedStyleId.value) {
+      selectedStyleId.value = newStyleId;
+      if (newStyleId) {
+        stylesStore.loadStyleDetail(newStyleId);
+      }
     }
-  }
-});
+  },
+);
 
 onMounted(async () => {
   // Load styles list

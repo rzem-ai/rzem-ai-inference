@@ -35,7 +35,7 @@
 </template>
 
 <script setup lang="ts">
-import CustomScrollbar from '@/components/CustomScrollbar.vue';
+import CustomScrollbar from '@/components/shared/CustomScrollbar.vue';
 </script>
 
 <style scoped>
