@@ -232,6 +232,12 @@ impl ModelCache {
         let mut stats = self.stats.lock().await;
         stats.current_model_type = None;
         stats.models_loaded = ModelsLoaded::default();
+
+        // Synchronize device to ensure GPU memory is actually freed
+        if let Err(e) = self.device.synchronize() {
+            tracing::warn!("Failed to synchronize device during cache clear: {}", e);
+        }
+        info!("GPU memory freed and device synchronized");
     }
 
     /// Update the cache configuration

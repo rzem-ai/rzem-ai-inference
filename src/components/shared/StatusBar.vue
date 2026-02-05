@@ -59,6 +59,18 @@
           <span class="w-8 text-xs stat-label text-surface-200">VRAM</span>
           <ProgressBar class="w-20 border border-surface-700" :value="vramUsage" :show-value="false" :dt="vramProgressBarDt" v-tooltip.top="vramUsageTip" />
         </div>
+        <button
+          type="button"
+          @click="handleClearVram"
+          :disabled="clearingVram"
+          class="vram-clear-btn"
+          v-tooltip.top="'Free VRAM'"
+          aria-label="Free VRAM">
+          <fa
+            :icon="['fal', clearingVram ? 'spinner-third' : 'broom']"
+            :class="{ 'fa-spin': clearingVram }"
+            size="sm" />
+        </button>
       </div>
     </template>
 
@@ -110,6 +122,7 @@ const BLANK_SYSTEM_STATUS: SystemStats = {
 
 const stats = ref<SystemStats>(BLANK_SYSTEM_STATUS);
 const isRefreshing = ref(false);
+const clearingVram = ref(false);
 let pollInterval: ReturnType<typeof setInterval> | null = null;
 
 // Scan progress state
@@ -362,6 +375,18 @@ const fetchStats = async () => {
   }
 };
 
+const handleClearVram = async () => {
+  clearingVram.value = true;
+  try {
+    await invoke('clear_model_cache');
+    await fetchStats();
+  } catch (e) {
+    console.error('Failed to clear VRAM:', e);
+  } finally {
+    clearingVram.value = false;
+  }
+};
+
 const formatPercent = (value: number | null | undefined): string => {
   if (value == null) return '--';
   return `${Math.round(value)}%`;
@@ -475,6 +500,14 @@ let lastIdleUpdate = 0;
 .stat-label {
   &.gpu-name {
     @apply w-auto max-w-20 truncate;
+  }
+}
+
+.vram-clear-btn {
+  @apply text-gray-500 hover:text-blue-500 transition-colors cursor-pointer bg-transparent border-0 p-0;
+
+  &:disabled {
+    @apply cursor-not-allowed opacity-70;
   }
 }
 </style>
