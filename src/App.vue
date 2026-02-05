@@ -42,7 +42,7 @@ const isNavigating = ref(false);
 const { isInitializing, initProgress } = useAppInit();
 
 // Show navigation loading indicator
-router.beforeEach((to, from, next) => {
+router.beforeEach((_to, _from, next) => {
   isNavigating.value = true;
   next();
 });

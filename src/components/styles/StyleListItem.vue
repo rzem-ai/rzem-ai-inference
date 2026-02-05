@@ -1,6 +1,6 @@
 <template>
   <div
-    class="flex items-center gap-3 p-3 transition-all border rounded-lg border-surface-700 hover:border-primary-500 hover:bg-surface-800/50 group"
+    class="flex items-center gap-2 px-2 py-0 transition-all border rounded-lg border-surface-700 hover:border-primary-500 hover:bg-surface-800/50 group"
     :class="{ 'bg-surface-800/30': isSelected }"
     @click="gotoStyle()">
     <!-- Checkbox -->
@@ -23,15 +23,17 @@
     </div>
 
     <!-- Metadata -->
+     <!--
     <div class="flex items-center gap-3 ml-auto text-xs shrink-0 text-surface-500">
       <span class="flex items-center gap-1" :title="`Used ${style.usageCount} times`">
         <fa :icon="['fal', 'chart-line']" size="sm" />
         {{ style.usageCount }}
       </span>
     </div>
+    -->
 
     <!-- Actions -->
-    <div class="flex items-center gap-1 shrink-0">
+    <div class="flex flex-col items-center gap-1 shrink-0">
       <!-- Favorite button -->
       <Button
         @click.stop="toggleFavorite()"
@@ -44,7 +46,7 @@
       </Button>
 
       <!-- Edit/Delete buttons (visible on hover) -->
-      <div class="flex gap-1 transition-opacity opacity-0 group-hover:opacity-100">
+      <div class="flex flex-col gap-0 transition-opacity opacity-0 group-hover:opacity-100">
         <Button @click.stop="edit()" severity="secondary" variant="text" size="small" class="px-2! py-1!" title="Edit">
           <fa :icon="['fal', 'pen']" size="sm" />
         </Button>
