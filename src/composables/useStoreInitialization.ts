@@ -63,11 +63,11 @@ export function useStoreInitialization() {
         },
       },
       {
-        name: 'Compare',
+        name: 'Styles',
         init: async () => {
-          const { useCompareStore } = await import('@/stores/compare');
-          const compareStore = useCompareStore();
-          await compareStore.initialize();
+          const { useStylesStore } = await import('@/stores/styles');
+          const stylesStore = useStylesStore();
+          await stylesStore.initialize();
         },
       },
       {

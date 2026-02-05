@@ -4,12 +4,12 @@
     <WorkspaceActions>
       <template #header>Styles</template>
       <template #toolbar>
-        <div class="flex flex-col gap-2">
-          <Button @click="handleCreateClick" severity="primary" size="small">
+        <div class="flex flex-row gap-2">
+          <Button @click="handleCreateClick" severity="primary" size="small" class="grow">
             <fa :icon="['fal', 'plus']" size="sm" class="mr-2" />
             New Style
           </Button>
-          <Button @click="showLoraImport = true" severity="secondary" variant="outlined" size="small">
+          <Button @click="showLoraImport = true" severity="secondary" variant="outlined" size="small" class="grow">
             <fa :icon="['fal', 'download']" size="sm" class="mr-2" />
             Import LoRA
           </Button>
@@ -18,7 +18,7 @@
 
       <template #body>
         <!-- Header -->
-        <div class="flex items-center justify-between p-4 border-b border-surface-700">
+        <div class="flex items-center justify-between mb-4">
           <InputGroup>
             <InputGroupAddon>
               <fa :icon="['fal', 'magnifying-glass']" size="sm" class="text-surface-400" />
@@ -27,33 +27,7 @@
           </InputGroup>
         </div>
         <div class="flex flex-col gap-2">
-          <!-- Filter buttons -->
-          <div class="flex flex-col gap-1">
-            <Button
-              :severity="selectedFilter === 'all' ? 'primary' : 'secondary'"
-              :variant="selectedFilter === 'all' ? 'filled' : 'text'"
-              size="small"
-              @click="handleFilterChange('all')"
-              class="justify-start">
-              <fa :icon="['fal', 'layer-group']" size="sm" class="mr-2" />
-              All Styles
-              <span class="ml-auto text-xs text-surface-400">{{ stylesStore.styles.length }}</span>
-            </Button>
-            <Button
-              :severity="selectedFilter === 'favorites' ? 'primary' : 'secondary'"
-              :variant="selectedFilter === 'favorites' ? 'filled' : 'text'"
-              size="small"
-              @click="handleFilterChange('favorites')"
-              class="justify-start">
-              <fa :icon="['fas', 'star']" size="sm" class="mr-2" />
-              Favorites
-              <span class="ml-auto text-xs text-surface-400">{{ stylesStore.favoriteStyles.length }}</span>
-            </Button>
-          </div>
-
-          <Divider />
-
-          <StyleCategoryAccordion v-for="(styles, category) in stylesStore.stylesByCategory" :key="category" :category="category" :styles="styles" />
+          <StylesList v-for="(styles, category) in stylesStore.stylesByCategory" :key="category" :category="category" :styles="styles" />
         </div>
       </template>
     </WorkspaceActions>
@@ -77,11 +51,10 @@ import { useStylesStore } from '@/stores/styles';
 import type { StyleInfo } from '@/types';
 import WorkspaceActions from '@/components/shared/WorkspaceActions.vue';
 
-import StyleCategoryAccordion from '@/components/styles/StyleCategoryAccordion.vue';
+import StylesList from '@/components/styles/StylesList.vue';
 
 import Button from 'primevue/button';
 import InputText from 'primevue/inputtext';
-import Divider from 'primevue/divider';
 
 import InputGroup from 'primevue/inputgroup';
 import InputGroupAddon from 'primevue/inputgroupaddon';
@@ -90,23 +63,15 @@ import { useRouter } from 'vue-router';
 const router = useRouter();
 const stylesStore = useStylesStore();
 
-type RightPanelMode = 'welcome' | 'create' | 'edit' | 'detail';
-
-const selectedFilter = ref<'all' | 'favorites'>('all');
 const searchQuery = ref('');
 
 const selectedStyleIds = ref<Set<string>>(new Set());
 const expandedCategories = ref<Set<string>>(new Set());
-const rightPanelMode = ref<RightPanelMode>('welcome');
+
 const editingStyle = ref<StyleInfo | null>(null);
 const showLoraImport = ref(false);
 
 // Computed properties
-
-function handleFilterChange(filter: 'all' | 'favorites') {
-  selectedFilter.value = filter;
-  clearSelection();
-}
 
 function clearSelection() {
   selectedStyleIds.value.clear();
@@ -115,7 +80,7 @@ function clearSelection() {
 
 function handleCreateClick() {
   editingStyle.value = null;
-  rightPanelMode.value = 'create';
+
   clearSelection();
   console.log('goto:', `/styles/create`);
   router.push({ name: `styles-create` });
@@ -191,7 +156,6 @@ function handleCreateClick() {
 // }
 
 onMounted(async () => {
-  await stylesStore.loadStyles();
   // Expand first category by default
   const firstCategory = Object.keys(stylesStore.stylesByCategory)[0];
   if (firstCategory) {
@@ -202,15 +166,4 @@ onMounted(async () => {
 
 <style scoped>
 @reference "tailwindcss";
-
-.slide-down-enter-active,
-.slide-down-leave-active {
-  transition: all 0.3s ease;
-}
-
-.slide-down-enter-from,
-.slide-down-leave-to {
-  transform: translateY(-100%);
-  opacity: 0;
-}
 </style>
