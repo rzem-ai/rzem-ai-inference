@@ -15,7 +15,7 @@ export interface StyleExample {
 export interface StyleInfo {
   id: string;
   name: string;
-  description?: string;
+  description: string;
   promptTemplate: string;
   defaultStrength: number;
   strengthMin: number;

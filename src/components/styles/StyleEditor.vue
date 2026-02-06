@@ -1,50 +1,42 @@
 <template>
   <div class="flex flex-col h-full gap-4" v-if="style">
     <!-- Header -->
-    <div>
+    <div class="flex flex-col">
       <div class="flex items-start justify-between mb-2">
-        <Inplace class="w-full">
-          <template #display>
-            <div class="inline-flex items-center w-full gap-2">
-              <div class="w-full text-lg font-semibold text-surface-100">{{ style.name || 'Click to Edit' }} </div>
-              <div class="w-20"></div>
-            </div>
-          </template>
-          <template #content="{ closeCallback }">
-            <div class="inline-flex items-center w-full gap-2">
-              <InputText v-model="style.name" autofocus fluid />
-              <Button icon="pi pi-times" text severity="danger" @click="closeCallback" />
-            </div>
-          </template>
-        </Inplace>
+        <div class="shrink">
+          <StyleThumbnail
+            :thumbnail-path="style.thumbnailPath"
+            :alt="style.name"
+            size="medium"
+            @upload="handleThumbnailUpload"
+          />
+        </div>
+        <div class="px-2 grow">
+          <InlineEditableText
+            v-model="style.name"
+            placeholder="Click to edit name"
+            @save="handleUpdateStyle"
+          >
+            <template #display="{ value }">
+              <div class="text-lg font-semibold text-surface-100">{{ value }}</div>
+            </template>
+          </InlineEditableText>
 
-        <fa :icon="['fas', 'star']" class="text-yellow-400" />
+          <InlineEditableText
+            v-model="style.description"
+            placeholder="Click to edit description"
+            @save="handleUpdateStyle"
+          >
+            <template #display="{ value }">
+              <div class="text-base font-normal text-surface-100">{{ value }}</div>
+            </template>
+          </InlineEditableText>
+        </div>
+        <div class="shrink">
+          <fa :icon="['fas', 'star']" class="text-yellow-400" />
+        </div>
       </div>
 
-      <Inplace class="w-full">
-        <template #display>
-          <div class="inline-flex items-center w-full gap-2">
-            <div class="w-full text-base font-normal text-surface-100">{{ style.description || 'Click to Edit' }} </div>
-            <div class="w-20"></div>
-          </div>
-        </template>
-        <template #content="{ closeCallback }">
-          <div class="inline-flex items-center w-full gap-2">
-            <InputText v-model="style.description" autofocus fluid />
-            <Button icon="pi pi-times" text severity="danger" @click="closeCallback" />
-          </div>
-        </template>
-      </Inplace>
-
-      <div class="flex items-center gap-2 mt-2 text-xs text-surface-500">
-        <span v-if="style.category" class="px-2 py-1 rounded bg-surface-800">
-          {{ style.category }}
-        </span>
-        <span class="flex items-center gap-1">
-          <fa :icon="['fal', 'chart-line']" size="sm" />
-          Used {{ style.usageCount }} times
-        </span>
-      </div>
     </div>
 
     <Divider />
@@ -54,10 +46,12 @@
       <h5 class="mb-2 text-sm font-semibold text-surface-200">Thumbnail</h5>
       <div class="flex items-center gap-3">
         <!-- Thumbnail preview -->
-        <div class="flex items-center justify-center w-12 h-12 overflow-hidden rounded shrink-0 bg-surface-800">
-          <img v-if="style.thumbnailPath" :src="style.thumbnailPath" :alt="style.name" class="object-cover w-full h-full" />
-          <fa v-else :icon="['fal', 'palette']" size="lg" class="text-surface-500" />
-        </div>
+        <StyleThumbnail
+          :thumbnail-path="style.thumbnailPath"
+          :alt="style.name"
+          size="small"
+          @upload="handleThumbnailUpload"
+        />
 
         <!-- Actions -->
         <div class="flex gap-2">
@@ -65,7 +59,7 @@
             <fa :icon="['fal', 'upload']" size="sm" class="mr-2" />
             Upload
           </Button>
-          <Button v-if="style.thumbnailPath" severity="danger" variant="outlined" size="small">
+          <Button v-if="style.thumbnailPath" @click="handleRemoveThumbnail" severity="danger" variant="outlined" size="small">
             <fa :icon="['fal', 'trash']" size="sm" class="mr-2" />
             Remove
           </Button>
@@ -162,10 +156,10 @@
 import { onMounted, ref, watch } from 'vue';
 import type { StyleDetail } from '@/types';
 import { useStylesStore } from '@/stores/styles';
+import InlineEditableText from '@/components/common/InlineEditableText.vue';
+import StyleThumbnail from '@/components/common/StyleThumbnail.vue';
 import Button from 'primevue/button';
 import Divider from 'primevue/divider';
-import Inplace from 'primevue/inplace';
-import InputText from 'primevue/inputtext';
 import { useRoute } from 'vue-router';
 
 const emit = defineEmits<{
@@ -182,6 +176,7 @@ const style = ref<StyleDetail>({
   examples: [],
   id: '',
   name: '',
+  description: '',
   promptTemplate: '',
   defaultStrength: 0,
   strengthMin: 0,
@@ -202,8 +197,49 @@ function handleFileChange(event: Event) {
   const target = event.target as HTMLInputElement;
   const file = target.files?.[0];
   if (file) {
+    handleThumbnailUpload(file);
     // Reset input so same file can be selected again
     target.value = '';
+  }
+}
+
+async function handleThumbnailUpload(file: File) {
+  console.log('Uploading thumbnail:', file.name);
+
+  // TODO: Implement backend integration
+  // Example:
+  // const formData = new FormData();
+  // formData.append('thumbnail', file);
+  // await stylesStore.updateStyleThumbnail(style.value.id, formData);
+
+  // For now, create a local preview URL
+  const previewUrl = URL.createObjectURL(file);
+  style.value.thumbnailPath = previewUrl;
+}
+
+function handleRemoveThumbnail() {
+  // TODO: Implement backend integration
+  // await stylesStore.removeStyleThumbnail(style.value.id);
+
+  style.value.thumbnailPath = undefined;
+}
+
+async function handleUpdateStyle() {
+  if (!style.value.id) return;
+
+  try {
+    await stylesStore.updateStyle(style.value.id, {
+      name: style.value.name ?? '',
+      description: style.value.description ?? '',
+      promptTemplate: style.value.promptTemplate ?? '',
+      defaultStrength: style.value.defaultStrength,
+      strengthMin: style.value.strengthMin,
+      strengthMax: style.value.strengthMax,
+      category: style.value.category ?? undefined,
+      isFavorite: style.value.isFavorite,
+    });
+  } catch (error) {
+    console.error('Failed to update style:', error);
   }
 }
 

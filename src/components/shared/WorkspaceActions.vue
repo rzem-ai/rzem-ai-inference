@@ -20,7 +20,7 @@
     <!-- -->
     <div v-if="$slots.body" class="overflow-hidden grow">
       <CustomScrollbar class="h-full">
-        <div class="pl-2 pr-4">
+        <div class="h-full pl-2 pr-4">
           <slot name="body"> </slot>
         </div>
       </CustomScrollbar>

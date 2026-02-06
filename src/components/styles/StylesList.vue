@@ -1,5 +1,5 @@
 <template>
-  <StyleListItem v-for="style in styles" :key="style.id" :style="style" class="border-b border-surface-700 last:border-b-0" />
+  <StyleListItem v-for="style in styles" :key="style.id" :style="style" class="border-b border-surface-700 " />
 </template>
 
 <script setup lang="ts">

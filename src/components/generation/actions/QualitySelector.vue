@@ -116,8 +116,8 @@
             " />
         </div>
         <div class="grid grid-cols-6 gap-1">
-          <Slider v-model="cfgScale" :min="0" :max="20" :step="0.1" class="col-span-5 border shadow border-surface-600" />
-          <InputNumber :model-value="cfgScale" size="small" class="col-span-1" />
+          <Slider v-model="cfg_scale" :min="0" :max="20" :step="0.1" class="col-span-5 border shadow border-surface-600" />
+          <InputNumber :model-value="cfg_scale" size="small" class="col-span-1" />
         </div>
       </div>
 
@@ -287,32 +287,32 @@ const bundlesStore = useBundlesStore();
 const selectedOption = computed({
   get: () => {
     // If bundle is selected, return bundle:id
-    if (generationStore.currentParams.bundleId) {
-      return `bundle:${generationStore.currentParams.bundleId}`;
+    if (generationStore.currentParams.bundle_id) {
+      return `bundle:${generationStore.currentParams.bundle_id}`;
     }
 
     // Otherwise return model ID (may be undefined initially)
-    return generationStore.currentParams.modelComponentId || undefined;
+    return generationStore.currentParams.model_component_id || undefined;
   },
   set: (value: string | undefined) => {
     if (!value) return;
 
     if (value.startsWith('bundle:')) {
       // Bundle selected
-      const bundleId = value.substring(7);
-      const bundle = bundlesStore.bundles.find((b) => b.id === bundleId);
+      const bundle_id = value.substring(7);
+      const bundle = bundlesStore.bundles.find((b) => b.id === bundle_id);
 
       if (bundle) {
-        generationStore.currentParams.bundleId = bundleId;
-        generationStore.currentParams.modelComponentId = inferModelIdFromBundle(bundle);
-        generationStore.currentParams.t5ComponentId = inferT5EncoderIdFromBundle(bundle);
-        generationStore.currentParams.clipComponentId = inferClipEncoderIdFromBundle(bundle);
-        generationStore.currentParams.vaeComponentId = inferVaeIdFromBundle(bundle);
+        generationStore.currentParams.bundle_id = bundle_id;
+        generationStore.currentParams.model_component_id = inferModelIdFromBundle(bundle);
+        generationStore.currentParams.t5_component_id = inferT5EncoderIdFromBundle(bundle);
+        generationStore.currentParams.clip_component_id = inferClipEncoderIdFromBundle(bundle);
+        generationStore.currentParams.vae_component_id = inferVaeIdFromBundle(bundle);
       }
     } else {
       // Individual model selected
-      generationStore.currentParams.modelComponentId = value;
-      generationStore.currentParams.bundleId = undefined;
+      generationStore.currentParams.model_component_id = value;
+      generationStore.currentParams.bundle_id = undefined;
       // Try to auto-select compatible components
       autoSelectComponents(value);
     }
@@ -326,43 +326,43 @@ const steps = computed({
   },
 });
 
-const cfgScale = computed({
-  get: () => generationStore.currentParams.cfgScale,
+const cfg_scale = computed({
+  get: () => generationStore.currentParams.cfg_scale,
   set: (value: number | null) => {
-    generationStore.currentParams.cfgScale = value ?? 1.0;
+    generationStore.currentParams.cfg_scale = value ?? 1.0;
   },
 });
 // Component selectors (only for individual models)
 const selectedT5 = computed({
-  get: () => generationStore.currentParams.t5ComponentId || '',
+  get: () => generationStore.currentParams.t5_component_id || '',
   set: (value: string) => {
-    generationStore.currentParams.t5ComponentId = value;
+    generationStore.currentParams.t5_component_id = value;
   },
 });
 
 const selectedClip = computed({
-  get: () => generationStore.currentParams.clipComponentId || '',
+  get: () => generationStore.currentParams.clip_component_id || '',
   set: (value: string) => {
-    generationStore.currentParams.clipComponentId = value;
+    generationStore.currentParams.clip_component_id = value;
   },
 });
 
 const selectedVae = computed({
-  get: () => generationStore.currentParams.vaeComponentId || '',
+  get: () => generationStore.currentParams.vae_component_id || '',
   set: (value: string) => {
-    generationStore.currentParams.vaeComponentId = value;
+    generationStore.currentParams.vae_component_id = value;
   },
 });
 
 // Check if current selection is an individual model (not bundle)
 const isIndividualModel = computed(() => {
-  return !generationStore.currentParams.bundleId;
+  return !generationStore.currentParams.bundle_id;
 });
 
 // Get selected bundle
 const selectedBundle = computed(() => {
-  if (!generationStore.currentParams.bundleId) return null;
-  return bundlesStore.bundles.find((b) => b.id === generationStore.currentParams.bundleId);
+  if (!generationStore.currentParams.bundle_id) return null;
+  return bundlesStore.bundles.find((b) => b.id === generationStore.currentParams.bundle_id);
 });
 
 // Validate component selections
@@ -373,17 +373,17 @@ const areComponentsValid = computed(() => {
 
 // Validation for complete configuration (exposed to parent)
 const isValidConfiguration = computed(() => {
-  // Bundle mode: bundleId must be set
-  if (generationStore.currentParams.bundleId) {
+  // Bundle mode: bundle_id must be set
+  if (generationStore.currentParams.bundle_id) {
     return true;
   }
 
   // Individual mode: all component IDs must be set
   return !!(
-    generationStore.currentParams.modelComponentId &&
-    generationStore.currentParams.t5ComponentId &&
-    generationStore.currentParams.clipComponentId &&
-    generationStore.currentParams.vaeComponentId
+    generationStore.currentParams.model_component_id &&
+    generationStore.currentParams.t5_component_id &&
+    generationStore.currentParams.clip_component_id &&
+    generationStore.currentParams.vae_component_id
   );
 });
 
@@ -456,15 +456,15 @@ const allOptions = computed(() => {
 
 // Get compatible components based on selected model
 const compatibleT5Components = computed(() => {
-  return filterCompatibleComponents(bundlesStore.t5Components, generationStore.currentParams.modelComponentId ?? '');
+  return filterCompatibleComponents(bundlesStore.t5Components, generationStore.currentParams.model_component_id ?? '');
 });
 
 const compatibleClipComponents = computed(() => {
-  return filterCompatibleComponents(bundlesStore.clipComponents, generationStore.currentParams.modelComponentId ?? '');
+  return filterCompatibleComponents(bundlesStore.clipComponents, generationStore.currentParams.model_component_id ?? '');
 });
 
 const compatibleVaeComponents = computed(() => {
-  return filterCompatibleComponents(bundlesStore.vaeComponents, generationStore.currentParams.modelComponentId ?? '');
+  return filterCompatibleComponents(bundlesStore.vaeComponents, generationStore.currentParams.model_component_id ?? '');
 });
 
 // Filter components by compatibility with selected model
@@ -560,8 +560,8 @@ function getOptionIcon(value: string | undefined): string {
 function getOptionLabel(value: string | undefined): string {
   if (!value) return 'Select...';
   if (isBundle(value)) {
-    const bundleId = value.substring(7);
-    const bundle = bundlesStore.bundles.find((b) => b.id === bundleId);
+    const bundle_id = value.substring(7);
+    const bundle = bundlesStore.bundles.find((b) => b.id === bundle_id);
     return bundle?.name || value;
   }
   // Look up in transformer components
@@ -572,8 +572,8 @@ function getOptionLabel(value: string | undefined): string {
 function getOptionVram(value: string | undefined): string | undefined {
   if (!value) return undefined;
   if (isBundle(value)) {
-    const bundleId = value.substring(7);
-    const bundle = bundlesStore.bundles.find((b) => b.id === bundleId);
+    const bundle_id = value.substring(7);
+    const bundle = bundlesStore.bundles.find((b) => b.id === bundle_id);
     return bundle?.totalVramMb ? bundlesStore.formatVram(bundle.totalVramMb) : undefined;
   }
   // Look up in transformer components

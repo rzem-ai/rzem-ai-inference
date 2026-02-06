@@ -1,3 +1,5 @@
+// ========== LoRA Types ==========
+// 
 export interface LoRA {
   id: string;
   name: string;

@@ -20,7 +20,7 @@ export interface BundleItemInfo {
   role: string;
   modelDisplayName: string;
   modelFamily: string;
-  modelType: string;
+  model_type: string;
   modelVramMb: number | null;
   modelQuantization: string | null;
 }

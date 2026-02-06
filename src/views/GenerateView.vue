@@ -46,14 +46,14 @@
         </div>
         <div class="flex flex-col gap-2 py-2">
           <SplitButton
-            :loading="queueStore.hasRunningJobs"
+            :loading="generationStore.hasRunningJobs"
             raised
             fluid
             size="small"
             @click="handleGenerate"
             :model="generationCounts"
             :disabled="!canGenerate">
-            {{ queueStore.queueLength > 0 ? `Generate` : 'Generate' }} ( {{ imageCount }} )
+            {{ generationStore.queueLength > 0 ? `Generate` : 'Generate' }} ( {{ imageCount }} )
           </SplitButton>
           <Button severity="help" size="small" fluid @click="showBatchDialog = true"><fa :icon="['fal', 'list']" size="sm" /> Batch Script</Button>
         </div>
@@ -143,11 +143,9 @@ import { writeFile, readFile } from '@tauri-apps/plugin-fs';
 import GenerateActions from '@/components/generation/GenerateActions.vue';
 import QueuePanel from '@/components/generation/QueuePanel.vue';
 import GeneratedResults from '@/components/generation/GeneratedResults.vue';
-import { useQueueStore } from '@/stores/queue';
 import { useGenerationStore } from '@/stores/generation';
 import { useModelsStore } from '@/stores/models';
 import { useChatbotStore } from '@/stores/chatbot';
-import type { GenerationParams } from '@/stores/queue';
 import WorkspaceActions from '@/components/shared/WorkspaceActions.vue';
 import HistoryPanel from '@/components/generation/HistoryPanel.vue';
 import ChatPanel from '@/components/generation/ChatPanel.vue';
@@ -156,8 +154,8 @@ import SplitButton from 'primevue/splitbutton';
 import Button from 'primevue/button';
 import BatchScriptDialog from '@/components/generation/batch/BatchScriptDialog.vue';
 import { analyzeImageForPrompt, fileToDataUrl, isValidImageFile } from '@/services/imageAnalysis';
+import { GenerationParams } from '@/types';
 
-const queueStore = useQueueStore();
 const generationStore = useGenerationStore();
 const modelsStore = useModelsStore();
 const chatStore = useChatbotStore();
@@ -197,9 +195,9 @@ const canGenerate = computed(() => {
 });
 
 const imageCount = computed({
-  get: () => generationStore.currentParams.batchSize,
+  get: () => generationStore.currentParams.batch_size,
   set: (value: number) => {
-    generationStore.currentParams.batchSize = value;
+    generationStore.currentParams.batch_size = value;
   },
 });
 
@@ -232,7 +230,7 @@ const generationCounts = [
 
 // Get pending images with preview data from running jobs
 const pendingImages = computed(() => {
-  return queueStore.jobs
+  return generationStore.jobs
     .filter(job => job.status === 'running' && currentBatchJobIds.value.has(job.id))
     .map(job => ({
       id: job.id,
@@ -322,7 +320,7 @@ const handleDrop = async (e: DragEvent) => {
 
 // Watch for completed jobs - only show jobs from current batch
 watch(
-  () => queueStore.jobs,
+  () => generationStore.jobs,
   (jobs) => {
     const newlyCompleted = jobs.filter(
       (j) => j.status === 'completed' && j.result_path && currentBatchJobIds.value.has(j.id) && !displayedJobIds.value.has(j.id),
@@ -350,16 +348,16 @@ watch(
 
 const handleGenerate = async () => {
   const params = generationStore.currentParams;
-  const batchSize = params.batchSize || 1;
+  const batch_size = params.batch_size || 1;
 
   // Move completed jobs to history before starting new generation
-  queueStore.moveCompletedToHistory();
+  generationStore.moveCompletedToHistory();
 
   // Clear state for new generation batch
   generatedImages.value = [];
   displayedJobIds.value.clear();
   currentBatchJobIds.value.clear();
-  pendingCount.value = batchSize;
+  pendingCount.value = batch_size;
 
   // Determine the base seed to use
   let baseSeed: number;
@@ -374,8 +372,8 @@ const handleGenerate = async () => {
   }
 
   try {
-    // Generate multiple images based on batchSize
-    for (let i = 0; i < batchSize; i++) {
+    // Generate multiple images based on batch_size
+    for (let i = 0; i < batch_size; i++) {
       // For each image in the batch, use a different seed
       let seedToUse: number;
       if (generationStore.randomizeSeedOnGenerate) {
@@ -387,10 +385,11 @@ const handleGenerate = async () => {
       }
 
       // Get active LoRA configs for this generation
-      const activeLoraConfigs = modelsStore.loras.map((l) => ({
-        id: l.id,
-        strength: l.strength,
-      }));
+      // const activeLoraConfigs = modelsStore.loras.map((l) => ({
+      //   id: l.id,
+      //   strength: l.strength,
+      // }));
+      const activeLoraConfigs: string | any[] = [];
       console.log('activeLoraConfigs:', activeLoraConfigs);
 
       // Apply style template if a style is selected
@@ -399,25 +398,25 @@ const handleGenerate = async () => {
       const queueParams: GenerationParams = {
         prompt: finalPrompt,
         steps: params.steps,
-        cfg_scale: params.cfgScale,
+        cfg_scale: params.cfg_scale,
         width: params.width,
         height: params.height,
         seed: seedToUse,
-        bundle_id: params.bundleId,
-        model_component_id: params.modelComponentId ?? '',
-        clip_component_id: params.clipComponentId ?? '',
-        t5_component_id: params.t5ComponentId ?? '',
-        vae_component_id: params.vaeComponentId ?? '',
+        bundle_id: params.bundle_id,
+        model_component_id: params.model_component_id ?? '',
+        clip_component_id: params.clip_component_id ?? '',
+        t5_component_id: params.t5_component_id ?? '',
+        vae_component_id: params.vae_component_id ?? '',
         sampler: params.sampler,
         scheduler: params.scheduler,
         // Include active LoRAs if any
         ...(activeLoraConfigs.length > 0 && { loras: activeLoraConfigs }),
-        //loras: [{ id: '098df4c8-384b-426d-a257-20bae1dc9327', strength: 1 }],
+        mode: 'txt2img'
       };
 
       console.log('queueParams:', queueParams);
 
-      const jobId = await queueStore.addToQueue(queueParams);
+      const jobId = await generationStore.addToQueue(queueParams);
       currentBatchJobIds.value.add(jobId);
     }
 
@@ -434,7 +433,7 @@ const handleGenerate = async () => {
     toast.add({
       severity: 'error',
       summary: 'Generation Failed',
-      detail: queueStore.error || 'Failed to add generation to queue',
+      detail: generationStore.error || 'Failed to add generation to queue',
       life: 5000,
     });
   }

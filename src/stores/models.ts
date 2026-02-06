@@ -71,8 +71,8 @@ export const useModelsStore = defineStore('models', {
     modelsByType(state) {
       const grouped: Record<string, ModelInfo[]> = {};
       for (const model of state.models) {
-        if (!grouped[model.modelType]) grouped[model.modelType] = [];
-        grouped[model.modelType].push(model);
+        if (!grouped[model.model_type]) grouped[model.model_type] = [];
+        grouped[model.model_type].push(model);
       }
       // Sort each group by displayName
       for (const key of Object.keys(grouped)) {

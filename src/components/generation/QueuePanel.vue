@@ -21,10 +21,11 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { useQueueStore, type GenerationJob, type PipelineStage } from '@/stores/queue';
+import { useGenerationStore } from '@/stores/generation';
 import QueueJobCard from './QueueJobCard.vue';
+import { GenerationJob, PipelineStage } from '@/types';
 
-const queueStore = useQueueStore();
+const queueStore = useGenerationStore();
 
 // Demo mode state
 const demoMode = ref(false);
@@ -46,6 +47,7 @@ const demoAllJobs = computed<GenerationJob[]>(() => {
     vae_component_id: 'vae',
     sampler: 'euler' as const,
     scheduler: 'normal' as const,
+    mode: 'txt2img' as const,
   };
 
   // Cycle through stages based on demo progress

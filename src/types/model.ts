@@ -12,7 +12,7 @@ export interface ModelFileInfo {
 
 export interface ModelInfo {
   id: string;
-  modelType: string;
+  model_type: string;
   family: string;
   displayName: string;
   description: string | null;

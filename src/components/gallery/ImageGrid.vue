@@ -30,11 +30,6 @@
                 <fa :icon="[hoveredHeartId === item.id || item.isFavorite ? 'fas' : 'far', 'heart']" size="xl" class="text-red-500" style="" />
               </div>
             </div>
-            <!--
-            <Button severity="primary" variant="outlined" @click.stop="emit('addToCompare', item)" title="Add to compare">
-              <template #icon><fa :icon="['fal', 'copy']" size="sm" /></template>
-            </Button>
-            -->
           </div>
 
           <div class="image-container">
@@ -95,7 +90,6 @@ const emit = defineEmits<{
   select: [imageId: string];
   openDetail: [image: GalleryImage];
   toggleFavorite: [imageId: string];
-  addToCompare: [image: GalleryImage];
   delete: [imageId: string];
   addToFolder: [imageIds: string[], folderId: string];
   addToNewFolder: [imageIds: string[]];
@@ -138,14 +132,6 @@ const contextMenuItems = computed(() => {
       command: () => {
         const image = images.find((img) => img.id === contextMenuImageId.value);
         if (image) emit('openDetail', image);
-      },
-    },
-    {
-      label: 'Add to Compare',
-      icon: 'pi pi-copy',
-      command: () => {
-        const image = images.find((img) => img.id === contextMenuImageId.value);
-        if (image) emit('addToCompare', image);
       },
     },
     {

@@ -112,9 +112,9 @@ export interface GenerationPreset {
   name: string;
   mode: GenerationMode;
   prompt?: string;
-  negativePrompt?: string;
+  negative_prompt?: string;
   steps: number;
-  cfgScale: number;
+  cfg_scale: number;
   sampler?: Sampler;
   scheduler?: Scheduler;
   width: number;

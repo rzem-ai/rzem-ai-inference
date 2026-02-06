@@ -159,10 +159,10 @@
                   <p class="mb-2 text-sm text-gray-400">Generation Settings</p>
                   <div class="grid grid-cols-2 gap-2 text-sm">
                     <div><span class="text-gray-400">Steps:</span> {{ generationStore.currentParams.steps }}</div>
-                    <div><span class="text-gray-400">CFG Scale:</span> {{ generationStore.currentParams.cfgScale }}</div>
+                    <div><span class="text-gray-400">CFG Scale:</span> {{ generationStore.currentParams.cfg_scale }}</div>
                     <div><span class="text-gray-400">Size:</span> {{ generationStore.currentParams.width }}×{{ generationStore.currentParams.height }}</div>
                     <div><span class="text-gray-400">Seed:</span> {{ displaySeed }}</div>
-                    <div class="col-span-2"><span class="text-gray-400">Model:</span> {{ generationStore.currentParams.modelComponentId }}</div>
+                    <div class="col-span-2"><span class="text-gray-400">Model:</span> {{ generationStore.currentParams.model_component_id }}</div>
                     <div v-if="activeLorasCount > 0" class="col-span-2"> <span class="text-gray-400">LoRAs:</span> {{ activeLorasCount }} active </div>
                   </div>
                 </div>
@@ -198,7 +198,6 @@
 import { ref, computed, watch } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { useToast } from 'primevue/usetoast';
-import { useQueueStore } from '@/stores/queue';
 import { useGenerationStore } from '@/stores/generation';
 import { useModelsStore } from '@/stores/models';
 import FileInputSection from './FileInputSection.vue';
@@ -227,7 +226,6 @@ const emit = defineEmits<{
 }>();
 
 // Initialize stores
-const queueStore = useQueueStore();
 const generationStore = useGenerationStore();
 const modelsStore = useModelsStore();
 
@@ -444,21 +442,22 @@ async function generateBatch() {
       if (!prompt) continue; // Skip empty prompts (errors)
 
       try {
-        await queueStore.addToQueue({
+        await generationStore.addToQueue({
           prompt,
-          negative_prompt: baseParams.negativePrompt,
+          negative_prompt: baseParams.negative_prompt,
           steps: baseParams.steps,
-          cfg_scale: baseParams.cfgScale,
+          cfg_scale: baseParams.cfg_scale,
           width: baseParams.width,
           height: baseParams.height,
           seed: frozenSeed, // SAME SEED FOR ALL ROWS
-          model_component_id: baseParams.modelComponentId ?? '',
-          clip_component_id: baseParams.clipComponentId ?? '',
-          t5_component_id: baseParams.t5ComponentId ?? '',
-          vae_component_id: baseParams.vaeComponentId ?? '',
+          model_component_id: baseParams.model_component_id ?? '',
+          clip_component_id: baseParams.clip_component_id ?? '',
+          t5_component_id: baseParams.t5_component_id ?? '',
+          vae_component_id: baseParams.vae_component_id ?? '',
           sampler: baseParams.sampler,
           scheduler: baseParams.scheduler,
           loras: modelsStore.getActiveLoraConfigs(),
+          mode: 'txt2img'
         });
 
         successCount++;
