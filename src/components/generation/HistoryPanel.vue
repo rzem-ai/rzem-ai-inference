@@ -27,10 +27,10 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { useQueueStore } from '@/stores/queue';
+import { useGenerationStore } from '@/stores/generation';
 import HistoryPanelItem from './HistoryPanelItem.vue';
 
-const queueStore = useQueueStore();
+const queueStore = useGenerationStore();
 
 defineEmits<{
   restoreImage: [imagePath: string];

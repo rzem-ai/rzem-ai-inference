@@ -21,10 +21,10 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { useQueueStore, type GenerationJob, type PipelineStage } from '@/stores/queue';
+import { useGenerationStore, type GenerationJob, type PipelineStage } from '@/stores/generation';
 import QueueJobCard from './QueueJobCard.vue';
 
-const queueStore = useQueueStore();
+const queueStore = useGenerationStore();
 
 // Demo mode state
 const demoMode = ref(false);

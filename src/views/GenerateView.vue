@@ -46,14 +46,14 @@
         </div>
         <div class="flex flex-col gap-2 py-2">
           <SplitButton
-            :loading="queueStore.hasRunningJobs"
+            :loading="generationStore.hasRunningJobs"
             raised
             fluid
             size="small"
             @click="handleGenerate"
             :model="generationCounts"
             :disabled="!canGenerate">
-            {{ queueStore.queueLength > 0 ? `Generate` : 'Generate' }} ( {{ imageCount }} )
+            {{ generationStore.queueLength > 0 ? `Generate` : 'Generate' }} ( {{ imageCount }} )
           </SplitButton>
           <Button severity="help" size="small" fluid @click="showBatchDialog = true"><fa :icon="['fal', 'list']" size="sm" /> Batch Script</Button>
         </div>
@@ -143,11 +143,9 @@ import { writeFile, readFile } from '@tauri-apps/plugin-fs';
 import GenerateActions from '@/components/generation/GenerateActions.vue';
 import QueuePanel from '@/components/generation/QueuePanel.vue';
 import GeneratedResults from '@/components/generation/GeneratedResults.vue';
-import { useQueueStore } from '@/stores/queue';
-import { useGenerationStore } from '@/stores/generation';
+import { useGenerationStore, type GenerationParams } from '@/stores/generation';
 import { useModelsStore } from '@/stores/models';
 import { useChatbotStore } from '@/stores/chatbot';
-import type { GenerationParams } from '@/stores/queue';
 import WorkspaceActions from '@/components/shared/WorkspaceActions.vue';
 import HistoryPanel from '@/components/generation/HistoryPanel.vue';
 import ChatPanel from '@/components/generation/ChatPanel.vue';
@@ -157,7 +155,6 @@ import Button from 'primevue/button';
 import BatchScriptDialog from '@/components/generation/batch/BatchScriptDialog.vue';
 import { analyzeImageForPrompt, fileToDataUrl, isValidImageFile } from '@/services/imageAnalysis';
 
-const queueStore = useQueueStore();
 const generationStore = useGenerationStore();
 const modelsStore = useModelsStore();
 const chatStore = useChatbotStore();
@@ -232,7 +229,7 @@ const generationCounts = [
 
 // Get pending images with preview data from running jobs
 const pendingImages = computed(() => {
-  return queueStore.jobs
+  return generationStore.jobs
     .filter(job => job.status === 'running' && currentBatchJobIds.value.has(job.id))
     .map(job => ({
       id: job.id,
@@ -322,7 +319,7 @@ const handleDrop = async (e: DragEvent) => {
 
 // Watch for completed jobs - only show jobs from current batch
 watch(
-  () => queueStore.jobs,
+  () => generationStore.jobs,
   (jobs) => {
     const newlyCompleted = jobs.filter(
       (j) => j.status === 'completed' && j.result_path && currentBatchJobIds.value.has(j.id) && !displayedJobIds.value.has(j.id),
@@ -353,7 +350,7 @@ const handleGenerate = async () => {
   const batchSize = params.batchSize || 1;
 
   // Move completed jobs to history before starting new generation
-  queueStore.moveCompletedToHistory();
+  generationStore.moveCompletedToHistory();
 
   // Clear state for new generation batch
   generatedImages.value = [];
@@ -417,7 +414,7 @@ const handleGenerate = async () => {
 
       console.log('queueParams:', queueParams);
 
-      const jobId = await queueStore.addToQueue(queueParams);
+      const jobId = await generationStore.addToQueue(queueParams);
       currentBatchJobIds.value.add(jobId);
     }
 
@@ -434,7 +431,7 @@ const handleGenerate = async () => {
     toast.add({
       severity: 'error',
       summary: 'Generation Failed',
-      detail: queueStore.error || 'Failed to add generation to queue',
+      detail: generationStore.error || 'Failed to add generation to queue',
       life: 5000,
     });
   }
