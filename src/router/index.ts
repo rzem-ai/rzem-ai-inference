@@ -28,11 +28,6 @@ const router = createRouter({
       component: GalleryView,
     },
     {
-      path: '/compare',
-      name: 'compare',
-      component: () => import('@/views/CompareView.vue'),
-    },
-    {
       path: '/styles',
       name: 'styles',
       component: StylesView,

@@ -146,7 +146,6 @@
         @select="handleSelectImage"
         @open-detail="handleOpenDetail"
         @toggle-favorite="handleToggleFavorite"
-        @add-to-compare="handleAddToCompare"
         @add-to-folder="handleAddToFolder"
         @add-to-new-folder="handleAddToNewFolder"
         @remove-from-folder="handleRemoveFromFolder"
@@ -180,7 +179,6 @@ import { useToast } from 'primevue/usetoast';
 import { useGalleryStore } from '@/stores/gallery';
 import { useFoldersStore, type FolderNode } from '@/stores/folders';
 import { useTagsStore } from '@/stores/tags';
-import { useCompareStore } from '@/stores/compare';
 import { useAutoTagStore } from '@/stores/autoTag';
 import ImageGrid from '@/components/gallery/ImageGrid.vue';
 import FolderTree from '@/components/gallery/FolderTree.vue';
@@ -200,7 +198,6 @@ import type { GalleryImage } from '@/stores/gallery';
 const galleryStore = useGalleryStore();
 const foldersStore = useFoldersStore();
 const tagsStore = useTagsStore();
-const compareStore = useCompareStore();
 const autoTagStore = useAutoTagStore();
 const confirm = useConfirm();
 const toast = useToast();
@@ -378,13 +375,6 @@ const handleSelectImage = (imageId: string) => {
 const handleOpenDetail = (image: GalleryImage) => {
   selectedImage.value = image;
   imageDetailVisible.value = true;
-};
-
-const handleAddToCompare = (image: any) => {
-  const success = compareStore.addToCompare(image);
-  if (!success) {
-    console.warn('Cannot add more images to compare');
-  }
 };
 
 const handleDeleteImage = (imageId: string) => {
