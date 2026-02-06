@@ -198,7 +198,6 @@
 import { ref, computed, watch } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { useToast } from 'primevue/usetoast';
-import { useQueueStore } from '@/stores/queue';
 import { useGenerationStore } from '@/stores/generation';
 import { useModelsStore } from '@/stores/models';
 import FileInputSection from './FileInputSection.vue';
@@ -227,7 +226,6 @@ const emit = defineEmits<{
 }>();
 
 // Initialize stores
-const queueStore = useQueueStore();
 const generationStore = useGenerationStore();
 const modelsStore = useModelsStore();
 
@@ -444,7 +442,7 @@ async function generateBatch() {
       if (!prompt) continue; // Skip empty prompts (errors)
 
       try {
-        await queueStore.addToQueue({
+        await generationStore.addToQueue({
           prompt,
           negative_prompt: baseParams.negativePrompt,
           steps: baseParams.steps,

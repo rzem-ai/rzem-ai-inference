@@ -47,8 +47,7 @@
 <script setup lang="ts">
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { useToast } from 'primevue/usetoast';
-import { type GenerationJob } from '@/stores/queue';
-import { useGenerationStore } from '@/stores/generation';
+import { type GenerationJob, useGenerationStore } from '@/stores/generation';
 import Button from 'primevue/button';
 
 const { historyJob } = defineProps(['historyJob']);

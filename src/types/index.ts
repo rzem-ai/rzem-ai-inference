@@ -1,57 +1,5 @@
-export interface GenerationJob {
-  id: string;
-  prompt: string;
-  status: 'Queued' | 'Running' | 'Completed' | 'Failed';
-}
-
-export type GenerationMode = 'txt2img' | 'img2img' | 'inpainting';
-
-// Sampler types supported by FLUX
-export type Sampler = 'euler' | 'euler_a' | 'dpm_pp_2m';
-// Scheduler types supported by FLUX
-export type Scheduler = 'normal' | 'simple' | 'karras' | 'exponential';
-
-export interface GenerationParams {
-  mode: GenerationMode;
-  prompt: string;
-  negativePrompt?: string;
-  steps: number;
-  cfgScale: number;
-  sampler: Sampler;
-  scheduler: Scheduler;
-  width: number;
-  height: number;
-  seed: number;
-  //model: string
-  batchSize?: number;
-
-  // For img2img/inpainting
-  sourceImage?: string;
-  strength?: number;
-  maskImage?: string;
-
-  // LoRA adapters to apply
-  loras?: LoraConfig[];
-
-  // Legacy model type hint
-  modelType?: string;
-
-  // Model/bundle selection for generation
-  bundleId?: string;
-  modelComponentId?: string;
-  t5ComponentId?: string;
-  clipComponentId?: string;
-  vaeComponentId?: string;
-}
-
-export interface GenerationProgress {
-  jobId: string;
-  step: number;
-  totalSteps: number;
-  previewImage?: string;
-  status: 'Queued' | 'Preparing' | 'Generating' | 'Saving' | 'Completed' | 'Failed';
-  error?: string;
-}
+// Re-export types from generation store for compatibility
+export type { SamplerType as Sampler, SchedulerType as Scheduler } from '@/stores/generation';
 
 export interface GeneratedImage {
   id: string;

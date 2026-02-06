@@ -68,7 +68,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import ProgressBar from 'primevue/progressbar';
-import { type GenerationJob } from '@/stores/queue';
+import { type GenerationJob } from '@/stores/generation';
 
 interface Props {
   job: GenerationJob;
