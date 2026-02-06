@@ -31,10 +31,10 @@ blake2 = "0.10"
 blake3 = "1.5"
 
 # Candle ML framework - GPU features are platform-specific (see below)
-# Using local fork for LoRA-aware quantization support
-candle-core = { path = "/home/alex/Dev/Work/candle/candle-core", version = "0.9.2" }
-candle-nn = { path = "/home/alex/Dev/Work/candle/candle-nn", version = "0.9.2" }
-candle-transformers = { path = "/home/alex/Dev/Work/candle/candle-transformers", version = "0.9.2" }     
+# Using rzem-ai fork for LoRA-aware quantization support
+candle-core = { git = "https://github.com/rzem-ai/candle.git", version = "0.9.2" }
+candle-nn = { git = "https://github.com/rzem-ai/candle.git", version = "0.9.2" }
+candle-transformers = { git = "https://github.com/rzem-ai/candle.git", version = "0.9.2" }     
 hf-hub = { version = "0.4", features = ["tokio"] }
 tokenizers = "0.20"
 safetensors = "0.4"
@@ -74,15 +74,15 @@ tempfile = "3.24.0"
 # Linux: CUDA 12.8 support (patched for glibc 2.42 compatibility)
 # See fix_cuda_glibc.sh for header patches applied to /usr/local/cuda
 [target.'cfg(target_os = "linux")'.dependencies]
-candle-core = { path = "/home/alex/Dev/Work/candle/candle-core", version = "0.9.2", features = ["cuda"] }
-candle-nn = { path = "/home/alex/Dev/Work/candle/candle-nn", version = "0.9.2", features = ["cuda"] }
-candle-transformers = { path = "/home/alex/Dev/Work/candle/candle-transformers", version = "0.9.2", features = ["cuda"] }
+candle-core = { git = "https://github.com/rzem-ai/candle.git", version = "0.9.2", features = ["cuda"] }
+candle-nn = { git = "https://github.com/rzem-ai/candle.git", version = "0.9.2", features = ["cuda"] }
+candle-transformers = { git = "https://github.com/rzem-ai/candle.git", version = "0.9.2", features = ["cuda"] }
 
 # macOS: Metal support for Apple Silicon
 [target.'cfg(target_os = "macos")'.dependencies]
-candle-core = { path = "/home/alex/Dev/Work/candle/candle-core", version = "0.9.2", features = ["metal"] }
-candle-nn = { path = "/home/alex/Dev/Work/candle/candle-nn", version = "0.9.2", features = ["metal"] }
-candle-transformers = { path = "/home/alex/Dev/Work/candle/candle-transformers", version = "0.9.2", features = ["metal"] }
+candle-core = { git = "https://github.com/rzem-ai/candle.git", version = "0.9.2", features = ["metal"] }
+candle-nn = { git = "https://github.com/rzem-ai/candle.git", version = "0.9.2", features = ["metal"] }
+candle-transformers = { git = "https://github.com/rzem-ai/candle.git", version = "0.9.2", features = ["metal"] }
 
 # =============================================================================
 # CLI Binaries
