@@ -16,10 +16,10 @@ export interface GalleryImage {
   fileSize?: number  // Nullable for pending images
   isFavorite: boolean
   prompt: string
-  negativePrompt?: string
+  negative_prompt?: string
   modelName: string
   steps?: number
-  cfgScale?: number
+  cfg_scale?: number
   seed?: number
   sampler?: string
   scheduler?: string
@@ -68,7 +68,7 @@ export const useGalleryStore = defineStore('gallery', {
         result = result.filter(
           (img) =>
             img.prompt.toLowerCase().includes(query) ||
-            img.negativePrompt?.toLowerCase().includes(query)
+            img.negative_prompt?.toLowerCase().includes(query)
         )
       }
 

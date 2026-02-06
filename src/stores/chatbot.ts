@@ -94,10 +94,10 @@ export const useChatbotStore = defineStore('chatbot', () => {
       current_prompt: params.prompt,
       width: params.width,
       height: params.height,
-      model: params.bundleId || params.modelComponentId || 'flux',
+      model: params.bundle_id || params.model_component_id || 'flux',
       style_loras: params.loras?.map((l) => l.id) ?? [],
       steps: params.steps,
-      cfg_scale: params.cfgScale,
+      cfg_scale: params.cfg_scale,
     };
   }
 

@@ -47,9 +47,9 @@
 <script setup lang="ts">
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { useToast } from 'primevue/usetoast';
-import { type GenerationJob } from '@/stores/queue';
-import { useGenerationStore } from '@/stores/generation';
+import {  useGenerationStore } from '@/stores/generation';
 import Button from 'primevue/button';
+import { GenerationJob } from '@/types';
 
 const { historyJob } = defineProps(['historyJob']);
 
@@ -82,11 +82,11 @@ const restoreParameters = (job: GenerationJob) => {
     ...generationStore.currentParams,
     prompt: job.params.prompt,
     steps: job.params.steps,
-    cfgScale: job.params.cfg_scale,
+    cfg_scale: job.params.cfg_scale,
     width: job.params.width,
     height: job.params.height,
     seed: job.params.seed,
-    modelComponentId: job.params.model_component_id,
+    model_component_id: job.params.model_component_id,
     sampler: job.params.sampler || 'euler',
     scheduler: job.params.scheduler || 'simple',
   };

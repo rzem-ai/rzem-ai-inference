@@ -22,8 +22,8 @@
         v-for="bundle in bundlesStore.bundles"
         :key="bundle.id"
         class="p-3 transition-colors border-b cursor-pointer border-surface-800 hover:bg-surface-800"
-        :class="{ 'bg-surface-800': selectedBundleId === bundle.id }"
-        @click="selectedBundleId = bundle.id">
+        :class="{ 'bg-surface-800': selectedbundle_id === bundle.id }"
+        @click="selectedbundle_id = bundle.id">
         <div class="flex items-center justify-between">
           <span class="text-sm font-medium truncate text-surface-200">{{ bundle.displayName }}</span>
           <div class="flex items-center gap-1 ml-2 shrink-0">
@@ -50,7 +50,7 @@ import { Button, Tag } from 'primevue';
 
 const bundlesStore = useBundlesStore();
 
-const selectedBundleId = ref<string | null>(null);
+const selectedbundle_id = ref<string | null>(null);
 const scanning = ref(false);
 
 async function scanBundles() {

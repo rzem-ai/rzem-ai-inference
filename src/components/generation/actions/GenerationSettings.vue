@@ -30,9 +30,9 @@
                 'Classifier-Free Guidance Scale (0-20). Controls how strictly the model follows your prompt. Higher = more literal, Lower = more creative.'
               " />
           </div>
-          <span class="font-mono text-xs font-semibold text-blue-600">{{ cfgScale.toFixed(1) }}</span>
+          <span class="font-mono text-xs font-semibold text-blue-600">{{ cfg_scale.toFixed(1) }}</span>
         </div>
-        <Slider v-model="cfgScale" :min="0" :max="20" :step="0.1" />
+        <Slider v-model="cfg_scale" :min="0" :max="20" :step="0.1" />
       </div>
     </div>
   </GenerationAction>
@@ -56,10 +56,10 @@ const steps = computed({
   },
 });
 
-const cfgScale = computed({
-  get: () => generationStore.currentParams.cfgScale,
+const cfg_scale = computed({
+  get: () => generationStore.currentParams.cfg_scale,
   set: (value: number | null) => {
-    generationStore.currentParams.cfgScale = value ?? 1.0;
+    generationStore.currentParams.cfg_scale = value ?? 1.0;
   },
 });
 </script>

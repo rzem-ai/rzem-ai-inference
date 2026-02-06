@@ -14,11 +14,7 @@
             Import LoRA
           </Button>
         </div>
-      </template>
-
-      <template #body>
-        <!-- Header -->
-        <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center justify-between mt-1">
           <InputGroup>
             <InputGroupAddon>
               <fa :icon="['fal', 'magnifying-glass']" size="sm" class="text-surface-400" />
@@ -26,7 +22,10 @@
             <InputText v-model="searchQuery" placeholder="Search styles..." size="small" class="w-64" />
           </InputGroup>
         </div>
-        <div class="flex flex-col gap-2">
+      </template>
+
+      <template #body>
+        <div class="flex flex-col h-full gap-2">
           <StylesList v-for="(styles, category) in stylesStore.stylesByCategory" :key="category" :category="category" :styles="styles" />
         </div>
       </template>

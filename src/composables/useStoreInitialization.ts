@@ -159,14 +159,6 @@ export function useStoreInitialization() {
         },
       },
       {
-        name: 'Queue',
-        init: async () => {
-          const { useQueueStore } = await import('@/stores/queue');
-          const queueStore = useQueueStore();
-          await queueStore.initialize();
-        },
-      },
-      {
         name: 'Auto-Tag',
         init: async () => {
           const { useAutoTagStore } = await import('@/stores/autoTag');

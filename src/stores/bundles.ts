@@ -37,7 +37,7 @@ function modelToComponent(model: ModelInfo): ComponentRecord {
   return {
     id: model.id,
     name: model.displayName,
-    componentType: model.modelType,
+    componentType: model.model_type,
     isAvailable: model.files.length > 0,
     quantization: model.quantization,
     vramMb: model.vramMb,
@@ -74,25 +74,25 @@ export const useBundlesStore = defineStore('bundles', {
 
     transformerComponents(state): ComponentRecord[] {
       return state.models
-        .filter((m) => m.modelType === 'checkpoint')
+        .filter((m) => m.model_type === 'checkpoint')
         .map(modelToComponent);
     },
 
     t5Components(state): ComponentRecord[] {
       return state.models
-        .filter((m) => m.modelType === 'text_encoder' && (m.architecture?.toLowerCase().includes('t5') ?? false))
+        .filter((m) => m.model_type === 'text_encoder' && (m.architecture?.toLowerCase().includes('t5') ?? false))
         .map(modelToComponent);
     },
 
     clipComponents(state): ComponentRecord[] {
       return state.models
-        .filter((m) => m.modelType === 'text_encoder' && (m.architecture?.toLowerCase().includes('clip') ?? false))
+        .filter((m) => m.model_type === 'text_encoder' && (m.architecture?.toLowerCase().includes('clip') ?? false))
         .map(modelToComponent);
     },
 
     vaeComponents(state): ComponentRecord[] {
       return state.models
-        .filter((m) => m.modelType === 'ae' || m.modelType === 'vae')
+        .filter((m) => m.model_type === 'ae' || m.model_type === 'vae')
         .map(modelToComponent);
     },
   },
@@ -168,24 +168,24 @@ export const useBundlesStore = defineStore('bundles', {
       return id;
     },
 
-    async updateBundle(bundleId: string, displayName?: string, description?: string) {
-      await invoke('update_bundle', { bundleId, displayName: displayName ?? null, description: description ?? null });
+    async updateBundle(bundle_id: string, displayName?: string, description?: string) {
+      await invoke('update_bundle', { bundle_id, displayName: displayName ?? null, description: description ?? null });
       // Update local state
-      const bundle = this.bundles.find((b) => b.id === bundleId);
+      const bundle = this.bundles.find((b) => b.id === bundle_id);
       if (bundle) {
         if (displayName !== undefined) { bundle.name = displayName; bundle.displayName = displayName; }
         if (description !== undefined) { bundle.description = description; }
       }
     },
 
-    async deleteBundle(bundleId: string) {
-      await invoke('delete_bundle', { bundleId });
-      this.bundles = this.bundles.filter((b) => b.id !== bundleId);
+    async deleteBundle(bundle_id: string) {
+      await invoke('delete_bundle', { bundle_id });
+      this.bundles = this.bundles.filter((b) => b.id !== bundle_id);
     },
 
-    async setActiveBundle(bundleId: string) {
-      await invoke('set_active_bundle', { bundleId });
-      this.bundles.forEach((b) => { b.isActive = b.id === bundleId; });
+    async setActiveBundle(bundle_id: string) {
+      await invoke('set_active_bundle', { bundle_id });
+      this.bundles.forEach((b) => { b.isActive = b.id === bundle_id; });
     },
 
     async getCompatibleModels(baseModelId: string, targetType: string): Promise<ModelInfo[]> {

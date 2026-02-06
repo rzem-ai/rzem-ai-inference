@@ -12,7 +12,7 @@ export const usePresetsStore = defineStore('presets', {
         name: 'Default (Flux Schnell)',
         mode: 'txt2img',
         steps: 4,
-        cfgScale: 1.0,
+        cfg_scale: 1.0,
         sampler: 'euler',
         scheduler: 'normal',
         width: 1024,
@@ -27,7 +27,7 @@ export const usePresetsStore = defineStore('presets', {
         name: 'Fast Draft',
         mode: 'txt2img',
         steps: 2,
-        cfgScale: 1.0,
+        cfg_scale: 1.0,
         sampler: 'euler',
         scheduler: 'normal',
         width: 512,
@@ -42,7 +42,7 @@ export const usePresetsStore = defineStore('presets', {
         name: 'High Quality',
         mode: 'txt2img',
         steps: 8,
-        cfgScale: 1.5,
+        cfg_scale: 1.5,
         sampler: 'dpm_pp_2m',
         scheduler: 'karras',
         width: 1024,
@@ -72,15 +72,15 @@ export const usePresetsStore = defineStore('presets', {
         name,
         mode: generationStore.currentParams.mode,
         prompt: generationStore.currentParams.prompt,
-        negativePrompt: generationStore.currentParams.negativePrompt,
+        negative_prompt: generationStore.currentParams.negative_prompt,
         steps: generationStore.currentParams.steps,
-        cfgScale: generationStore.currentParams.cfgScale,
+        cfg_scale: generationStore.currentParams.cfg_scale,
         sampler: generationStore.currentParams.sampler,
         scheduler: generationStore.currentParams.scheduler,
         width: generationStore.currentParams.width,
         height: generationStore.currentParams.height,
         seed: generationStore.currentParams.seed,
-        modelId: generationStore.currentParams.modelComponentId,
+        modelId: generationStore.currentParams.model_component_id,
         loraIds: JSON.stringify(
           modelsStore.activeLoras.map((l) => ({
             id: l.id,
@@ -104,9 +104,9 @@ export const usePresetsStore = defineStore('presets', {
       // Load generation parameters
       generationStore.currentParams.mode = preset.mode
       generationStore.currentParams.prompt = preset.prompt || ''
-      generationStore.currentParams.negativePrompt = preset.negativePrompt || ''
+      generationStore.currentParams.negative_prompt = preset.negative_prompt || ''
       generationStore.currentParams.steps = preset.steps
-      generationStore.currentParams.cfgScale = preset.cfgScale
+      generationStore.currentParams.cfg_scale = preset.cfg_scale
       generationStore.currentParams.sampler = preset.sampler ?? 'euler'
       generationStore.currentParams.scheduler = preset.scheduler ?? 'normal'
       generationStore.currentParams.width = preset.width

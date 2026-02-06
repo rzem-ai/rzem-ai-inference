@@ -72,15 +72,15 @@ import { Button, Tag } from 'primevue';
 
 const bundlesStore = useBundlesStore();
 
-const selectedBundleId = ref<string | null>(null);
+const selectedbundle_id = ref<string | null>(null);
 
 const selectedBundle = computed(() => {
-  if (!selectedBundleId.value) return null;
-  return bundlesStore.bundles.find((b) => b.id === selectedBundleId.value) ?? null;
+  if (!selectedbundle_id.value) return null;
+  return bundlesStore.bundles.find((b) => b.id === selectedbundle_id.value) ?? null;
 });
 
 async function deleteBundle(id: string) {
   await bundlesStore.deleteBundle(id);
-  if (selectedBundleId.value === id) selectedBundleId.value = null;
+  if (selectedbundle_id.value === id) selectedbundle_id.value = null;
 }
 </script>
