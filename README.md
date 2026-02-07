@@ -12,6 +12,8 @@ AI-powered image generation desktop application using FLUX.1-schnell model with 
 - 💾 SQLite-based metadata storage
 - 🎯 LoRA support for model customization
 - 🚀 GPU auto-detection (CUDA/MPS/CPU)
+- 📦 Standalone executables (Windows/macOS/Linux)
+- 🔄 Automatic updates from GitHub releases
 
 ## Tech Stack
 
@@ -30,7 +32,23 @@ AI-powered image generation desktop application using FLUX.1-schnell model with 
 
 ## Quick Start
 
-### 1. Install Python Dependencies
+### Option 1: Standalone Executable (Recommended)
+
+Download the latest release for your platform:
+
+1. Go to [Releases](https://github.com/rzem-ai/rzem-ai-inference/releases)
+2. Download for your platform:
+   - **Windows**: `RZEM-AI-Inference-Windows.zip`
+   - **macOS**: `RZEM-AI-Inference-macOS.zip`
+   - **Linux**: `RZEM-AI-Inference-Linux.tar.gz`
+3. Extract and run
+4. Models download automatically (~20GB)
+
+**Auto-updates**: The app checks for updates automatically and can update itself!
+
+### Option 2: Run from Source
+
+#### 1. Install Python Dependencies
 
 ```bash
 # Create virtual environment (recommended)
@@ -41,7 +59,7 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r src-python/requirements.txt
 ```
 
-### 2. Build Frontend
+#### 2. Build Frontend
 
 ```bash
 # Install Node dependencies
@@ -51,7 +69,7 @@ npm install
 npm run build
 ```
 
-### 3. Run the Application
+#### 3. Run the Application
 
 ```bash
 # Option 1: Using npm script (recommended)
@@ -153,6 +171,21 @@ npm run python:dev
 npm run build
 python src-python/main.py --debug
 ```
+
+### Building Standalone Executables
+
+```bash
+# Build for your platform
+./scripts/build.sh  # Linux/macOS
+scripts\build-windows.bat  # Windows
+
+# Output: dist-standalone/RZEM-AI-Inference
+
+# Create GitHub release
+./scripts/create-release.sh v0.2.0
+```
+
+See [BUILD_GUIDE.md](BUILD_GUIDE.md) for detailed build instructions.
 
 ### Running Tests
 
