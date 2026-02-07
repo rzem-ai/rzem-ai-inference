@@ -4,7 +4,7 @@
       <WorkspaceNav />
       <RouterView />
     </div>
-    <div class="h-10 flex-shrink-0">
+    <div class="h-10 shrink-0">
       <StatusBar />
     </div>
   </div>

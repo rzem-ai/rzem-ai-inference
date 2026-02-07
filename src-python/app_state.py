@@ -18,7 +18,7 @@ class AppState:
 
         # Database
         self.db: Optional[InferenceDb] = None
-        self.db_path = db_path or str(Path.home() / ".rzem" / "inference.db")
+        self.db_path = db_path or str(Path.home() / ".rzem-ai-inference" / "inference.db")
 
         # Queue system
         self.queue_manager = QueueManager()
@@ -44,7 +44,7 @@ class AppState:
             self.queue_processor = QueueProcessor(
                 self.queue_manager,
                 self.db,
-                output_dir=str(Path.home() / ".rzem" / "outputs"),
+                output_dir=str(Path.home() / ".rzem-ai-inference" / "outputs"),
             )
 
             # Register event callbacks

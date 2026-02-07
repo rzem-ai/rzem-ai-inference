@@ -153,7 +153,7 @@ def run_local_mode(runtime_config: RuntimeConfig, debug: bool = False) -> None:
     )
 
     # Start webview
-    webview.start(debug=debug)
+    webview.start(debug=True)
 
     # Cleanup
     logger.info("Shutting down...")

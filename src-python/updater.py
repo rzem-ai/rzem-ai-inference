@@ -77,7 +77,7 @@ class AutoUpdater:
             self.executable_name = "RZEM-AI-Inference"
 
         # Update cache directory
-        self.update_dir = Path.home() / ".rzem" / "updates"
+        self.update_dir = Path.home() / ".rzem-ai-inference" / "updates"
         self.update_dir.mkdir(parents=True, exist_ok=True)
 
     async def check_for_updates(self) -> bool:
