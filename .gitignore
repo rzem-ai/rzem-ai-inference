@@ -27,12 +27,21 @@ lerna-debug.log*
 *.sln
 *.sw?
 
-# Rust
-target/
-Cargo.lock
-
-# Tauri
-src-tauri/target/
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+*.egg-info/
+dist-python/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
 # Database files
 *.db
@@ -43,3 +52,11 @@ src-tauri/target/
 .env
 .env.local
 .env.*.local
+
+# Model cache (optional - uncomment to ignore HuggingFace cache)
+# .cache/
+
+# Generated outputs
+outputs/
+*.png
+*.jpg
