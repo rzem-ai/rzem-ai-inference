@@ -12,6 +12,7 @@ from loguru import logger
 from app_state import AppState
 from queue.types import GenerationParams, GenerationJob, JobStatus
 import events
+from updater import get_updater, CURRENT_VERSION
 
 
 class Api:
@@ -297,3 +298,90 @@ class Api:
         except Exception as e:
             logger.error(f"Failed to poll events: {e}")
             return []
+
+    # ==================== Auto-Update ====================
+
+    def get_version(self) -> Dict[str, str]:
+        """
+        Get current application version.
+
+        Returns:
+            {"version": "0.1.0", "status": "success"}
+        """
+        return {"version": CURRENT_VERSION, "status": "success"}
+
+    def check_for_updates(self) -> Dict[str, Any]:
+        """
+        Check for available updates.
+
+        Returns:
+            {
+                "status": "success",
+                "update_available": bool,
+                "current_version": "0.1.0",
+                "latest_version": "0.2.0",
+                "download_url": "https://...",
+            }
+        """
+        try:
+            updater = get_updater()
+            update_available = self._run_async(updater.check_for_updates())
+
+            result = {
+                "status": "success",
+                "update_available": update_available,
+                "current_version": str(updater.current_version),
+            }
+
+            if update_available and updater.latest_version:
+                result["latest_version"] = str(updater.latest_version)
+                result["download_url"] = updater.get_download_url()
+                result["release_notes"] = updater.latest_release.get("body", "")
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Failed to check for updates: {e}")
+            return {"status": "error", "message": str(e)}
+
+    def download_update(self) -> Dict[str, Any]:
+        """
+        Download and install available update.
+
+        This will download the update, verify it, install it, and restart the app.
+
+        Returns:
+            {"status": "success"} or {"status": "error", "message": "..."}
+        """
+        try:
+            updater = get_updater()
+
+            if not updater.update_available:
+                return {"status": "error", "message": "No update available"}
+
+            # Download and install in background
+            async def download_and_install():
+                def progress_callback(downloaded: int, total: int):
+                    progress = downloaded / total if total > 0 else 0
+                    self._run_async(events.push_event("update-progress", {
+                        "downloaded": downloaded,
+                        "total": total,
+                        "progress": progress,
+                    }))
+
+                success = await updater.download_and_install(progress_callback)
+                if success:
+                    await events.push_event("update-installed", {})
+                else:
+                    await events.push_event("update-failed", {
+                        "error": "Installation failed"
+                    })
+
+            # Start download in background
+            self._run_async(download_and_install())
+
+            return {"status": "success", "message": "Update download started"}
+
+        except Exception as e:
+            logger.error(f"Failed to download update: {e}")
+            return {"status": "error", "message": str(e)}

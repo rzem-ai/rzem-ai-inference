@@ -40,3 +40,6 @@ csv-parser>=0.0.0
 
 # System monitoring
 psutil>=5.9.0
+
+# Build and packaging
+pyinstaller>=6.0.0
