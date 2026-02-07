@@ -4,14 +4,11 @@ import tailwindcss from '@tailwindcss/vite';
 import VueDevTools from 'vite-plugin-vue-devtools';
 import { fileURLToPath, URL } from 'node:url';
 
-// @ts-expect-error process is a nodejs global
-const host = process.env.TAURI_DEV_HOST;
-
 export default defineConfig({
   plugins: [
     vue(),
     tailwindcss(),
-    //VueDevTools(), // Vue DevTools for Tauri development
+    // VueDevTools(), // Uncomment for debugging
   ],
   resolve: {
     alias: {
@@ -19,25 +16,19 @@ export default defineConfig({
     },
   },
 
-  // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
-  //
-  // 1. prevent Vite from obscuring rust errors
-  clearScreen: false,
-  // 2. tauri expects a fixed port, fail if that port is not available
+  // Development server configuration
   server: {
-    port: 1420,
-    strictPort: true,
-    host: host || false,
-    hmr: host
-      ? {
-          protocol: 'ws',
-          host,
-          port: 1521,
-        }
-      : undefined,
+    port: 5173,
+    strictPort: false,
     watch: {
-      // 3. tell Vite to ignore watching `src-tauri`
-      ignored: ['**/src-tauri/**'],
+      // Ignore Python backend files
+      ignored: ['**/src-python/**', '**/__pycache__/**', '**/*.pyc'],
     },
+  },
+
+  // Production build configuration
+  build: {
+    outDir: 'dist',
+    emptyOutDir: true,
   },
 });
