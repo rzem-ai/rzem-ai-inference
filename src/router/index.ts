@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory } from 'vue-router';
+import { createRouter, createWebHashHistory } from 'vue-router';
 
 import GenerateView from '@/views/GenerateView.vue';
 import GalleryView from '@/views/GalleryView.vue';
@@ -11,7 +11,7 @@ import SettingsCache from '@/components/settings/Cache.vue';
 import StylesView from '@/views/StylesView.vue';
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHashHistory(),
   routes: [
     {
       path: '/',
