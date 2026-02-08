@@ -10,8 +10,8 @@ from PIL import Image
 
 from .types import GenerationJob, JobStatus, ProgressUpdate
 from .manager import QueueManager
-from ..inference.flux_pipeline import FluxPipeline
-from ..db.database import InferenceDb
+from inference.flux_pipeline import FluxPipeline
+from db.database import InferenceDb
 
 
 class QueueProcessor:
