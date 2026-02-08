@@ -1,105 +1,6 @@
 import { defineStore } from 'pinia';
 import { invoke } from '@/utils/backend-bridge';
-import type { StyleInfo, StyleDetail, StyleLoraWithInfo, StyleExample, StyleRequest } from '@/types';
-
-// Backend uses snake_case, frontend uses camelCase
-interface BackendStyleInfo {
-  id: string;
-  name: string;
-  description?: string;
-  prompt_template: string;
-  default_strength: number;
-  strength_min: number;
-  strength_max: number;
-  category?: string;
-  thumbnail_path?: string;
-  is_favorite: boolean;
-  usage_count: number;
-  created_at: number;
-  updated_at: number;
-}
-
-interface BackendStyleLoraWithInfo {
-  lora_id: string;
-  lora_name: string;
-  lora_trigger_words?: string;
-  strength: number;
-  priority: number;
-}
-
-interface BackendStyleExample {
-  id: string;
-  style_id: string;
-  example_type: string;
-  content: string;
-  generation_params?: string;
-  created_at: number;
-}
-
-interface BackendStyleDetail extends BackendStyleInfo {
-  loras: BackendStyleLoraWithInfo[];
-  examples: BackendStyleExample[];
-}
-
-function mapStyleInfo(backend: BackendStyleInfo): StyleInfo {
-  return {
-    id: backend.id,
-    name: backend.name,
-    description: backend.description,
-    promptTemplate: backend.prompt_template,
-    defaultStrength: backend.default_strength,
-    strengthMin: backend.strength_min,
-    strengthMax: backend.strength_max,
-    category: backend.category,
-    thumbnailPath: backend.thumbnail_path,
-    isFavorite: backend.is_favorite,
-    usageCount: backend.usage_count,
-    createdAt: backend.created_at,
-    updatedAt: backend.updated_at,
-  };
-}
-
-function mapStyleLoraWithInfo(backend: BackendStyleLoraWithInfo): StyleLoraWithInfo {
-  return {
-    loraId: backend.lora_id,
-    loraName: backend.lora_name,
-    loraTriggerWords: backend.lora_trigger_words,
-    strength: backend.strength,
-    priority: backend.priority,
-  };
-}
-
-function mapStyleExample(backend: BackendStyleExample): StyleExample {
-  return {
-    id: backend.id,
-    styleId: backend.style_id,
-    exampleType: backend.example_type as 'prompt' | 'image',
-    content: backend.content,
-    generationParams: backend.generation_params,
-    createdAt: backend.created_at,
-  };
-}
-
-function mapStyleDetail(backend: BackendStyleDetail): StyleDetail {
-  return {
-    ...mapStyleInfo(backend),
-    loras: backend.loras.map(mapStyleLoraWithInfo),
-    examples: backend.examples.map(mapStyleExample),
-  };
-}
-
-function mapStyleRequest(request: StyleRequest): Record<string, unknown> {
-  return {
-    name: request.name,
-    description: request.description,
-    prompt_template: request.promptTemplate,
-    default_strength: request.defaultStrength,
-    strength_min: request.strengthMin,
-    strength_max: request.strengthMax,
-    category: request.category,
-    is_favorite: request.isFavorite,
-  };
-}
+import type { StyleInfo, StyleDetail, StyleRequest } from '@/types';
 
 export const useStylesStore = defineStore('styles', {
   state: () => ({
@@ -171,8 +72,7 @@ export const useStylesStore = defineStore('styles', {
       this.loading = true;
       this.error = null;
       try {
-        const backendStyles = await invoke<BackendStyleInfo[]>('get_all_styles');
-        this.styles = backendStyles.map(mapStyleInfo);
+        this.styles = await invoke<StyleInfo[]>('get_all_styles');
       } catch (err) {
         this.error = err instanceof Error ? err.message : String(err);
         throw err;
@@ -185,12 +85,8 @@ export const useStylesStore = defineStore('styles', {
       this.loading = true;
       this.error = null;
       try {
-        const backendDetail = await invoke<BackendStyleDetail | null>('get_style_detail', { styleId });
-        if (backendDetail) {
-          this.selectedStyle = mapStyleDetail(backendDetail);
-        } else {
-          this.selectedStyle = null;
-        }
+        const detail = await invoke<StyleDetail | null>('get_style_detail', { styleId });
+        this.selectedStyle = detail ?? null;
       } catch (err) {
         this.error = err instanceof Error ? err.message : String(err);
         throw err;
@@ -203,10 +99,7 @@ export const useStylesStore = defineStore('styles', {
       this.loading = true;
       this.error = null;
       try {
-        const backendStyle = await invoke<BackendStyleInfo>('create_style', {
-          request: mapStyleRequest(request),
-        });
-        const newStyle = mapStyleInfo(backendStyle);
+        const newStyle = await invoke<StyleInfo>('create_style', request);
         this.styles.push(newStyle);
         return newStyle;
       } catch (err) {
@@ -221,11 +114,10 @@ export const useStylesStore = defineStore('styles', {
       this.loading = true;
       this.error = null;
       try {
-        const backendStyle = await invoke<BackendStyleInfo>('update_style', {
+        const updatedStyle = await invoke<StyleInfo>('update_style', {
           styleId,
-          request: mapStyleRequest(request),
+          ...request,
         });
-        const updatedStyle = mapStyleInfo(backendStyle);
         const index = this.styles.findIndex((s) => s.id === styleId);
         if (index !== -1) {
           this.styles[index] = updatedStyle;

@@ -22,7 +22,7 @@
           <span class="setting-label">Tag on Generation</span>
           <span class="setting-desc">Automatically tag images after generation</span>
         </div>
-        <ToggleSwitch v-model="localSettings.auto_tag_on_generation" :disabled="!localSettings.enabled" />
+        <ToggleSwitch v-model="localSettings.autoTagOnGeneration" :disabled="!localSettings.enabled" />
       </div>
 
       <!-- Preferred Backend -->
@@ -33,10 +33,10 @@
           <div
             class="backend-option"
             :class="{
-              active: localSettings.preferred_backend === 'local',
+              active: localSettings.preferredBackend === 'local',
               disabled: !autoTagStore.isLocalAvailable,
             }"
-            @click="localSettings.preferred_backend = 'local'">
+            @click="localSettings.preferredBackend = 'local'">
             <div class="backend-header">
               <fa :icon="['fal', 'desktop']" size="lg" />
               <span class="backend-name">Local (Moondream)</span>
@@ -76,10 +76,10 @@
           <div
             class="backend-option"
             :class="{
-              active: localSettings.preferred_backend === 'claude',
+              active: localSettings.preferredBackend === 'claude',
               disabled: !autoTagStore.isClaudeAvailable && !showApiKeyInput,
             }"
-            @click="localSettings.preferred_backend = 'claude'">
+            @click="localSettings.preferredBackend = 'claude'">
             <div class="backend-header">
               <fa :icon="['fal', 'cloud']" size="lg" />
               <span class="backend-name">Claude Vision API</span>
@@ -98,7 +98,7 @@
               <template v-else>
                 <div class="api-key-input" @click.stop>
                   <InputText
-                    v-model="localSettings.claude_api_key"
+                    v-model="localSettings.claudeApiKey"
                     type="password"
                     placeholder="Enter Claude API Key"
                     size="small"
@@ -120,7 +120,7 @@
             <span class="setting-label">Minimum Confidence</span>
             <span class="setting-desc">Only add tags above this confidence threshold</span>
           </div>
-          <span class="confidence-value">{{ Math.round(localSettings.min_confidence * 100) }}%</span>
+          <span class="confidence-value">{{ Math.round(localSettings.minConfidence * 100) }}%</span>
         </div>
         <Slider v-model="confidenceSlider" :min="0" :max="100" :step="5" class="confidence-slider" />
       </div>
@@ -167,10 +167,10 @@ const visibleModel = computed({
 // Local copy of settings for editing
 const localSettings = ref<AutoTagSettings>({
   enabled: false,
-  auto_tag_on_generation: false,
-  preferred_backend: 'local',
-  min_confidence: 0.6,
-  claude_api_key: undefined,
+  autoTagOnGeneration: false,
+  preferredBackend: 'local',
+  minConfidence: 0.6,
+  claudeApiKey: undefined,
 })
 
 const showApiKeyInput = ref(false)
@@ -180,9 +180,9 @@ const lockClearMessage = ref<string | null>(null)
 
 // Slider works with 0-100, settings use 0.0-1.0
 const confidenceSlider = computed({
-  get: () => Math.round(localSettings.value.min_confidence * 100),
+  get: () => Math.round(localSettings.value.minConfidence * 100),
   set: (value: number) => {
-    localSettings.value.min_confidence = value / 100
+    localSettings.value.minConfidence = value / 100
   },
 })
 

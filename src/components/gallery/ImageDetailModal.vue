@@ -26,9 +26,9 @@
         </div>
 
         <!-- Negative Prompt -->
-        <div v-if="image.negative_prompt" class="flex flex-col gap-2">
+        <div v-if="image.negativePrompt" class="flex flex-col gap-2">
           <label class="text-xs font-semibold tracking-wide uppercase text-surface-400">Negative Prompt</label>
-          <p class="text-sm leading-relaxed text-surface-200 wrap-break-word">{{ image.negative_prompt }}</p>
+          <p class="text-sm leading-relaxed text-surface-200 wrap-break-word">{{ image.negativePrompt }}</p>
         </div>
 
         <!-- Generation Parameters Grid -->
@@ -45,9 +45,9 @@
             <span class="text-xs text-surface-500">Steps</span>
             <span class="text-sm font-medium text-surface-200">{{ image.steps }}</span>
           </div>
-          <div v-if="image.cfg_scale" class="flex flex-col gap-0.5">
+          <div v-if="image.cfgScale" class="flex flex-col gap-0.5">
             <span class="text-xs text-surface-500">CFG Scale</span>
-            <span class="text-sm font-medium text-surface-200">{{ image.cfg_scale }}</span>
+            <span class="text-sm font-medium text-surface-200">{{ image.cfgScale }}</span>
           </div>
           <div v-if="image.seed" class="flex flex-col gap-0.5">
             <span class="text-xs text-surface-500">Seed</span>
@@ -251,12 +251,12 @@ const usePrompt = async () => {
 
   // Map image metadata to generation parameters
   generationStore.currentParams.prompt = props.image.prompt;
-  generationStore.currentParams.negative_prompt = props.image.negative_prompt || '';
+  generationStore.currentParams.negative_prompt = props.image.negativePrompt || '';
 
   if (props.image.width) generationStore.currentParams.width = props.image.width;
   if (props.image.height) generationStore.currentParams.height = props.image.height;
   if (props.image.steps) generationStore.currentParams.steps = props.image.steps;
-  if (props.image.cfg_scale) generationStore.currentParams.cfg_scale = props.image.cfg_scale;
+  if (props.image.cfgScale) generationStore.currentParams.cfg_scale = props.image.cfgScale;
   if (props.image.seed) generationStore.currentParams.seed = props.image.seed;
   if (props.image.sampler) generationStore.currentParams.sampler = props.image.sampler as any;
   if (props.image.scheduler) generationStore.currentParams.scheduler = props.image.scheduler as any;

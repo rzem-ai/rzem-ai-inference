@@ -16,10 +16,11 @@ class RuntimeConfig(BaseModel):
     mode: RuntimeMode
     server_url: Optional[str] = None
     server_port: Optional[int] = None
+    dev_mode: bool = False
 
     @classmethod
-    def local(cls) -> "RuntimeConfig":
-        return cls(mode=RuntimeMode.LOCAL)
+    def local(cls, dev_mode: bool = False) -> "RuntimeConfig":
+        return cls(mode=RuntimeMode.LOCAL, dev_mode=dev_mode)
 
     @classmethod
     def server(cls, port: int) -> "RuntimeConfig":

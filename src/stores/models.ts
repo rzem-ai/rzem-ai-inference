@@ -7,22 +7,13 @@ interface BackendLoraInfo {
   id: string;
   name: string;
   path: string;
-  trigger_words?: string;
-  base_model?: string;
-  size_bytes: number;
-  created_at: number;
+  triggerWords?: string;
+  baseModel?: string;
+  sizeBytes: number;
+  strength: number;
+  isActive: boolean;
+  createdAt: number;
   metadata?: Record<string, string>;
-  default_strength: number;
-  strength_min: number;
-  strength_max: number;
-}
-
-interface BackendLoraFileInfo {
-  path: string;
-  size_bytes: number;
-  weight_count: number;
-  rank?: number;
-  total_params: number;
 }
 
 function mapLoraInfo(info: BackendLoraInfo, existingLora?: LoRA): LoRA {
@@ -30,27 +21,16 @@ function mapLoraInfo(info: BackendLoraInfo, existingLora?: LoRA): LoRA {
     id: info.id,
     name: info.name,
     path: info.path,
-    triggerWords: info.trigger_words,
-    baseModel: info.base_model,
-    sizeBytes: info.size_bytes,
-    createdAt: info.created_at,
+    triggerWords: info.triggerWords,
+    baseModel: info.baseModel,
+    sizeBytes: info.sizeBytes,
+    createdAt: info.createdAt,
     metadata: info.metadata,
-    strength: existingLora?.strength ?? info.default_strength ?? 1.0,
-    isActive: existingLora?.isActive ?? false,
-    defaultStrength: info.default_strength ?? 1.0,
-    strengthMin: info.strength_min ?? 0.5,
-    strengthMax: info.strength_max ?? 1.5,
-  };
-}
-
-function mapLoraFileInfo(info: BackendLoraFileInfo): LoraFileInfo {
-  return {
-    path: info.path,
-    sizeBytes: info.size_bytes,
-    weightCount: info.weight_count,
-    rank: info.rank,
-    totalParams: info.total_params,
-    isFluxCompatible: true, // FIXME
+    strength: existingLora?.strength ?? info.strength ?? 1.0,
+    isActive: existingLora?.isActive ?? info.isActive ?? false,
+    defaultStrength: info.strength ?? 1.0,
+    strengthMin: 0.5,
+    strengthMax: 1.5,
   };
 }
 
@@ -267,8 +247,7 @@ export const useModelsStore = defineStore('models', {
     },
 
     async getLoraFileInfo(path: string): Promise<LoraFileInfo> {
-      const info = await invoke<BackendLoraFileInfo>('get_lora_file_info', { path });
-      return mapLoraFileInfo(info);
+      return await invoke<LoraFileInfo>('get_lora_file_info', { path });
     },
 
     toggleLora(id: string) {

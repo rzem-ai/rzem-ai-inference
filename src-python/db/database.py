@@ -364,6 +364,38 @@ class InferenceDb:
         await self.conn.commit()
         return image_data.get("id")
 
+    @staticmethod
+    def _map_image_row(row: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert snake_case image row to camelCase for frontend"""
+        return {
+            "id": row["id"],
+            "filePath": row.get("file_path"),
+            "thumbnailPath": row.get("thumbnail_path"),
+            "prompt": row.get("prompt", ""),
+            "negativePrompt": row.get("negative_prompt"),
+            "width": row.get("width"),
+            "height": row.get("height"),
+            "fileSize": row.get("file_size"),
+            "steps": row.get("steps"),
+            "cfgScale": row.get("cfg_scale"),
+            "seed": row.get("seed"),
+            "sampler": row.get("sampler"),
+            "scheduler": row.get("scheduler"),
+            "modelName": row.get("model_name", "flux-schnell"),
+            "modelComponentId": row.get("model_component_id"),
+            "t5ComponentId": row.get("t5_component_id"),
+            "clipComponentId": row.get("clip_component_id"),
+            "vaeComponentId": row.get("vae_component_id"),
+            "bundleId": row.get("bundle_id"),
+            "loras": row.get("loras"),
+            "isFavorite": bool(row.get("favorite", 0)),
+            "generationTimeMs": row.get("generation_time_ms", 0),
+            "status": row.get("status", "completed"),
+            "sessionId": row.get("session_id"),
+            "createdAt": row.get("created_at", 0),
+            "updatedAt": row.get("updated_at", 0),
+        }
+
     async def get_all_images(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
         """Get all images, optionally limited"""
         if not self.conn:
@@ -375,7 +407,7 @@ class InferenceDb:
 
         cursor = await self.conn.execute(query)
         rows = await cursor.fetchall()
-        return [dict(row) for row in rows]
+        return [self._map_image_row(dict(row)) for row in rows]
 
     async def get_image_by_id(self, image_id: str) -> Optional[Dict[str, Any]]:
         """Get image by ID"""
@@ -386,7 +418,7 @@ class InferenceDb:
             "SELECT * FROM images WHERE id = ?", (image_id,)
         )
         row = await cursor.fetchone()
-        return dict(row) if row else None
+        return self._map_image_row(dict(row)) if row else None
 
     async def delete_image(self, image_id: str) -> bool:
         """Delete image by ID"""
@@ -682,7 +714,7 @@ class InferenceDb:
             (folder_id, limit)
         )
         rows = await cursor.fetchall()
-        return [dict(row) for row in rows]
+        return [self._map_image_row(dict(row)) for row in rows]
 
     async def get_uncategorized_images(self, limit: int = 100) -> List[Dict[str, Any]]:
         """Get images not in any folder"""
@@ -698,7 +730,7 @@ class InferenceDb:
             (limit,)
         )
         rows = await cursor.fetchall()
-        return [dict(row) for row in rows]
+        return [self._map_image_row(dict(row)) for row in rows]
 
     # ==================== Tags ====================
 
@@ -1174,7 +1206,7 @@ class InferenceDb:
 
         cursor = await self.conn.execute(sql, tuple(params))
         rows = await cursor.fetchall()
-        return [dict(row) for row in rows]
+        return [self._map_image_row(dict(row)) for row in rows]
 
     # ==================== LoRAs ====================
 
