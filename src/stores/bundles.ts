@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '@/utils/backend-bridge';
 import type { ModelInfo, BundleInfo as ApiBundleInfo, BundleItemInfo } from '@/types';
 
 // ComponentRecord shape used by EnhancedModelSelector

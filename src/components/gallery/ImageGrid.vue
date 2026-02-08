@@ -62,7 +62,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { convertFileSrc } from '@tauri-apps/api/core';
+import { convertFileSrc } from '@/utils/backend-bridge';
 import type { GalleryImage } from '@/stores/gallery';
 import Image from 'primevue/image';
 import Checkbox from 'primevue/checkbox';

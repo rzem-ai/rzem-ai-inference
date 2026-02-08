@@ -4,7 +4,7 @@
  * Uses Claude API (via Tauri backend) to analyze images and generate prompts.
  */
 
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '@/utils/backend-bridge';
 
 /**
  * Analyzes an image and generates a prompt to recreate it.

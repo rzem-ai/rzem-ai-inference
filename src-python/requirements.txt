@@ -1,0 +1,47 @@
+# Core dependencies
+torch>=2.0.0
+torchvision>=0.15.0
+diffusers>=0.32.0
+transformers>=4.35.0
+accelerate>=0.24.0
+safetensors>=0.4.0
+huggingface-hub>=0.25.0
+
+# Desktop UI
+pywebview>=5.0.0
+PyQt6>=6.6.0
+PyQt6-WebEngine>=6.6.0
+qtpy>=2.4.0
+
+# Image processing
+Pillow>=10.0.0
+opencv-python>=4.8.0
+
+# Database
+aiosqlite>=0.19.0
+
+# HTTP/WebSocket for server mode
+aiohttp>=3.9.0
+websockets>=12.0
+
+# Utilities
+python-dotenv>=1.0.0
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+click>=8.1.0
+aiofiles>=23.0.0
+
+# Logging
+loguru>=0.7.0
+
+# Progress tracking
+tqdm>=4.66.0
+
+# CSV/batch processing
+jinja2>=3.1.0
+
+# System monitoring
+psutil>=5.9.0
+
+# Build and packaging
+pyinstaller>=6.0.0

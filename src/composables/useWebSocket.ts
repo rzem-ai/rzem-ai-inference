@@ -7,7 +7,7 @@
  */
 
 import { ref } from 'vue'
-import { listen, UnlistenFn } from '@tauri-apps/api/event'
+import { listen, UnlistenFn } from '@/utils/backend-bridge'
 import { getRuntimeMode, isClientMode } from './useRuntimeConfig'
 
 export interface JobUpdatePayload {
@@ -262,14 +262,14 @@ export function useJobUpdates() {
 
     return {
       onJobUpdate: async (callback: JobUpdateCallback) => {
-        const unlisten = await listen<JobUpdatePayload>('job-update', (event) => {
-          callback(event.payload)
+        const unlisten = await listen<JobUpdatePayload>('job-update', (payload) => {
+          callback(payload)
         })
         unlisteners.push(unlisten)
       },
       onJobProgress: async (callback: JobProgressCallback) => {
-        const unlisten = await listen<JobProgressPayload>('job-progress', (event) => {
-          callback(event.payload)
+        const unlisten = await listen<JobProgressPayload>('job-progress', (payload) => {
+          callback(payload)
         })
         unlisteners.push(unlisten)
       },

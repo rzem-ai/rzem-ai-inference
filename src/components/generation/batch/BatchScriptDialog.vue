@@ -196,7 +196,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '@/utils/backend-bridge';
 import { useToast } from 'primevue/usetoast';
 import { useGenerationStore } from '@/stores/generation';
 import { useModelsStore } from '@/stores/models';

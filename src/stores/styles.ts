@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '@/utils/backend-bridge';
 import type { StyleInfo, StyleDetail, StyleLoraWithInfo, StyleExample, StyleRequest } from '@/types';
 
 // Backend uses snake_case, frontend uses camelCase

@@ -33,7 +33,7 @@ import { ref, nextTick } from 'vue';
 import InputText from 'primevue/inputtext';
 
 interface Props {
-  modelValue: string | null;
+  modelValue: string | null | undefined;
   placeholder?: string;
   fluid?: boolean;
   displayClass?: string;
@@ -50,21 +50,22 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const emit = defineEmits<{
-  'update:modelValue': [value: string | null];
-  save: [value: string | null];
+  'update:modelValue': [value: string | null | undefined];
+  save: [value: string | null | undefined];
   cancel: [];
 }>();
 
 const isEditing = ref(false);
 const internalValue = ref(props.modelValue ?? '');
-const inputRef = ref<InstanceType<typeof InputText> | null>(null);
+const inputRef = ref<any>(null);
 
 function startEdit() {
   isEditing.value = true;
   internalValue.value = props.modelValue ?? '';
 
   nextTick(() => {
-    inputRef.value?.$el.focus();
+    // PrimeVue components expose $el for DOM access
+    inputRef.value?.$el?.focus();
   });
 }
 

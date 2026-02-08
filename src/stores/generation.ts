@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '@/utils/backend-bridge';
 import { useGalleryStore } from './gallery';
 import { useJobUpdates } from '@/composables/useWebSocket';
 import { GenerationJob, GenerationParams, JobStatus, PipelineStage, Sampler, Scheduler } from '@/types';

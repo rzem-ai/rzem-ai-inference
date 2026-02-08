@@ -137,9 +137,9 @@
 import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useToast } from 'primevue/usetoast';
-import { convertFileSrc, invoke } from '@tauri-apps/api/core';
-import { save } from '@tauri-apps/plugin-dialog';
-import { writeFile, readFile } from '@tauri-apps/plugin-fs';
+import { convertFileSrc, invoke } from '@/utils/backend-bridge';
+import { save } from '@/utils/file-dialog-stub';
+import { readFile, writeFile } from '@/utils/file-dialog-stub';
 import GenerateActions from '@/components/generation/GenerateActions.vue';
 import QueuePanel from '@/components/generation/QueuePanel.vue';
 import GeneratedResults from '@/components/generation/GeneratedResults.vue';
@@ -155,10 +155,12 @@ import Button from 'primevue/button';
 import BatchScriptDialog from '@/components/generation/batch/BatchScriptDialog.vue';
 import { analyzeImageForPrompt, fileToDataUrl, isValidImageFile } from '@/services/imageAnalysis';
 import { GenerationParams } from '@/types';
+import { useStylesStore } from '@/stores/styles';
 
 const generationStore = useGenerationStore();
 const modelsStore = useModelsStore();
 const chatStore = useChatbotStore();
+const stylesStore = useStylesStore();
 const toast = useToast();
 
 const { sectionVisibility } = storeToRefs(generationStore);
@@ -231,8 +233,8 @@ const generationCounts = [
 // Get pending images with preview data from running jobs
 const pendingImages = computed(() => {
   return generationStore.jobs
-    .filter(job => job.status === 'running' && currentBatchJobIds.value.has(job.id))
-    .map(job => ({
+    .filter((job) => job.status === 'running' && currentBatchJobIds.value.has(job.id))
+    .map((job) => ({
       id: job.id,
       previewData: job.previewData,
     }));
@@ -392,6 +394,9 @@ const handleGenerate = async () => {
       const activeLoraConfigs: string | any[] = [];
       console.log('activeLoraConfigs:', activeLoraConfigs);
 
+      const style = stylesStore.selectedStyle;
+      console.log('style:', style);
+
       // Apply style template if a style is selected
       const finalPrompt = generationStore.getFinalPrompt(params.prompt);
 
@@ -410,8 +415,8 @@ const handleGenerate = async () => {
         sampler: params.sampler,
         scheduler: params.scheduler,
         // Include active LoRAs if any
-        ...(activeLoraConfigs.length > 0 && { loras: activeLoraConfigs }),
-        mode: 'txt2img'
+        loras: [{ id: 'a973d7d9-c78d-4f5f-8a6a-0d3d22019c28', strength: 1.0 }],
+        mode: 'txt2img',
       };
 
       console.log('queueParams:', queueParams);
