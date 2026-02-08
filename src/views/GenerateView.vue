@@ -137,9 +137,9 @@
 import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useToast } from 'primevue/usetoast';
-import { convertFileSrc, invoke } from '@tauri-apps/api/core';
-import { save } from '@tauri-apps/plugin-dialog';
-import { writeFile, readFile } from '@tauri-apps/plugin-fs';
+import { convertFileSrc, invoke } from '@/utils/backend-bridge';
+import { save } from '@/utils/file-dialog-stub';
+import { readFile, writeFile } from '@/utils/file-dialog-stub';
 import GenerateActions from '@/components/generation/GenerateActions.vue';
 import QueuePanel from '@/components/generation/QueuePanel.vue';
 import GeneratedResults from '@/components/generation/GeneratedResults.vue';

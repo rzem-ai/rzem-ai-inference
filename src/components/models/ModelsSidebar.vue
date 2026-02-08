@@ -79,9 +79,9 @@ function formatVram(vramMb: number): string {
 }
 
 async function scanModels() {
-  // Use native folder picker via Tauri dialog plugin
+  // Use native folder picker (TODO: implement for pywebview)
   try {
-    const { open } = await import('@tauri-apps/plugin-dialog');
+    const { open } = await import('@/utils/file-dialog-stub');
     const path = await open({ directory: true, title: 'Select directory to scan for models' });
     if (path) {
       await modelsStore.scanDirectory(path as string);
@@ -93,7 +93,7 @@ async function scanModels() {
 
 async function convertModel() {
   try {
-    const { open } = await import('@tauri-apps/plugin-dialog');
+    const { open } = await import('@/utils/file-dialog-stub');
     const inputPath = await open({
       directory: false,
       multiple: false,

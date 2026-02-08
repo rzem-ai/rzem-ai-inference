@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '@/utils/backend-bridge';
 import type { ModelInfo, LoRA, LoraFileInfo, LoraConfig } from '@/types';
 import { useBundlesStore } from './bundles';
 

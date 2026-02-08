@@ -91,7 +91,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '@/utils/backend-bridge';
 import ConnectionStatus from './ConnectionStatus.vue';
 import ProgressBar from 'primevue/progressbar';
 import { ProgressBarDesignTokens } from '@primeuix/themes/types/progressbar';

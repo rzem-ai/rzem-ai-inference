@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
-import { invoke } from '@tauri-apps/api/core'
-import { listen, type UnlistenFn } from '@tauri-apps/api/event'
+import { invoke } from '@/utils/backend-bridge'
+import { listen, type UnlistenFn } from '@/utils/backend-bridge'
 
 /**
  * Backend preference for auto-tagging
@@ -157,11 +157,11 @@ export const useAutoTagStore = defineStore('autoTag', {
         image_id: string
         tags: TagWithConfidence[]
         backend: TaggingBackend
-      }>('auto-tag-complete', (event) => {
+      }>('auto-tag-complete', (payload) => {
         const result: TaggingResult = {
-          image_id: event.payload.image_id,
-          tags: event.payload.tags,
-          backend: event.payload.backend,
+          image_id: payload.image_id,
+          tags: payload.tags,
+          backend: payload.backend,
           success: true,
         }
         this.recentTaggingResults.unshift(result)
@@ -177,13 +177,13 @@ export const useAutoTagStore = defineStore('autoTag', {
         image_id: string
         error: string
         backend: TaggingBackend
-      }>('auto-tag-failed', (event) => {
+      }>('auto-tag-failed', (payload) => {
         const result: TaggingResult = {
-          image_id: event.payload.image_id,
+          image_id: payload.image_id,
           tags: [],
-          backend: event.payload.backend,
+          backend: payload.backend,
           success: false,
-          error: event.payload.error,
+          error: payload.error,
         }
         this.recentTaggingResults.unshift(result)
         if (this.recentTaggingResults.length > 10) {
@@ -196,9 +196,9 @@ export const useAutoTagStore = defineStore('autoTag', {
       const unlisten3 = await listen<{
         bytes_downloaded: number
         total_bytes: number
-      }>('vision-model-download-progress', (event) => {
-        this.modelStatus.download_progress = event.payload.bytes_downloaded
-        this.modelStatus.model_size = event.payload.total_bytes
+      }>('vision-model-download-progress', (payload) => {
+        this.modelStatus.download_progress = payload.bytes_downloaded
+        this.modelStatus.model_size = payload.total_bytes
       })
       this.unlisteners.push(unlisten3)
     },

@@ -1,6 +1,4 @@
 import { ref } from 'vue';
-import { invoke } from '@tauri-apps/api/core';
-import { homeDir, join } from '@tauri-apps/api/path';
 
 export interface InitProgress {
   current: number;
@@ -25,9 +23,9 @@ export function useStoreInitialization() {
       {
         name: 'Database',
         init: async () => {
-          const home = await homeDir();
-          const dbPath = await join(home, '.rzem-ai-inference', 'inference.db');
-          await invoke('init_database', { dbPath });
+          // pywebview backend will use default path in user's home directory
+          // No need to explicitly provide dbPath for now
+          console.log('[App Init] Database will use default path');
         },
       },
       {
