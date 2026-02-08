@@ -139,7 +139,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import { convertFileSrc } from '@tauri-apps/api/core';
+import { convertFileSrc } from '@/utils/backend-bridge';
 import { useRouter } from 'vue-router';
 import { useGalleryStore, type GalleryImage } from '@/stores/gallery';
 import { useFoldersStore } from '@/stores/folders';

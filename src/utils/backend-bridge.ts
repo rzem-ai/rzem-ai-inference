@@ -1,10 +1,60 @@
 /**
- * Backend Bridge - Compatibility layer for pywebview backend
+ * Backend Bridge - pywebview backend API
  *
- * This module provides a unified API for communicating with the backend,
- * whether it's Tauri or pywebview. It abstracts the differences between
- * the two systems to minimize changes to the rest of the codebase.
+ * This module provides a unified API for communicating with the pywebview backend.
  */
+
+// Promise that resolves when pywebview is ready
+let pywebviewReady: Promise<void> | null = null;
+
+// Initialize the ready promise
+if (typeof window !== 'undefined') {
+  pywebviewReady = new Promise<void>((resolve) => {
+    // Check if already ready
+    if (window.pywebview?.api) {
+      resolve();
+      return;
+    }
+
+    // Listen for pywebview ready event
+    const checkReady = () => {
+      if (window.pywebview?.api) {
+        resolve();
+        window.removeEventListener('pywebviewready', checkReady);
+      }
+    };
+
+    window.addEventListener('pywebviewready', checkReady);
+
+    // Fallback: poll for pywebview
+    const pollInterval = setInterval(() => {
+      if (window.pywebview?.api) {
+        resolve();
+        clearInterval(pollInterval);
+        window.removeEventListener('pywebviewready', checkReady);
+      }
+    }, 50);
+
+    // Timeout after 10 seconds
+    setTimeout(() => {
+      clearInterval(pollInterval);
+      window.removeEventListener('pywebviewready', checkReady);
+      if (!window.pywebview?.api) {
+        console.error('pywebview failed to initialize within 10 seconds');
+      }
+      resolve(); // Resolve anyway to prevent hanging
+    }, 10000);
+  });
+}
+
+/**
+ * Wait for pywebview to be ready before calling API
+ */
+async function ensureReady(): Promise<void> {
+  if (pywebviewReady) {
+    await pywebviewReady;
+  }
+}
 
 // Type for pywebview API
 interface PywebviewApi {
@@ -29,19 +79,14 @@ declare global {
     pywebview?: {
       api: PywebviewApi;
     };
-    __TAURI__?: any;
   }
 }
 
 /**
- * Check if we're running in Tauri or pywebview
+ * Check if pywebview backend is available
  */
 export function isBackendAvailable(): boolean {
-  return !!(window.__TAURI__ || window.pywebview);
-}
-
-export function isTauri(): boolean {
-  return !!window.__TAURI__;
+  return !!(window.pywebview && window.pywebview.api);
 }
 
 export function isPywebview(): boolean {
@@ -49,36 +94,34 @@ export function isPywebview(): boolean {
 }
 
 /**
- * Invoke a backend command
- *
- * This wraps both Tauri's invoke and pywebview's API calls
+ * Invoke a backend command via pywebview API
  */
 export async function invoke<T = any>(command: string, args?: any): Promise<T> {
-  if (isTauri()) {
-    // Use Tauri invoke
-    const { invoke: tauriInvoke } = await import("@tauri-apps/api/core");
-    return tauriInvoke(command, args);
-  } else if (isPywebview() && window.pywebview?.api) {
-    // Use pywebview API
-    const api = window.pywebview.api as any;
-    const method = api[command];
+  // Wait for pywebview to be ready
+  await ensureReady();
 
-    if (!method) {
-      throw new Error(`Command '${command}' not found in pywebview API`);
-    }
-
-    // Call the method
-    const result = await method.call(api, args);
-
-    // Handle error responses
-    if (result && typeof result === "object" && result.status === "error") {
-      throw new Error(result.message || "Unknown error");
-    }
-
-    return result;
-  } else {
-    throw new Error("No backend available");
+  if (!window.pywebview?.api) {
+    throw new Error("pywebview backend not available");
   }
+
+  const api = window.pywebview.api as any;
+  const method = api[command];
+
+  if (!method) {
+    throw new Error(`Command '${command}' not found in pywebview API`);
+  }
+
+  // Call the method with or without args
+  const result = args !== undefined
+    ? await method.call(api, args)
+    : await method.call(api);
+
+  // Handle error responses
+  if (result && typeof result === "object" && result.status === "error") {
+    throw new Error(result.message || "Unknown error");
+  }
+
+  return result;
 }
 
 /**
@@ -88,56 +131,46 @@ export async function invoke<T = any>(command: string, args?: any): Promise<T> {
  * For pywebview: Use polling-based system
  */
 
-type EventCallback = (payload: any) => void;
+type EventCallback<T = any> = (payload: T) => void;
+export type UnlistenFn = () => void;
 
-const eventListeners = new Map<string, Set<EventCallback>>();
+const eventListeners = new Map<string, Set<EventCallback<any>>>();
 let pollInterval: number | null = null;
 
 /**
- * Listen to backend events
+ * Listen to backend events via polling
  */
-export async function listen(
+export async function listen<T = any>(
   event: string,
-  callback: EventCallback
-): Promise<() => void> {
-  if (isTauri()) {
-    // Use Tauri's event system
-    const { listen: tauriListen } = await import("@tauri-apps/api/event");
-    const unlisten = await tauriListen(event, (e: any) => {
-      callback(e.payload);
-    });
-    return unlisten;
-  } else if (isPywebview()) {
-    // Use polling-based event system
-    if (!eventListeners.has(event)) {
-      eventListeners.set(event, new Set());
-    }
-
-    eventListeners.get(event)!.add(callback);
-
-    // Start polling if not already started
-    if (pollInterval === null) {
-      startEventPolling();
-    }
-
-    // Return unlisten function
-    return () => {
-      const listeners = eventListeners.get(event);
-      if (listeners) {
-        listeners.delete(callback);
-        if (listeners.size === 0) {
-          eventListeners.delete(event);
-        }
-      }
-
-      // Stop polling if no more listeners
-      if (eventListeners.size === 0 && pollInterval !== null) {
-        stopEventPolling();
-      }
-    };
-  } else {
-    throw new Error("No backend available");
+  callback: EventCallback<T>
+): Promise<UnlistenFn> {
+  // Use polling-based event system
+  if (!eventListeners.has(event)) {
+    eventListeners.set(event, new Set());
   }
+
+  eventListeners.get(event)!.add(callback as EventCallback<any>);
+
+  // Start polling if not already started
+  if (pollInterval === null) {
+    startEventPolling();
+  }
+
+  // Return unlisten function
+  return () => {
+    const listeners = eventListeners.get(event);
+    if (listeners) {
+      listeners.delete(callback as EventCallback<any>);
+      if (listeners.size === 0) {
+        eventListeners.delete(event);
+      }
+    }
+
+    // Stop polling if no more listeners
+    if (eventListeners.size === 0 && pollInterval !== null) {
+      stopEventPolling();
+    }
+  };
 }
 
 /**
@@ -181,16 +214,23 @@ function stopEventPolling() {
 }
 
 /**
- * Emit an event (Tauri only, not supported in pywebview)
+ * Emit an event (not supported in pywebview - events flow backend → frontend only)
  */
-export async function emit(event: string, payload: any): Promise<void> {
-  if (isTauri()) {
-    const { emit: tauriEmit } = await import("@tauri-apps/api/event");
-    await tauriEmit(event, payload);
-  } else {
-    // Not supported in pywebview
-    console.warn("emit() is not supported in pywebview backend");
+export async function emit(_event: string, _payload: any): Promise<void> {
+  console.warn("emit() is not supported in pywebview backend - events flow backend → frontend only");
+}
+
+/**
+ * Convert a file path to a URL that can be loaded by the frontend
+ *
+ * pywebview serves files, so we can use file:// protocol
+ */
+export function convertFileSrc(filePath: string): string {
+  // On macOS/Linux, paths start with /, on Windows they might not
+  if (!filePath.startsWith('/') && !filePath.match(/^[A-Za-z]:/)) {
+    filePath = '/' + filePath;
   }
+  return `file://${filePath}`;
 }
 
 /**

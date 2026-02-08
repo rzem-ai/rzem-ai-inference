@@ -6,7 +6,7 @@
  */
 
 import { ref, readonly } from 'vue';
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '@/utils/backend-bridge';
 
 export interface RuntimeConfig {
   mode: 'local' | 'server' | 'client';

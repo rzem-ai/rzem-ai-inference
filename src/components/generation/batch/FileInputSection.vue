@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { open } from '@tauri-apps/plugin-dialog';
-import { readTextFile } from '@tauri-apps/plugin-fs';
-import { invoke } from '@tauri-apps/api/core';
+import { open } from '@/utils/file-dialog-stub';
+import { readTextFile } from '@/utils/file-dialog-stub';
+import { invoke } from '@/utils/backend-bridge';
 import type { BatchData, DataLoadedEvent } from './types';
 import ProgressSpinner from 'primevue/progressspinner';
 import Message from 'primevue/message';

@@ -6,7 +6,7 @@
  */
 
 import { ref } from 'vue'
-import { convertFileSrc } from '@tauri-apps/api/core'
+import { convertFileSrc } from '@/utils/backend-bridge'
 import { isClientMode, useRuntimeConfig } from './useRuntimeConfig'
 
 /**
