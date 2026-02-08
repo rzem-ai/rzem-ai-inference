@@ -6,9 +6,9 @@
     </div>
 
     <!-- Generation/Scan Status -->
-    <div class="flex items-center gap-2" :class="{ active: currentStats?.is_generating || isScanning }">
-      <div class="status-icon" :class="(currentStats?.is_generating || isScanning) ? 'generating' : 'idle'">
-        <fa v-if="currentStats?.is_generating || isScanning" :icon="['fal', 'spinner-third']" class="fa-spin" size="sm" />
+    <div class="flex items-center gap-2" :class="{ active: currentStats?.isGenerating || isScanning }">
+      <div class="status-icon" :class="(currentStats?.isGenerating || isScanning) ? 'generating' : 'idle'">
+        <fa v-if="currentStats?.isGenerating || isScanning" :icon="['fal', 'spinner-third']" class="fa-spin" size="sm" />
         <fa v-else :icon="['fal', 'circle']" size="sm" />
       </div>
       <span class="text-xs font-medium text-surface-300">
@@ -39,7 +39,7 @@
     </div>
 
     <!-- GPU Stats (if available) -->
-    <template v-if="currentStats?.gpu_name">
+    <template v-if="gpuName">
       <div class="w-px h-4 bg-surface-700" />
 
       <div class="flex items-center gap-2 gpu">
@@ -97,27 +97,27 @@ import ProgressBar from 'primevue/progressbar';
 import { ProgressBarDesignTokens } from '@primeuix/themes/types/progressbar';
 
 interface SystemStats {
-  cpu_usage: number;
-  memory_used: number;
-  memory_total: number;
-  memory_percent: number;
-  gpu_memory_used: number;
-  gpu_memory_total: number;
-  gpu_usage_percent: number;
-  gpu_name: string;
-  is_generating: boolean;
+  cpuUsage: number;
+  memoryUsed: number;
+  memoryTotal: number;
+  memoryPercent: number;
+  gpuMemoryUsed: number;
+  gpuMemoryTotal: number;
+  gpuUsagePercent: number;
+  gpuName: string;
+  isGenerating: boolean;
 }
 
 const BLANK_SYSTEM_STATUS: SystemStats = {
-  cpu_usage: 0,
-  memory_used: 0,
-  memory_total: 0,
-  memory_percent: 0,
-  gpu_memory_used: 0,
-  gpu_memory_total: 0,
-  gpu_usage_percent: 0,
-  gpu_name: 'RTX 5090',
-  is_generating: false,
+  cpuUsage: 0,
+  memoryUsed: 0,
+  memoryTotal: 0,
+  memoryPercent: 0,
+  gpuMemoryUsed: 0,
+  gpuMemoryTotal: 0,
+  gpuUsagePercent: 0,
+  gpuName: 'RTX 5090',
+  isGenerating: false,
 };
 
 const stats = ref<SystemStats>(BLANK_SYSTEM_STATUS);
@@ -145,15 +145,15 @@ const demoStats = computed<SystemStats>(() => {
   // Phase 1 (0-99): Idle, low usage
   if (phase < 100) {
     return {
-      cpu_usage: 15 + Math.sin(phase / 10) * 10,
-      memory_used: 8_589_934_592, // 8 GB
-      memory_total: 32_212_254_720, // 30 GB
-      memory_percent: 26.7,
-      gpu_memory_used: 9_147_483_648, // 2 GB
-      gpu_memory_total: 12_884_901_888, // 12 GB
-      gpu_usage_percent: 5 + Math.random() * 5,
-      gpu_name: 'RTX 4090',
-      is_generating: false,
+      cpuUsage: 15 + Math.sin(phase / 10) * 10,
+      memoryUsed: 8_589_934_592, // 8 GB
+      memoryTotal: 32_212_254_720, // 30 GB
+      memoryPercent: 26.7,
+      gpuMemoryUsed: 9_147_483_648, // 2 GB
+      gpuMemoryTotal: 12_884_901_888, // 12 GB
+      gpuUsagePercent: 5 + Math.random() * 5,
+      gpuName: 'RTX 4090',
+      isGenerating: false,
     };
   }
 
@@ -161,15 +161,15 @@ const demoStats = computed<SystemStats>(() => {
   if (phase < 200) {
     const progress = (phase - 100) / 100;
     return {
-      cpu_usage: 15 + progress * 70,
-      memory_used: 8_589_934_592 + progress * 4_294_967_296, // 8-12 GB
-      memory_total: 32_212_254_720,
-      memory_percent: 26.7 + progress * 13.3,
-      gpu_memory_used: 2_147_483_648 + progress * 9_663_676_416, // 2-11 GB
-      gpu_memory_total: 12_884_901_888,
-      gpu_usage_percent: 5 + progress * 90,
-      gpu_name: 'RTX 4090',
-      is_generating: true,
+      cpuUsage: 15 + progress * 70,
+      memoryUsed: 8_589_934_592 + progress * 4_294_967_296, // 8-12 GB
+      memoryTotal: 32_212_254_720,
+      memoryPercent: 26.7 + progress * 13.3,
+      gpuMemoryUsed: 2_147_483_648 + progress * 9_663_676_416, // 2-11 GB
+      gpuMemoryTotal: 12_884_901_888,
+      gpuUsagePercent: 5 + progress * 90,
+      gpuName: 'RTX 4090',
+      isGenerating: true,
     };
   }
 
@@ -177,30 +177,30 @@ const demoStats = computed<SystemStats>(() => {
   if (phase < 300) {
     const fluctuation = Math.sin((phase - 200) / 5) * 5;
     return {
-      cpu_usage: 85 + fluctuation,
-      memory_used: 12_884_901_888, // 12 GB
-      memory_total: 32_212_254_720,
-      memory_percent: 40,
-      gpu_memory_used: 11_811_160_064, // 11 GB
-      gpu_memory_total: 12_884_901_888,
-      gpu_usage_percent: 95 + fluctuation,
-      gpu_name: 'RTX 4090',
-      is_generating: true,
+      cpuUsage: 85 + fluctuation,
+      memoryUsed: 12_884_901_888, // 12 GB
+      memoryTotal: 32_212_254_720,
+      memoryPercent: 40,
+      gpuMemoryUsed: 11_811_160_064, // 11 GB
+      gpuMemoryTotal: 12_884_901_888,
+      gpuUsagePercent: 95 + fluctuation,
+      gpuName: 'RTX 4090',
+      isGenerating: true,
     };
   }
 
   // Phase 4 (300-399): Finishing, ramping down
   const progress = (phase - 300) / 100;
   return {
-    cpu_usage: 85 - progress * 70,
-    memory_used: 12_884_901_888 - progress * 4_294_967_296, // 12-8 GB
-    memory_total: 32_212_254_720,
-    memory_percent: 40 - progress * 13.3,
-    gpu_memory_used: 11_811_160_064 - progress * 9_663_676_416, // 11-2 GB
-    gpu_memory_total: 12_884_901_888,
-    gpu_usage_percent: 95 - progress * 90,
-    gpu_name: 'RTX 4090',
-    is_generating: progress < 0.8,
+    cpuUsage: 85 - progress * 70,
+    memoryUsed: 12_884_901_888 - progress * 4_294_967_296, // 12-8 GB
+    memoryTotal: 32_212_254_720,
+    memoryPercent: 40 - progress * 13.3,
+    gpuMemoryUsed: 11_811_160_064 - progress * 9_663_676_416, // 11-2 GB
+    gpuMemoryTotal: 12_884_901_888,
+    gpuUsagePercent: 95 - progress * 90,
+    gpuName: 'RTX 4090',
+    isGenerating: progress < 0.8,
   };
 });
 
@@ -214,11 +214,11 @@ const statusText = computed(() => {
   if (isScanning.value) {
     return scanMessage.value || 'Scanning models...';
   }
-  return currentStats.value.is_generating ? 'Drawing' : 'Idle';
+  return currentStats.value.isGenerating ? 'Drawing' : 'Idle';
 });
 
 const cpuUsage = computed(() => {
-  return Math.floor(currentStats.value.cpu_usage);
+  return Math.floor(currentStats.value.cpuUsage);
 });
 
 const cpuUsageTip = computed(() => {
@@ -249,11 +249,11 @@ const cpuProgressBarDt = computed(() => {
 });
 
 const ramUsage = computed(() => {
-  return Math.floor(currentStats.value.memory_percent);
+  return Math.floor(currentStats.value.memoryPercent);
 });
 
 const ramUsageTip = computed(() => {
-  return `${formatBytes(Math.floor(currentStats.value.memory_used))} / ${formatBytes(Math.floor(currentStats.value.memory_total))}`;
+  return `${formatBytes(Math.floor(currentStats.value.memoryUsed))} / ${formatBytes(Math.floor(currentStats.value.memoryTotal))}`;
 });
 
 const ramProgressBarDt = computed(() => {
@@ -280,15 +280,17 @@ const ramProgressBarDt = computed(() => {
 });
 
 const gpuName = computed(() => {
-  return truncateGpuName(currentStats.value.gpu_name);
+  console.log('gpuName:', currentStats.value)
+
+  return truncateGpuName(currentStats.value.gpuName);
 });
 
 const gpuNameTip = computed(() => {
-  return currentStats.value.gpu_name;
+  return currentStats.value.gpuName;
 });
 
 const gpuUsage = computed(() => {
-  return Math.floor(currentStats.value.gpu_usage_percent);
+  return Math.floor(currentStats.value.gpuUsagePercent);
 });
 
 const gpuUsageTip = computed(() => {
@@ -320,8 +322,8 @@ const gpuProgressBarDt = computed(() => {
 
 const vramUsage = computed(() => {
   let usage = 0;
-  if (currentStats.value?.gpu_memory_total && currentStats.value?.gpu_memory_used) {
-    usage = Math.floor((currentStats.value.gpu_memory_used / currentStats.value.gpu_memory_total) * 100);
+  if (currentStats.value?.gpuMemoryTotal && currentStats.value?.gpuMemoryUsed) {
+    usage = Math.floor((currentStats.value.gpuMemoryUsed / currentStats.value.gpuMemoryTotal) * 100);
   }
 
   return usage;
@@ -329,13 +331,13 @@ const vramUsage = computed(() => {
 
 const vramUsageTip = computed(() => {
   let used = '0';
-  if (currentStats.value?.gpu_memory_total && currentStats.value?.gpu_memory_used) {
-    used = formatBytes(Math.floor(currentStats.value.gpu_memory_used));
+  if (currentStats.value?.gpuMemoryTotal && currentStats.value?.gpuMemoryUsed) {
+    used = formatBytes(Math.floor(currentStats.value.gpuMemoryUsed));
   }
 
   let total = '0';
-  if (currentStats.value?.gpu_memory_total && currentStats.value?.gpu_memory_used) {
-    total = formatBytes(Math.floor(currentStats.value.gpu_memory_total));
+  if (currentStats.value?.gpuMemoryTotal && currentStats.value?.gpuMemoryUsed) {
+    total = formatBytes(Math.floor(currentStats.value.gpuMemoryTotal));
   }
 
   return `${used} / ${total}`;
@@ -442,7 +444,7 @@ onMounted(async () => {
   // Adaptive polling: faster when generating, slower when idle
   // This reduces unnecessary updates when nothing is happening
   pollInterval = setInterval(() => {
-    const isGenerating = stats.value?.is_generating ?? false;
+    const isGenerating = stats.value?.isGenerating ?? false;
 
     // Poll more frequently during generation (2s), less when idle (6s)
     if (isGenerating) {

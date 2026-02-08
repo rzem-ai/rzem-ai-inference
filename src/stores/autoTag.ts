@@ -34,17 +34,17 @@ export interface TagWithConfidence {
  */
 export interface AutoTagSettings {
   enabled: boolean
-  auto_tag_on_generation: boolean
-  preferred_backend: TaggingBackend
-  min_confidence: number
-  claude_api_key?: string
+  autoTagOnGeneration: boolean
+  preferredBackend: TaggingBackend
+  minConfidence: number
+  claudeApiKey?: string
 }
 
 /**
  * Result of a tagging operation
  */
 export interface TaggingResult {
-  image_id: string
+  imageId: string
   tags: TagWithConfidence[]
   backend: TaggingBackend
   success: boolean
@@ -52,13 +52,13 @@ export interface TaggingResult {
 }
 
 /**
- * Vision model (Moondream) status (matches backend VisionModelStatus)
+ * Vision model (Moondream) status
  */
 export interface VisionModelStatus {
-  is_downloaded: boolean
-  download_progress: number | null
-  model_size: number
-  model_size_display: string
+  isDownloaded: boolean
+  downloadProgress: number | null
+  modelSize: number
+  modelSizeDisplay: string
   error: string | null
 }
 
@@ -66,16 +66,16 @@ export const useAutoTagStore = defineStore('autoTag', {
   state: () => ({
     settings: {
       enabled: false,
-      auto_tag_on_generation: false,
-      preferred_backend: 'claude',
-      min_confidence: 0.6,
-      claude_api_key: undefined,
+      autoTagOnGeneration: false,
+      preferredBackend: 'claude',
+      minConfidence: 0.6,
+      claudeApiKey: undefined,
     } as AutoTagSettings,
     modelStatus: {
-      is_downloaded: false,
-      download_progress: null,
-      model_size: 0,
-      model_size_display: '',
+      isDownloaded: false,
+      downloadProgress: null,
+      modelSize: 0,
+      modelSizeDisplay: '',
       error: null,
     } as VisionModelStatus,
     isLoadingSettings: false,
@@ -90,20 +90,20 @@ export const useAutoTagStore = defineStore('autoTag', {
 
   getters: {
     isClaudeAvailable(state): boolean {
-      return !!state.settings.claude_api_key && state.settings.claude_api_key.length > 0
+      return !!state.settings.claudeApiKey && state.settings.claudeApiKey.length > 0
     },
 
     isLocalAvailable(state): boolean {
-      return state.modelStatus.is_downloaded
+      return state.modelStatus.isDownloaded
     },
 
     effectiveBackend(state): TaggingBackend | null {
-      const preferred = state.settings.preferred_backend
-      if (preferred === 'local' && state.modelStatus.is_downloaded) return 'local'
-      if (preferred === 'claude' && state.settings.claude_api_key) return 'claude'
+      const preferred = state.settings.preferredBackend
+      if (preferred === 'local' && state.modelStatus.isDownloaded) return 'local'
+      if (preferred === 'claude' && state.settings.claudeApiKey) return 'claude'
       // Fallback to other backend if preferred not available
-      if (preferred === 'local' && state.settings.claude_api_key) return 'claude'
-      if (preferred === 'claude' && state.modelStatus.is_downloaded) return 'local'
+      if (preferred === 'local' && state.settings.claudeApiKey) return 'claude'
+      if (preferred === 'claude' && state.modelStatus.isDownloaded) return 'local'
       return null
     },
 
@@ -113,9 +113,9 @@ export const useAutoTagStore = defineStore('autoTag', {
     },
 
     downloadProgressPercent(state): number {
-      const progress = state.modelStatus.download_progress
-      if (progress === null || state.modelStatus.model_size === 0) return 0
-      return Math.round((progress / state.modelStatus.model_size) * 100)
+      const progress = state.modelStatus.downloadProgress
+      if (progress === null || state.modelStatus.modelSize === 0) return 0
+      return Math.round((progress / state.modelStatus.modelSize) * 100)
     },
   },
 
@@ -154,12 +154,12 @@ export const useAutoTagStore = defineStore('autoTag', {
 
       // Listen for auto-tag complete events
       const unlisten1 = await listen<{
-        image_id: string
+        imageId: string
         tags: TagWithConfidence[]
         backend: TaggingBackend
       }>('auto-tag-complete', (payload) => {
         const result: TaggingResult = {
-          image_id: payload.image_id,
+          imageId: payload.imageId,
           tags: payload.tags,
           backend: payload.backend,
           success: true,
@@ -174,12 +174,12 @@ export const useAutoTagStore = defineStore('autoTag', {
 
       // Listen for auto-tag failed events
       const unlisten2 = await listen<{
-        image_id: string
+        imageId: string
         error: string
         backend: TaggingBackend
       }>('auto-tag-failed', (payload) => {
         const result: TaggingResult = {
-          image_id: payload.image_id,
+          imageId: payload.imageId,
           tags: [],
           backend: payload.backend,
           success: false,
@@ -194,11 +194,11 @@ export const useAutoTagStore = defineStore('autoTag', {
 
       // Listen for vision model download progress
       const unlisten3 = await listen<{
-        bytes_downloaded: number
-        total_bytes: number
+        bytesDownloaded: number
+        totalBytes: number
       }>('vision-model-download-progress', (payload) => {
-        this.modelStatus.download_progress = payload.bytes_downloaded
-        this.modelStatus.model_size = payload.total_bytes
+        this.modelStatus.downloadProgress = payload.bytesDownloaded
+        this.modelStatus.modelSize = payload.totalBytes
       })
       this.unlisteners.push(unlisten3)
     },

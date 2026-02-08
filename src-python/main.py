@@ -71,6 +71,12 @@ def parse_args():
         help="Enable debug mode",
     )
 
+    parser.add_argument(
+        "--dev",
+        action="store_true",
+        help="Dev mode: load frontend from Vite dev server (http://localhost:5173) for HMR",
+    )
+
     return parser.parse_args()
 
 
@@ -114,33 +120,20 @@ def run_local_mode(runtime_config: RuntimeConfig, debug: bool = False) -> None:
         logger.error(f"Failed to initialize app state: {e}")
         sys.exit(1)
 
-    # Find the frontend files
-    # Try to locate the dist folder (built frontend)
-    script_dir = Path(__file__).parent.parent
-    frontend_dirs = [
-        script_dir / "dist",  # Production build
-        script_dir / "src",   # Development
-    ]
-
-    frontend_path = None
-    for dir_path in frontend_dirs:
-        if dir_path.exists():
-            frontend_path = dir_path
-            break
-
-    if not frontend_path:
-        logger.error("Frontend files not found. Please build the frontend first.")
-        logger.error(f"Searched in: {[str(d) for d in frontend_dirs]}")
-        sys.exit(1)
-
-    logger.info(f"Loading frontend from: {frontend_path}")
-
-    # Determine entry point
-    if (frontend_path / "index.html").exists():
-        entry_point = str(frontend_path / "index.html")
+    # Determine frontend entry point
+    if runtime_config.dev_mode:
+        entry_point = "http://localhost:5173"
+        logger.info(f"Dev mode: loading frontend from Vite dev server at {entry_point}")
     else:
-        logger.error("index.html not found in frontend directory")
-        sys.exit(1)
+        script_dir = Path(__file__).parent.parent
+        dist_dir = script_dir / "dist"
+
+        if not dist_dir.exists() or not (dist_dir / "index.html").exists():
+            logger.error("Frontend not built. Run 'npm run build' first.")
+            sys.exit(1)
+
+        entry_point = str(dist_dir / "index.html")
+        logger.info(f"Loading frontend from: {entry_point}")
 
     # Create window
     window = webview.create_window(
@@ -231,7 +224,7 @@ def main():
 
     else:
         # Local mode (default)
-        runtime_config = RuntimeConfig.local()
+        runtime_config = RuntimeConfig.local(dev_mode=args.dev)
         run_local_mode(runtime_config, debug=args.debug)
 
 

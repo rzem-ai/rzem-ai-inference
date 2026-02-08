@@ -659,8 +659,6 @@ class Api:
         """
         try:
             import psutil
-            import subprocess
-            import time
 
             # Get CPU usage (average over short interval)
             cpu_percent = psutil.cpu_percent(interval=0.1)
@@ -671,49 +669,59 @@ class Api:
             memory_total = memory.total  # bytes
             memory_percent = memory.percent
 
-            # Get GPU stats using nvidia-smi
+            # Get GPU stats via pynvml
             gpu_memory_used = None
             gpu_memory_total = None
             gpu_usage_percent = None
             gpu_name = None
 
             try:
-                result = subprocess.run(
-                    [
-                        "nvidia-smi",
-                        "--query-gpu=memory.used,memory.total,utilization.gpu,name",
-                        "--format=csv,noheader,nounits"
-                    ],
-                    capture_output=True,
-                    text=True,
-                    timeout=2
-                )
+                logger.info("loading: pynvml")
 
-                if result.returncode == 0:
-                    # Parse nvidia-smi output: "memory.used, memory.total, utilization.gpu, name"
-                    line = result.stdout.strip()
-                    if line:
-                        parts = [p.strip() for p in line.split(',')]
-                        if len(parts) >= 4:
-                            try:
-                                # Memory values are in MiB, convert to bytes
-                                gpu_memory_used = int(float(parts[0])) * 1024 * 1024
-                                gpu_memory_total = int(float(parts[1])) * 1024 * 1024
-                                gpu_usage_percent = float(parts[2])
-                                gpu_name = parts[3]
-                            except (ValueError, IndexError) as e:
-                                logger.warning(f"Failed to parse nvidia-smi output: {e}")
-            except (subprocess.TimeoutExpired, FileNotFoundError):
-                # nvidia-smi not available or timed out
-                pass
+                import pynvml
+                pynvml.nvmlInit()
+                device_count = pynvml.nvmlDeviceGetCount()
+
+                logger.info(f"pynvml: device_count: {device_count}")
+
+                if device_count > 0:
+                    handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+
+                    # GPU name
+                    gpu_name = pynvml.nvmlDeviceGetName(handle)
+                    logger.info(f"pynvml: gpu_name: {gpu_name}")
+
+                    # Memory info (already in bytes)
+                    mem_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
+                    gpu_memory_used = mem_info.used
+                    gpu_memory_total = mem_info.total
+
+                    # Utilization rates
+                    utilization = pynvml.nvmlDeviceGetUtilizationRates(handle)
+                    gpu_usage_percent = float(utilization.gpu)
+
+                pynvml.nvmlShutdown()
+            except ImportError:
+                logger.debug("pynvml not installed, GPU stats unavailable")
             except Exception as e:
-                logger.warning(f"Failed to get GPU stats: {e}")
+                logger.debug(f"GPU stats unavailable: {e}")
 
             # Check if generation is running
             is_generating = False
             if self._app_state.queue_processor:
-                # Check if processor has active jobs
                 is_generating = getattr(self._app_state.queue_processor, 'is_processing', False)
+
+            logger.info(f"pynvml: gpu_name: {str({
+                "cpuUsage": cpu_percent,
+                "memoryUsed": memory_used,
+                "memoryTotal": memory_total,
+                "memoryPercent": memory_percent,
+                "gpuMemoryUsed": gpu_memory_used,
+                "gpuMemoryTotal": gpu_memory_total,
+                "gpuUsagePercent": gpu_usage_percent,
+                "gpuName": gpu_name,
+                "isGenerating": is_generating,
+            })}")
 
             return {
                 "cpuUsage": cpu_percent,
@@ -729,7 +737,6 @@ class Api:
 
         except Exception as e:
             logger.error(f"Failed to get system stats: {e}")
-            # Return safe defaults on error
             return {
                 "cpuUsage": 0.0,
                 "memoryUsed": 0,
@@ -1658,9 +1665,9 @@ class Api:
 
                 return {
                     "enabled": enabled == "true" if enabled else False,
-                    "auto_tag_on_generation": auto_tag_on_gen == "true" if auto_tag_on_gen else False,
-                    "preferred_backend": backend if backend else "claude",
-                    "min_confidence": float(min_conf) if min_conf else 0.6,
+                    "autoTagOnGeneration": auto_tag_on_gen == "true" if auto_tag_on_gen else False,
+                    "preferredBackend": backend if backend else "claude",
+                    "minConfidence": float(min_conf) if min_conf else 0.6,
                 }
         except Exception as e:
             logger.error(f"Failed to get auto-tag settings: {e}")
@@ -1690,15 +1697,15 @@ class Api:
                 val = "true" if settings["enabled"] else "false"
                 self._run_async(self._app_state.db.set_setting("auto_tag_enabled", val))
 
-            if "auto_tag_on_generation" in settings:
-                val = "true" if settings["auto_tag_on_generation"] else "false"
+            if "autoTagOnGeneration" in settings:
+                val = "true" if settings["autoTagOnGeneration"] else "false"
                 self._run_async(self._app_state.db.set_setting("auto_tag_on_generation", val))
 
-            if "preferred_backend" in settings:
-                self._run_async(self._app_state.db.set_setting("auto_tag_backend", settings["preferred_backend"]))
+            if "preferredBackend" in settings:
+                self._run_async(self._app_state.db.set_setting("auto_tag_backend", settings["preferredBackend"]))
 
-            if "min_confidence" in settings:
-                self._run_async(self._app_state.db.set_setting("auto_tag_min_confidence", str(settings["min_confidence"])))
+            if "minConfidence" in settings:
+                self._run_async(self._app_state.db.set_setting("auto_tag_min_confidence", str(settings["minConfidence"])))
 
             logger.info("Auto-tag settings updated")
             return {"status": "success"}
@@ -1715,10 +1722,10 @@ class Api:
         """
         logger.debug("check_vision_model_status stub called")
         return {
-            "is_downloaded": False,
-            "download_progress": None,
-            "model_size": 0,
-            "model_size_display": "0 MB",
+            "isDownloaded": False,
+            "downloadProgress": None,
+            "modelSize": 0,
+            "modelSizeDisplay": "0 MB",
             "error": None,
         }
 

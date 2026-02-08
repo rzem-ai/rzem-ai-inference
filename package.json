@@ -8,7 +8,7 @@
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "start": "npm run build && ./run-python.sh",
-    "start:dev": "./run-python.sh --debug",
+    "start:dev": "./run-dev.sh",
     "start:prod": "npm run build && ./run-python.sh"
   },
   "dependencies": {
