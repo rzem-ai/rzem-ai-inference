@@ -45,7 +45,7 @@
   </div>
 </template>
 <script setup lang="ts">
-import { convertFileSrc } from '@tauri-apps/api/core';
+import { convertFileSrc } from '@/utils/backend-bridge';
 import { useToast } from 'primevue/usetoast';
 import {  useGenerationStore } from '@/stores/generation';
 import Button from 'primevue/button';

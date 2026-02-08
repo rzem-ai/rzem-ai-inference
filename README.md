@@ -1,72 +1,97 @@
 # FLUX Image Generator
 
-AI-powered image generation desktop application using FLUX.1-schnell model.
+AI-powered image generation desktop application using FLUX.1-schnell model with Python + pywebview.
 
 ## Features
 
-- 🎨 Text-to-image generation with FLUX.1-schnell
+- 🎨 Text-to-image generation with FLUX.1-schnell via Diffusers
 - ⚡ Fast inference (4 steps optimized)
 - 📊 Job queue with real-time progress tracking
 - 🖼️ Gallery with favorites and tagging
 - 🔍 Search and filter generated images
 - 💾 SQLite-based metadata storage
+- 🎯 LoRA support for model customization
+- 🚀 GPU auto-detection (CUDA/MPS/CPU)
+- 📦 Standalone executables (Windows/macOS/Linux)
+- 🔄 Automatic updates from GitHub releases
+
+## Tech Stack
+
+- **Frontend**: Vue 3 + TypeScript + PrimeVue + TailwindCSS
+- **Backend**: Python + pywebview + PyTorch + Diffusers
+- **ML Pipeline**: FLUX.1-schnell from HuggingFace Hub
+- **Database**: SQLite via aiosqlite
 
 ## Prerequisites
 
-- **Node.js** 18+ and npm
-- **Rust** 1.70+ (for Tauri backend)
-- **CUDA-capable GPU** (recommended) or CPU fallback
-- **~24GB disk space** for FLUX model download
-- **HuggingFace account** with access to FLUX.1-schnell model
+- **Python** 3.10+ (for backend)
+- **Node.js** 18+ and npm (for frontend build)
+- **GPU**: CUDA-capable NVIDIA GPU or Apple Silicon (M1/M2/M3) recommended
+- **~20GB disk space** for FLUX model auto-download
+- **~16-24GB VRAM** for GPU inference (CPU fallback available)
 
-## Setup
+## Quick Start
 
-### 1. Clone and Install Dependencies
+### Option 1: Standalone Executable (Recommended)
+
+Download the latest release for your platform:
+
+1. Go to [Releases](https://github.com/rzem-ai/rzem-ai-inference/releases)
+2. Download for your platform:
+   - **Windows**: `RZEM-AI-Inference-Windows.zip`
+   - **macOS**: `RZEM-AI-Inference-macOS.zip`
+   - **Linux**: `RZEM-AI-Inference-Linux.tar.gz`
+3. Extract and run
+4. Models download automatically (~20GB)
+
+**Auto-updates**: The app checks for updates automatically and can update itself!
+
+### Option 2: Run from Source
+
+#### 1. Install Python Dependencies
 
 ```bash
-git clone <your-repo-url>
-cd rzem-ai-inference
+# Create virtual environment (recommended)
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r src-python/requirements.txt
+```
+
+#### 2. Build Frontend
+
+```bash
+# Install Node dependencies
 npm install
+
+# Build the frontend
+npm run build
 ```
 
-### 2. Configure Environment Variables
-
-Create a `.env` file in the project root:
+#### 3. Run the Application
 
 ```bash
-cp .env.example .env
-```
+# Option 1: Using npm script (recommended)
+npm start
 
-Edit `.env` and add your HuggingFace token:
+# Option 2: Using helper script
+./run-python.sh
 
-```env
-HF_API_KEY=hf_your_token_here
-```
+# Option 3: Direct Python
+python src-python/main.py
 
-**Get your HuggingFace token:**
-1. Go to https://huggingface.co/settings/tokens
-2. Create a new token with "Read" permissions
-3. Accept the FLUX.1-schnell model license at https://huggingface.co/black-forest-labs/FLUX.1-schnell
-
-### 3. Build and Run
-
-**Development mode:**
-```bash
-npm run tauri dev
-```
-
-**Production build:**
-```bash
-npm run tauri build
+# With debug logging
+npm run python:debug
 ```
 
 ## First Run
 
-1. Launch the application
-2. Navigate to **Models** tab
-3. Click **Download FLUX Schnell** button
-4. Wait for ~24GB download to complete (10-30 minutes depending on connection)
-5. Go to **Generate** tab and create your first image!
+On first launch, FLUX.1-schnell model will automatically download from HuggingFace Hub (~20GB):
+- Models are cached in `~/.cache/huggingface/hub/`
+- Download takes 5-20 minutes depending on connection
+- Requires ~20GB free disk space
+- No HuggingFace token required (public model)
 
 ## Usage
 
@@ -95,18 +120,20 @@ npm run tauri build
 - **Pinia** for state management
 - **PrimeVue** for UI components
 - **TailwindCSS** for styling
-- **Tauri API** for backend communication
+- **Backend Bridge** for pywebview/Tauri compatibility
 
-### Backend (Rust + Tauri)
-- **Candle** ML framework for inference
-- **hf-hub** for model downloading
-- **SQLite** for gallery metadata
-- **tokio** async runtime
+### Backend (Python + pywebview)
+- **PyTorch + Diffusers** for ML inference
+- **HuggingFace Hub** for model auto-download
+- **aiosqlite** for gallery metadata
+- **asyncio** async runtime
+- **pywebview** for desktop wrapper
 
-### Model Pipeline
-1. **CLIP** text encoder (768-dim embeddings)
-2. **FLUX Transformer** diffusion model (4 steps)
-3. **VAE Decoder** latent-to-RGB conversion
+### Model Pipeline (FLUX.1-schnell)
+1. **Text Encoders** (T5-XXL + CLIP-L) for prompt understanding
+2. **FLUX Transformer** diffusion model (4 steps, optimized)
+3. **VAE Decoder** for latent-to-RGB conversion
+4. **LoRA Support** for model customization
 
 ## Project Structure
 
@@ -115,20 +142,50 @@ rzem-ai-inference/
 ├── src/                    # Frontend Vue code
 │   ├── components/        # UI components
 │   ├── stores/           # Pinia state stores
-│   └── views/            # Main view pages
-├── src-tauri/             # Backend Rust code
-│   ├── src/
-│   │   ├── inference/    # ML inference pipeline
-│   │   ├── models/       # Model management
-│   │   ├── queue/        # Job queue system
-│   │   └── gallery/      # Image gallery DB
-│   └── Cargo.toml        # Rust dependencies
+│   ├── views/            # Main view pages
+│   └── utils/
+│       └── backend-bridge.ts  # Backend abstraction layer
+├── src-python/            # Backend Python code
+│   ├── main.py           # Entry point
+│   ├── api.py            # API bridge (exposed to JS)
+│   ├── inference/        # FLUX pipeline
+│   ├── queue/            # Job queue system
+│   ├── db/               # SQLite database
+│   └── requirements.txt  # Python dependencies
+├── dist/                  # Built frontend (after npm run build)
 ├── docs/                  # Documentation
-│   └── plans/            # Implementation plans
-└── .env                   # API keys (gitignored)
+├── MIGRATION_GUIDE.md    # Rust→Python migration guide
+├── CLAUDE_PYTHON.md      # Python coding standards
+└── run-python.sh         # Helper script to run app
 ```
 
 ## Development
+
+### Running in Development Mode
+
+```bash
+# Build frontend + run with debug logging
+npm run python:dev
+
+# Or manually:
+npm run build
+python src-python/main.py --debug
+```
+
+### Building Standalone Executables
+
+```bash
+# Build for your platform
+./scripts/build.sh  # Linux/macOS
+scripts\build-windows.bat  # Windows
+
+# Output: dist-standalone/RZEM-AI-Inference
+
+# Create GitHub release
+./scripts/create-release.sh v0.2.0
+```
+
+See [BUILD_GUIDE.md](BUILD_GUIDE.md) for detailed build instructions.
 
 ### Running Tests
 
@@ -136,9 +193,9 @@ rzem-ai-inference/
 # Frontend tests
 npm test
 
-# Backend tests
-cd src-tauri
-cargo test
+# Python tests (TODO: add pytest)
+cd src-python
+pytest
 ```
 
 ### Code Quality
@@ -147,28 +204,59 @@ cargo test
 # Frontend linting
 npm run lint
 
-# Backend linting
-cd src-tauri
-cargo clippy
+# Python linting
+cd src-python
+ruff check .
+mypy .
 ```
 
 ## Troubleshooting
 
-### "Download failed" error
-- Ensure your HF_API_KEY is set correctly in `.env`
-- Check you've accepted the FLUX model license
-- Verify internet connection and disk space
-
-### "Pinia not initialized" error
-- Fixed in latest version - update to latest commit
+### Models not downloading
+- First run downloads ~20GB from HuggingFace Hub
+- Check internet connection and disk space (~30GB free)
+- Models cache in `~/.cache/huggingface/hub/`
+- No API key required (FLUX.1-schnell is public)
 
 ### GPU not detected
-- Install CUDA toolkit if using NVIDIA GPU
-- Application will fallback to CPU (slower)
+
+**NVIDIA (CUDA):**
+```bash
+# Check CUDA availability
+python -c "import torch; print(torch.cuda.is_available())"
+
+# If False, reinstall PyTorch with CUDA
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+```
+
+**Apple Silicon (MPS):**
+```bash
+# Check MPS availability
+python -c "import torch; print(torch.backends.mps.is_available())"
+```
+
+Application automatically falls back to CPU if no GPU detected (slower but works).
 
 ### Out of memory
-- FLUX requires ~12GB VRAM for inference
-- Use smaller batch sizes or CPU fallback
+- FLUX requires ~16-24GB VRAM for GPU inference
+- Reduce image resolution (1024→512) to use less memory
+- CPU fallback available but very slow
+
+### "No backend available" error
+- Don't open `dist/index.html` directly in browser
+- Must run via `python src-python/main.py` or `npm start`
+- pywebview creates the necessary backend bridge
+
+### Import errors
+```bash
+# Reinstall Python dependencies
+pip install -r src-python/requirements.txt
+
+# Or with virtual environment
+python3 -m venv venv
+source venv/bin/activate
+pip install -r src-python/requirements.txt
+```
 
 ## License
 

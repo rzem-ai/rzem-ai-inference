@@ -54,7 +54,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import { open } from '@tauri-apps/plugin-dialog';
+import { open } from '@/utils/file-dialog-stub';
 import Dialog from 'primevue/dialog';
 import InputText from 'primevue/inputtext';
 import Button from 'primevue/button';
