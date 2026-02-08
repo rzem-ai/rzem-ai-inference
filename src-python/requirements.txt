@@ -9,6 +9,8 @@ huggingface-hub>=0.25.0
 
 # Desktop UI
 pywebview>=5.0.0
+PyQt6>=6.6.0
+PyQt6-WebEngine>=6.6.0
 
 # Image processing
 Pillow>=10.0.0
@@ -36,7 +38,6 @@ tqdm>=4.66.0
 
 # CSV/batch processing
 jinja2>=3.1.0
-csv-parser>=0.0.0
 
 # System monitoring
 psutil>=5.9.0

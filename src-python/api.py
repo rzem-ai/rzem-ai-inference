@@ -10,7 +10,7 @@ from typing import Optional, List, Dict, Any
 from loguru import logger
 
 from app_state import AppState
-from queue.types import GenerationParams, GenerationJob, JobStatus
+from job_queue.types import GenerationParams, GenerationJob, JobStatus
 import events
 from updater import get_updater, CURRENT_VERSION
 

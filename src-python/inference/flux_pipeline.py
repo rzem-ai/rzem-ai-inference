@@ -9,7 +9,7 @@ from diffusers import FluxTransformer2DModel
 import random
 
 from .device import select_device, get_optimal_dtype, log_memory_stats
-from ..queue.types import GenerationParams, LoraConfig
+from job_queue.types import GenerationParams, LoraConfig
 
 
 class FluxPipeline:

@@ -4,7 +4,7 @@ from typing import Optional
 from pathlib import Path
 from loguru import logger
 
-from queue import QueueManager, QueueProcessor
+from job_queue import QueueManager, QueueProcessor
 from db import InferenceDb
 from shared import RuntimeConfig
 import events
