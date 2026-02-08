@@ -11,6 +11,7 @@ huggingface-hub>=0.25.0
 pywebview>=5.0.0
 PyQt6>=6.6.0
 PyQt6-WebEngine>=6.6.0
+qtpy>=2.4.0
 
 # Image processing
 Pillow>=10.0.0
