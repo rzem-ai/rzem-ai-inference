@@ -387,21 +387,17 @@ const handleGenerate = async () => {
       }
 
       // Get active LoRA configs for this generation
-      // const activeLoraConfigs = modelsStore.loras.map((l) => ({
-      //   id: l.id,
-      //   strength: l.strength,
-      // }));
-      const activeLoraConfigs: string | any[] = [];
-      console.log('activeLoraConfigs:', activeLoraConfigs);
-
-      const style = stylesStore.selectedStyle;
-      console.log('style:', style);
+      const activeLoraConfigs = modelsStore.activeLoras.map((l) => ({
+        id: l.id,
+        strength: l.strength,
+      }));
 
       // Apply style template if a style is selected
       const finalPrompt = generationStore.getFinalPrompt(params.prompt);
 
       const queueParams: GenerationParams = {
         prompt: finalPrompt,
+        negative_prompt: params.negative_prompt,
         steps: params.steps,
         cfg_scale: params.cfg_scale,
         width: params.width,
@@ -414,8 +410,7 @@ const handleGenerate = async () => {
         vae_component_id: params.vae_component_id ?? '',
         sampler: params.sampler,
         scheduler: params.scheduler,
-        // Include active LoRAs if any
-        loras: [{ id: 'a973d7d9-c78d-4f5f-8a6a-0d3d22019c28', strength: 1.0 }],
+        loras: activeLoraConfigs.length > 0 ? activeLoraConfigs : undefined,
         mode: 'txt2img',
       };
 
@@ -446,9 +441,15 @@ const handleGenerate = async () => {
 
 const handleDownload = async (imageSrc: string, slotNumber: number) => {
   try {
-    // Extract the original file path from the convertFileSrc URL
-    // convertFileSrc transforms paths like: file:///path/to/image.png -> http://asset.localhost/path/to/image.png
-    const originalPath = imageSrc.replace('http://asset.localhost/', '').replace('https://asset.localhost/', '');
+    // Extract the original file path from the file server URL
+    // URL format: http://127.0.0.1:<port>/file?path=<encoded-path>
+    let originalPath = imageSrc;
+    try {
+      const url = new URL(imageSrc);
+      originalPath = url.searchParams.get('path') || imageSrc;
+    } catch {
+      // Not a URL, use as-is
+    }
 
     // Show save dialog
     const savePath = await save({

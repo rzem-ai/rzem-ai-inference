@@ -62,7 +62,7 @@ onMounted(() => {
 });
 
 const TYPE_LABELS: Record<string, string> = {
-  checkpoint: 'Base Checkpoints',
+  transformer: 'Transformers',
   text_encoder: 'Text Encoders',
   vae: 'VAE Decoders',
   tokenizer: 'Tokenizers',

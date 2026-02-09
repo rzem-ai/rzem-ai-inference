@@ -1,8 +1,8 @@
 /**
- * WebSocket composable for real-time job updates
+ * Job update composable for real-time updates
  *
  * Provides a unified interface for receiving job updates in both local and client modes:
- * - Local/Server mode: Listens to Tauri events
+ * - Local/Server mode: Listens to polled events from pywebview
  * - Client mode: Connects to remote WebSocket server
  */
 
@@ -17,21 +17,14 @@ export interface JobUpdatePayload {
   result_path?: string
   error?: string
   stats?: any
-}
-
-export interface JobProgressPayload {
-  job_id: string
-  stage: string
-  stage_progress: number
-  overall_progress: number
-  message: string
-  eta_seconds?: number
+  // Step-level fields (present during generation)
   current_step?: number
   total_steps?: number
+  stage?: string
+  preview_data?: string
 }
 
 type JobUpdateCallback = (payload: JobUpdatePayload) => void
-type JobProgressCallback = (payload: JobProgressPayload) => void
 
 /**
  * WebSocket connection manager for client mode
@@ -43,7 +36,6 @@ class WebSocketClient {
   private reconnectDelay = 2000
   private subscriptions = new Set<string>()
   private updateCallbacks: JobUpdateCallback[] = []
-  private progressCallbacks: JobProgressCallback[] = []
   private serverUrl: string
 
   constructor(private wsUrl: string) {
@@ -124,23 +116,21 @@ class WebSocketClient {
         console.log('Subscribed to job:', message.job_id)
         break
 
-      case 'JobProgress':
-        // Map server message to job progress payload
-        const progressPayload: JobProgressPayload = {
+      case 'JobProgress': {
+        const progressPayload: JobUpdatePayload = {
           job_id: message.job_id,
+          status: 'running',
+          progress: message.progress || 0,
           stage: message.stage,
-          stage_progress: message.stage_progress || 0,
-          overall_progress: message.progress || 0,
-          message: message.message || '',
           current_step: message.current_step,
           total_steps: message.total_steps,
         }
-        this.progressCallbacks.forEach(cb => cb(progressPayload))
+        this.updateCallbacks.forEach(cb => cb(progressPayload))
         break
+      }
 
-      case 'JobComplete':
-        // Map server message to job update payload
-        // Convert relative URL to full URL (e.g., /api/v1/files/x.png -> http://server:8080/api/v1/files/x.png)
+      case 'JobComplete': {
+        // Convert relative URL to full URL
         const fullUrl = message.result_url.startsWith('http')
           ? message.result_url
           : `${this.serverUrl}${message.result_url}`
@@ -153,8 +143,9 @@ class WebSocketClient {
         }
         this.updateCallbacks.forEach(cb => cb(completePayload))
         break
+      }
 
-      case 'JobFailed':
+      case 'JobFailed': {
         const failedPayload: JobUpdatePayload = {
           job_id: message.job_id,
           status: 'failed',
@@ -162,9 +153,9 @@ class WebSocketClient {
         }
         this.updateCallbacks.forEach(cb => cb(failedPayload))
         break
+      }
 
       case 'Pong':
-        // Heartbeat response
         break
 
       default:
@@ -186,10 +177,6 @@ class WebSocketClient {
     this.updateCallbacks.push(callback)
   }
 
-  onProgress(callback: JobProgressCallback) {
-    this.progressCallbacks.push(callback)
-  }
-
   close() {
     if (this.ws) {
       this.ws.close()
@@ -202,25 +189,20 @@ class WebSocketClient {
 let wsClient: WebSocketClient | null = null
 
 /**
- * Initialize WebSocket connection for job updates
+ * Create job update listeners
  *
- * In local/server mode: Returns Tauri event listeners
+ * In local/server mode: Listens to polled events
  * In client mode: Returns WebSocket client
  */
 export function useJobUpdates() {
   const updateCallbacks = ref<JobUpdateCallback[]>([])
-  const progressCallbacks = ref<JobProgressCallback[]>([])
 
   if (isClientMode()) {
     // Client mode: Use WebSocket
     if (!wsClient) {
-      // Get WebSocket URL from runtime config
-      // For now, we'll construct it from the current runtime config
-      // This should be done after runtime config is initialized
       const mode = getRuntimeMode()
       if (mode === 'client') {
         // Will be initialized when runtime config is available
-        // For now, return a promise-based interface
       }
     }
 
@@ -230,13 +212,6 @@ export function useJobUpdates() {
           wsClient.onUpdate(callback)
         } else {
           updateCallbacks.value.push(callback)
-        }
-      },
-      onJobProgress: (callback: JobProgressCallback) => {
-        if (wsClient) {
-          wsClient.onProgress(callback)
-        } else {
-          progressCallbacks.value.push(callback)
         }
       },
       subscribeToJob: (jobId: string) => {
@@ -257,18 +232,12 @@ export function useJobUpdates() {
       }
     }
   } else {
-    // Local/Server mode: Use Tauri events
+    // Local mode: Use polled events
     const unlisteners: UnlistenFn[] = []
 
     return {
       onJobUpdate: async (callback: JobUpdateCallback) => {
         const unlisten = await listen<JobUpdatePayload>('job-update', (payload) => {
-          callback(payload)
-        })
-        unlisteners.push(unlisten)
-      },
-      onJobProgress: async (callback: JobProgressCallback) => {
-        const unlisten = await listen<JobProgressPayload>('job-progress', (payload) => {
           callback(payload)
         })
         unlisteners.push(unlisten)
@@ -287,7 +256,7 @@ export function useJobUpdates() {
 }
 
 /**
- * Initialize WebSocket client (call this once at app startup after runtime config is loaded)
+ * Initialize WebSocket client (call once at app startup after runtime config is loaded)
  */
 export async function initWebSocket(wsUrl: string) {
   if (isClientMode() && !wsClient) {

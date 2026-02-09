@@ -26,13 +26,15 @@ class SamplerType(str, Enum):
 class SchedulerType(str, Enum):
     """Noise schedule types"""
     NORMAL = "normal"
+    SIMPLE = "simple"
     KARRAS = "karras"
     EXPONENTIAL = "exponential"
 
 
 class LoraConfig(BaseModel):
     """LoRA adapter configuration"""
-    path: str
+    id: Optional[str] = None       # UUID from database (frontend sends this)
+    path: Optional[str] = None     # Resolved file path (processor fills this)
     strength: float = 1.0
     name: Optional[str] = None
 

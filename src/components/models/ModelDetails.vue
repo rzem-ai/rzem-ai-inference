@@ -62,9 +62,9 @@
       </div>
     </div>
 
-    <!-- Base checkpoint prefs -->
-    <div v-if="model.model_type === 'checkpoint' && model.prefsBase" class="p-3 mb-4 rounded bg-surface-800">
-      <h3 class="mb-2 text-xs font-semibold uppercase text-surface-400">Checkpoint Preferences</h3>
+    <!-- Base transformer prefs -->
+    <div v-if="model.model_type === 'transformer' && model.prefsBase" class="p-3 mb-4 rounded bg-surface-800">
+      <h3 class="mb-2 text-xs font-semibold uppercase text-surface-400">Transformer Preferences</h3>
       <div class="text-sm text-surface-400">
         <div v-if="model.prefsBase.preferredSteps">Preferred steps: {{ model.prefsBase.preferredSteps }}</div>
         <div v-if="model.prefsBase.preferredCfg">Preferred CFG: {{ model.prefsBase.preferredCfg }}</div>
@@ -72,7 +72,7 @@
     </div>
 
     <!-- Examples -->
-    <div v-if="model.model_type === 'checkpoint' || model.model_type === 'lora'">
+    <div v-if="model.model_type === 'transformer' || model.model_type === 'lora'">
       <h3 class="mb-2 text-xs font-semibold uppercase text-surface-400">Examples</h3>
       <div v-if="model.examples.length === 0" class="text-sm text-surface-600">No examples.</div>
       <div v-else class="space-y-2">

@@ -1,6 +1,7 @@
 import { onMounted } from 'vue';
 import { initRuntimeConfig, useRuntimeConfig } from './useRuntimeConfig';
 import { initWebSocket } from './useWebSocket';
+import { initFileServer } from '@/utils/backend-bridge';
 import { useStoreInitialization } from './useStoreInitialization';
 
 export function useAppInit() {
@@ -12,24 +13,28 @@ export function useAppInit() {
       await initRuntimeConfig();
       console.log('[App Init] Runtime config initialized');
 
-      // 2. Initialize WebSocket if in client mode
+      // 2. Initialize file server port (needed before any image URLs)
+      await initFileServer();
+      console.log('[App Init] File server initialized');
+
+      // 3. Initialize WebSocket if in client mode
       const runtimeConfig = await useRuntimeConfig();
       if (runtimeConfig.isClient && runtimeConfig.config.value?.ws_url) {
         await initWebSocket(runtimeConfig.config.value.ws_url);
         console.log('[App Init] WebSocket initialized for client mode');
       }
 
-      // 3. Initialize critical stores (blocking - app shell needs these)
+      // 4. Initialize critical stores (blocking - app shell needs these)
       await initializeCriticalStores();
       console.log('[App Init] App is now interactive');
 
-      // 4. Pre-load frequently used components (non-blocking)
+      // 5. Pre-load frequently used components (non-blocking)
       // This caches the webpack chunks so navigation is instant
       Promise.all([]).catch((err) => {
         console.error('[App Init] Component preload failed:', err);
       });
 
-      // 5. Initialize data stores in background (non-blocking)
+      // 6. Initialize data stores in background (non-blocking)
       // App becomes interactive immediately, data loads progressively
       initializeDataStores().catch((err) => {
         console.error('[App Init] Background data initialization failed:', err);

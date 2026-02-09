@@ -60,3 +60,5 @@ build/
 outputs/
 *.png
 *.jpg
+
+src-tauri/

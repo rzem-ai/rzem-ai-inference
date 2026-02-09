@@ -70,7 +70,7 @@ async function ensureReady(): Promise<void> {
       }
 
       // Wait a bit and try again
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
       attempts++;
     }
 
@@ -132,6 +132,9 @@ interface PywebviewApi {
   // Events
   poll_events(max_events?: number): Promise<Array<{ event: string; payload: any }>>;
 
+  // File Server
+  get_file_server_port(): Promise<{ port: number }>;
+
   // System Stats
   get_system_stats(): Promise<any>;
 
@@ -143,7 +146,12 @@ interface PywebviewApi {
   delete_style(style_id: string): Promise<{ status: string; message?: string }>;
   add_lora_to_style(style_id: string, lora_id: string, strength?: number, priority?: number): Promise<{ status: string; message?: string }>;
   remove_lora_from_style(style_id: string, lora_id: string): Promise<{ status: string; message?: string }>;
-  add_style_example(style_id: string, example_type: string, content: string, generation_params?: string): Promise<{ status: string; id?: string; message?: string }>;
+  add_style_example(
+    style_id: string,
+    example_type: string,
+    content: string,
+    generation_params?: string,
+  ): Promise<{ status: string; id?: string; message?: string }>;
   remove_style_example(example_id: string): Promise<{ status: string; message?: string }>;
   render_style_template(template: string, variables: any): Promise<{ status: string; rendered?: string; message?: string }>;
   upload_style_thumbnail(style_id: string, thumbnail_path: string): Promise<{ status: string; message?: string }>;
@@ -183,10 +191,10 @@ interface PywebviewApi {
   remove_model_tag(model_id: string, tag: string): Promise<{ status: string; message?: string }>;
   add_example(entity_type: string, entity_id: string, example_type: string, content: string): Promise<{ status: string; id?: string; message?: string }>;
   remove_example(example_id: string): Promise<{ status: string; message?: string }>;
-  scan_directory_for_models(directory: string): Promise<{ status: string; found?: number; message?: string }>;
-  scan_and_discover_models(): Promise<{ status: string; found?: number; message?: string }>;
-  convert_comfyui_model(source_path: string): Promise<{ status: string; message?: string }>;
-  get_compatible_models(bundle_id: string): Promise<any[]>;
+  scan_directory_for_models(directory: string): Promise<{ status: string; found?: number; saved?: number; message?: string }>;
+  scan_and_discover_models(): Promise<{ status: string; found?: number; saved?: number; message?: string }>;
+  convert_comfyui_model(source_path: string, output_path?: string): Promise<{ status: string; outputPath?: string; message?: string }>;
+  get_compatible_models(base_model_id: string, target_type?: string): Promise<any[]>;
 
   // Bundles
   get_all_bundles(): Promise<any[]>;
@@ -247,7 +255,7 @@ export async function invoke<T = any>(command: string, args?: any): Promise<T> {
   await ensureReady();
 
   if (!window.pywebview?.api) {
-    throw new Error("pywebview backend not available");
+    throw new Error('pywebview backend not available');
   }
 
   const api = window.pywebview.api as any;
@@ -258,13 +266,11 @@ export async function invoke<T = any>(command: string, args?: any): Promise<T> {
   }
 
   // Call the method with or without args
-  const result = args !== undefined
-    ? await method.call(api, args)
-    : await method.call(api);
+  const result = args !== undefined ? await method.call(api, args) : await method.call(api);
 
   // Handle error responses
-  if (result && typeof result === "object" && result.status === "error") {
-    throw new Error(result.message || "Unknown error");
+  if (result && typeof result === 'object' && result.status === 'error') {
+    throw new Error(result.message || 'Unknown error');
   }
 
   return result;
@@ -286,10 +292,7 @@ let pollInterval: number | null = null;
 /**
  * Listen to backend events via polling
  */
-export async function listen<T = any>(
-  event: string,
-  callback: EventCallback<T>
-): Promise<UnlistenFn> {
+export async function listen<T = any>(event: string, callback: EventCallback<T>): Promise<UnlistenFn> {
   // Use polling-based event system
   if (!eventListeners.has(event)) {
     eventListeners.set(event, new Set());
@@ -344,7 +347,7 @@ function startEventPolling() {
         }
       }
     } catch (error) {
-      console.error("Error polling events:", error);
+      console.error('Error polling events:', error);
     }
   }, 100); // Poll every 100ms
 }
@@ -363,16 +366,44 @@ function stopEventPolling() {
  * Emit an event (not supported in pywebview - events flow backend → frontend only)
  */
 export async function emit(_event: string, _payload: any): Promise<void> {
-  console.warn("emit() is not supported in pywebview backend - events flow backend → frontend only");
+  console.warn('emit() is not supported in pywebview backend - events flow backend → frontend only');
 }
 
 /**
- * Convert a file path to a URL that can be loaded by the frontend
+ * Cached file server port — set once at startup via initFileServer().
+ */
+let _fileServerPort: number | null = null;
+
+/**
+ * Initialize the file server port by querying the backend.
+ * Called once during app startup (ensureReady flow).
+ */
+export async function initFileServer(): Promise<void> {
+  if (_fileServerPort !== null) return;
+
+  try {
+    await ensureReady();
+    if (window.pywebview?.api?.get_file_server_port) {
+      const result = await window.pywebview.api.get_file_server_port();
+      _fileServerPort = result.port;
+      console.log(`[FileServer] Initialized on port ${_fileServerPort}`);
+    }
+  } catch (e) {
+    console.error('[FileServer] Failed to get file server port:', e);
+  }
+}
+
+/**
+ * Convert a file path to an HTTP URL served by the local file server.
  *
- * pywebview serves files, so we can use file:// protocol
+ * Must call initFileServer() once at app startup before using this.
  */
 export function convertFileSrc(filePath: string): string {
-  // On macOS/Linux, paths start with /, on Windows they might not
+  if (_fileServerPort) {
+    return `http://127.0.0.1:${_fileServerPort}/file?path=${encodeURIComponent(filePath)}`;
+  }
+  // Fallback (should not happen after init)
+  console.warn('[convertFileSrc] File server port not initialized, falling back to file://');
   if (!filePath.startsWith('/') && !filePath.match(/^[A-Za-z]:/)) {
     filePath = '/' + filePath;
   }
@@ -382,8 +413,8 @@ export function convertFileSrc(filePath: string): string {
 /**
  * Cleanup on page unload
  */
-if (typeof window !== "undefined") {
-  window.addEventListener("beforeunload", () => {
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', () => {
     stopEventPolling();
     eventListeners.clear();
   });

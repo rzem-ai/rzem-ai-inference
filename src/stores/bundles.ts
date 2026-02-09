@@ -74,7 +74,7 @@ export const useBundlesStore = defineStore('bundles', {
 
     transformerComponents(state): ComponentRecord[] {
       return state.models
-        .filter((m) => m.model_type === 'checkpoint')
+        .filter((m) => m.model_type === 'transformer')
         .map(modelToComponent);
     },
 
