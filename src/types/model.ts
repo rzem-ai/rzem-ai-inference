@@ -12,21 +12,21 @@ export interface ModelFileInfo {
 
 export interface ModelInfo {
   id: string;
-  model_type: string;
-  family: string;
-  displayName: string;
+  architecture: string | null;
+  componentType: string;
+  createdAt: string;
   description: string | null;
-  files: ModelFileInfo[];
-  tags: string[];
+  name: string;
   examples: ExampleRecord[];
+  family: string;
+  files: ModelFileInfo[];
   prefsBase: ModelPrefsBase | null;
   prefsLora: ModelPrefsLora | null;
-  triggerWords: string[];
-  architecture: string | null;
   quantization: string | null;
-  vramMb: number | null;
-  createdAt: string;
+  tags: string[];
+  triggerWords: string[];
   updatedAt: string;
+  vramMb: number | null;
 }
 
 export interface ModelPrefsBase {

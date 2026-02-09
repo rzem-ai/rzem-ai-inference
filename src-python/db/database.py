@@ -334,10 +334,10 @@ class InferenceDb:
         await self.conn.execute("""
             INSERT INTO images (
                 id, file_path, prompt, negative_prompt, width, height,
-                steps, cfg_scale, seed, sampler, scheduler, model_type,
+                steps, cfg_scale, seed, sampler, scheduler, model_name,
                 model_component_id, t5_component_id, clip_component_id,
-                vae_component_id, bundle_id, created_at, folder_id, favorite
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                vae_component_id, bundle_id, created_at, favorite
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             image_data.get("id"),
             image_data.get("file_path"),
@@ -350,14 +350,13 @@ class InferenceDb:
             image_data.get("seed"),
             image_data.get("sampler"),
             image_data.get("scheduler"),
-            image_data.get("model_type"),
+            image_data.get("model_name", "flux-schnell"),
             image_data.get("model_component_id"),
             image_data.get("t5_component_id"),
             image_data.get("clip_component_id"),
             image_data.get("vae_component_id"),
             image_data.get("bundle_id"),
-            int(datetime.utcnow().timestamp()),
-            image_data.get("folder_id"),
+            image_data.get("created_at", int(datetime.utcnow().timestamp())),
             0,
         ))
 
@@ -401,11 +400,14 @@ class InferenceDb:
         if not self.conn:
             raise RuntimeError("Database not connected")
 
-        query = "SELECT * FROM images ORDER BY created_at DESC"
-        if limit:
-            query += f" LIMIT {limit}"
-
-        cursor = await self.conn.execute(query)
+        if limit and isinstance(limit, int):
+            cursor = await self.conn.execute(
+                "SELECT * FROM images ORDER BY created_at DESC LIMIT ?", (limit,)
+            )
+        else:
+            cursor = await self.conn.execute(
+                "SELECT * FROM images ORDER BY created_at DESC"
+            )
         rows = await cursor.fetchall()
         return [self._map_image_row(dict(row)) for row in rows]
 
@@ -1297,6 +1299,54 @@ class InferenceDb:
         await self.conn.commit()
         return cursor.rowcount > 0
 
+    # ==================== Single-Row Lookups ====================
+
+    async def get_model_component_by_id(self, component_id: str) -> Optional[Dict[str, Any]]:
+        """Get a single model component by ID"""
+        if not self.conn:
+            raise RuntimeError("Database not connected")
+
+        cursor = await self.conn.execute(
+            """SELECT id, component_type, format, file_path, file_size, name,
+                      repo_id, repo_snapshot, architecture, quantization
+               FROM model_components WHERE id = ?""",
+            (component_id,)
+        )
+        row = await cursor.fetchone()
+        if not row:
+            return None
+        return {
+            "id": row[0],
+            "componentType": row[1],
+            "format": row[2],
+            "filePath": row[3],
+            "fileSize": row[4],
+            "name": row[5],
+            "repoId": row[6],
+            "repoSnapshot": row[7],
+            "architecture": row[8],
+            "quantization": row[9],
+        }
+
+    async def get_lora_by_id(self, lora_id: str) -> Optional[Dict[str, Any]]:
+        """Get a single LoRA by ID"""
+        if not self.conn:
+            raise RuntimeError("Database not connected")
+
+        cursor = await self.conn.execute(
+            "SELECT id, name, path, strength FROM loras WHERE id = ?",
+            (lora_id,)
+        )
+        row = await cursor.fetchone()
+        if not row:
+            return None
+        return {
+            "id": row[0],
+            "name": row[1],
+            "path": row[2],
+            "strength": row[3],
+        }
+
     # ==================== Model Components ====================
 
     async def get_all_model_components(self) -> List[Dict[str, Any]]:
@@ -1585,3 +1635,218 @@ class InferenceDb:
         )
         await self.conn.commit()
         return True
+
+    # ==================== Examples ====================
+
+    async def add_example(
+        self,
+        entity_type: str,
+        entity_id: str,
+        example_type: str,
+        content: str,
+    ) -> str:
+        """Add an example to a model or bundle"""
+        if not self.conn:
+            raise RuntimeError("Database not connected")
+
+        import uuid
+
+        example_id = str(uuid.uuid4())
+        now = datetime.utcnow().isoformat() + "Z"
+
+        await self.conn.execute(
+            """INSERT INTO examples (id, entity_type, entity_id, example_type, content, created_at)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (example_id, entity_type, entity_id, example_type, content, now),
+        )
+        await self.conn.commit()
+        return example_id
+
+    async def remove_example(self, example_id: str) -> bool:
+        """Remove an example by ID"""
+        if not self.conn:
+            raise RuntimeError("Database not connected")
+
+        cursor = await self.conn.execute(
+            "DELETE FROM examples WHERE id = ?", (example_id,)
+        )
+        await self.conn.commit()
+        return cursor.rowcount > 0
+
+    async def get_examples(
+        self, entity_type: str, entity_id: str
+    ) -> List[Dict[str, Any]]:
+        """Get examples for an entity"""
+        if not self.conn:
+            raise RuntimeError("Database not connected")
+
+        cursor = await self.conn.execute(
+            """SELECT id, entity_type, entity_id, example_type, content, created_at
+               FROM examples
+               WHERE entity_type = ? AND entity_id = ?
+               ORDER BY created_at""",
+            (entity_type, entity_id),
+        )
+        rows = await cursor.fetchall()
+        return [
+            {
+                "id": row[0],
+                "entityType": row[1],
+                "entityId": row[2],
+                "exampleType": row[3],
+                "content": row[4],
+                "createdAt": row[5],
+            }
+            for row in rows
+        ]
+
+    # ==================== Model Component Upsert ====================
+
+    async def upsert_model_component(self, component: Dict[str, Any]) -> str:
+        """Insert or update a model component (used by scanner)"""
+        if not self.conn:
+            raise RuntimeError("Database not connected")
+
+        import uuid
+        import json
+        import time
+
+        comp_id = component.get("id") or str(uuid.uuid4())
+        now = int(time.time())
+        metadata_json = json.dumps(component.get("metadata", {}))
+
+        await self.conn.execute(
+            """INSERT INTO model_components (
+                id, component_type, format, file_path, file_size, file_hash, name,
+                repo_id, repo_snapshot, architecture, quantization, supports_loras,
+                is_sharded, shard_count, vram_mb, discovered_at, last_verified_at,
+                is_available, metadata
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(file_path) DO UPDATE SET
+                name = excluded.name,
+                component_type = excluded.component_type,
+                format = excluded.format,
+                file_size = excluded.file_size,
+                last_verified_at = excluded.last_verified_at,
+                is_available = excluded.is_available""",
+            (
+                comp_id,
+                component.get("componentType", ""),
+                component.get("format", ""),
+                component.get("filePath", ""),
+                component.get("fileSize", 0),
+                component.get("fileHash"),
+                component.get("name", ""),
+                component.get("repoId"),
+                component.get("repoSnapshot"),
+                component.get("architecture"),
+                component.get("quantization"),
+                1 if component.get("supportsLoras") else 0,
+                1 if component.get("isSharded") else 0,
+                component.get("shardCount"),
+                component.get("vramMb"),
+                now,
+                now,
+                1,
+                metadata_json,
+            ),
+        )
+        await self.conn.commit()
+        return comp_id
+
+    # ==================== Compatible Models ====================
+
+    async def get_compatible_models(
+        self, base_model_id: str, target_type: str
+    ) -> List[Dict[str, Any]]:
+        """Get models compatible with a base model (family-based matching)"""
+        if not self.conn:
+            raise RuntimeError("Database not connected")
+
+        # Get the base model's architecture to infer family
+        cursor = await self.conn.execute(
+            "SELECT architecture FROM model_components WHERE id = ?",
+            (base_model_id,),
+        )
+        row = await cursor.fetchone()
+        if not row:
+            return []
+
+        family = _infer_family(row[0])
+
+        # Get all components of the target type that match the family
+        cursor = await self.conn.execute(
+            """SELECT id, component_type, format, file_path, file_size, file_hash, name,
+                      repo_id, repo_snapshot, architecture, quantization, supports_loras,
+                      is_sharded, shard_count, vram_mb, discovered_at, last_verified_at,
+                      is_available, metadata
+               FROM model_components
+               WHERE is_available = 1
+               ORDER BY name""",
+        )
+        rows = await cursor.fetchall()
+
+        results = []
+        for r in rows:
+            comp_type = _component_type_to_model_type(r[1])
+            comp_family = _infer_family(r[9])
+            if comp_type == target_type and comp_family == family:
+                metadata = r[18]
+                if metadata and isinstance(metadata, str):
+                    import json
+                    metadata = json.loads(metadata)
+
+                tag_cursor = await self.conn.execute(
+                    "SELECT tag FROM model_tags WHERE model_id = ?", (r[0],)
+                )
+                tag_rows = await tag_cursor.fetchall()
+                tags = [tr[0] for tr in tag_rows]
+
+                results.append({
+                    "id": r[0],
+                    "componentType": r[1],
+                    "format": r[2],
+                    "filePath": r[3],
+                    "fileSize": r[4],
+                    "fileHash": r[5],
+                    "name": r[6],
+                    "repoId": r[7],
+                    "repoSnapshot": r[8],
+                    "architecture": r[9],
+                    "quantization": r[10],
+                    "supportsLoras": bool(r[11]),
+                    "isSharded": bool(r[12]),
+                    "shardCount": r[13],
+                    "vramMb": r[14],
+                    "discoveredAt": r[15],
+                    "lastVerifiedAt": r[16],
+                    "isAvailable": bool(r[17]),
+                    "metadata": metadata or {},
+                    "tags": tags,
+                })
+        return results
+
+
+def _infer_family(architecture: Optional[str]) -> str:
+    """Infer model family from architecture string"""
+    if not architecture:
+        return "other"
+    arch = architecture.lower()
+    if "flux" in arch or "clip" in arch or "t5" in arch or "vae" in arch:
+        return "flux"
+    if "z-image" in arch or "zimage" in arch:
+        return "zimage"
+    return "other"
+
+
+def _component_type_to_model_type(comp_type: str) -> str:
+    """Map component type to model type for compatibility matching"""
+    mapping = {
+        "transformer": "transformer",
+        "t5_encoder": "text_encoder",
+        "clip_encoder": "text_encoder",
+        "vae": "vae",
+        "clip_tokenizer": "tokenizer",
+        "t5_tokenizer": "tokenizer",
+    }
+    return mapping.get(comp_type, "other")

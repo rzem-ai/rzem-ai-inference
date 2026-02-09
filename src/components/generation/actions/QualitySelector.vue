@@ -14,11 +14,9 @@
 
         <Select
           v-model="selectedOption"
-          :options="allOptions"
-          option-label="label"
-          option-value="value"
-          option-group-label="label"
-          option-group-children="items"
+          :options="transformers"
+          optionLabel="name"
+          optionValue="id"
           placeholder="Select model or bundle"
           size="small"
           class="w-full">
@@ -37,18 +35,11 @@
             </div>
           </template>
 
-          <template #optiongroup="slotProps">
-            <div class="flex items-center gap-2 py-2 font-semibold text-surface-300 bg-surface-800/50">
-              <fa :icon="['far', slotProps.option.icon]" />
-              <span class="text-sm tracking-wider uppercase"> {{ slotProps.option.label }} </span>
-            </div>
-          </template>
-
           <template #option="slotProps">
             <div class="flex items-center justify-between w-full px-2">
               <div class="flex items-center gap-2">
                 <fa :icon="['fal', getOptionIcon(slotProps.option.value)]" />
-                <span class="font-normal">{{ slotProps.option.label }}</span>
+                <span class="font-normal">{{ slotProps.option.name }}</span>
               </div>
               <div class="flex items-center gap-2">
                 <Tag v-if="slotProps.option.isBundle" value="Bundle" severity="info" class="text-xs" />
@@ -152,7 +143,7 @@
                           ? 'pi pi-check-circle text-green-400 text-xs'
                           : 'pi pi-times-circle text-red-400 text-xs'
                       "></i>
-                    <span class="text-sm">{{ getComponentById(slotProps.value, bundlesStore.t5Components)?.name }}</span>
+                    <span class="text-sm">{{ getOptionLabel(slotProps.value) }}</span>
                   </div>
                   <Tag
                     v-if="getComponentById(slotProps.value, bundlesStore.t5Components)?.quantization"
@@ -201,7 +192,7 @@
                         ? 'pi pi-check-circle text-green-400 text-xs'
                         : 'pi pi-times-circle text-red-400 text-xs'
                     "></i>
-                  <span class="text-sm">{{ getComponentById(slotProps.value, bundlesStore.clipComponents)?.name }}</span>
+                  <span class="text-sm">{{ getOptionLabel(slotProps.value) }}</span>
                 </div>
                 <span v-else class="text-surface-500">Select CLIP encoder...</span>
               </template>
@@ -241,7 +232,7 @@
                         ? 'pi pi-check-circle text-green-400 text-xs'
                         : 'pi pi-times-circle text-red-400 text-xs'
                     "></i>
-                  <span class="text-sm">{{ getComponentById(slotProps.value, bundlesStore.vaeComponents)?.name }}</span>
+                  <span class="text-sm">{{ getOptionLabel(slotProps.value) }}</span>
                 </div>
                 <span v-else class="text-surface-500">Select VAE decoder...</span>
               </template>
@@ -273,16 +264,24 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
-import { useGenerationStore } from '@/stores/generation';
-import { useBundlesStore } from '@/stores/bundles';
+import { computed, onMounted, ref } from 'vue';
+import { useBundlesStore, useGenerationStore, useModelsStore } from '@/stores';
 import type { BundleInfo, ComponentRecord } from '@/stores/bundles';
 import { Select, Tag, Message } from 'primevue';
 import GenerationAction from './GenerationAction.vue';
 import InputNumber from 'primevue/inputnumber';
 import Slider from 'primevue/slider';
-const generationStore = useGenerationStore();
+import { ModelInfo } from '@/types';
+
 const bundlesStore = useBundlesStore();
+const generationStore = useGenerationStore();
+const modelsStore = useModelsStore();
+
+//const transformers = ref<ModelInfo[]>([]);
+const transformers = computed(() => {
+  return modelsStore.transformers as ModelInfo[];
+});
+
 // Selected option (either bundle ID or model ID)
 const selectedOption = computed({
   get: () => {
@@ -409,62 +408,88 @@ interface OptionGroup {
 }
 
 const allOptions = computed(() => {
-  const groups: OptionGroup[] = [];
-
-  // Group 1: Bundles (pre-configured complete setups)
-  if (bundlesStore.bundles.length > 0) {
-    const bundleOptions: SelectOption[] = bundlesStore.bundles
-      .filter((b) => b.isComplete) // Only show complete bundles
-      .map((b) => ({
-        label: b.name,
-        value: `bundle:${b.id}`,
-        isBundle: true,
-        isActive: b.isActive,
-        vram: b.totalVramMb ? bundlesStore.formatVram(b.totalVramMb) : undefined,
-      }));
-
-    if (bundleOptions.length > 0) {
-      groups.push({
-        label: 'Model Bundles',
-        icon: 'box-taped',
-        items: bundleOptions,
-      });
-    }
-  }
-
-  // Group 2: Individual Transformer Models (FLUX models that can be paired with custom components)
-  const transformerOptions: SelectOption[] = bundlesStore.transformerComponents
-    .filter((c) => c.isAvailable)
-    .map((c) => ({
-      label: c.name,
-      value: c.id,
+  const items: SelectOption[] = modelsStore.transformers?.map((item) => {
+    return {
+      label: JSON.stringify(item),
+      value: item.id,
       isBundle: false,
-      vram: c.vramMb ? bundlesStore.formatVram(c.vramMb) : undefined,
-      quantization: c.quantization ?? undefined,
-    }));
+      isActive: false,
+      vram: 'string',
+      quantization: 'string',
+    };
+  });
 
-  if (transformerOptions.length > 0) {
-    groups.push({
-      label: 'FLUX Models',
-      icon: 'microchip-ai',
-      items: transformerOptions,
-    });
-  }
+  const group: OptionGroup = {
+    label: 'transformers',
+    icon: 'layers',
+    items: items,
+  };
+
+  const groups: OptionGroup[] = [group];
 
   return groups;
+
+  // // Group 1: Bundles (pre-configured complete setups)
+  // const groups: OptionGroup[] = [];
+  // if (bundlesStore.bundles.length > 0) {
+  //   const bundleOptions: SelectOption[] = bundlesStore.bundles
+  //     .filter((b) => b.isComplete) // Only show complete bundles
+  //     .map((b) => ({
+  //       label: b.name,
+  //       value: `bundle:${b.id}`,
+  //       isBundle: true,
+  //       isActive: b.isActive,
+  //       vram: b.totalVramMb ? bundlesStore.formatVram(b.totalVramMb) : undefined,
+  //     }));
+
+  //   if (bundleOptions.length > 0) {
+  //     groups.push({
+  //       label: 'Model Bundles',
+  //       icon: 'box-taped',
+  //       items: bundleOptions,
+  //     });
+  //   }
+  //}
+
+  // Group 2: Individual Transformer Models (FLUX models that can be paired with custom components)
+  // const transformerOptions: SelectOption[] = bundlesStore.transformerComponents
+  //   .filter((c) => c.isAvailable)
+  //   .map((c) => ({
+  //     label: c.name,
+  //     value: c.id,
+  //     isBundle: false,
+  //     vram: c.vramMb ? bundlesStore.formatVram(c.vramMb) : undefined,
+  //     quantization: c.quantization ?? undefined,
+  //   }));
+
+  // if (transformerOptions.length > 0) {
+  //   groups.push({
+  //     label: 'FLUX Models',
+  //     icon: 'microchip-ai',
+  //     items: transformerOptions,
+  //   });
+  // }
+
+  // return groups;
 });
 
 // Get compatible components based on selected model
 const compatibleT5Components = computed(() => {
-  return filterCompatibleComponents(bundlesStore.t5Components, generationStore.currentParams.model_component_id ?? '');
+  console.log('compatibleT5Components:', modelsStore.t5Encoders);
+  return modelsStore.t5Encoders;
+  //return filterCompatibleComponents(bundlesStore.t5Components, generationStore.currentParams.model_component_id ?? '');
 });
 
 const compatibleClipComponents = computed(() => {
-  return filterCompatibleComponents(bundlesStore.clipComponents, generationStore.currentParams.model_component_id ?? '');
+  console.log('compatibleClipComponents:', modelsStore.clipEncoders);
+  return modelsStore.clipEncoders;
+  //return filterCompatibleComponents(bundlesStore.clipComponents, generationStore.currentParams.model_component_id ?? '');
 });
 
 const compatibleVaeComponents = computed(() => {
-  return filterCompatibleComponents(bundlesStore.vaeComponents, generationStore.currentParams.model_component_id ?? '');
+  console.log('compatibleVaeComponents:', modelsStore.vaes);
+  return modelsStore.vaes;
+  //return filterCompatibleComponents(bundlesStore.vaeComponents, generationStore.currentParams.model_component_id ?? '');
 });
 
 // Filter components by compatibility with selected model
@@ -559,23 +584,15 @@ function getOptionIcon(value: string | undefined): string {
 
 function getOptionLabel(value: string | undefined): string {
   if (!value) return 'Select...';
-  if (isBundle(value)) {
-    const bundle_id = value.substring(7);
-    const bundle = bundlesStore.bundles.find((b) => b.id === bundle_id);
-    return bundle?.name || value;
-  }
+
   // Look up in transformer components
-  const transformer = bundlesStore.transformerComponents.find((c) => c.id === value);
-  return transformer?.name || value;
+  const model = modelsStore.models.find((c) => c.id === value);
+  return model?.name || value;
 }
 
 function getOptionVram(value: string | undefined): string | undefined {
   if (!value) return undefined;
-  if (isBundle(value)) {
-    const bundle_id = value.substring(7);
-    const bundle = bundlesStore.bundles.find((b) => b.id === bundle_id);
-    return bundle?.totalVramMb ? bundlesStore.formatVram(bundle.totalVramMb) : undefined;
-  }
+
   // Look up in transformer components
   const transformer = bundlesStore.transformerComponents.find((c) => c.id === value);
   return transformer?.vramMb ? bundlesStore.formatVram(transformer.vramMb) : undefined;
@@ -610,22 +627,10 @@ function inferVaeIdFromBundle(bundle: BundleInfo): string {
   return transformer ? transformer.id : 'flux-vae';
 }
 
-// Initialize bundles store on mount
+// Initialize stores on mount
 onMounted(async () => {
   await bundlesStore.initialize();
-
-  // If no selection yet, try to use active bundle, or first available transformer
-  if (!selectedOption.value) {
-    if (bundlesStore.activeBundle) {
-      selectedOption.value = `bundle:${bundlesStore.activeBundle.id}`;
-    } else if (bundlesStore.transformerComponents.length > 0) {
-      // Fall back to first available transformer
-      const firstTransformer = bundlesStore.transformerComponents.find((c) => c.isAvailable);
-      if (firstTransformer) {
-        selectedOption.value = firstTransformer.id;
-      }
-    }
-  }
+  await modelsStore.initialize();
 });
 </script>
 

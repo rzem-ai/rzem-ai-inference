@@ -48,11 +48,39 @@ export const useModelsStore = defineStore('models', {
   }),
 
   getters: {
+    transformers(state) {
+      return state.models.filter((m) => m.componentType === 'transformer');
+    },
+
+    clipEncoders(state) {
+      return state.models.filter((m) => m.componentType === 'clip_encoder');
+    },
+
+    clipTokenizers(state) {
+      return state.models.filter((m) => m.componentType === 'clip_tokenizer');
+    },
+
+    t5Encoders(state) {
+      return state.models.filter((m) => m.componentType === 't5_encoder');
+    },
+
+    t5Tokenizers(state) {
+      return state.models.filter((m) => m.componentType === 't5_tokenizer');
+    },
+
+    vaes(state) {
+      return state.models.filter((m) => m.componentType === 'vae');
+    },
+ 
+    schedulers(state) {
+      return state.models.filter((m) => m.componentType === 'scheduler');
+    },
+
     modelsByType(state) {
       const grouped: Record<string, ModelInfo[]> = {};
       for (const model of state.models) {
-        if (!grouped[model.model_type]) grouped[model.model_type] = [];
-        grouped[model.model_type].push(model);
+        if (!grouped[model.componentType]) grouped[model.componentType] = [];
+        grouped[model.componentType].push(model);
       }
       // Sort each group by displayName
       for (const key of Object.keys(grouped)) {
@@ -62,7 +90,7 @@ export const useModelsStore = defineStore('models', {
     },
 
     typeOrder(): string[] {
-      return ['checkpoint', 'text_encoder', 'vae', 'tokenizer', 'lora', 'scheduler'];
+      return ['transformer', 'text_encoder', 'vae', 'tokenizer', 'lora', 'scheduler'];
     },
 
     activeLoras(state): LoRA[] {
@@ -75,27 +103,27 @@ export const useModelsStore = defineStore('models', {
     async initialize(): Promise<void> {
       // Guard: only initialize once
       if (this.isInitialized) {
-        return
+        return;
       }
 
-      this.error = null
+      this.error = null;
 
       try {
         // Load both models and LoRAs
-        await this.loadModels()
-        await this.loadLoras()
-        this.isInitialized = true
+        await this.loadModels();
+        await this.loadLoras();
+        this.isInitialized = true;
       } catch (err) {
-        this.error = err instanceof Error ? err.message : String(err)
-        console.error('[ModelsStore] Initialization failed:', err)
-        throw err
+        this.error = err instanceof Error ? err.message : String(err);
+        console.error('[ModelsStore] Initialization failed:', err);
+        throw err;
       }
     },
 
     // Force reload (for manual refresh)
     async reload(): Promise<void> {
-      this.isInitialized = false
-      await this.initialize()
+      this.isInitialized = false;
+      await this.initialize();
     },
 
     async loadModels() {
@@ -261,9 +289,7 @@ export const useModelsStore = defineStore('models', {
     },
 
     getActiveLoraConfigs(): LoraConfig[] {
-      return this.loras
-        .filter((l) => l.isActive)
-        .map((l) => ({ id: l.id, strength: l.strength }));
+      return this.loras.filter((l) => l.isActive).map((l) => ({ id: l.id, strength: l.strength }));
     },
 
     async refreshModelAvailability() {

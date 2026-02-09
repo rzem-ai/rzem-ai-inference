@@ -204,8 +204,19 @@ export const useGenerationStore = defineStore('generation', {
       this.jobUpdates = useJobUpdates();
 
       await this.jobUpdates.onJobUpdate(
-        async (payload: { job_id: string; status: string; progress?: number; result_path?: string; error?: string; stats?: any }) => {
-          const { job_id, status, progress, result_path, error: jobError, stats } = payload;
+        async (payload: {
+          job_id: string;
+          status: string;
+          progress?: number;
+          result_path?: string;
+          error?: string;
+          stats?: any;
+          current_step?: number;
+          total_steps?: number;
+          stage?: string;
+          preview_data?: string;
+        }) => {
+          const { job_id, status, progress, result_path, error: jobError, stats, current_step, total_steps, stage, preview_data } = payload;
 
           let jobIndex = this.jobs.findIndex((j) => j.id === job_id);
           if (jobIndex === -1) {
@@ -231,6 +242,18 @@ export const useGenerationStore = defineStore('generation', {
           if (stats) {
             updatedJob.stats = stats;
           }
+          if (stage) {
+            updatedJob.currentStage = stage as PipelineStage;
+          }
+          if (current_step !== undefined) {
+            updatedJob.currentStep = current_step;
+          }
+          if (total_steps !== undefined) {
+            updatedJob.totalSteps = total_steps;
+          }
+          if (preview_data && preview_data !== updatedJob.previewData) {
+            updatedJob.previewData = preview_data;
+          }
           if (status === 'running' && !updatedJob.started_at) {
             updatedJob.started_at = Math.floor(Date.now() / 1000);
           }
@@ -243,43 +266,6 @@ export const useGenerationStore = defineStore('generation', {
           if (status === 'completed') {
             const galleryStore = useGalleryStore();
             await galleryStore.loadImages();
-          }
-        },
-      );
-
-      await this.jobUpdates.onJobProgress(
-        (payload: {
-          job_id: string;
-          stage: string;
-          stage_progress: number;
-          overall_progress: number;
-          message: string;
-          eta_seconds?: number;
-          current_step?: number;
-          total_steps?: number;
-          preview_data?: string;
-        }) => {
-          const { job_id, stage, overall_progress, message, current_step, total_steps, preview_data } = payload;
-
-          const jobIndex = this.jobs.findIndex((j) => j.id === job_id);
-          if (jobIndex !== -1) {
-            this.jobs[jobIndex].progress = overall_progress;
-            this.jobs[jobIndex].currentStage = stage as PipelineStage;
-            this.jobs[jobIndex].statusMessage = message;
-            if (current_step !== undefined) {
-              this.jobs[jobIndex].currentStep = current_step;
-            }
-            if (total_steps !== undefined) {
-              this.jobs[jobIndex].totalSteps = total_steps;
-            }
-            if (preview_data && preview_data !== this.jobs[jobIndex].previewData) {
-              console.log(
-                `[Generation Store] Preview UPDATE for job ${job_id.substring(0, 8)} at step ${current_step}/${total_steps}, size: ${
-                  preview_data.length
-                } chars`,
-              );
-              this.jobs[jobIndex].previewData = preview_data;
-            }
           }
         },
       );
@@ -296,9 +282,11 @@ export const useGenerationStore = defineStore('generation', {
 
     async addToQueue(params: GenerationParams): Promise<string> {
       try {
-        const jobId = await invoke<string>('client_add_to_queue', { params });
+        const result = await invoke<{ job_id: string }>('client_add_to_queue', { params });
         this.error = null;
-        return jobId;
+        // Refresh jobs so the new job appears in the queue immediately
+        await this.refreshJobs();
+        return result.job_id;
       } catch (err) {
         const message = 'Failed to add to queue';
         this.error = message;

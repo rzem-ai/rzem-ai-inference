@@ -24,6 +24,9 @@ class AppState:
         self.queue_manager = QueueManager()
         self.queue_processor: Optional[QueueProcessor] = None
 
+        # File server (set by main.py after starting the server)
+        self.file_server_port: int = 0
+
         # Event callbacks
         self.event_handlers = []
 
@@ -47,9 +50,8 @@ class AppState:
                 output_dir=str(Path.home() / ".rzem-ai-inference" / "outputs"),
             )
 
-            # Register event callbacks
+            # Register event callback (all events flow through the manager)
             self.queue_manager.register_event_callback(self._handle_event)
-            self.queue_processor.register_event_callback(self._handle_event)
 
             # Start processor
             await self.queue_processor.start()

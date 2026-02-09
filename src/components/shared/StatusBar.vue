@@ -280,8 +280,6 @@ const ramProgressBarDt = computed(() => {
 });
 
 const gpuName = computed(() => {
-  console.log('gpuName:', currentStats.value)
-
   return truncateGpuName(currentStats.value.gpuName);
 });
 

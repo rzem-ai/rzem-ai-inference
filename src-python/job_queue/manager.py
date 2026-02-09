@@ -26,7 +26,11 @@ class QueueManager:
             await self.queue.put(job)
 
         logger.info(f"Job {job.id} added to queue")
-        await self._emit_event("job-queued", {"job_id": job.id})
+        await self._emit_event("job-update", {
+            "job_id": job.id,
+            "status": "pending",
+            "progress": 0.0,
+        })
 
         return job.id
 
@@ -49,8 +53,11 @@ class QueueManager:
         progress: Optional[float] = None,
         error: Optional[str] = None,
         result_path: Optional[str] = None,
+        current_step: Optional[int] = None,
+        total_steps: Optional[int] = None,
+        stage: Optional[str] = None,
     ) -> None:
-        """Update job status"""
+        """Update job status and emit a single job-update event."""
         async with self.lock:
             job = self.jobs.get(job_id)
             if not job:
@@ -69,14 +76,15 @@ class QueueManager:
             elif status in [JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED]:
                 job.completed_at = datetime.utcnow()
 
-        # Emit appropriate event
-        event_name = f"job-{status.value}"
-        await self._emit_event(event_name, {
+        await self._emit_event("job-update", {
             "job_id": job_id,
             "status": status.value,
             "progress": job.progress,
             "error": error,
             "result_path": result_path,
+            "current_step": current_step,
+            "total_steps": total_steps,
+            "stage": stage,
         })
 
     async def cancel_job(self, job_id: str) -> bool:
@@ -89,7 +97,11 @@ class QueueManager:
             job.status = JobStatus.CANCELLED
             job.completed_at = datetime.utcnow()
 
-        await self._emit_event("job-cancelled", {"job_id": job_id})
+        await self._emit_event("job-update", {
+            "job_id": job_id,
+            "status": "cancelled",
+            "progress": job.progress,
+        })
         logger.info(f"Job {job_id} cancelled")
         return True
 

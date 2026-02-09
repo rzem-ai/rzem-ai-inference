@@ -7,14 +7,19 @@ This replaces the Tauri desktop wrapper with pywebview.
 
 import argparse
 import asyncio
+import faulthandler
 import sys
 import threading
 from pathlib import Path
 from loguru import logger
 import webview
 
+# Enable faulthandler to print tracebacks on segfaults/crashes
+faulthandler.enable()
+
 from app_state import AppState
 from api import Api
+from file_server import start_file_server
 from shared import RuntimeConfig, RuntimeMode
 
 
@@ -119,6 +124,11 @@ def run_local_mode(runtime_config: RuntimeConfig, debug: bool = False) -> None:
     except Exception as e:
         logger.error(f"Failed to initialize app state: {e}")
         sys.exit(1)
+
+    # Start file server for serving images to the frontend
+    outputs_dir = str(Path.home() / ".rzem-ai-inference" / "outputs")
+    _file_server, file_server_port = start_file_server([outputs_dir])
+    app_state.file_server_port = file_server_port
 
     # Determine frontend entry point
     if runtime_config.dev_mode:
