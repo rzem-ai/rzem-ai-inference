@@ -5,7 +5,7 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 DIST_DIR="$ROOT_DIR/build/dist"
 PACKAGE_DIR="$ROOT_DIR/build/packages"
 
-APP_NAME="PyWebViewApp"
+APP_NAME="Inference"
 VERSION="${1:-0.1.0}"
 PLATFORM="$(uname -s | tr '[:upper:]' '[:lower:]')"
 ARCH="$(uname -m)"

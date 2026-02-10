@@ -21,6 +21,7 @@ export const useInferenceStore = defineStore('inference', () => {
   // ── Results ──
   const generatedImages = ref<GeneratedImage[]>([]);
   const latestImage = computed(() => generatedImages.value[0] ?? null);
+  const previewDataUrl = ref<string | null>(null);
 
   // ── Presets & form params ──
   const presets = ref<ModelPreset[]>([]);
@@ -28,7 +29,7 @@ export const useInferenceStore = defineStore('inference', () => {
   const selectedPreset = computed(() => presets.value.find((p) => p.id === selectedPresetId.value) ?? null);
 
   const params = reactive<SubmitJobParams>({
-    prompt: '',
+    prompt: 'Moebiusstyle, a planet with rings, space dust, psychedelic art',
     transformer_model: 'black-forest-labs/FLUX.1-dev',
     transformer_type: 'flux1_dev',
     vae_model: 'black-forest-labs/FLUX.1-dev',
@@ -191,10 +192,12 @@ export const useInferenceStore = defineStore('inference', () => {
 
       switch (event.type) {
         case 'model_loading':
+          console.log('model_loading:', event.data);
           modelStatus.value = event.data.message ?? 'Loading model...';
           break;
 
         case 'model_loaded':
+          console.log('model_loaded:', event.data);
           modelStatus.value = 'Model loaded';
           break;
 
@@ -207,10 +210,12 @@ export const useInferenceStore = defineStore('inference', () => {
           break;
 
         case 'job_started':
+          console.log('job_started:', event.data);
           progress.value = { step: 0, totalSteps: params.steps };
           break;
 
         case 'job_progress':
+          console.log('job_progress:', event.data);
           progress.value = {
             step: event.data.step ?? 0,
             totalSteps: event.data.total_steps ?? params.steps,
@@ -225,6 +230,7 @@ export const useInferenceStore = defineStore('inference', () => {
           isGenerating.value = false;
           currentJobId.value = null;
           progress.value = null;
+          previewDataUrl.value = null;
           const img: GeneratedImage = {
             jobId: event.data.job_id,
             imagePath: event.data.image_path ?? '',
@@ -247,6 +253,7 @@ export const useInferenceStore = defineStore('inference', () => {
           isGenerating.value = false;
           currentJobId.value = null;
           progress.value = null;
+          previewDataUrl.value = null;
           error.value = event.data.error ?? 'Generation failed';
           break;
 
@@ -254,7 +261,11 @@ export const useInferenceStore = defineStore('inference', () => {
           isGenerating.value = false;
           currentJobId.value = null;
           progress.value = null;
+          previewDataUrl.value = null;
           break;
+
+        default:
+          console.log('event:', event.type, event.data);
       }
     }
   }
@@ -263,8 +274,7 @@ export const useInferenceStore = defineStore('inference', () => {
     if (!api) return;
     const res = await api.get_image_base64({ image_path: imagePath });
     if (res.status === 'success' && res.data_url) {
-      // Store as a preview on the latest generating image
-      // This is a simple approach — could be refined for preview display
+      previewDataUrl.value = res.data_url;
     }
   }
 
@@ -279,6 +289,7 @@ export const useInferenceStore = defineStore('inference', () => {
     error,
     generatedImages,
     latestImage,
+    previewDataUrl,
     presets,
     selectedPresetId,
     selectedPreset,

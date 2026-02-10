@@ -62,7 +62,7 @@ export const semantic: GlassBaseTokenSections.Semantic = {
         paddingX: '0.75rem',
         paddingY: '0.5rem',
         sm: {
-            fontSize: '0.875rem',
+            fontSize: '0.75rem',
             paddingX: '0.625rem',
             paddingY: '0.375rem'
         },
