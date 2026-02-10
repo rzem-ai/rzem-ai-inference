@@ -12,11 +12,7 @@
           <span>Step {{ store.progress.step }} / {{ store.progress.totalSteps }}</span>
           <span>{{ Math.round((store.progress.step / store.progress.totalSteps) * 100) }}%</span>
         </div>
-        <ProgressBar
-          :value="(store.progress.step / store.progress.totalSteps) * 100"
-          :show-value="false"
-          style="height: 6px"
-        />
+        <ProgressBar :value="(store.progress.step / store.progress.totalSteps) * 100" :show-value="false" style="height: 6px" />
       </div>
 
       <div v-if="!store.progress && !store.modelStatus" class="flex items-center gap-2 text-sm text-surface-600">
@@ -26,20 +22,10 @@
 
       <!-- Live preview -->
       <div v-if="store.previewDataUrl" class="flex items-center justify-center bg-surface-50 rounded overflow-hidden">
-        <img
-          :src="store.previewDataUrl"
-          alt="Generation preview"
-          class="max-w-full max-h-[400px] object-contain"
-        />
+        <img :src="store.previewDataUrl" alt="Generation preview" class="max-w-full max-h-[400px] object-contain" />
       </div>
 
-      <Button
-        label="Cancel"
-        icon="pi pi-stop"
-        size="small"
-        severity="secondary"
-        @click="store.cancelJob()"
-      />
+      <Button label="Cancel" icon="pi pi-stop" size="small" severity="secondary" @click="store.cancelJob()" />
     </div>
 
     <!-- Error display -->
@@ -50,11 +36,7 @@
     <!-- Result area (latest generated image) -->
     <div v-if="displayedImage?.dataUrl" class="flex flex-col gap-3 flex-1 min-h-0">
       <div class="flex-1 min-h-0 flex items-center justify-center bg-surface-100 rounded-lg overflow-hidden">
-        <img
-          :src="displayedImage.dataUrl"
-          alt="Generated image"
-          class="max-w-full max-h-full object-contain"
-        />
+        <img :src="displayedImage.dataUrl" alt="Generated image" class="max-w-full max-h-full object-contain" />
       </div>
 
       <!-- Metadata -->
@@ -62,22 +44,12 @@
         <span>Seed: {{ displayedImage.seed }}</span>
         <span>{{ formatTimestamp(displayedImage.timestamp) }}</span>
         <div class="flex-1" />
-        <Button
-          label="Copy Seed"
-          icon="pi pi-copy"
-          size="small"
-          severity="secondary"
-          text
-          @click="copySeed(displayedImage!.seed)"
-        />
+        <Button label="Copy Seed" icon="pi pi-copy" size="small" severity="secondary" text @click="copySeed(displayedImage!.seed)" />
       </div>
     </div>
 
     <!-- Empty state -->
-    <div
-      v-if="!store.isGenerating && !displayedImage?.dataUrl && !store.error"
-      class="flex-1 flex items-center justify-center text-surface-400"
-    >
+    <div v-if="!store.isGenerating && !displayedImage?.dataUrl && !store.error" class="flex-1 flex items-center justify-center text-surface-400">
       <div class="text-center">
         <i class="pi pi-image text-4xl mb-2 block" />
         <p class="text-sm">Generated images will appear here</p>
@@ -93,33 +65,35 @@
           :key="img.jobId"
           class="shrink-0 w-16 h-16 rounded cursor-pointer overflow-hidden border-2 transition-colors"
           :class="index === selectedIndex ? 'border-primary' : 'border-transparent hover:border-surface-300'"
-          @click="selectedIndex = index"
-        >
-          <img
-            v-if="img.dataUrl"
-            :src="img.dataUrl"
-            alt=""
-            class="w-full h-full object-cover"
-          />
+          @click="selectedIndex = index">
+          <img v-if="img.dataUrl" :src="img.dataUrl" alt="" class="w-full h-full object-cover" />
           <div v-else class="w-full h-full bg-surface-200 flex items-center justify-center">
             <i class="pi pi-image text-surface-400" />
           </div>
         </div>
       </div>
     </div>
+
+    <Drawer v-model:visible="showJobProgressDrawerOn" header="Right Drawer" position="right">
+      <p>
+        Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam,
+        quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
+      </p>
+    </Drawer>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from "vue";
-import Button from "primevue/button";
-import ProgressBar from "primevue/progressbar";
-import ProgressSpinner from "primevue/progressspinner";
-import { useInferenceStore } from "@/stores/inference";
+import { ref, computed, watch } from 'vue';
+import {Button, Drawer, ProgressBar, ProgressSpinner} from 'primevue';
+import { useInferenceStore } from '@/stores/inference';
 
 const store = useInferenceStore();
 const selectedIndex = ref(0);
 const displayedImage = computed(() => store.generatedImages[selectedIndex.value] ?? null);
+
+const showJobProgressDrawer = computed(() => store.progress != null);
+const showJobProgressDrawerOn = ref(true);
 
 // When a new image is added, select it
 watch(
