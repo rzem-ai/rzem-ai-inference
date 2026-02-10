@@ -1,12 +1,17 @@
 <template>
-  <div class="min-h-screen bg-surface-0 text-surface-900">
-    <AppHeader />
-    <main class="max-w-5xl p-6 mx-auto">
+  <div class="h-screen flex gap-0 ">
+    <div class="w-20 h-full col-span-1 overflow-hidden">
+      <NavBar />
+    </div>
+    <aside class="col-span-1 w-80 h-full">
+      <RouterView name="menu"/>
+    </aside>
+    <main class="col-span-1 h-full">
       <RouterView />
     </main>
   </div>
 </template>
 
 <script setup lang="ts">
-import AppHeader from '@/components/AppHeader.vue';
+import NavBar from './layout/NavBar.vue';
 </script>

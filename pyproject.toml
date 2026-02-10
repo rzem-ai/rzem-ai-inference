@@ -1,11 +1,15 @@
 [project]
-name = "pywebview-vue3-template"
+name = "rzem-ai-inference"
 version = "0.1.0"
-description = "Desktop application template: pywebview + Vue 3 + Tailwind CSS 4 + PrimeVue 4"
+description = "Desktop inference UI: pywebview + Vue 3 + rzem-ai-inference-engine"
 requires-python = ">=3.13"
 dependencies = [
     "pywebview>=5.3",
+    "rzem-ai-inference-engine",
 ]
+
+[tool.uv.sources]
+rzem-ai-inference-engine = { path = "../rzem-ai-inference-engine", editable = true }
 
 [project.scripts]
 app = "main:main"

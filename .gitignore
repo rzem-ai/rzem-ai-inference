@@ -4,8 +4,9 @@ __pycache__/
 .venv/
 
 # Frontend
-frontend/node_modules/
+node_modules/
 frontend/dist/
 
 # Build artifacts
 build/
+.vite/
