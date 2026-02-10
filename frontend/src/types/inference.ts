@@ -20,14 +20,24 @@ export interface InferenceEvent {
   data: Record<string, any>;
 }
 
-export interface ModelPreset {
+export type BundleTier = "performance" | "balanced" | "quality";
+
+export interface ModelBundle {
   id: string;
   label: string;
   description: string;
   transformer_type: TransformerType;
+  tier: BundleTier;
   transformer_model: string;
   vae_model: string;
-  text_encoders: Record<string, string>;
+  clip_tokenizer?: string;
+  clip_encoder?: string;
+  t5_tokenizer?: string;
+  t5_encoder?: string;
+  qwen3_tokenizer?: string;
+  qwen3_encoder?: string;
+  vram_estimate_gb: number;
+  is_default: boolean;
 }
 
 export interface LoraParam {

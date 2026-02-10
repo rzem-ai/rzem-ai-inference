@@ -13,59 +13,6 @@ from backend.services.inference_service import InferenceService
 
 logger = logging.getLogger(__name__)
 
-MODEL_PRESETS = [
-    {
-        "id": "flux1_dev",
-        "label": "FLUX.1 Dev",
-        "description": "Black Forest Labs FLUX.1-dev with CLIP + T5 text encoders",
-        "transformer_type": "flux1_dev",
-        "transformer_model": "black-forest-labs/FLUX.1-dev",
-        "vae_model": "black-forest-labs/FLUX.1-dev",
-        "text_encoders": {
-            "clip_tokenizer": "openai/clip-vit-large-patch14",
-            "clip_encoder": "openai/clip-vit-large-patch14",
-            "t5_tokenizer": "google/t5-v1_1-xxl",
-            "t5_encoder": "google/t5-v1_1-xxl",
-        },
-    },
-    {
-        "id": "flux2_dev",
-        "label": "FLUX.2 Dev",
-        "description": "Black Forest Labs FLUX.2-dev with Qwen3 text encoder",
-        "transformer_type": "flux2_dev",
-        "transformer_model": "black-forest-labs/FLUX.2-dev",
-        "vae_model": "black-forest-labs/FLUX.2-dev",
-        "text_encoders": {
-            "qwen3_tokenizer": "Qwen/Qwen3-0.6B",
-            "qwen3_encoder": "Qwen/Qwen3-0.6B",
-        },
-    },
-    {
-        "id": "z_image",
-        "label": "Z-Image",
-        "description": "Z-Image transformer with Qwen3 text encoder",
-        "transformer_type": "z_image",
-        "transformer_model": "rzem-ai/z-image",
-        "vae_model": "rzem-ai/z-image",
-        "text_encoders": {
-            "qwen3_tokenizer": "Qwen/Qwen3-0.6B",
-            "qwen3_encoder": "Qwen/Qwen3-0.6B",
-        },
-    },
-    {
-        "id": "qwen_image",
-        "label": "Qwen-Image",
-        "description": "Qwen-Image transformer with Qwen3 text encoder",
-        "transformer_type": "qwen_image",
-        "transformer_model": "rzem-ai/qwen-image",
-        "vae_model": "rzem-ai/qwen-image",
-        "text_encoders": {
-            "qwen3_tokenizer": "Qwen/Qwen3-0.6B",
-            "qwen3_encoder": "Qwen/Qwen3-0.6B",
-        },
-    },
-]
-
 
 class InferenceAPI:
     """pywebview js_api mixin for inference operations.
@@ -160,6 +107,3 @@ class InferenceAPI:
             logger.error("Failed to read image %s: %s", image_path, e)
             return {"status": "error", "message": str(e)}
 
-    def get_model_presets(self) -> dict[str, Any]:
-        """Return available model presets."""
-        return {"status": "success", "presets": MODEL_PRESETS}

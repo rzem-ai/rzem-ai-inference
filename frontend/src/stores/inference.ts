@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import type { PywebviewAPI } from '@/types/pywebview';
-import type { ModelPreset, SubmitJobParams, LoraParam, InferenceEvent, GeneratedImage } from '@/types/inference';
+import type { ModelBundle, SubmitJobParams, LoraParam, InferenceEvent, GeneratedImage } from '@/types/inference';
 
 // Non-reactive module-level state (no reactivity tracking needed)
 let _api: PywebviewAPI | null = null;
@@ -23,9 +23,9 @@ export const useInferenceStore = defineStore('inference', {
     generatedImages: [] as GeneratedImage[],
     previewDataUrl: null as string | null,
 
-    // Presets & form params
-    presets: [] as ModelPreset[],
-    selectedPresetId: null as string | null,
+    // Bundles & form params
+    bundles: [] as ModelBundle[],
+    selectedBundleId: null as string | null,
 
     params: {
       prompt: 'Moebiusstyle, a planet with rings, space dust, psychedelic art',
@@ -55,8 +55,27 @@ export const useInferenceStore = defineStore('inference', {
       return state.generatedImages[0] ?? null;
     },
 
-    selectedPreset(state): ModelPreset | null {
-      return state.presets.find((p) => p.id === state.selectedPresetId) ?? null;
+    selectedBundle(state): ModelBundle | null {
+      return state.bundles.find((b) => b.id === state.selectedBundleId) ?? null;
+    },
+
+    bundlesByType(state): { label: string; items: ModelBundle[] }[] {
+      const typeLabels: Record<string, string> = {
+        flux1_dev: 'FLUX.1 Dev',
+        flux2_dev: 'FLUX.2 Dev',
+        z_image: 'Z-Image',
+        qwen_image: 'Qwen-Image',
+      };
+      const groups = new Map<string, ModelBundle[]>();
+      for (const b of state.bundles) {
+        const list = groups.get(b.transformer_type) ?? [];
+        list.push(b);
+        groups.set(b.transformer_type, list);
+      }
+      return Array.from(groups.entries()).map(([type, items]) => ({
+        label: typeLabels[type] ?? type,
+        items,
+      }));
     },
   },
 
@@ -95,25 +114,25 @@ export const useInferenceStore = defineStore('inference', {
       }
     },
 
-    async loadPresets() {
+    async loadBundles() {
       if (!_api) return;
-      const res = await _api.get_model_presets();
-      if (res.status === 'success' && res.presets) {
-        this.presets = res.presets;
+      const res = await _api.get_bundles();
+      if (res.status === 'success' && res.bundles) {
+        this.bundles = res.bundles;
       }
     },
 
-    applyPreset(preset: ModelPreset) {
-      this.selectedPresetId = preset.id;
-      this.params.transformer_model = preset.transformer_model;
-      this.params.transformer_type = preset.transformer_type;
-      this.params.vae_model = preset.vae_model;
-      this.params.clip_tokenizer = preset.text_encoders.clip_tokenizer;
-      this.params.clip_encoder = preset.text_encoders.clip_encoder;
-      this.params.t5_tokenizer = preset.text_encoders.t5_tokenizer;
-      this.params.t5_encoder = preset.text_encoders.t5_encoder;
-      this.params.qwen3_tokenizer = preset.text_encoders.qwen3_tokenizer;
-      this.params.qwen3_encoder = preset.text_encoders.qwen3_encoder;
+    applyBundle(bundle: ModelBundle) {
+      this.selectedBundleId = bundle.id;
+      this.params.transformer_model = bundle.transformer_model;
+      this.params.transformer_type = bundle.transformer_type;
+      this.params.vae_model = bundle.vae_model;
+      this.params.clip_tokenizer = bundle.clip_tokenizer;
+      this.params.clip_encoder = bundle.clip_encoder;
+      this.params.t5_tokenizer = bundle.t5_tokenizer;
+      this.params.t5_encoder = bundle.t5_encoder;
+      this.params.qwen3_tokenizer = bundle.qwen3_tokenizer;
+      this.params.qwen3_encoder = bundle.qwen3_encoder;
     },
 
     async submitJob() {
