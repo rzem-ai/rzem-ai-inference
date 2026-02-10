@@ -17,6 +17,7 @@ from rzem_ai_inference_engine import (
     JobParams,
     ProgressEvent,
 )
+from rzem_ai_inference_engine.types import PreviewConfig
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +52,11 @@ class InferenceService:
         if self._engine is not None:
             return
 
-        self._engine = InferenceEngine(device=device, vram_limit_gb=vram_limit_gb)
+        self._engine = InferenceEngine(
+            device=device,
+            vram_limit_gb=vram_limit_gb,
+            preview_config=PreviewConfig(enabled=True, interval=5, max_size=256),
+        )
 
         for event_type in EventType:
             self._engine.on(event_type, self._make_handler(event_type))
@@ -84,9 +89,12 @@ class InferenceService:
     def _make_handler(self, event_type: EventType):
         """Create a handler that serializes events into the buffer."""
         def handler(event_data):
-            fe = self._serialize(event_type, event_data)
-            with self._lock:
-                self._events.append(fe)
+            try:
+                fe = self._serialize(event_type, event_data)
+                with self._lock:
+                    self._events.append(fe)
+            except Exception:
+                logger.exception("Failed to serialize %s event", event_type.value)
         return handler
 
     def _save_image(self, image, job_id: str, suffix: str) -> str:
@@ -102,6 +110,9 @@ class InferenceService:
         data: dict[str, Any] = {}
         if event_data is not None:
             raw = asdict(event_data) if hasattr(event_data, "__dataclass_fields__") else {}
+            if event_type == EventType.JOB_PROGRESS:
+                has_preview = raw.get("preview_image") is not None
+                logger.info("job_progress step=%s preview_image=%s", raw.get("step"), has_preview)
             for key, val in raw.items():
                 if key == "image" and val is not None:
                     # Save completed image to disk, store path

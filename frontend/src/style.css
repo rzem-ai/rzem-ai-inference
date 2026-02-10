@@ -2,9 +2,14 @@
 @plugin "tailwindcss-primeui";
 
 @layer base {
+  html {
+    font-size: 12px;
+  }
+
   body {
     @apply text-gray-900 bg-surface-50;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
+    font-size: 12px;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }

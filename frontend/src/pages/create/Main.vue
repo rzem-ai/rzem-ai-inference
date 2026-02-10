@@ -24,6 +24,15 @@
         <span>Preparing...</span>
       </div>
 
+      <!-- Live preview -->
+      <div v-if="store.previewDataUrl" class="flex items-center justify-center bg-surface-50 rounded overflow-hidden">
+        <img
+          :src="store.previewDataUrl"
+          alt="Generation preview"
+          class="max-w-full max-h-[400px] object-contain"
+        />
+      </div>
+
       <Button
         label="Cancel"
         icon="pi pi-stop"

@@ -3,7 +3,7 @@
     <div class="w-20 h-full col-span-1 overflow-hidden">
       <NavBar />
     </div>
-    <aside class="col-span-1 w-80 h-full">
+    <aside class="col-span-1 w-100 h-full">
       <RouterView name="menu"/>
     </aside>
     <main class="col-span-1 h-full">

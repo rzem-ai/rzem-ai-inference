@@ -17,14 +17,14 @@ echo "==> Building application with PyInstaller..."
 cd "$ROOT_DIR"
 
 pyinstaller \
-  --name "PyWebViewApp" \
+  --name "Inference" \
   --distpath "$DIST_DIR" \
   --workpath "$ROOT_DIR/build/work" \
   --specpath "$ROOT_DIR/build" \
   --noconfirm \
   --windowed \
-  --add-data "frontend/dist:frontend/dist" \
+  --add-data "$ROOT_DIR/frontend/dist:frontend/dist" \
   main.py
 
 echo ""
-echo "Build complete: $DIST_DIR/PyWebViewApp/"
+echo "Build complete: $DIST_DIR/Inference/"
