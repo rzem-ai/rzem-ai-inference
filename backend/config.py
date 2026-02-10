@@ -25,6 +25,9 @@ class AppConfig:
     min_width: int = 800
     min_height: int = 600
     vite_dev_url: str = "http://localhost:1978"
+    data_dir: Path = field(
+        default_factory=lambda: Path.home() / ".rzem-ai"
+    )
     output_dir: Path = field(
         default_factory=lambda: Path.home() / ".rzem-ai" / "output"
     )

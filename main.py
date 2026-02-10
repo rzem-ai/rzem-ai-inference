@@ -10,6 +10,7 @@ from urllib.error import URLError
 import webview
 
 from backend.api.combined import CombinedAPI
+from backend.bundles import BundleStore
 from backend.config import AppConfig
 from backend.services.app_service import AppService
 from backend.services.inference_service import InferenceService
@@ -63,7 +64,9 @@ def main() -> None:
     config = AppConfig()
     service = AppService()
     inference = InferenceService(output_dir=config.output_dir)
-    api = CombinedAPI(service, inference)
+    bundle_store = BundleStore(data_dir=config.data_dir)
+    bundle_store.load()
+    api = CombinedAPI(service, inference, bundle_store)
 
     # In dev mode, start Vite before opening the window
     if config.dev_mode:

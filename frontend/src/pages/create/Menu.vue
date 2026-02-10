@@ -34,15 +34,44 @@
 
           <div class="flex flex-col gap-2">
             <Select
-              v-model="store.selectedPresetId"
-              :options="store.presets"
+              v-model="store.selectedBundleId"
+              :options="store.bundlesByType"
+              option-group-label="label"
+              option-group-children="items"
               option-label="label"
               option-value="id"
-              placeholder="Select model preset"
+              placeholder="Select model bundle"
               fluid
-              @change="onPresetChange" />
-            <p v-if="store.selectedPreset" class="text-xs text-surface-500">
-              {{ store.selectedPreset.description }}
+              @change="onBundleChange">
+              <template #option="{ option }">
+                <div class="flex items-center justify-between w-full gap-2">
+                  <span class="text-sm">{{ option.label }}</span>
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded"
+                      :class="tierClass(option.tier)">
+                      {{ option.tier }}
+                    </span>
+                    <span class="text-[10px] font-mono whitespace-nowrap"
+                      :class="vramColor(option.vram_estimate_gb)">
+                      ~{{ option.vram_estimate_gb }} GB
+                    </span>
+                  </div>
+                </div>
+              </template>
+              <template #value="{ value, placeholder }">
+                <template v-if="store.selectedBundle">
+                  <div class="flex items-center gap-2">
+                    <span>{{ store.selectedBundle.label }}</span>
+                    <span class="text-[10px] font-mono" :class="vramColor(store.selectedBundle.vram_estimate_gb)">
+                      ~{{ store.selectedBundle.vram_estimate_gb }} GB
+                    </span>
+                  </div>
+                </template>
+                <span v-else class="text-surface-400">{{ placeholder }}</span>
+              </template>
+            </Select>
+            <p v-if="store.selectedBundle" class="text-xs text-surface-500">
+              {{ store.selectedBundle.description }}
             </p>
 
             <div class="flex items-center gap-2 mt-1">
@@ -224,9 +253,24 @@ function onDebugEvent(e: any) {
 const samplerOptions = ['euler', 'euler_a', 'dpm++_2m', 'dpm++_2s', 'dpm++_sde', 'heun', 'lms'];
 const schedulerOptions = ['normal', 'karras', 'exponential', 'sgm_uniform', 'simple', 'ddim_uniform'];
 
-function onPresetChange(e: any) {
-  const preset = store.presets.find((p) => p.id === e.value);
-  if (preset) store.applyPreset(preset);
+function onBundleChange(e: any) {
+  const bundle = store.bundles.find((b) => b.id === e.value);
+  if (bundle) store.applyBundle(bundle);
+}
+
+function tierClass(tier: string): string {
+  switch (tier) {
+    case 'performance': return 'bg-blue-500/20 text-blue-400';
+    case 'balanced': return 'bg-yellow-500/20 text-yellow-400';
+    case 'quality': return 'bg-purple-500/20 text-purple-400';
+    default: return 'bg-surface-500/20 text-surface-400';
+  }
+}
+
+function vramColor(gb: number): string {
+  if (gb <= 16) return 'text-green-400';
+  if (gb <= 24) return 'text-yellow-400';
+  return 'text-red-400';
 }
 
 const editor = useEditor({
@@ -285,9 +329,9 @@ onMounted(async () => {
     if (isReady.value) {
       clearInterval(check);
       store.setApi(api.value);
-      await store.loadPresets();
-      if (store.presets.length && !store.selectedPresetId) {
-        store.applyPreset(store.presets[0]);
+      await store.loadBundles();
+      if (store.bundles.length && !store.selectedBundleId) {
+        store.applyBundle(store.bundles[0]);
       }
       await store.startEngine();
     }

@@ -88,26 +88,75 @@ export const mockApi: PywebviewAPI = {
   async get_image_base64() {
     return { status: "error" as const, message: "Mock mode — no images available" };
   },
-  async get_model_presets() {
+
+  // ── Bundle mocks ──
+  async get_bundles() {
     return {
       status: "success" as const,
-      presets: [
+      bundles: [
         {
-          id: "flux1_dev",
-          label: "FLUX.1 Dev",
-          description: "Black Forest Labs FLUX.1-dev (mock)",
+          id: "flux1_dev_performance",
+          label: "FLUX.1 Dev — Fast",
+          description: "FLUX.1-dev Q4 quantized (mock)",
           transformer_type: "flux1_dev" as const,
+          tier: "performance" as const,
+          transformer_model: "city96/FLUX.1-dev-gguf/flux1-dev-Q4_K_S.gguf",
+          vae_model: "black-forest-labs/FLUX.1-dev",
+          clip_tokenizer: "openai/clip-vit-large-patch14",
+          clip_encoder: "openai/clip-vit-large-patch14",
+          t5_tokenizer: "google/t5-v1_1-xxl",
+          t5_encoder: "google/t5-v1_1-xxl",
+          vram_estimate_gb: 17.7,
+          is_default: true,
+        },
+        {
+          id: "flux1_dev_quality",
+          label: "FLUX.1 Dev — Quality",
+          description: "FLUX.1-dev BF16 full precision (mock)",
+          transformer_type: "flux1_dev" as const,
+          tier: "quality" as const,
           transformer_model: "black-forest-labs/FLUX.1-dev",
           vae_model: "black-forest-labs/FLUX.1-dev",
-          text_encoders: {
-            clip_tokenizer: "openai/clip-vit-large-patch14",
-            clip_encoder: "openai/clip-vit-large-patch14",
-            t5_tokenizer: "google/t5-v1_1-xxl",
-            t5_encoder: "google/t5-v1_1-xxl",
-          },
+          clip_tokenizer: "openai/clip-vit-large-patch14",
+          clip_encoder: "openai/clip-vit-large-patch14",
+          t5_tokenizer: "google/t5-v1_1-xxl",
+          t5_encoder: "google/t5-v1_1-xxl",
+          vram_estimate_gb: 33.7,
+          is_default: true,
+        },
+        {
+          id: "flux2_dev_quality",
+          label: "FLUX.2 Dev",
+          description: "FLUX.2-dev BF16 with Qwen3 (mock)",
+          transformer_type: "flux2_dev" as const,
+          tier: "quality" as const,
+          transformer_model: "black-forest-labs/FLUX.2-dev",
+          vae_model: "black-forest-labs/FLUX.2-dev",
+          qwen3_tokenizer: "Qwen/Qwen3-0.6B",
+          qwen3_encoder: "Qwen/Qwen3-0.6B",
+          vram_estimate_gb: 23.2,
+          is_default: true,
         },
       ],
     };
+  },
+  async get_bundle() {
+    return { status: "success" as const, bundle: undefined };
+  },
+  async get_bundles_for_type() {
+    return { status: "success" as const, bundles: [] };
+  },
+  async create_bundle() {
+    return { status: "success" as const, bundle: undefined };
+  },
+  async update_bundle() {
+    return { status: "success" as const, bundle: undefined };
+  },
+  async delete_bundle() {
+    return { status: "success" as const };
+  },
+  async reset_default_bundles() {
+    return { status: "success" as const, bundles: [] };
   },
 } as PywebviewAPI & { _counter: number };
 

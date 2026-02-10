@@ -1,4 +1,4 @@
-import type { ApiResponse, InferenceEvent, ModelPreset } from "./inference";
+import type { ApiResponse, InferenceEvent, ModelBundle } from "./inference";
 
 export interface PywebviewAPI {
   // ── System ──
@@ -27,11 +27,19 @@ export interface PywebviewAPI {
   cancel_job(args: { job_id: string }): Promise<ApiResponse>;
   poll_events(): Promise<ApiResponse<{ events?: InferenceEvent[] }>>;
 
-  // ── Images & presets ──
+  // ── Images ──
   get_image_base64(args: {
     image_path: string;
   }): Promise<ApiResponse<{ data_url?: string }>>;
-  get_model_presets(): Promise<ApiResponse<{ presets?: ModelPreset[] }>>;
+
+  // ── Bundles ──
+  get_bundles(): Promise<ApiResponse<{ bundles?: ModelBundle[] }>>;
+  get_bundle(args: { bundle_id: string }): Promise<ApiResponse<{ bundle?: ModelBundle }>>;
+  get_bundles_for_type(args: { transformer_type: string }): Promise<ApiResponse<{ bundles?: ModelBundle[] }>>;
+  create_bundle(args: Record<string, any>): Promise<ApiResponse<{ bundle?: ModelBundle }>>;
+  update_bundle(args: { bundle_id: string } & Partial<ModelBundle>): Promise<ApiResponse<{ bundle?: ModelBundle }>>;
+  delete_bundle(args: { bundle_id: string }): Promise<ApiResponse>;
+  reset_default_bundles(): Promise<ApiResponse<{ bundles?: ModelBundle[] }>>;
 }
 
 declare global {
