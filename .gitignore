@@ -1,64 +1,11 @@
-# Dependencies
-node_modules/
-package-lock.json
-
-# Build outputs
-dist/
-dist-ssr/
-*.local
-
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
-
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-
 # Python
 __pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-venv/
-env/
-ENV/
-*.egg-info/
-dist-python/
+*.pyc
+.venv/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# Build artifacts
 build/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-
-# Database files
-*.db
-*.db-shm
-*.db-wal
-
-# Environment variables (API keys)
-.env
-.env.local
-.env.*.local
-
-# Model cache (optional - uncomment to ignore HuggingFace cache)
-# .cache/
-
-# Generated outputs
-outputs/
-*.png
-*.jpg
-
-src-tauri/
