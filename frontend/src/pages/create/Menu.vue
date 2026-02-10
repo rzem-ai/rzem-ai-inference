@@ -145,6 +145,21 @@
               <Button label="Add LoRA" icon="pi pi-plus" size="small" severity="secondary" outlined @click="store.addLora()" />
             </div>
           </Fieldset>
+
+          <!-- Debug Events -->
+          <Fieldset legend="Debug Events"  >
+            <div class="flex flex-col gap-1">
+              <Select
+                v-model="debugEvent"
+                :options="debugEventOptions"
+                option-label="label"
+                option-value="value"
+                placeholder="Select event to trigger"
+                size="small"
+                fluid
+                @change="onDebugEvent" />
+            </div>
+          </Fieldset>
         </div>
       </template>
       <template #footer>
@@ -185,6 +200,26 @@ const store = useInferenceStore();
 
 const showEngine = ref(false);
 const showAdvanced = ref(false);
+const debugEvent = ref<string | null>(null);
+
+const debugEventOptions = [
+  { label: 'default (reset)', value: 'default' },
+  { label: 'model_loading', value: 'model_loading' },
+  { label: 'model_loaded', value: 'model_loaded' },
+  { label: 'model_unloaded', value: 'model_unloaded' },
+  { label: 'job_queued', value: 'job_queued' },
+  { label: 'job_started', value: 'job_started' },
+  { label: 'job_progress', value: 'job_progress' },
+  { label: 'job_completed', value: 'job_completed' },
+  { label: 'job_failed', value: 'job_failed' },
+  { label: 'job_cancelled', value: 'job_cancelled' },
+];
+
+function onDebugEvent(e: any) {
+  if (e.value) {
+    store.injectDebugEvent(e.value);
+  }
+}
 
 const samplerOptions = ['euler', 'euler_a', 'dpm++_2m', 'dpm++_2s', 'dpm++_sde', 'heun', 'lms'];
 const schedulerOptions = ['normal', 'karras', 'exponential', 'sgm_uniform', 'simple', 'ddim_uniform'];

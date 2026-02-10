@@ -270,6 +270,43 @@ export const useInferenceStore = defineStore('inference', () => {
     }
   }
 
+  function injectDebugEvent(eventType: string) {
+    const dummyEvents: Record<string, InferenceEvent | null> = {
+      default: null,
+      model_loading: { type: 'model_loading', data: { message: 'Loading transformer model...' } },
+      model_loaded: { type: 'model_loaded', data: {} },
+      model_unloaded: { type: 'model_unloaded', data: {} },
+      job_queued: { type: 'job_queued', data: { job_id: 'debug-001' } },
+      job_started: { type: 'job_started', data: { job_id: 'debug-001' } },
+      job_progress: { type: 'job_progress', data: { job_id: 'debug-001', step: 12, total_steps: 20 } },
+      job_completed: { type: 'job_completed', data: { job_id: 'debug-001', seed: 42, timestamp: Date.now() / 1000 } },
+      job_failed: { type: 'job_failed', data: { job_id: 'debug-001', error: 'CUDA out of memory. Tried to allocate 2.00 GiB' } },
+      job_cancelled: { type: 'job_cancelled', data: { job_id: 'debug-001' } },
+    };
+
+    if (eventType === 'default') {
+      // Reset all transient state
+      isGenerating.value = false;
+      currentJobId.value = null;
+      progress.value = null;
+      previewDataUrl.value = null;
+      error.value = null;
+      modelStatus.value = null;
+      return;
+    }
+
+    // Set isGenerating for job events that need it for the UI to show progress
+    if (['job_queued', 'job_started', 'job_progress'].includes(eventType)) {
+      isGenerating.value = true;
+      currentJobId.value = 'debug-001';
+    }
+
+    const event = dummyEvents[eventType];
+    if (event) {
+      processEvents([event]);
+    }
+  }
+
   async function loadImageDataUrl(imagePath: string) {
     if (!api) return;
     const res = await api.get_image_base64({ image_path: imagePath });
@@ -307,5 +344,6 @@ export const useInferenceStore = defineStore('inference', () => {
     removeLora,
     startPolling,
     stopPolling,
+    injectDebugEvent,
   };
 });
