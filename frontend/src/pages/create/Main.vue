@@ -74,10 +74,9 @@
       </div>
     </div>
 
-    <Drawer v-model:visible="showJobProgressDrawerOn" header="Right Drawer" position="right">
+    <Drawer v-model:visible="showJobProgressDrawer" header="Right Drawer" position="right">
       <p>
-        Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam,
-        quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
+        {{store.progress}}
       </p>
     </Drawer>
   </div>
@@ -96,6 +95,13 @@ const showJobProgressDrawer = computed(() => store.progress != null);
 const showJobProgressDrawerOn = ref(true);
 
 // When a new image is added, select it
+watch(
+  () => store.generatedImages.length,
+  () => {
+    selectedIndex.value = 0;
+  },
+);
+
 watch(
   () => store.generatedImages.length,
   () => {
