@@ -1,349 +1,318 @@
-import { ref, reactive, computed } from 'vue';
 import { defineStore } from 'pinia';
 import type { PywebviewAPI } from '@/types/pywebview';
 import type { ModelPreset, SubmitJobParams, LoraParam, InferenceEvent, GeneratedImage } from '@/types/inference';
 
-export const useInferenceStore = defineStore('inference', () => {
-  // ── API reference ──
-  let api: PywebviewAPI | null = null;
+// Non-reactive module-level state (no reactivity tracking needed)
+let _api: PywebviewAPI | null = null;
+let _pollTimer: ReturnType<typeof setInterval> | null = null;
 
-  // ── Engine state ──
-  const engineReady = ref(false);
-  const engineStarting = ref(false);
-  const modelStatus = ref<string | null>(null);
+export const useInferenceStore = defineStore('inference', {
+  state: () => ({
+    // Engine state
+    engineReady: false,
+    engineStarting: false,
+    modelStatus: null as string | null,
 
-  // ── Job state ──
-  const currentJobId = ref<string | null>(null);
-  const isGenerating = ref(false);
-  const progress = ref<{ step: number; totalSteps: number } | null>(null);
-  const error = ref<string | null>(null);
+    // Job state
+    currentJobId: null as string | null,
+    isGenerating: false,
+    progress: null as { step: number; totalSteps: number } | null,
+    error: null as string | null,
 
-  // ── Results ──
-  const generatedImages = ref<GeneratedImage[]>([]);
-  const latestImage = computed(() => generatedImages.value[0] ?? null);
-  const previewDataUrl = ref<string | null>(null);
+    // Results
+    generatedImages: [] as GeneratedImage[],
+    previewDataUrl: null as string | null,
 
-  // ── Presets & form params ──
-  const presets = ref<ModelPreset[]>([]);
-  const selectedPresetId = ref<string | null>(null);
-  const selectedPreset = computed(() => presets.value.find((p) => p.id === selectedPresetId.value) ?? null);
+    // Presets & form params
+    presets: [] as ModelPreset[],
+    selectedPresetId: null as string | null,
 
-  const params = reactive<SubmitJobParams>({
-    prompt: 'Moebiusstyle, a planet with rings, space dust, psychedelic art',
-    transformer_model: 'black-forest-labs/FLUX.1-dev',
-    transformer_type: 'flux1_dev',
-    vae_model: 'black-forest-labs/FLUX.1-dev',
-    clip_tokenizer: 'openai/clip-vit-large-patch14',
-    clip_encoder: 'openai/clip-vit-large-patch14',
-    t5_tokenizer: 'google/t5-v1_1-xxl',
-    t5_encoder: 'google/t5-v1_1-xxl',
-    steps: 20,
-    cfg_scale: 1.0,
-    width: 1024,
-    height: 1024,
-    seed: -1,
-    sampler: 'euler',
-    scheduler: 'normal',
-    loras: [],
-  });
+    params: {
+      prompt: 'Moebiusstyle, a planet with rings, space dust, psychedelic art',
+      transformer_model: 'black-forest-labs/FLUX.1-dev',
+      transformer_type: 'flux1_dev',
+      vae_model: 'black-forest-labs/FLUX.1-dev',
+      clip_tokenizer: 'openai/clip-vit-large-patch14',
+      clip_encoder: 'openai/clip-vit-large-patch14',
+      t5_tokenizer: 'google/t5-v1_1-xxl',
+      t5_encoder: 'google/t5-v1_1-xxl',
+      steps: 20,
+      cfg_scale: 1.0,
+      width: 1024,
+      height: 1024,
+      seed: -1,
+      sampler: 'euler',
+      scheduler: 'normal',
+      loras: [] as LoraParam[],
+    } as SubmitJobParams,
 
-  // ── Event log (for debugging) ──
-  const events = ref<InferenceEvent[]>([]);
+    // Event log (for debugging)
+    events: [] as InferenceEvent[],
+  }),
 
-  // ── Polling ──
-  let pollTimer: ReturnType<typeof setInterval> | null = null;
+  getters: {
+    latestImage(state): GeneratedImage | null {
+      return state.generatedImages[0] ?? null;
+    },
 
-  // ── Actions ──
+    selectedPreset(state): ModelPreset | null {
+      return state.presets.find((p) => p.id === state.selectedPresetId) ?? null;
+    },
+  },
 
-  function setApi(apiRef: PywebviewAPI) {
-    api = apiRef;
-  }
+  actions: {
+    setApi(apiRef: PywebviewAPI) {
+      _api = apiRef;
+    },
 
-  async function startEngine() {
-    if (!api || engineStarting.value) return;
-    engineStarting.value = true;
-    error.value = null;
-    try {
-      const res = await api.start_engine();
-      if (res.status === 'error') {
-        error.value = res.message ?? 'Failed to start engine';
+    async startEngine() {
+      if (!_api || this.engineStarting) return;
+      this.engineStarting = true;
+      this.error = null;
+      try {
+        const res = await _api.start_engine();
+        if (res.status === 'error') {
+          this.error = res.message ?? 'Failed to start engine';
+          return;
+        }
+        this.engineReady = true;
+        this.startPolling();
+      } catch (e: any) {
+        this.error = e.message ?? 'Failed to start engine';
+      } finally {
+        this.engineStarting = false;
+      }
+    },
+
+    async stopEngine() {
+      if (!_api) return;
+      this.stopPolling();
+      try {
+        await _api.stop_engine();
+      } finally {
+        this.engineReady = false;
+        this.modelStatus = null;
+      }
+    },
+
+    async loadPresets() {
+      if (!_api) return;
+      const res = await _api.get_model_presets();
+      if (res.status === 'success' && res.presets) {
+        this.presets = res.presets;
+      }
+    },
+
+    applyPreset(preset: ModelPreset) {
+      this.selectedPresetId = preset.id;
+      this.params.transformer_model = preset.transformer_model;
+      this.params.transformer_type = preset.transformer_type;
+      this.params.vae_model = preset.vae_model;
+      this.params.clip_tokenizer = preset.text_encoders.clip_tokenizer;
+      this.params.clip_encoder = preset.text_encoders.clip_encoder;
+      this.params.t5_tokenizer = preset.text_encoders.t5_tokenizer;
+      this.params.t5_encoder = preset.text_encoders.t5_encoder;
+      this.params.qwen3_tokenizer = preset.text_encoders.qwen3_tokenizer;
+      this.params.qwen3_encoder = preset.text_encoders.qwen3_encoder;
+    },
+
+    async submitJob() {
+      if (!_api || !this.engineReady || this.isGenerating) return;
+      if (!this.params.prompt.trim()) {
+        this.error = 'Prompt is required';
         return;
       }
-      engineReady.value = true;
-      startPolling();
-    } catch (e: any) {
-      error.value = e.message ?? 'Failed to start engine';
-    } finally {
-      engineStarting.value = false;
-    }
-  }
+      this.error = null;
+      this.isGenerating = true;
+      this.progress = null;
 
-  async function stopEngine() {
-    if (!api) return;
-    stopPolling();
-    try {
-      await api.stop_engine();
-    } finally {
-      engineReady.value = false;
-      modelStatus.value = null;
-    }
-  }
+      console.log('submit job: ', this.params);
 
-  async function loadPresets() {
-    if (!api) return;
-    const res = await api.get_model_presets();
-    if (res.status === 'success' && res.presets) {
-      presets.value = res.presets;
-    }
-  }
+      const jobParams: Record<string, any> = { ...this.params };
 
-  function applyPreset(preset: ModelPreset) {
-    selectedPresetId.value = preset.id;
-    params.transformer_model = preset.transformer_model;
-    params.transformer_type = preset.transformer_type;
-    params.vae_model = preset.vae_model;
-    // Apply text encoder fields
-    params.clip_tokenizer = preset.text_encoders.clip_tokenizer;
-    params.clip_encoder = preset.text_encoders.clip_encoder;
-    params.t5_tokenizer = preset.text_encoders.t5_tokenizer;
-    params.t5_encoder = preset.text_encoders.t5_encoder;
-    params.qwen3_tokenizer = preset.text_encoders.qwen3_tokenizer;
-    params.qwen3_encoder = preset.text_encoders.qwen3_encoder;
-  }
+      console.log('submit jobParams: ', jobParams);
 
-  async function submitJob() {
-    if (!api || !engineReady.value || isGenerating.value) return;
-    if (!params.prompt.trim()) {
-      error.value = 'Prompt is required';
-      return;
-    }
-    error.value = null;
-    isGenerating.value = true;
-    progress.value = null;
-
-    console.log('submit job: ', params);
-
-    // Build submission params, omitting undefined text encoder fields
-    const jobParams: Record<string, any> = { ...params };
-
-    console.log('submit jobParams: ', jobParams);
-
-    // Clean out undefined keys so Python doesn't get "undefined" strings
-    for (const key of Object.keys(jobParams)) {
-      if (jobParams[key] === undefined || jobParams[key] === '') {
-        delete jobParams[key];
-      }
-    }
-
-    const res = await api.submit_job(jobParams);
-    if (res.status === 'error') {
-      error.value = res.message ?? 'Failed to submit job';
-      isGenerating.value = false;
-      return;
-    }
-    currentJobId.value = res.job_id ?? null;
-  }
-
-  async function cancelJob() {
-    if (!api || !currentJobId.value) return;
-    await api.cancel_job({ job_id: currentJobId.value });
-    isGenerating.value = false;
-    currentJobId.value = null;
-    progress.value = null;
-  }
-
-  function addLora() {
-    params.loras.push({ model_file: '', strength: 1.0 });
-  }
-
-  function removeLora(index: number) {
-    params.loras.splice(index, 1);
-  }
-
-  // ── Polling ──
-
-  function startPolling() {
-    if (pollTimer) return;
-    pollTimer = setInterval(pollEvents, 200);
-  }
-
-  function stopPolling() {
-    if (pollTimer) {
-      clearInterval(pollTimer);
-      pollTimer = null;
-    }
-  }
-
-  async function pollEvents() {
-    if (!api) return;
-    try {
-      const res = await api.poll_events();
-      if (res.status === 'success' && res.events?.length) {
-        processEvents(res.events);
-      }
-    } catch {
-      // Silently ignore poll errors
-    }
-  }
-
-  async function processEvents(newEvents: InferenceEvent[]) {
-    for (const event of newEvents) {
-      events.value.push(event);
-
-      switch (event.type) {
-        case 'model_loading':
-          console.log('model_loading:', event.data);
-          modelStatus.value = event.data.message ?? 'Loading model...';
-          break;
-
-        case 'model_loaded':
-          console.log('model_loaded:', event.data);
-          modelStatus.value = 'Model loaded';
-          break;
-
-        case 'model_unloaded':
-          modelStatus.value = null;
-          break;
-
-        case 'job_queued':
-          // Job accepted into queue
-          break;
-
-        case 'job_started':
-          console.log('job_started:', event.data);
-          progress.value = { step: 0, totalSteps: params.steps };
-          break;
-
-        case 'job_progress':
-          console.log('job_progress:', event.data);
-          progress.value = {
-            step: event.data.step ?? 0,
-            totalSteps: event.data.total_steps ?? params.steps,
-          };
-          // Preview image handling could go here
-          if (event.data.preview_path) {
-            loadImageDataUrl(event.data.preview_path);
-          }
-          break;
-
-        case 'job_completed': {
-          isGenerating.value = false;
-          currentJobId.value = null;
-          progress.value = null;
-          previewDataUrl.value = null;
-          const img: GeneratedImage = {
-            jobId: event.data.job_id,
-            imagePath: event.data.image_path ?? '',
-            seed: event.data.seed ?? -1,
-            timestamp: event.data.timestamp ?? Date.now() / 1000,
-          };
-          if (img.imagePath && api) {
-            const imgRes = await api.get_image_base64({
-              image_path: img.imagePath,
-            });
-            if (imgRes.status === 'success' && imgRes.data_url) {
-              img.dataUrl = imgRes.data_url;
-            }
-          }
-          generatedImages.value.unshift(img);
-          break;
+      // Clean out undefined keys so Python doesn't get "undefined" strings
+      for (const key of Object.keys(jobParams)) {
+        if (jobParams[key] === undefined || jobParams[key] === '') {
+          delete jobParams[key];
         }
-
-        case 'job_failed':
-          isGenerating.value = false;
-          currentJobId.value = null;
-          progress.value = null;
-          previewDataUrl.value = null;
-          error.value = event.data.error ?? 'Generation failed';
-          break;
-
-        case 'job_cancelled':
-          isGenerating.value = false;
-          currentJobId.value = null;
-          progress.value = null;
-          previewDataUrl.value = null;
-          break;
-
-        default:
-          console.log('event:', event.type, event.data);
       }
-    }
-  }
 
-  function injectDebugEvent(eventType: string) {
-    const dummyEvents: Record<string, InferenceEvent | null> = {
-      default: null,
-      model_loading: { type: 'model_loading', data: { message: 'Loading transformer model...' } },
-      model_loaded: { type: 'model_loaded', data: {} },
-      model_unloaded: { type: 'model_unloaded', data: {} },
-      job_queued: { type: 'job_queued', data: { job_id: 'debug-001' } },
-      job_started: { type: 'job_started', data: { job_id: 'debug-001' } },
-      job_progress: { type: 'job_progress', data: { job_id: 'debug-001', step: 12, total_steps: 20 } },
-      job_completed: { type: 'job_completed', data: { job_id: 'debug-001', seed: 42, timestamp: Date.now() / 1000 } },
-      job_failed: { type: 'job_failed', data: { job_id: 'debug-001', error: 'CUDA out of memory. Tried to allocate 2.00 GiB' } },
-      job_cancelled: { type: 'job_cancelled', data: { job_id: 'debug-001' } },
-    };
+      const res = await _api.submit_job(jobParams);
+      if (res.status === 'error') {
+        this.error = res.message ?? 'Failed to submit job';
+        this.isGenerating = false;
+        return;
+      }
+      this.currentJobId = res.job_id ?? null;
+    },
 
-    if (eventType === 'default') {
-      // Reset all transient state
-      isGenerating.value = false;
-      currentJobId.value = null;
-      progress.value = null;
-      previewDataUrl.value = null;
-      error.value = null;
-      modelStatus.value = null;
-      return;
-    }
+    async cancelJob() {
+      if (!_api || !this.currentJobId) return;
+      await _api.cancel_job({ job_id: this.currentJobId });
+      this.isGenerating = false;
+      this.currentJobId = null;
+      this.progress = null;
+    },
 
-    // Set isGenerating for job events that need it for the UI to show progress
-    if (['job_queued', 'job_started', 'job_progress'].includes(eventType)) {
-      isGenerating.value = true;
-      currentJobId.value = 'debug-001';
-    }
+    addLora() {
+      this.params.loras.push({ model_file: '', strength: 1.0 });
+    },
 
-    const event = dummyEvents[eventType];
-    if (event) {
-      processEvents([event]);
-    }
-  }
+    removeLora(index: number) {
+      this.params.loras.splice(index, 1);
+    },
 
-  async function loadImageDataUrl(imagePath: string) {
-    if (!api) return;
-    const res = await api.get_image_base64({ image_path: imagePath });
-    if (res.status === 'success' && res.data_url) {
-      previewDataUrl.value = res.data_url;
-    }
-  }
+    // ── Polling ──
 
-  return {
-    // State
-    engineReady,
-    engineStarting,
-    modelStatus,
-    currentJobId,
-    isGenerating,
-    progress,
-    error,
-    generatedImages,
-    latestImage,
-    previewDataUrl,
-    presets,
-    selectedPresetId,
-    selectedPreset,
-    params,
-    events,
-    // Actions
-    setApi,
-    startEngine,
-    stopEngine,
-    loadPresets,
-    applyPreset,
-    submitJob,
-    cancelJob,
-    addLora,
-    removeLora,
-    startPolling,
-    stopPolling,
-    injectDebugEvent,
-  };
+    startPolling() {
+      if (_pollTimer) return;
+      _pollTimer = setInterval(() => this.pollEvents(), 200);
+    },
+
+    stopPolling() {
+      if (_pollTimer) {
+        clearInterval(_pollTimer);
+        _pollTimer = null;
+      }
+    },
+
+    async pollEvents() {
+      if (!_api) return;
+      try {
+        const res = await _api.poll_events();
+        if (res.status === 'success' && res.events?.length) {
+          this.processEvents(res.events);
+        }
+      } catch {
+        // Silently ignore poll errors
+      }
+    },
+
+    async processEvents(newEvents: InferenceEvent[]) {
+      for (const event of newEvents) {
+        this.events.push(event);
+
+        switch (event.type) {
+          case 'model_loading':
+            console.log('model_loading:', event.data);
+            this.modelStatus = event.data.message ?? 'Loading model...';
+            break;
+
+          case 'model_loaded':
+            console.log('model_loaded:', event.data);
+            this.modelStatus = 'Model loaded';
+            break;
+
+          case 'model_unloaded':
+            this.modelStatus = null;
+            break;
+
+          case 'job_queued':
+            break;
+
+          case 'job_started':
+            console.log('job_started:', event.data);
+            this.progress = { step: 0, totalSteps: this.params.steps };
+            break;
+
+          case 'job_progress':
+            console.log('job_progress:', event.data);
+            this.progress = {
+              step: event.data.step ?? 0,
+              totalSteps: event.data.total_steps ?? this.params.steps,
+            };
+            if (event.data.preview_path) {
+              this.loadImageDataUrl(event.data.preview_path);
+            }
+            break;
+
+          case 'job_completed': {
+            this.isGenerating = false;
+            this.currentJobId = null;
+            this.progress = null;
+            this.previewDataUrl = null;
+            const img: GeneratedImage = {
+              jobId: event.data.job_id,
+              imagePath: event.data.image_path ?? '',
+              seed: event.data.seed ?? -1,
+              timestamp: event.data.timestamp ?? Date.now() / 1000,
+            };
+            if (img.imagePath && _api) {
+              const imgRes = await _api.get_image_base64({
+                image_path: img.imagePath,
+              });
+              if (imgRes.status === 'success' && imgRes.data_url) {
+                img.dataUrl = imgRes.data_url;
+              }
+            }
+            this.generatedImages.unshift(img);
+            break;
+          }
+
+          case 'job_failed':
+            this.isGenerating = false;
+            this.currentJobId = null;
+            this.progress = null;
+            this.previewDataUrl = null;
+            this.error = event.data.error ?? 'Generation failed';
+            break;
+
+          case 'job_cancelled':
+            this.isGenerating = false;
+            this.currentJobId = null;
+            this.progress = null;
+            this.previewDataUrl = null;
+            break;
+
+          default:
+            console.log('event:', event.type, event.data);
+        }
+      }
+    },
+
+    injectDebugEvent(eventType: string) {
+      const dummyEvents: Record<string, InferenceEvent | null> = {
+        default: null,
+        model_loading: { type: 'model_loading', data: { message: 'Loading transformer model...' } },
+        model_loaded: { type: 'model_loaded', data: {} },
+        model_unloaded: { type: 'model_unloaded', data: {} },
+        job_queued: { type: 'job_queued', data: { job_id: 'debug-001' } },
+        job_started: { type: 'job_started', data: { job_id: 'debug-001' } },
+        job_progress: { type: 'job_progress', data: { job_id: 'debug-001', step: 12, total_steps: 20 } },
+        job_completed: { type: 'job_completed', data: { job_id: 'debug-001', seed: 42, timestamp: Date.now() / 1000 } },
+        job_failed: { type: 'job_failed', data: { job_id: 'debug-001', error: 'CUDA out of memory. Tried to allocate 2.00 GiB' } },
+        job_cancelled: { type: 'job_cancelled', data: { job_id: 'debug-001' } },
+      };
+
+      if (eventType === 'default') {
+        this.isGenerating = false;
+        this.currentJobId = null;
+        this.progress = null;
+        this.previewDataUrl = null;
+        this.error = null;
+        this.modelStatus = null;
+        return;
+      }
+
+      if (['job_queued', 'job_started', 'job_progress'].includes(eventType)) {
+        this.isGenerating = true;
+        this.currentJobId = 'debug-001';
+      }
+
+      const event = dummyEvents[eventType];
+      if (event) {
+        this.processEvents([event]);
+      }
+    },
+
+    async loadImageDataUrl(imagePath: string) {
+      if (!_api) return;
+      const res = await _api.get_image_base64({ image_path: imagePath });
+      if (res.status === 'success' && res.data_url) {
+        this.previewDataUrl = res.data_url;
+      }
+    },
+  },
 });

@@ -1,50 +1,41 @@
-import { ref } from "vue";
-import { defineStore } from "pinia";
-import type { PywebviewAPI } from "@/types/pywebview";
+import { defineStore } from 'pinia';
+import type { PywebviewAPI } from '@/types/pywebview';
 
-export const useAppStore = defineStore("app", () => {
-  const counter = ref(0);
-  const userName = ref("");
-  const greeting = ref("");
-  const systemInfo = ref<Record<string, string> | null>(null);
-  const isLoading = ref(false);
+export const useAppStore = defineStore('app', {
+  state: () => ({
+    counter: 0,
+    userName: '',
+    greeting: '',
+    systemInfo: null as Record<string, string> | null,
+    isLoading: false,
+  }),
 
-  async function fetchSystemInfo(api: PywebviewAPI) {
-    isLoading.value = true;
-    try {
-      systemInfo.value = await api.get_system_info();
-    } finally {
-      isLoading.value = false;
-    }
-  }
+  actions: {
+    async fetchSystemInfo(api: PywebviewAPI) {
+      this.isLoading = true;
+      try {
+        this.systemInfo = await api.get_system_info();
+      } finally {
+        this.isLoading = false;
+      }
+    },
 
-  async function sendGreeting(api: PywebviewAPI) {
-    if (!userName.value.trim()) return;
-    isLoading.value = true;
-    try {
-      greeting.value = await api.greet(userName.value);
-    } finally {
-      isLoading.value = false;
-    }
-  }
+    async sendGreeting(api: PywebviewAPI) {
+      if (!this.userName.trim()) return;
+      this.isLoading = true;
+      try {
+        this.greeting = await api.greet(this.userName);
+      } finally {
+        this.isLoading = false;
+      }
+    },
 
-  async function incrementCounter(api: PywebviewAPI) {
-    counter.value = await api.increment_counter();
-  }
+    async incrementCounter(api: PywebviewAPI) {
+      this.counter = await api.increment_counter();
+    },
 
-  async function fetchCounter(api: PywebviewAPI) {
-    counter.value = await api.get_counter();
-  }
-
-  return {
-    counter,
-    userName,
-    greeting,
-    systemInfo,
-    isLoading,
-    fetchSystemInfo,
-    sendGreeting,
-    incrementCounter,
-    fetchCounter,
-  };
+    async fetchCounter(api: PywebviewAPI) {
+      this.counter = await api.get_counter();
+    },
+  },
 });
