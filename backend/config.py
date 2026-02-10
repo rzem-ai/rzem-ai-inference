@@ -17,12 +17,17 @@ class AppConfig:
         default_factory=lambda: os.environ.get("DEV_MODE", "").lower() in ("1", "true", "yes")
     )
     base_dir: Path = field(default_factory=_get_base_dir)
-    window_title: str = "PyWebView + Vue 3"
-    window_width: int = 1200
-    window_height: int = 800
+    window_title: str = "rzem.ai.inference"
+    window_width: int = 1800
+    window_height: int = 1200
+    window_x: int = 10
+    window_y: int = 100
     min_width: int = 800
     min_height: int = 600
     vite_dev_url: str = "http://localhost:1978"
+    output_dir: Path = field(
+        default_factory=lambda: Path.home() / ".rzem-ai" / "output"
+    )
 
     @property
     def entry_url(self) -> str:

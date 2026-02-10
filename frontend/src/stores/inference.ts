@@ -1,0 +1,300 @@
+import { ref, reactive, computed } from 'vue';
+import { defineStore } from 'pinia';
+import type { PywebviewAPI } from '@/types/pywebview';
+import type { ModelPreset, SubmitJobParams, LoraParam, InferenceEvent, GeneratedImage } from '@/types/inference';
+
+export const useInferenceStore = defineStore('inference', () => {
+  // ── API reference ──
+  let api: PywebviewAPI | null = null;
+
+  // ── Engine state ──
+  const engineReady = ref(false);
+  const engineStarting = ref(false);
+  const modelStatus = ref<string | null>(null);
+
+  // ── Job state ──
+  const currentJobId = ref<string | null>(null);
+  const isGenerating = ref(false);
+  const progress = ref<{ step: number; totalSteps: number } | null>(null);
+  const error = ref<string | null>(null);
+
+  // ── Results ──
+  const generatedImages = ref<GeneratedImage[]>([]);
+  const latestImage = computed(() => generatedImages.value[0] ?? null);
+
+  // ── Presets & form params ──
+  const presets = ref<ModelPreset[]>([]);
+  const selectedPresetId = ref<string | null>(null);
+  const selectedPreset = computed(() => presets.value.find((p) => p.id === selectedPresetId.value) ?? null);
+
+  const params = reactive<SubmitJobParams>({
+    prompt: '',
+    transformer_model: 'black-forest-labs/FLUX.1-dev',
+    transformer_type: 'flux1_dev',
+    vae_model: 'black-forest-labs/FLUX.1-dev',
+    clip_tokenizer: 'openai/clip-vit-large-patch14',
+    clip_encoder: 'openai/clip-vit-large-patch14',
+    t5_tokenizer: 'google/t5-v1_1-xxl',
+    t5_encoder: 'google/t5-v1_1-xxl',
+    steps: 20,
+    cfg_scale: 1.0,
+    width: 1024,
+    height: 1024,
+    seed: -1,
+    sampler: 'euler',
+    scheduler: 'normal',
+    loras: [],
+  });
+
+  // ── Event log (for debugging) ──
+  const events = ref<InferenceEvent[]>([]);
+
+  // ── Polling ──
+  let pollTimer: ReturnType<typeof setInterval> | null = null;
+
+  // ── Actions ──
+
+  function setApi(apiRef: PywebviewAPI) {
+    api = apiRef;
+  }
+
+  async function startEngine() {
+    if (!api || engineStarting.value) return;
+    engineStarting.value = true;
+    error.value = null;
+    try {
+      const res = await api.start_engine();
+      if (res.status === 'error') {
+        error.value = res.message ?? 'Failed to start engine';
+        return;
+      }
+      engineReady.value = true;
+      startPolling();
+    } catch (e: any) {
+      error.value = e.message ?? 'Failed to start engine';
+    } finally {
+      engineStarting.value = false;
+    }
+  }
+
+  async function stopEngine() {
+    if (!api) return;
+    stopPolling();
+    try {
+      await api.stop_engine();
+    } finally {
+      engineReady.value = false;
+      modelStatus.value = null;
+    }
+  }
+
+  async function loadPresets() {
+    if (!api) return;
+    const res = await api.get_model_presets();
+    if (res.status === 'success' && res.presets) {
+      presets.value = res.presets;
+    }
+  }
+
+  function applyPreset(preset: ModelPreset) {
+    selectedPresetId.value = preset.id;
+    params.transformer_model = preset.transformer_model;
+    params.transformer_type = preset.transformer_type;
+    params.vae_model = preset.vae_model;
+    // Apply text encoder fields
+    params.clip_tokenizer = preset.text_encoders.clip_tokenizer;
+    params.clip_encoder = preset.text_encoders.clip_encoder;
+    params.t5_tokenizer = preset.text_encoders.t5_tokenizer;
+    params.t5_encoder = preset.text_encoders.t5_encoder;
+    params.qwen3_tokenizer = preset.text_encoders.qwen3_tokenizer;
+    params.qwen3_encoder = preset.text_encoders.qwen3_encoder;
+  }
+
+  async function submitJob() {
+    if (!api || !engineReady.value || isGenerating.value) return;
+    if (!params.prompt.trim()) {
+      error.value = 'Prompt is required';
+      return;
+    }
+    error.value = null;
+    isGenerating.value = true;
+    progress.value = null;
+
+    console.log('submit job: ', params);
+
+    // Build submission params, omitting undefined text encoder fields
+    const jobParams: Record<string, any> = { ...params };
+
+    console.log('submit jobParams: ', jobParams);
+
+    // Clean out undefined keys so Python doesn't get "undefined" strings
+    for (const key of Object.keys(jobParams)) {
+      if (jobParams[key] === undefined || jobParams[key] === '') {
+        delete jobParams[key];
+      }
+    }
+
+    const res = await api.submit_job(jobParams);
+    if (res.status === 'error') {
+      error.value = res.message ?? 'Failed to submit job';
+      isGenerating.value = false;
+      return;
+    }
+    currentJobId.value = res.job_id ?? null;
+  }
+
+  async function cancelJob() {
+    if (!api || !currentJobId.value) return;
+    await api.cancel_job({ job_id: currentJobId.value });
+    isGenerating.value = false;
+    currentJobId.value = null;
+    progress.value = null;
+  }
+
+  function addLora() {
+    params.loras.push({ model_file: '', strength: 1.0 });
+  }
+
+  function removeLora(index: number) {
+    params.loras.splice(index, 1);
+  }
+
+  // ── Polling ──
+
+  function startPolling() {
+    if (pollTimer) return;
+    pollTimer = setInterval(pollEvents, 200);
+  }
+
+  function stopPolling() {
+    if (pollTimer) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
+  }
+
+  async function pollEvents() {
+    if (!api) return;
+    try {
+      const res = await api.poll_events();
+      if (res.status === 'success' && res.events?.length) {
+        processEvents(res.events);
+      }
+    } catch {
+      // Silently ignore poll errors
+    }
+  }
+
+  async function processEvents(newEvents: InferenceEvent[]) {
+    for (const event of newEvents) {
+      events.value.push(event);
+
+      switch (event.type) {
+        case 'model_loading':
+          modelStatus.value = event.data.message ?? 'Loading model...';
+          break;
+
+        case 'model_loaded':
+          modelStatus.value = 'Model loaded';
+          break;
+
+        case 'model_unloaded':
+          modelStatus.value = null;
+          break;
+
+        case 'job_queued':
+          // Job accepted into queue
+          break;
+
+        case 'job_started':
+          progress.value = { step: 0, totalSteps: params.steps };
+          break;
+
+        case 'job_progress':
+          progress.value = {
+            step: event.data.step ?? 0,
+            totalSteps: event.data.total_steps ?? params.steps,
+          };
+          // Preview image handling could go here
+          if (event.data.preview_path) {
+            loadImageDataUrl(event.data.preview_path);
+          }
+          break;
+
+        case 'job_completed': {
+          isGenerating.value = false;
+          currentJobId.value = null;
+          progress.value = null;
+          const img: GeneratedImage = {
+            jobId: event.data.job_id,
+            imagePath: event.data.image_path ?? '',
+            seed: event.data.seed ?? -1,
+            timestamp: event.data.timestamp ?? Date.now() / 1000,
+          };
+          if (img.imagePath && api) {
+            const imgRes = await api.get_image_base64({
+              image_path: img.imagePath,
+            });
+            if (imgRes.status === 'success' && imgRes.data_url) {
+              img.dataUrl = imgRes.data_url;
+            }
+          }
+          generatedImages.value.unshift(img);
+          break;
+        }
+
+        case 'job_failed':
+          isGenerating.value = false;
+          currentJobId.value = null;
+          progress.value = null;
+          error.value = event.data.error ?? 'Generation failed';
+          break;
+
+        case 'job_cancelled':
+          isGenerating.value = false;
+          currentJobId.value = null;
+          progress.value = null;
+          break;
+      }
+    }
+  }
+
+  async function loadImageDataUrl(imagePath: string) {
+    if (!api) return;
+    const res = await api.get_image_base64({ image_path: imagePath });
+    if (res.status === 'success' && res.data_url) {
+      // Store as a preview on the latest generating image
+      // This is a simple approach — could be refined for preview display
+    }
+  }
+
+  return {
+    // State
+    engineReady,
+    engineStarting,
+    modelStatus,
+    currentJobId,
+    isGenerating,
+    progress,
+    error,
+    generatedImages,
+    latestImage,
+    presets,
+    selectedPresetId,
+    selectedPreset,
+    params,
+    events,
+    // Actions
+    setApi,
+    startEngine,
+    stopEngine,
+    loadPresets,
+    applyPreset,
+    submitJob,
+    cancelJob,
+    addLora,
+    removeLora,
+    startPolling,
+    stopPolling,
+  };
+});

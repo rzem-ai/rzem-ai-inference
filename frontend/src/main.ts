@@ -1,12 +1,13 @@
-import { createApp } from "vue";
-import { createPinia } from "pinia";
-import PrimeVue from "primevue/config";
-import Aura from "@primevue/themes/aura";
+import { createApp } from 'vue';
+import { createPinia } from 'pinia';
+import PrimeVue from 'primevue/config';
+import Glass from './theme';
+import App from './App.vue';
+import router from './router';
+import './style.css';
+import 'primeicons/primeicons.css';
 
-import App from "./App.vue";
-import router from "./router";
-import "./style.css";
-import "primeicons/primeicons.css";
+document.documentElement.classList.add('light');
 
 const app = createApp(App);
 
@@ -14,15 +15,16 @@ app.use(createPinia());
 app.use(router);
 app.use(PrimeVue, {
   theme: {
-    preset: Aura,
+    preset: Glass,
     options: {
-      darkModeSelector: ".dark-mode",
+      prefix: 'p',
+      darkModeSelector: '.dark',
       cssLayer: {
-        name: "primevue",
-        order: "theme, base, primevue",
+        name: 'ui',
+        order: 'theme, base, ui',
       },
     },
   },
 });
 
-app.mount("#app");
+app.mount('#app');
