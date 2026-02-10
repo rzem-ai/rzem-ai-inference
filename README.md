@@ -1,269 +1,81 @@
-# FLUX Image Generator
+# pywebview + Vue 3 + Tailwind CSS 4 + PrimeVue 4
 
-AI-powered image generation desktop application using FLUX.1-schnell model with Python + pywebview.
-
-## Features
-
-- 🎨 Text-to-image generation with FLUX.1-schnell via Diffusers
-- ⚡ Fast inference (4 steps optimized)
-- 📊 Job queue with real-time progress tracking
-- 🖼️ Gallery with favorites and tagging
-- 🔍 Search and filter generated images
-- 💾 SQLite-based metadata storage
-- 🎯 LoRA support for model customization
-- 🚀 GPU auto-detection (CUDA/MPS/CPU)
-- 📦 Standalone executables (Windows/macOS/Linux)
-- 🔄 Automatic updates from GitHub releases
-
-## Tech Stack
-
-- **Frontend**: Vue 3 + TypeScript + PrimeVue + TailwindCSS
-- **Backend**: Python + pywebview + PyTorch + Diffusers
-- **ML Pipeline**: FLUX.1-schnell from HuggingFace Hub
-- **Database**: SQLite via aiosqlite
-
-## Prerequisites
-
-- **Python** 3.10+ (for backend)
-- **Node.js** 18+ and npm (for frontend build)
-- **GPU**: CUDA-capable NVIDIA GPU or Apple Silicon (M1/M2/M3) recommended
-- **~20GB disk space** for FLUX model auto-download
-- **~16-24GB VRAM** for GPU inference (CPU fallback available)
-
-## Quick Start
-
-### Option 1: Standalone Executable (Recommended)
-
-Download the latest release for your platform:
-
-1. Go to [Releases](https://github.com/rzem-ai/rzem-ai-inference/releases)
-2. Download for your platform:
-   - **Windows**: `RZEM-AI-Inference-Windows.zip`
-   - **macOS**: `RZEM-AI-Inference-macOS.zip`
-   - **Linux**: `RZEM-AI-Inference-Linux.tar.gz`
-3. Extract and run
-4. Models download automatically (~20GB)
-
-**Auto-updates**: The app checks for updates automatically and can update itself!
-
-### Option 2: Run from Source
-
-#### 1. Install Python Dependencies
-
-```bash
-# Create virtual environment (recommended)
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -r src-python/requirements.txt
-```
-
-#### 2. Build Frontend
-
-```bash
-# Install Node dependencies
-npm install
-
-# Build the frontend
-npm run build
-```
-
-#### 3. Run the Application
-
-```bash
-# Option 1: Using npm script (recommended)
-npm start
-
-# Option 2: Using helper script
-./run-python.sh
-
-# Option 3: Direct Python
-python src-python/main.py
-
-# With debug logging
-npm run python:debug
-```
-
-## First Run
-
-On first launch, FLUX.1-schnell model will automatically download from HuggingFace Hub (~20GB):
-- Models are cached in `~/.cache/huggingface/hub/`
-- Download takes 5-20 minutes depending on connection
-- Requires ~20GB free disk space
-- No HuggingFace token required (public model)
-
-## Usage
-
-### Generating Images
-
-1. **Generate Tab**: Enter your prompt and click "Generate"
-   - Prompt: Describe the image you want
-   - Steps: 4 (default for Schnell)
-   - Seed: -1 for random, or specify for reproducibility
-
-2. **Queue Tab**: Monitor generation progress
-   - View pending, running, and completed jobs
-   - Cancel jobs if needed
-   - Clear completed history
-
-3. **Gallery Tab**: Browse generated images
-   - View all generated images
-   - Search by prompt
-   - Favorite images
-   - Add tags for organization
-   - Delete unwanted images
+Desktop application template combining a Python backend with a modern Vue 3 frontend.
 
 ## Architecture
 
-### Frontend (Vue 3 + TypeScript)
-- **Pinia** for state management
-- **PrimeVue** for UI components
-- **TailwindCSS** for styling
-- **Backend Bridge** for pywebview/Tauri compatibility
-
-### Backend (Python + pywebview)
-- **PyTorch + Diffusers** for ML inference
-- **HuggingFace Hub** for model auto-download
-- **aiosqlite** for gallery metadata
-- **asyncio** async runtime
-- **pywebview** for desktop wrapper
-
-### Model Pipeline (FLUX.1-schnell)
-1. **Text Encoders** (T5-XXL + CLIP-L) for prompt understanding
-2. **FLUX Transformer** diffusion model (4 steps, optimized)
-3. **VAE Decoder** for latent-to-RGB conversion
-4. **LoRA Support** for model customization
-
-## Project Structure
-
 ```
-rzem-ai-inference/
-├── src/                    # Frontend Vue code
-│   ├── components/        # UI components
-│   ├── stores/           # Pinia state stores
-│   ├── views/            # Main view pages
-│   └── utils/
-│       └── backend-bridge.ts  # Backend abstraction layer
-├── src-python/            # Backend Python code
-│   ├── main.py           # Entry point
-│   ├── api.py            # API bridge (exposed to JS)
-│   ├── inference/        # FLUX pipeline
-│   ├── queue/            # Job queue system
-│   ├── db/               # SQLite database
-│   └── requirements.txt  # Python dependencies
-├── dist/                  # Built frontend (after npm run build)
-├── docs/                  # Documentation
-├── MIGRATION_GUIDE.md    # Rust→Python migration guide
-├── CLAUDE_PYTHON.md      # Python coding standards
-└── run-python.sh         # Helper script to run app
+Python Backend (pywebview)  ←—js_api bridge—→  Vue 3 Frontend (Vite)
+     │                                              │
+     ├── main.py (entry point)                      ├── PrimeVue 4 (Aura theme)
+     ├── backend/config.py                          ├── Tailwind CSS 4
+     ├── backend/api/system.py (bridge)             ├── Pinia (state)
+     └── backend/services/app_service.py            └── Vue Router (hash mode)
+```
+
+## Prerequisites
+
+- Python 3.13+
+- Node.js 20+
+
+## Setup
+
+```bash
+# Install Python dependencies
+pip install -r requirements.txt
+
+# Install frontend dependencies
+cd frontend && npm install
 ```
 
 ## Development
 
-### Running in Development Mode
+Run two terminals:
 
 ```bash
-# Build frontend + run with debug logging
-npm run python:dev
+# Terminal 1: Vite dev server (HMR)
+cd frontend && npm run dev
 
-# Or manually:
-npm run build
-python src-python/main.py --debug
+# Terminal 2: pywebview window pointing at dev server
+DEV_MODE=1 python main.py
 ```
 
-### Building Standalone Executables
+Or open `http://localhost:1978` in a browser — a mock API simulates the Python backend.
+
+## Production
 
 ```bash
-# Build for your platform
-./scripts/build.sh  # Linux/macOS
-scripts\build-windows.bat  # Windows
-
-# Output: dist-standalone/RZEM-AI-Inference
-
-# Create GitHub release
-./scripts/create-release.sh v0.2.0
+cd frontend && npm run build
+cd ..
+python main.py
 ```
 
-See [BUILD_GUIDE.md](BUILD_GUIDE.md) for detailed build instructions.
+The pywebview window loads built assets from `frontend/dist/`.
 
-### Running Tests
+## Project Structure
 
-```bash
-# Frontend tests
-npm test
-
-# Python tests (TODO: add pytest)
-cd src-python
-pytest
+```
+├── main.py                         # Python entry point
+├── backend/
+│   ├── config.py                   # Dev/prod mode, window settings
+│   ├── api/system.py               # js_api bridge (thin facade)
+│   └── services/app_service.py     # Business logic (thread-safe)
+├── frontend/
+│   ├── src/
+│   │   ├── main.ts                 # Vue + PrimeVue + Pinia + Router
+│   │   ├── bridge.ts               # pywebview readiness + mock fallback
+│   │   ├── composables/usePywebview.ts  # Reactive bridge composable
+│   │   ├── stores/app.ts           # Pinia store
+│   │   ├── router/index.ts         # Hash-mode router
+│   │   ├── components/             # Shared components
+│   │   └── pages/                  # Route pages
+│   └── ...
+└── README.md
 ```
 
-### Code Quality
+## Key Integration Details
 
-```bash
-# Frontend linting
-npm run lint
-
-# Python linting
-cd src-python
-ruff check .
-mypy .
-```
-
-## Troubleshooting
-
-### Models not downloading
-- First run downloads ~20GB from HuggingFace Hub
-- Check internet connection and disk space (~30GB free)
-- Models cache in `~/.cache/huggingface/hub/`
-- No API key required (FLUX.1-schnell is public)
-
-### GPU not detected
-
-**NVIDIA (CUDA):**
-```bash
-# Check CUDA availability
-python -c "import torch; print(torch.cuda.is_available())"
-
-# If False, reinstall PyTorch with CUDA
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
-```
-
-**Apple Silicon (MPS):**
-```bash
-# Check MPS availability
-python -c "import torch; print(torch.backends.mps.is_available())"
-```
-
-Application automatically falls back to CPU if no GPU detected (slower but works).
-
-### Out of memory
-- FLUX requires ~16-24GB VRAM for GPU inference
-- Reduce image resolution (1024→512) to use less memory
-- CPU fallback available but very slow
-
-### "No backend available" error
-- Don't open `dist/index.html` directly in browser
-- Must run via `python src-python/main.py` or `npm start`
-- pywebview creates the necessary backend bridge
-
-### Import errors
-```bash
-# Reinstall Python dependencies
-pip install -r src-python/requirements.txt
-
-# Or with virtual environment
-python3 -m venv venv
-source venv/bin/activate
-pip install -r src-python/requirements.txt
-```
-
-## License
-
-[Your License Here]
-
-## Acknowledgments
-
-- Black Forest Labs for FLUX.1-schnell model
-- Hugging Face for model hosting
-- Candle ML framework by Hugging Face
+- **Tailwind 4 + PrimeVue**: `@plugin "tailwindcss-primeui"` in CSS + CSS layer ordering in `main.ts`
+- **pywebview bridge**: `bridge.ts` waits for `pywebviewready` event before calling Python APIs
+- **Hash router**: Required for production — pywebview's HTTP server has no SPA fallback
+- **Thread safety**: js_api calls run on separate Python threads; `threading.Lock` guards shared state
