@@ -1,0 +1,403 @@
+"""Synchronous SQLite database layer for image metadata, folders, tags, and settings.
+
+Uses plain ``sqlite3`` rather than aiosqlite — pywebview calls API methods from
+non-main threads, and every call site would need ``asyncio.run()`` to bridge.
+Synchronous access is simpler and avoids event-loop lifetime issues.
+"""
+
+from __future__ import annotations
+
+import logging
+import sqlite3
+import threading
+import time
+from pathlib import Path
+from typing import Any
+
+logger = logging.getLogger(__name__)
+
+_SCHEMA_PATH = Path(__file__).parent / "schema.sql"
+
+
+def _dict_row(cursor: sqlite3.Cursor, row: tuple) -> dict[str, Any]:
+    """Row factory that returns dicts keyed by column name."""
+    return {col[0]: row[idx] for idx, col in enumerate(cursor.description)}
+
+
+class Database:
+    """Thread-safe SQLite database at ``db_path``.
+
+    All public methods are synchronous, use parameterized SQL, and are safe to
+    call from any thread (the underlying ``sqlite3`` connection is protected by
+    a lock and created with ``check_same_thread=False``).
+    """
+
+    def __init__(self, db_path: Path) -> None:
+        self._db_path = db_path
+        self._conn: sqlite3.Connection | None = None
+        self._lock = threading.Lock()
+
+    # ── Lifecycle ────────────────────────────────────────────────
+
+    def connect(self) -> None:
+        """Open the database, enable WAL + foreign keys, and create tables."""
+        self._db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._conn = sqlite3.connect(
+            str(self._db_path), check_same_thread=False
+        )
+        self._conn.row_factory = _dict_row
+
+        # PRAGMAs must be set before any transaction
+        self._conn.execute("PRAGMA journal_mode = WAL")
+        self._conn.execute("PRAGMA foreign_keys = ON")
+
+        schema_sql = _SCHEMA_PATH.read_text()
+        self._conn.executescript(schema_sql)
+        logger.info("Database connected: %s", self._db_path)
+
+    def close(self) -> None:
+        if self._conn:
+            self._conn.close()
+            self._conn = None
+            logger.info("Database closed")
+
+    @property
+    def conn(self) -> sqlite3.Connection:
+        if not self._conn:
+            raise RuntimeError("Database not connected")
+        return self._conn
+
+    # ── Images ───────────────────────────────────────────────────
+
+    def insert_image(
+        self,
+        *,
+        id: str,
+        file_path: str,
+        prompt: str,
+        width: int,
+        height: int,
+        steps: int,
+        cfg_scale: float,
+        seed: int,
+        thumbnail_path: str | None = None,
+        negative_prompt: str | None = None,
+        file_size: int | None = None,
+        bundle_id: str | None = None,
+        model_config: str | None = None,
+        loras: str | None = None,
+        favorite: int = 0,
+        generation_time_ms: int | None = None,
+        status: str = "completed",
+    ) -> dict[str, Any]:
+        now = int(time.time())
+        with self._lock:
+            self.conn.execute(
+                """INSERT INTO images
+                   (id, file_path, thumbnail_path, prompt, negative_prompt,
+                    width, height, file_size, steps, cfg_scale, seed,
+                    bundle_id, model_config, loras, favorite,
+                    generation_time_ms, status, created_at, updated_at)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (
+                    id, file_path, thumbnail_path, prompt, negative_prompt,
+                    width, height, file_size, steps, cfg_scale, seed,
+                    bundle_id, model_config, loras, favorite,
+                    generation_time_ms, status, now, now,
+                ),
+            )
+            self.conn.commit()
+        return self.get_image(id)
+
+    def get_image(self, image_id: str) -> dict[str, Any] | None:
+        with self._lock:
+            cursor = self.conn.execute(
+                "SELECT * FROM images WHERE id = ?", (image_id,)
+            )
+            row = cursor.fetchone()
+        return row if row else None
+
+    def get_images(
+        self,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+        folder_id: str | None = None,
+        tag_id: int | None = None,
+        search: str | None = None,
+        favorites_only: bool = False,
+        status: str | None = None,
+    ) -> dict[str, Any]:
+        """Return paginated images with total count.
+
+        Returns ``{"images": [...], "total": int}``.
+        """
+        where_clauses: list[str] = []
+        params: list[Any] = []
+        joins: list[str] = []
+
+        if folder_id:
+            joins.append("JOIN image_folders if_ ON if_.image_id = images.id")
+            where_clauses.append("if_.folder_id = ?")
+            params.append(folder_id)
+
+        if tag_id is not None:
+            joins.append("JOIN image_tags it ON it.image_id = images.id")
+            where_clauses.append("it.tag_id = ?")
+            params.append(tag_id)
+
+        if search:
+            where_clauses.append("images.prompt LIKE ?")
+            params.append(f"%{search}%")
+
+        if favorites_only:
+            where_clauses.append("images.favorite = 1")
+
+        if status:
+            where_clauses.append("images.status = ?")
+            params.append(status)
+
+        join_sql = " ".join(joins)
+        where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+
+        with self._lock:
+            # Total count
+            count_sql = f"SELECT COUNT(DISTINCT images.id) FROM images {join_sql} {where_sql}"
+            cursor = self.conn.execute(count_sql, params)
+            row = cursor.fetchone()
+            # _dict_row returns a dict, so get the first value
+            total = list(row.values())[0] if row else 0
+
+            # Paginated results
+            query_sql = (
+                f"SELECT DISTINCT images.* FROM images {join_sql} {where_sql} "
+                f"ORDER BY images.created_at DESC LIMIT ? OFFSET ?"
+            )
+            cursor = self.conn.execute(query_sql, [*params, limit, offset])
+            rows = cursor.fetchall()
+
+        return {"images": rows, "total": total}
+
+    def update_image(self, image_id: str, **updates: Any) -> dict[str, Any] | None:
+        allowed = {
+            "thumbnail_path", "prompt", "negative_prompt", "favorite",
+            "file_size", "status",
+        }
+        filtered = {k: v for k, v in updates.items() if k in allowed}
+        if not filtered:
+            return self.get_image(image_id)
+
+        filtered["updated_at"] = int(time.time())
+        set_clause = ", ".join(f"{k} = ?" for k in filtered)
+        values = list(filtered.values()) + [image_id]
+
+        with self._lock:
+            self.conn.execute(
+                f"UPDATE images SET {set_clause} WHERE id = ?", values
+            )
+            self.conn.commit()
+        return self.get_image(image_id)
+
+    def delete_image(self, image_id: str) -> bool:
+        with self._lock:
+            cursor = self.conn.execute(
+                "DELETE FROM images WHERE id = ?", (image_id,)
+            )
+            self.conn.commit()
+        return cursor.rowcount > 0
+
+    def toggle_favorite(self, image_id: str) -> dict[str, Any] | None:
+        with self._lock:
+            self.conn.execute(
+                "UPDATE images SET favorite = 1 - favorite, updated_at = ? WHERE id = ?",
+                (int(time.time()), image_id),
+            )
+            self.conn.commit()
+        return self.get_image(image_id)
+
+    # ── Folders ──────────────────────────────────────────────────
+
+    def create_folder(
+        self,
+        *,
+        id: str,
+        name: str,
+        parent_id: str | None = None,
+        color: str | None = None,
+        icon: str | None = None,
+        sort_order: int = 0,
+    ) -> dict[str, Any] | None:
+        now = int(time.time())
+        with self._lock:
+            self.conn.execute(
+                """INSERT INTO folders (id, name, parent_id, color, icon, sort_order, created_at, updated_at)
+                   VALUES (?,?,?,?,?,?,?,?)""",
+                (id, name, parent_id, color, icon, sort_order, now, now),
+            )
+            self.conn.commit()
+        return self._get_folder(id)
+
+    def get_folders(self) -> list[dict[str, Any]]:
+        with self._lock:
+            cursor = self.conn.execute(
+                "SELECT * FROM folders ORDER BY sort_order, name"
+            )
+            return cursor.fetchall()
+
+    def update_folder(self, folder_id: str, **updates: Any) -> dict[str, Any] | None:
+        allowed = {"name", "parent_id", "color", "icon", "sort_order"}
+        filtered = {k: v for k, v in updates.items() if k in allowed}
+        if not filtered:
+            return self._get_folder(folder_id)
+
+        filtered["updated_at"] = int(time.time())
+        set_clause = ", ".join(f"{k} = ?" for k in filtered)
+        values = list(filtered.values()) + [folder_id]
+
+        with self._lock:
+            self.conn.execute(
+                f"UPDATE folders SET {set_clause} WHERE id = ?", values
+            )
+            self.conn.commit()
+        return self._get_folder(folder_id)
+
+    def delete_folder(self, folder_id: str) -> bool:
+        with self._lock:
+            cursor = self.conn.execute(
+                "DELETE FROM folders WHERE id = ?", (folder_id,)
+            )
+            self.conn.commit()
+        return cursor.rowcount > 0
+
+    def _get_folder(self, folder_id: str) -> dict[str, Any] | None:
+        with self._lock:
+            cursor = self.conn.execute(
+                "SELECT * FROM folders WHERE id = ?", (folder_id,)
+            )
+            row = cursor.fetchone()
+        return row if row else None
+
+    # ── Folder associations ──────────────────────────────────────
+
+    def add_image_to_folder(self, image_id: str, folder_id: str) -> None:
+        with self._lock:
+            self.conn.execute(
+                "INSERT OR IGNORE INTO image_folders (image_id, folder_id, added_at) VALUES (?,?,?)",
+                (image_id, folder_id, int(time.time())),
+            )
+            self.conn.commit()
+
+    def remove_image_from_folder(self, image_id: str, folder_id: str) -> None:
+        with self._lock:
+            self.conn.execute(
+                "DELETE FROM image_folders WHERE image_id = ? AND folder_id = ?",
+                (image_id, folder_id),
+            )
+            self.conn.commit()
+
+    def get_folder_images(self, folder_id: str) -> list[dict[str, Any]]:
+        with self._lock:
+            cursor = self.conn.execute(
+                """SELECT images.* FROM images
+                   JOIN image_folders if_ ON if_.image_id = images.id
+                   WHERE if_.folder_id = ?
+                   ORDER BY images.created_at DESC""",
+                (folder_id,),
+            )
+            return cursor.fetchall()
+
+    # ── Tags ─────────────────────────────────────────────────────
+
+    def create_tag(
+        self,
+        *,
+        name: str,
+        color: str | None = None,
+        category: str | None = None,
+    ) -> dict[str, Any]:
+        with self._lock:
+            cursor = self.conn.execute(
+                "INSERT INTO tags (name, color, category) VALUES (?,?,?)",
+                (name, color, category),
+            )
+            self.conn.commit()
+        return {"id": cursor.lastrowid, "name": name, "color": color, "category": category}
+
+    def get_tags(self) -> list[dict[str, Any]]:
+        with self._lock:
+            cursor = self.conn.execute("SELECT * FROM tags ORDER BY name")
+            return cursor.fetchall()
+
+    def update_tag(self, tag_id: int, **updates: Any) -> dict[str, Any] | None:
+        allowed = {"name", "color", "category"}
+        filtered = {k: v for k, v in updates.items() if k in allowed}
+        if not filtered:
+            return self._get_tag(tag_id)
+
+        set_clause = ", ".join(f"{k} = ?" for k in filtered)
+        values = list(filtered.values()) + [tag_id]
+        with self._lock:
+            self.conn.execute(
+                f"UPDATE tags SET {set_clause} WHERE id = ?", values
+            )
+            self.conn.commit()
+        return self._get_tag(tag_id)
+
+    def delete_tag(self, tag_id: int) -> bool:
+        with self._lock:
+            cursor = self.conn.execute("DELETE FROM tags WHERE id = ?", (tag_id,))
+            self.conn.commit()
+        return cursor.rowcount > 0
+
+    def _get_tag(self, tag_id: int) -> dict[str, Any] | None:
+        with self._lock:
+            cursor = self.conn.execute("SELECT * FROM tags WHERE id = ?", (tag_id,))
+            row = cursor.fetchone()
+        return row if row else None
+
+    # ── Tag associations ─────────────────────────────────────────
+
+    def add_tag_to_image(self, image_id: str, tag_id: int) -> None:
+        with self._lock:
+            self.conn.execute(
+                "INSERT OR IGNORE INTO image_tags (image_id, tag_id) VALUES (?,?)",
+                (image_id, tag_id),
+            )
+            self.conn.commit()
+
+    def remove_tag_from_image(self, image_id: str, tag_id: int) -> None:
+        with self._lock:
+            self.conn.execute(
+                "DELETE FROM image_tags WHERE image_id = ? AND tag_id = ?",
+                (image_id, tag_id),
+            )
+            self.conn.commit()
+
+    def get_image_tags(self, image_id: str) -> list[dict[str, Any]]:
+        with self._lock:
+            cursor = self.conn.execute(
+                """SELECT tags.* FROM tags
+                   JOIN image_tags it ON it.tag_id = tags.id
+                   WHERE it.image_id = ?
+                   ORDER BY tags.name""",
+                (image_id,),
+            )
+            return cursor.fetchall()
+
+    # ── Settings ─────────────────────────────────────────────────
+
+    def get_setting(self, key: str) -> str | None:
+        with self._lock:
+            cursor = self.conn.execute(
+                "SELECT value FROM settings WHERE key = ?", (key,)
+            )
+            row = cursor.fetchone()
+        return row["value"] if row else None
+
+    def set_setting(self, key: str, value: str) -> None:
+        with self._lock:
+            self.conn.execute(
+                "INSERT INTO settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value = ?",
+                (key, value, value),
+            )
+            self.conn.commit()

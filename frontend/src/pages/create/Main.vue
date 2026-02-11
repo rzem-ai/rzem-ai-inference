@@ -73,26 +73,17 @@
         </div>
       </div>
     </div>
-
-    <Drawer v-model:visible="showJobProgressDrawer" header="Right Drawer" position="right">
-      <p>
-        {{store.progress}}
-      </p>
-    </Drawer>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import {Button, Drawer, ProgressBar, ProgressSpinner} from 'primevue';
+import { Button, ProgressBar, ProgressSpinner } from 'primevue';
 import { useInferenceStore } from '@/stores/inference';
 
 const store = useInferenceStore();
 const selectedIndex = ref(0);
 const displayedImage = computed(() => store.generatedImages[selectedIndex.value] ?? null);
-
-const showJobProgressDrawer = computed(() => store.progress != null);
-const showJobProgressDrawerOn = ref(true);
 
 // When a new image is added, select it
 watch(

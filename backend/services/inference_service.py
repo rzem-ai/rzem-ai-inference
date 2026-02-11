@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import json
 import logging
+import os
 import threading
+import time
+import uuid
 from collections import deque
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -18,6 +22,8 @@ from rzem_ai_inference_engine import (
     ProgressEvent,
 )
 from rzem_ai_inference_engine.types import PreviewConfig
+
+from backend.db.database import Database
 
 logger = logging.getLogger(__name__)
 
@@ -36,12 +42,16 @@ class InferenceService:
     deque. The frontend polls ``drain_events()`` to retrieve them.
     """
 
-    def __init__(self, output_dir: Path) -> None:
+    def __init__(self, output_dir: Path, db: Database) -> None:
         self._engine: InferenceEngine | None = None
         self._events: deque[FrontendEvent] = deque(maxlen=500)
         self._lock = threading.Lock()
         self._output_dir = output_dir
         self._output_dir.mkdir(parents=True, exist_ok=True)
+        self._db = db
+        self._job_params: dict[str, JobParams] = {}  # job_id → params used
+        self._job_start_times: dict[str, float] = {}  # job_id → monotonic start
+        self._job_bundle_ids: dict[str, str] = {}  # job_id → bundle_id
 
     @property
     def ready(self) -> bool:
@@ -66,11 +76,16 @@ class InferenceService:
             self._engine.shutdown()
             self._engine = None
 
-    def submit(self, params: JobParams) -> str:
+    def submit(self, params: JobParams, bundle_id: str | None = None) -> str:
         """Submit a generation job. Returns the job ID."""
         if not self._engine:
             raise RuntimeError("Engine not started")
-        return self._engine.submit(params)
+        job_id = self._engine.submit(params)
+        self._job_params[job_id] = params
+        self._job_start_times[job_id] = time.monotonic()
+        if bundle_id:
+            self._job_bundle_ids[job_id] = bundle_id
+        return job_id
 
     def cancel(self, job_id: str) -> None:
         if not self._engine:
@@ -130,4 +145,68 @@ class InferenceService:
                     pass
                 else:
                     data[key] = val
+
+        # Persist completed images to the database
+        if event_type == EventType.JOB_COMPLETED and data.get("image_path"):
+            self._persist_image(data)
+
         return FrontendEvent(type=event_type.value, data=data)
+
+    def _persist_image(self, event_data: dict[str, Any]) -> None:
+        """Insert a completed image record into the database."""
+        job_id = event_data.get("job_id", "unknown")
+        params = self._job_params.pop(job_id, None)
+        start_time = self._job_start_times.pop(job_id, None)
+
+        generation_time_ms = None
+        if start_time is not None:
+            generation_time_ms = int((time.monotonic() - start_time) * 1000)
+
+        file_path = event_data["image_path"]
+        file_size = None
+        if os.path.isfile(file_path):
+            file_size = os.path.getsize(file_path)
+
+        # Build model_config JSON snapshot from the job params
+        model_config = None
+        loras_json = None
+        bundle_id = self._job_bundle_ids.pop(job_id, None)
+        if params:
+            model_config = json.dumps({
+                "transformer_model": params.transformer_model,
+                "transformer_type": params.transformer_type.value if hasattr(params.transformer_type, "value") else str(params.transformer_type),
+                "vae_model": params.vae_model,
+                "clip_tokenizer": params.clip_tokenizer,
+                "clip_encoder": params.clip_encoder,
+                "t5_tokenizer": params.t5_tokenizer,
+                "t5_encoder": params.t5_encoder,
+                "qwen3_tokenizer": params.qwen3_tokenizer,
+                "qwen3_encoder": params.qwen3_encoder,
+                "sampler": params.sampler,
+                "scheduler": params.scheduler,
+            })
+            if params.loras:
+                loras_json = json.dumps([
+                    {"model_file": l.model_file, "strength": l.strength}
+                    for l in params.loras
+                ])
+
+        try:
+            self._db.insert_image(
+                id=str(uuid.uuid4()),
+                file_path=file_path,
+                prompt=params.prompt if params else "",
+                width=params.width if params else 0,
+                height=params.height if params else 0,
+                steps=params.steps if params else 0,
+                cfg_scale=params.cfg_scale if params else 0.0,
+                seed=event_data.get("seed", -1),
+                file_size=file_size,
+                bundle_id=bundle_id,
+                model_config=model_config,
+                loras=loras_json,
+                generation_time_ms=generation_time_ms,
+            )
+            logger.info("Persisted image for job %s to database", job_id)
+        except Exception:
+            logger.exception("Failed to persist image for job %s", job_id)

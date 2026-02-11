@@ -36,6 +36,10 @@ export interface ModelBundle {
   t5_encoder?: string;
   qwen3_tokenizer?: string;
   qwen3_encoder?: string;
+  steps: number;
+  cfg_scale: number;
+  sampler: string;
+  scheduler: string;
   vram_estimate_gb: number;
   is_default: boolean;
 }
@@ -58,6 +62,7 @@ export interface SubmitJobParams {
   sampler: string;
   scheduler: string;
   loras: LoraParam[];
+  bundle_id?: string;
   // Optional text encoder overrides
   clip_tokenizer?: string;
   clip_encoder?: string;
@@ -73,4 +78,48 @@ export interface GeneratedImage {
   dataUrl?: string;
   seed: number;
   timestamp: number;
+}
+
+// ── Gallery types (matching database schema) ──
+
+export type ImageStatus = "completed" | "failed";
+
+export interface GalleryImage {
+  id: string;
+  file_path: string;
+  thumbnail_path: string | null;
+  prompt: string;
+  negative_prompt: string | null;
+  width: number;
+  height: number;
+  file_size: number | null;
+  steps: number;
+  cfg_scale: number;
+  seed: number;
+  bundle_id: string | null;
+  model_config: string | null;
+  loras: string | null;
+  favorite: number;
+  generation_time_ms: number | null;
+  status: ImageStatus;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface Folder {
+  id: string;
+  name: string;
+  parent_id: string | null;
+  color: string | null;
+  icon: string | null;
+  sort_order: number;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface Tag {
+  id: number;
+  name: string;
+  color: string | null;
+  category: string | null;
 }

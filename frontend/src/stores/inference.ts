@@ -5,6 +5,7 @@ import type { ModelBundle, SubmitJobParams, LoraParam, InferenceEvent, Generated
 // Non-reactive module-level state (no reactivity tracking needed)
 let _api: PywebviewAPI | null = null;
 let _pollTimer: ReturnType<typeof setInterval> | null = null;
+let _debugImages: { output: string | null; previews: Record<string, string> } | null = null;
 
 export const useInferenceStore = defineStore('inference', {
   state: () => ({
@@ -36,13 +37,13 @@ export const useInferenceStore = defineStore('inference', {
       clip_encoder: 'openai/clip-vit-large-patch14',
       t5_tokenizer: 'google/t5-v1_1-xxl',
       t5_encoder: 'google/t5-v1_1-xxl',
-      steps: 20,
-      cfg_scale: 1.0,
+      steps: 28,
+      cfg_scale: 3.5,
       width: 1024,
       height: 1024,
       seed: -1,
       sampler: 'euler',
-      scheduler: 'normal',
+      scheduler: 'simple',
       loras: [] as LoraParam[],
     } as SubmitJobParams,
 
@@ -133,6 +134,10 @@ export const useInferenceStore = defineStore('inference', {
       this.params.t5_encoder = bundle.t5_encoder;
       this.params.qwen3_tokenizer = bundle.qwen3_tokenizer;
       this.params.qwen3_encoder = bundle.qwen3_encoder;
+      this.params.steps = bundle.steps;
+      this.params.cfg_scale = bundle.cfg_scale;
+      this.params.sampler = bundle.sampler;
+      this.params.scheduler = bundle.scheduler;
     },
 
     async submitJob() {
@@ -148,6 +153,9 @@ export const useInferenceStore = defineStore('inference', {
       console.log('submit job: ', this.params);
 
       const jobParams: Record<string, any> = { ...this.params };
+      if (this.selectedBundleId) {
+        jobParams.bundle_id = this.selectedBundleId;
+      }
 
       console.log('submit jobParams: ', jobParams);
 
@@ -291,20 +299,7 @@ export const useInferenceStore = defineStore('inference', {
       }
     },
 
-    injectDebugEvent(eventType: string) {
-      const dummyEvents: Record<string, InferenceEvent | null> = {
-        default: null,
-        model_loading: { type: 'model_loading', data: { message: 'Loading transformer model...' } },
-        model_loaded: { type: 'model_loaded', data: {} },
-        model_unloaded: { type: 'model_unloaded', data: {} },
-        job_queued: { type: 'job_queued', data: { job_id: 'debug-001' } },
-        job_started: { type: 'job_started', data: { job_id: 'debug-001' } },
-        job_progress: { type: 'job_progress', data: { job_id: 'debug-001', step: 12, total_steps: 20 } },
-        job_completed: { type: 'job_completed', data: { job_id: 'debug-001', seed: 42, timestamp: Date.now() / 1000 } },
-        job_failed: { type: 'job_failed', data: { job_id: 'debug-001', error: 'CUDA out of memory. Tried to allocate 2.00 GiB' } },
-        job_cancelled: { type: 'job_cancelled', data: { job_id: 'debug-001' } },
-      };
-
+    async injectDebugEvent(eventType: string) {
       if (eventType === 'default') {
         this.isGenerating = false;
         this.currentJobId = null;
@@ -315,7 +310,44 @@ export const useInferenceStore = defineStore('inference', {
         return;
       }
 
-      if (['job_queued', 'job_started', 'job_progress'].includes(eventType)) {
+      // Lazily fetch debug image paths from the backend
+      if (!_debugImages && _api) {
+        const res = await _api.get_debug_images();
+        if (res.status === 'success') {
+          _debugImages = {
+            output: res.output ?? null,
+            previews: res.previews ?? {},
+          };
+        }
+      }
+      const previews = _debugImages?.previews ?? {};
+      const output = _debugImages?.output ?? undefined;
+
+      // Helper: find the best preview for a given step
+      function previewForStep(step: number): string | undefined {
+        return previews[String(step)];
+      }
+
+      const dummyEvents: Record<string, InferenceEvent | null> = {
+        model_loading: { type: 'model_loading', data: { message: 'Loading transformer model...' } },
+        model_loaded: { type: 'model_loaded', data: {} },
+        model_unloaded: { type: 'model_unloaded', data: {} },
+        job_queued: { type: 'job_queued', data: { job_id: 'debug-001' } },
+        job_started: { type: 'job_started', data: { job_id: 'debug-001' } },
+        job_progress: { type: 'job_progress', data: { job_id: 'debug-001', step: 12, total_steps: 28, preview_path: previewForStep(10) } },
+        job_progress_0: { type: 'job_progress', data: { job_id: 'debug-001', step: 0, total_steps: 28, preview_path: previewForStep(0) } },
+        job_progress_5: { type: 'job_progress', data: { job_id: 'debug-001', step: 5, total_steps: 28, preview_path: previewForStep(5) } },
+        job_progress_10: { type: 'job_progress', data: { job_id: 'debug-001', step: 10, total_steps: 28, preview_path: previewForStep(10) } },
+        job_progress_15: { type: 'job_progress', data: { job_id: 'debug-001', step: 15, total_steps: 28, preview_path: previewForStep(15) } },
+        job_progress_20: { type: 'job_progress', data: { job_id: 'debug-001', step: 20, total_steps: 28, preview_path: previewForStep(20) } },
+        job_progress_25: { type: 'job_progress', data: { job_id: 'debug-001', step: 25, total_steps: 28, preview_path: previewForStep(25) } },
+        job_progress_28: { type: 'job_progress', data: { job_id: 'debug-001', step: 28, total_steps: 28, preview_path: previewForStep(28) } },
+        job_completed: { type: 'job_completed', data: { job_id: 'debug-001', seed: 42, timestamp: Date.now() / 1000, image_path: output } },
+        job_failed: { type: 'job_failed', data: { job_id: 'debug-001', error: 'CUDA out of memory. Tried to allocate 2.00 GiB' } },
+        job_cancelled: { type: 'job_cancelled', data: { job_id: 'debug-001' } },
+      };
+
+      if (['job_queued', 'job_started'].includes(eventType) || eventType.startsWith('job_progress')) {
         this.isGenerating = true;
         this.currentJobId = 'debug-001';
       }
