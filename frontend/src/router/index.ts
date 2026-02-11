@@ -24,6 +24,30 @@ const router = createRouter({
         menu: () => import('@/pages/gallery/Menu.vue'),
       }
     },
+    {
+      path: '/styles',
+      components: {
+        default: () => import('@/pages/styles/Main.vue'),
+        menu: () => import('@/pages/styles/Menu.vue'),
+      },
+      children: [
+        {
+          path: '',
+          name: 'styles',
+          component: () => import('@/pages/styles/StylesList.vue'),
+        },
+        {
+          path: 'new',
+          name: 'styles-new',
+          component: () => import('@/pages/styles/StyleEditor.vue'),
+        },
+        {
+          path: ':id',
+          name: 'styles-edit',
+          component: () => import('@/pages/styles/StyleEditor.vue'),
+        },
+      ],
+    },
   ],
 });
 

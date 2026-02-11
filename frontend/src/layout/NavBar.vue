@@ -15,6 +15,11 @@
             <Images :size="20" />
           </div>
         </RouterLink>
+        <RouterLink :to="{ name: 'styles' }" class="">
+          <div class="p-2 border border-blue-300 rounded shadow text-surface-800">
+            <Palette :size="20" />
+          </div>
+        </RouterLink>
       </div>
     </div>
     <div class="flex items-center justify-center h-20 shrink">
@@ -24,5 +29,5 @@
 </template>
 
 <script setup lang="ts">
-import { CameraOff, Cog, Images, WandSparkles } from 'lucide-vue-next';
+import { CameraOff, Cog, Images, Palette, WandSparkles } from 'lucide-vue-next';
 </script>

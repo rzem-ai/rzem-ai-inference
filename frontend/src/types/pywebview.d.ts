@@ -1,4 +1,4 @@
-import type { ApiResponse, InferenceEvent, ModelBundle, GalleryImage, Folder, Tag } from "./inference";
+import type { ApiResponse, InferenceEvent, ModelBundle, GalleryImage, Folder, Tag, Style, StyleLoRA, LoRA } from "./inference";
 
 export interface PywebviewAPI {
   // ── System ──
@@ -94,6 +94,50 @@ export interface PywebviewAPI {
   // ── Settings ──
   get_setting(args: { key: string }): Promise<ApiResponse<{ value?: string | null }>>;
   set_setting(args: { key: string; value: string }): Promise<ApiResponse>;
+
+  // ── Styles ──
+  get_styles(args?: {
+    category?: string;
+    tag_id?: number;
+    search?: string;
+    favorites_only?: boolean;
+  }): Promise<ApiResponse<{ styles?: Style[] }>>;
+  get_style(args: { style_id: string }): Promise<ApiResponse<{ style?: Style; loras?: StyleLoRA[]; tags?: Tag[] }>>;
+  create_style(args: {
+    id: string;
+    name: string;
+    prompt_template: string;
+    description?: string;
+    negative_prompt?: string;
+    category?: string;
+    thumbnail_path?: string;
+  }): Promise<ApiResponse<{ style?: Style }>>;
+  update_style(args: { style_id: string; name?: string; description?: string; prompt_template?: string; negative_prompt?: string; category?: string; thumbnail_path?: string }): Promise<ApiResponse<{ style?: Style }>>;
+  delete_style(args: { style_id: string }): Promise<ApiResponse>;
+  toggle_style_favorite(args: { style_id: string }): Promise<ApiResponse<{ style?: Style }>>;
+  get_style_categories(): Promise<ApiResponse<{ categories?: string[] }>>;
+
+  // ── Style ↔ LoRA ──
+  get_style_loras(args: { style_id: string }): Promise<ApiResponse<{ loras?: StyleLoRA[] }>>;
+  set_style_loras(args: { style_id: string; loras: Array<{ lora_id: string; strength: number; priority?: number }> }): Promise<ApiResponse<{ loras?: StyleLoRA[] }>>;
+
+  // ── Style ↔ Tag ──
+  get_style_tags(args: { style_id: string }): Promise<ApiResponse<{ tags?: Tag[] }>>;
+  set_style_tags(args: { style_id: string; tag_ids: number[] }): Promise<ApiResponse<{ tags?: Tag[] }>>;
+
+  // ── LoRAs ──
+  get_loras(): Promise<ApiResponse<{ loras?: LoRA[] }>>;
+  create_lora(args: {
+    id: string;
+    name: string;
+    path: string;
+    trigger_words?: string;
+    base_model?: string;
+    size_bytes?: number;
+    strength?: number;
+  }): Promise<ApiResponse<{ lora?: LoRA }>>;
+  browse_lora_files(): Promise<ApiResponse<{ loras?: LoRA[] }>>;
+  browse_image_file(): Promise<ApiResponse<{ path?: string | null }>>;
 }
 
 declare global {
