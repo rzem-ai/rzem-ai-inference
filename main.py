@@ -14,6 +14,7 @@ from backend.bundles import BundleStore
 from backend.config import AppConfig
 from backend.db.database import Database
 from backend.services.app_service import AppService
+from backend.services.chat_service import ChatService
 from backend.services.inference_service import InferenceService
 
 logger = logging.getLogger(__name__)
@@ -71,7 +72,13 @@ def main() -> None:
     inference = InferenceService(output_dir=config.output_dir, db=db)
     bundle_store = BundleStore(data_dir=config.data_dir)
     bundle_store.load()
-    api = CombinedAPI(service, inference, bundle_store, db, config)
+
+    chat_service = ChatService(db=db)
+    api_key = db.get_setting("CLAUDE_API_KEY")
+    if api_key:
+        chat_service.set_api_key(api_key)
+
+    api = CombinedAPI(service, inference, bundle_store, db, config, chat_service)
 
     # In dev mode, start Vite before opening the window
     if config.dev_mode:

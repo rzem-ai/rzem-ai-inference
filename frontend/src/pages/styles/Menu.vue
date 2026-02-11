@@ -81,7 +81,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import { Search, Palette, Star, Folder as FolderIcon } from 'lucide-vue-next';
+import { Search, Palette, Plus, Star, Folder as FolderIcon } from 'lucide-vue-next';
 import { useStylesStore } from '@/stores/styles';
 import type { Tag } from '@/types/inference';
 

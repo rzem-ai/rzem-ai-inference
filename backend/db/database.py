@@ -638,3 +638,81 @@ class Database:
                 (key, value, value),
             )
             self.conn.commit()
+
+    # ── Conversations ─────────────────────────────────────────────
+
+    def create_conversation(self, id: str, title: str) -> dict[str, Any]:
+        now = int(time.time())
+        with self._lock:
+            self.conn.execute(
+                "INSERT INTO conversations (id, title, created_at, updated_at) VALUES (?,?,?,?)",
+                (id, title, now, now),
+            )
+            self.conn.commit()
+            cursor = self.conn.execute(
+                "SELECT * FROM conversations WHERE id = ?", (id,)
+            )
+            return cursor.fetchone()
+
+    def get_conversations(self) -> list[dict[str, Any]]:
+        with self._lock:
+            cursor = self.conn.execute(
+                "SELECT * FROM conversations ORDER BY updated_at DESC"
+            )
+            return cursor.fetchall()
+
+    def update_conversation(self, conv_id: str, **updates: Any) -> dict[str, Any] | None:
+        allowed = {"title"}
+        filtered = {k: v for k, v in updates.items() if k in allowed}
+        filtered["updated_at"] = int(time.time())
+        set_clause = ", ".join(f"{k} = ?" for k in filtered)
+        values = list(filtered.values()) + [conv_id]
+        with self._lock:
+            self.conn.execute(
+                f"UPDATE conversations SET {set_clause} WHERE id = ?", values
+            )
+            self.conn.commit()
+            cursor = self.conn.execute(
+                "SELECT * FROM conversations WHERE id = ?", (conv_id,)
+            )
+            return cursor.fetchone()
+
+    def delete_conversation(self, conv_id: str) -> bool:
+        with self._lock:
+            cursor = self.conn.execute(
+                "DELETE FROM conversations WHERE id = ?", (conv_id,)
+            )
+            self.conn.commit()
+        return cursor.rowcount > 0
+
+    def insert_conversation_message(
+        self,
+        *,
+        id: str,
+        conversation_id: str,
+        role: str,
+        content: str,
+        image_paths: str | None = None,
+        tool_calls: str | None = None,
+    ) -> dict[str, Any]:
+        now = int(time.time())
+        with self._lock:
+            self.conn.execute(
+                """INSERT INTO conversation_messages
+                   (id, conversation_id, role, content, image_paths, tool_calls, created_at)
+                   VALUES (?,?,?,?,?,?,?)""",
+                (id, conversation_id, role, content, image_paths, tool_calls, now),
+            )
+            self.conn.commit()
+            cursor = self.conn.execute(
+                "SELECT * FROM conversation_messages WHERE id = ?", (id,)
+            )
+            return cursor.fetchone()
+
+    def get_conversation_messages(self, conversation_id: str) -> list[dict[str, Any]]:
+        with self._lock:
+            cursor = self.conn.execute(
+                "SELECT * FROM conversation_messages WHERE conversation_id = ? ORDER BY created_at ASC",
+                (conversation_id,),
+            )
+            return cursor.fetchall()
