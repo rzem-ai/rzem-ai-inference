@@ -168,3 +168,23 @@ CREATE TABLE IF NOT EXISTS settings (
     key     TEXT PRIMARY KEY,
     value   TEXT NOT NULL
 );
+
+-- ── Conversations (AI Chat) ───────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS conversations (
+    id          TEXT PRIMARY KEY,
+    title       TEXT NOT NULL,
+    created_at  INTEGER NOT NULL,
+    updated_at  INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS conversation_messages (
+    id                  TEXT PRIMARY KEY,
+    conversation_id     TEXT NOT NULL,
+    role                TEXT NOT NULL,
+    content             TEXT NOT NULL,
+    image_paths         TEXT,
+    tool_calls          TEXT,
+    created_at          INTEGER NOT NULL,
+    FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
+);

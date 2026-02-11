@@ -70,6 +70,8 @@
           :key="img.jobId"
           class="shrink-0 w-8 h-8 rounded cursor-pointer overflow-hidden border-2 transition-colors"
           :class="index === selectedIndex ? 'border-blue-500' : 'border-transparent hover:border-slate-300'"
+          draggable="true"
+          @dragstart="(e) => e.dataTransfer?.setData('text/image-path', img.imagePath)"
           @click="selectedIndex = index">
           <img v-if="img.dataUrl" :src="img.dataUrl" alt="" class="w-full h-full object-cover" />
           <div v-else class="w-full h-full bg-slate-200 flex items-center justify-center">

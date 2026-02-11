@@ -1,4 +1,4 @@
-import type { ApiResponse, InferenceEvent, ModelBundle, GalleryImage, Folder, Tag, Style, StyleLoRA, LoRA, VramUsage, EngineStatus, CachedModel, DataPaths, DiskUsage } from "./inference";
+import type { ApiResponse, InferenceEvent, ModelBundle, GalleryImage, Folder, Tag, Style, StyleLoRA, LoRA, VramUsage, EngineStatus, CachedModel, DataPaths, DiskUsage, Conversation, ConversationMessage, ChatEvent } from "./inference";
 
 export interface PywebviewAPI {
   // ── System ──
@@ -149,6 +149,21 @@ export interface PywebviewAPI {
   }): Promise<ApiResponse<{ lora?: LoRA }>>;
   browse_lora_files(): Promise<ApiResponse<{ loras?: LoRA[] }>>;
   browse_image_file(): Promise<ApiResponse<{ path?: string | null }>>;
+
+  // ── Chat ──
+  chat_is_configured(): Promise<ApiResponse<{ configured?: boolean }>>;
+  chat_set_api_key(args: { api_key: string }): Promise<ApiResponse>;
+  chat_create_conversation(args?: { title?: string }): Promise<ApiResponse<{ conversation?: Conversation }>>;
+  chat_get_conversations(): Promise<ApiResponse<{ conversations?: Conversation[] }>>;
+  chat_get_messages(args: { conversation_id: string }): Promise<ApiResponse<{ messages?: ConversationMessage[] }>>;
+  chat_delete_conversation(args: { conversation_id: string }): Promise<ApiResponse>;
+  chat_send_message(args: {
+    conversation_id: string;
+    content: string;
+    image_paths?: string[];
+    generation_context?: Record<string, any>;
+  }): Promise<ApiResponse>;
+  poll_chat_events(): Promise<ApiResponse<{ events?: ChatEvent[] }>>;
 }
 
 declare global {

@@ -424,4 +424,30 @@ export const mockApi: PywebviewAPI = {
   async browse_image_file() {
     return { status: "success", path: null };
   },
+
+  // ── Chat ──
+  async chat_is_configured() {
+    return { status: "success", configured: false };
+  },
+  async chat_set_api_key(_args) {
+    return { status: "success" };
+  },
+  async chat_create_conversation(_args?) {
+    return { status: "success", conversation: { id: "mock-conv-1", title: "New Chat", created_at: Date.now() / 1000, updated_at: Date.now() / 1000 } };
+  },
+  async chat_get_conversations() {
+    return { status: "success", conversations: [] };
+  },
+  async chat_get_messages(_args) {
+    return { status: "success", messages: [] };
+  },
+  async chat_delete_conversation(_args) {
+    return { status: "success" };
+  },
+  async chat_send_message(_args) {
+    return { status: "success" };
+  },
+  async poll_chat_events() {
+    return { status: "success", events: [] };
+  },
 };

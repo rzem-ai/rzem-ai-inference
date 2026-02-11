@@ -208,3 +208,33 @@ export interface DiskUsage {
   output_size: number;
   hf_cache_size: number;
 }
+
+// ── Chat types ──
+
+export interface Conversation {
+  id: string;
+  title: string;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface ConversationMessage {
+  id: string;
+  conversation_id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  image_paths: string | null;
+  tool_calls: string | null;
+  created_at: number;
+}
+
+export interface ChatEvent {
+  type: 'chat_chunk' | 'chat_tool_use' | 'chat_complete' | 'chat_error';
+  data: {
+    conversation_id?: string;
+    text?: string;
+    tool_name?: string;
+    tool_input?: Record<string, any>;
+    error?: string;
+  };
+}
