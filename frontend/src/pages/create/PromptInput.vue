@@ -1,5 +1,5 @@
 <template>
-  <EditorContent :editor="editor" class="prompt-editor w-full bg-slate-100 rounded-md px-3 py-2 border border-surface-300" />
+  <EditorContent :editor="editor" class="prompt-editor w-full bg-slate-100 rounded-md px-3 py-2 border border-surface-300 cursor-text" />
 </template>
 
 <script setup lang="ts">
@@ -37,7 +37,7 @@ const editor = useEditor({
   content: store.params.prompt,
   editorProps: {
     attributes: {
-      class: 'focus:outline-none min-h-[60px] max-h-[80px] overflow-y-auto text-base',
+      class: 'focus:outline-none min-h-[60px] max-h-[80px] overflow-y-auto text-lg',
     },
     handleKeyDown: (_view, event) => {
       if (event.key === 'Enter' && !event.shiftKey) {
