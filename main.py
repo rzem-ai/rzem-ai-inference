@@ -12,6 +12,7 @@ import webview
 from backend.api.combined import CombinedAPI
 from backend.bundles import BundleStore
 from backend.config import AppConfig
+from backend.db.database import Database
 from backend.services.app_service import AppService
 from backend.services.inference_service import InferenceService
 
@@ -63,10 +64,14 @@ def _stop_vite() -> None:
 def main() -> None:
     config = AppConfig()
     service = AppService()
-    inference = InferenceService(output_dir=config.output_dir)
+
+    db = Database(config.data_dir / "inference.db")
+    db.connect()
+
+    inference = InferenceService(output_dir=config.output_dir, db=db)
     bundle_store = BundleStore(data_dir=config.data_dir)
     bundle_store.load()
-    api = CombinedAPI(service, inference, bundle_store)
+    api = CombinedAPI(service, inference, bundle_store, db)
 
     # In dev mode, start Vite before opening the window
     if config.dev_mode:

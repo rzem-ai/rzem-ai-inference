@@ -88,6 +88,9 @@ export const mockApi: PywebviewAPI = {
   async get_image_base64() {
     return { status: "error" as const, message: "Mock mode — no images available" };
   },
+  async get_debug_images() {
+    return { status: "success" as const, output: null, previews: {} };
+  },
 
   // ── Bundle mocks ──
   async get_bundles() {
@@ -106,6 +109,10 @@ export const mockApi: PywebviewAPI = {
           clip_encoder: "openai/clip-vit-large-patch14",
           t5_tokenizer: "google/t5-v1_1-xxl",
           t5_encoder: "google/t5-v1_1-xxl",
+          steps: 15,
+          cfg_scale: 1.0,
+          sampler: "euler",
+          scheduler: "normal",
           vram_estimate_gb: 17.7,
           is_default: true,
         },
@@ -121,6 +128,10 @@ export const mockApi: PywebviewAPI = {
           clip_encoder: "openai/clip-vit-large-patch14",
           t5_tokenizer: "google/t5-v1_1-xxl",
           t5_encoder: "google/t5-v1_1-xxl",
+          steps: 28,
+          cfg_scale: 1.0,
+          sampler: "euler",
+          scheduler: "normal",
           vram_estimate_gb: 33.7,
           is_default: true,
         },
@@ -134,6 +145,10 @@ export const mockApi: PywebviewAPI = {
           vae_model: "black-forest-labs/FLUX.2-dev",
           qwen3_tokenizer: "Qwen/Qwen3-0.6B",
           qwen3_encoder: "Qwen/Qwen3-0.6B",
+          steps: 28,
+          cfg_scale: 1.0,
+          sampler: "euler",
+          scheduler: "normal",
           vram_estimate_gb: 23.2,
           is_default: true,
         },
@@ -157,6 +172,71 @@ export const mockApi: PywebviewAPI = {
   },
   async reset_default_bundles() {
     return { status: "success" as const, bundles: [] };
+  },
+
+  // ── Gallery mocks ──
+  async get_gallery_images() {
+    return { status: "success" as const, images: [], total: 0 };
+  },
+  async get_image() {
+    return { status: "error" as const, message: "Mock mode" };
+  },
+  async toggle_favorite() {
+    return { status: "error" as const, message: "Mock mode" };
+  },
+  async delete_image() {
+    return { status: "success" as const };
+  },
+
+  // ── Folder mocks ──
+  async get_folders() {
+    return { status: "success" as const, folders: [] };
+  },
+  async create_folder() {
+    return { status: "error" as const, message: "Mock mode" };
+  },
+  async update_folder() {
+    return { status: "error" as const, message: "Mock mode" };
+  },
+  async delete_folder() {
+    return { status: "success" as const };
+  },
+  async add_image_to_folder() {
+    return { status: "success" as const };
+  },
+  async remove_image_from_folder() {
+    return { status: "success" as const };
+  },
+
+  // ── Tag mocks ──
+  async get_tags() {
+    return { status: "success" as const, tags: [] };
+  },
+  async create_tag() {
+    return { status: "error" as const, message: "Mock mode" };
+  },
+  async update_tag() {
+    return { status: "error" as const, message: "Mock mode" };
+  },
+  async delete_tag() {
+    return { status: "success" as const };
+  },
+  async add_tag_to_image() {
+    return { status: "success" as const };
+  },
+  async remove_tag_from_image() {
+    return { status: "success" as const };
+  },
+  async get_image_tags() {
+    return { status: "success" as const, tags: [] };
+  },
+
+  // ── Settings mocks ──
+  async get_setting() {
+    return { status: "success" as const, value: null };
+  },
+  async set_setting() {
+    return { status: "success" as const };
   },
 } as PywebviewAPI & { _counter: number };
 

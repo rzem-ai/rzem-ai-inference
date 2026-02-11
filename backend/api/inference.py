@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import logging
+import re
 from pathlib import Path
 from typing import Any
 
@@ -57,6 +58,7 @@ class InferenceAPI:
         sampler: str = "euler",
         scheduler: str = "normal",
         loras: list[dict] | None = None,
+        bundle_id: str | None = None,
         **kwargs,
     ) -> dict[str, Any]:
         """Submit a generation job. Returns ``{status, job_id}``."""
@@ -78,7 +80,7 @@ class InferenceAPI:
                 loras=lora_params,
                 **kwargs,
             )
-            job_id = self._inference.submit(params)
+            job_id = self._inference.submit(params, bundle_id=bundle_id)
             return {"status": "success", "job_id": job_id}
         except Exception as e:
             return {"status": "error", "message": str(e)}
@@ -105,5 +107,38 @@ class InferenceAPI:
             return {"status": "success", "data_url": f"data:image/png;base64,{b64}"}
         except Exception as e:
             logger.error("Failed to read image %s: %s", image_path, e)
+            return {"status": "error", "message": str(e)}
+
+    def get_debug_images(self) -> dict[str, Any]:
+        """Find the most recent generation's preview + output images for debug UI."""
+        try:
+            output_dir = self._inference._output_dir
+            # Find the most recent output image by mtime
+            outputs = sorted(
+                output_dir.glob("*_output.png"),
+                key=lambda p: p.stat().st_mtime,
+                reverse=True,
+            )
+            if not outputs:
+                return {"status": "success", "output": None, "previews": {}}
+
+            latest = outputs[0]
+            # Extract job prefix: everything before "_output.png"
+            prefix = latest.name.rsplit("_output.png", 1)[0]
+
+            # Find all preview images for this job
+            previews: dict[str, str] = {}
+            for p in output_dir.glob(f"{prefix}_preview_*.png"):
+                match = re.search(r"_preview_(\d+)\.png$", p.name)
+                if match:
+                    previews[match.group(1)] = str(p)
+
+            return {
+                "status": "success",
+                "output": str(latest),
+                "previews": previews,
+            }
+        except Exception as e:
+            logger.error("Failed to get debug images: %s", e)
             return {"status": "error", "message": str(e)}
 

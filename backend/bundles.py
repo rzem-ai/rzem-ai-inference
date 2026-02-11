@@ -25,6 +25,10 @@ class ModelBundle:
     t5_encoder: str | None = None
     qwen3_tokenizer: str | None = None
     qwen3_encoder: str | None = None
+    steps: int = 20
+    cfg_scale: float = 1.0
+    sampler: str = "euler"
+    scheduler: str = "normal"
     vram_estimate_gb: float = 0.0
     is_default: bool = True
 
@@ -37,20 +41,21 @@ _QWEN3 = "Qwen/Qwen3-0.6B"
 
 DEFAULT_BUNDLES: list[ModelBundle] = [
     # ── FLUX.1 Dev ──
-    # Quality first — safest default (no GGUF dependency)
     ModelBundle(
-        id="flux1_dev_quality",
-        label="FLUX.1 Dev — Quality",
-        description="FLUX.1-dev BF16 full precision — best quality",
+        id="flux1_dev_performance",
+        label="FLUX.1 Dev — Fast",
+        description="FLUX.1-dev Q4 quantized — lower VRAM, faster inference",
         transformer_type="flux1_dev",
-        tier="quality",
-        transformer_model="black-forest-labs/FLUX.1-dev",
+        tier="performance",
+        transformer_model="city96/FLUX.1-dev-gguf/flux1-dev-Q4_K_S.gguf",
         vae_model="black-forest-labs/FLUX.1-dev",
         clip_tokenizer=_CLIP,
         clip_encoder=_CLIP,
         t5_tokenizer=_T5,
         t5_encoder=_T5,
-        vram_estimate_gb=33.7,
+        steps=28,
+        cfg_scale=3.5,
+        vram_estimate_gb=17.7,
     ),
     ModelBundle(
         id="flux1_dev_balanced",
@@ -64,21 +69,26 @@ DEFAULT_BUNDLES: list[ModelBundle] = [
         clip_encoder=_CLIP,
         t5_tokenizer=_T5,
         t5_encoder=_T5,
+        steps=30,
+        cfg_scale=3.5,
         vram_estimate_gb=22.7,
     ),
+    # Quality last — safest default (no GGUF dependency)
     ModelBundle(
-        id="flux1_dev_performance",
-        label="FLUX.1 Dev — Fast",
-        description="FLUX.1-dev Q4 quantized — lower VRAM, faster inference",
+        id="flux1_dev_quality",
+        label="FLUX.1 Dev — Quality",
+        description="FLUX.1-dev BF16 full precision — best quality",
         transformer_type="flux1_dev",
-        tier="performance",
-        transformer_model="city96/FLUX.1-dev-gguf/flux1-dev-Q4_K_S.gguf",
+        tier="quality",
+        transformer_model="black-forest-labs/FLUX.1-dev",
         vae_model="black-forest-labs/FLUX.1-dev",
         clip_tokenizer=_CLIP,
         clip_encoder=_CLIP,
         t5_tokenizer=_T5,
         t5_encoder=_T5,
-        vram_estimate_gb=17.7,
+        steps=40,
+        cfg_scale=4.0,
+        vram_estimate_gb=33.7,
     ),
     # ── FLUX.2 Dev ──
     ModelBundle(
@@ -91,6 +101,8 @@ DEFAULT_BUNDLES: list[ModelBundle] = [
         vae_model="black-forest-labs/FLUX.2-dev",
         qwen3_tokenizer=_QWEN3,
         qwen3_encoder=_QWEN3,
+        steps=28,
+        cfg_scale=1.0,
         vram_estimate_gb=23.2,
     ),
     # ── Z-Image ──
@@ -104,6 +116,8 @@ DEFAULT_BUNDLES: list[ModelBundle] = [
         vae_model="rzem-ai/z-image",
         qwen3_tokenizer=_QWEN3,
         qwen3_encoder=_QWEN3,
+        steps=28,
+        cfg_scale=1.0,
         vram_estimate_gb=20.2,
     ),
     # ── Qwen-Image ──
@@ -117,6 +131,8 @@ DEFAULT_BUNDLES: list[ModelBundle] = [
         vae_model="rzem-ai/qwen-image",
         qwen3_tokenizer=_QWEN3,
         qwen3_encoder=_QWEN3,
+        steps=28,
+        cfg_scale=1.0,
         vram_estimate_gb=48.2,
     ),
 ]
@@ -133,9 +149,7 @@ class BundleStore:
         if self._path.is_file():
             try:
                 raw = json.loads(self._path.read_text())
-                self._bundles = {
-                    b["id"]: ModelBundle(**b) for b in raw
-                }
+                self._bundles = {b["id"]: ModelBundle(**b) for b in raw}
                 logger.info("Loaded %d bundles from %s", len(self._bundles), self._path)
                 return
             except Exception as e:
@@ -161,10 +175,7 @@ class BundleStore:
         return asdict(b) if b else None
 
     def get_by_type(self, transformer_type: str) -> list[dict]:
-        return [
-            asdict(b) for b in self._bundles.values()
-            if b.transformer_type == transformer_type
-        ]
+        return [asdict(b) for b in self._bundles.values() if b.transformer_type == transformer_type]
 
     def add(self, data: dict) -> dict:
         bundle_id = data.get("id")

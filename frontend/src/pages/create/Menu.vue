@@ -47,14 +47,10 @@
                 <div class="flex items-center justify-between w-full gap-2">
                   <span class="text-sm">{{ option.label }}</span>
                   <div class="flex items-center gap-1.5">
-                    <span class="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded"
-                      :class="tierClass(option.tier)">
+                    <span class="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded" :class="tierClass(option.tier)">
                       {{ option.tier }}
                     </span>
-                    <span class="text-[10px] font-mono whitespace-nowrap"
-                      :class="vramColor(option.vram_estimate_gb)">
-                      ~{{ option.vram_estimate_gb }} GB
-                    </span>
+                    <span class="text-[10px] font-mono whitespace-nowrap" :class="vramColor(option.vram_estimate_gb)"> ~{{ option.vram_estimate_gb }} GB </span>
                   </div>
                 </div>
               </template>
@@ -176,7 +172,7 @@
           </Fieldset>
 
           <!-- Debug Events -->
-          <Fieldset legend="Debug Events"  >
+          <Fieldset legend="Debug Events">
             <div class="flex flex-col gap-1">
               <Select
                 v-model="debugEvent"
@@ -239,6 +235,13 @@ const debugEventOptions = [
   { label: 'job_queued', value: 'job_queued' },
   { label: 'job_started', value: 'job_started' },
   { label: 'job_progress', value: 'job_progress' },
+  { label: 'job_progress_0', value: 'job_progress_0' },
+  { label: 'job_progress_5', value: 'job_progress_5' },
+  { label: 'job_progress_10', value: 'job_progress_10' },
+  { label: 'job_progress_15', value: 'job_progress_15' },
+  { label: 'job_progress_20', value: 'job_progress_20' },
+  { label: 'job_progress_25', value: 'job_progress_25' },
+  { label: 'job_progress_28', value: 'job_progress_28' },
   { label: 'job_completed', value: 'job_completed' },
   { label: 'job_failed', value: 'job_failed' },
   { label: 'job_cancelled', value: 'job_cancelled' },
@@ -260,10 +263,14 @@ function onBundleChange(e: any) {
 
 function tierClass(tier: string): string {
   switch (tier) {
-    case 'performance': return 'bg-blue-500/20 text-blue-400';
-    case 'balanced': return 'bg-yellow-500/20 text-yellow-400';
-    case 'quality': return 'bg-purple-500/20 text-purple-400';
-    default: return 'bg-surface-500/20 text-surface-400';
+    case 'performance':
+      return 'bg-blue-500/20 text-blue-400';
+    case 'balanced':
+      return 'bg-yellow-500/20 text-yellow-400';
+    case 'quality':
+      return 'bg-purple-500/20 text-purple-400';
+    default:
+      return 'bg-surface-500/20 text-surface-400';
   }
 }
 
