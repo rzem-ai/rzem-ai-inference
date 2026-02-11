@@ -42,8 +42,11 @@ export function getApi(): PywebviewAPI | null {
   return window.pywebview?.api ?? null;
 }
 
+let _counter = 0;
+
 /** Mock API for browser-based development without pywebview. */
 export const mockApi: PywebviewAPI = {
+  // ── System ──
   async get_system_info() {
     return {
       platform: "Browser (mock)",
@@ -53,59 +56,63 @@ export const mockApi: PywebviewAPI = {
       processor: "N/A",
     };
   },
-  async greet(name: string) {
-    return `Hello, ${name}! (mock response — not connected to Python)`;
+  async greet(_name) {
+    return `Hello, ${_name}! (mock response — not connected to Python)`;
   },
   async increment_counter() {
-    return ++(mockApi as any)._counter;
+    return ++_counter;
   },
   async get_counter() {
-    return (mockApi as any)._counter;
+    return _counter;
   },
   async health_check() {
     return { status: "ok" };
   },
 
-  // ── Inference mocks ──
+  // ── Inference engine ──
   async get_gpu_info() {
-    return { status: "success" as const, device_type: "cuda", device_name: "NVIDIA RTX 4090 (mock)", total_vram_gb: 24 };
+    return { status: "success", device_type: "cuda", device_name: "NVIDIA RTX 4090 (mock)", total_vram_gb: 24 };
   },
-  async start_engine() {
-    return { status: "success" as const };
+  async start_engine(_args?) {
+    return { status: "success" };
   },
   async stop_engine() {
-    return { status: "success" as const };
+    return { status: "success" };
   },
   async engine_ready() {
-    return { status: "success" as const, ready: false };
-  },
-  async submit_job() {
-    return { status: "success" as const, job_id: "mock-job-001" };
-  },
-  async cancel_job() {
-    return { status: "success" as const };
-  },
-  async poll_events() {
-    return { status: "success" as const, events: [] };
-  },
-  async get_image_base64() {
-    return { status: "error" as const, message: "Mock mode — no images available" };
-  },
-  async get_debug_images() {
-    return { status: "success" as const, output: null, previews: {} };
+    return { status: "success", ready: false };
   },
 
-  // ── Bundle mocks ──
+  // ── Jobs ──
+  async submit_job(_args) {
+    return { status: "success", job_id: "mock-job-001" };
+  },
+  async cancel_job(_args) {
+    return { status: "success" };
+  },
+  async poll_events() {
+    return { status: "success", events: [] };
+  },
+
+  // ── Images ──
+  async get_image_base64(_args) {
+    return { status: "error", message: "Mock mode — no images available" };
+  },
+  async get_debug_images() {
+    return { status: "success", output: null, previews: {} };
+  },
+
+  // ── Bundles ──
   async get_bundles() {
     return {
-      status: "success" as const,
+      status: "success",
       bundles: [
         {
           id: "flux1_dev_performance",
           label: "FLUX.1 Dev — Fast",
           description: "FLUX.1-dev Q4 quantized (mock)",
-          transformer_type: "flux1_dev" as const,
-          tier: "performance" as const,
+          transformer_type: "flux1_dev",
+          tier: "performance",
           transformer_model: "city96/FLUX.1-dev-gguf/flux1-dev-Q4_K_S.gguf",
           vae_model: "black-forest-labs/FLUX.1-dev",
           clip_tokenizer: "openai/clip-vit-large-patch14",
@@ -123,8 +130,8 @@ export const mockApi: PywebviewAPI = {
           id: "flux1_dev_quality",
           label: "FLUX.1 Dev — Quality",
           description: "FLUX.1-dev BF16 full precision (mock)",
-          transformer_type: "flux1_dev" as const,
-          tier: "quality" as const,
+          transformer_type: "flux1_dev",
+          tier: "quality",
           transformer_model: "black-forest-labs/FLUX.1-dev",
           vae_model: "black-forest-labs/FLUX.1-dev",
           clip_tokenizer: "openai/clip-vit-large-patch14",
@@ -142,8 +149,8 @@ export const mockApi: PywebviewAPI = {
           id: "flux2_dev_quality",
           label: "FLUX.2 Dev",
           description: "FLUX.2-dev BF16 with Qwen3 (mock)",
-          transformer_type: "flux2_dev" as const,
-          tier: "quality" as const,
+          transformer_type: "flux2_dev",
+          tier: "quality",
           transformer_model: "black-forest-labs/FLUX.2-dev",
           vae_model: "black-forest-labs/FLUX.2-dev",
           qwen3_tokenizer: "Qwen/Qwen3-0.6B",
@@ -158,89 +165,87 @@ export const mockApi: PywebviewAPI = {
       ],
     };
   },
-  async get_bundle() {
-    return { status: "success" as const, bundle: undefined };
+  async get_bundle(_args) {
+    return { status: "success", bundle: undefined };
   },
-  async get_bundles_for_type() {
-    return { status: "success" as const, bundles: [] };
+  async get_bundles_for_type(_args) {
+    return { status: "success", bundles: [] };
   },
-  async create_bundle() {
-    return { status: "success" as const, bundle: undefined };
+  async create_bundle(_args) {
+    return { status: "success", bundle: undefined };
   },
-  async update_bundle() {
-    return { status: "success" as const, bundle: undefined };
+  async update_bundle(_args) {
+    return { status: "success", bundle: undefined };
   },
-  async delete_bundle() {
-    return { status: "success" as const };
+  async delete_bundle(_args) {
+    return { status: "success" };
   },
   async reset_default_bundles() {
-    return { status: "success" as const, bundles: [] };
+    return { status: "success", bundles: [] };
   },
 
-  // ── Gallery mocks ──
-  async get_gallery_images() {
-    return { status: "success" as const, images: [], total: 0 };
+  // ── Gallery ──
+  async get_gallery_images(_args?) {
+    return { status: "success", images: [], total: 0 };
   },
-  async get_image() {
-    return { status: "error" as const, message: "Mock mode" };
+  async get_image(_args) {
+    return { status: "error", message: "Mock mode" };
   },
-  async toggle_favorite() {
-    return { status: "error" as const, message: "Mock mode" };
+  async toggle_favorite(_args) {
+    return { status: "error", message: "Mock mode" };
   },
-  async delete_image() {
-    return { status: "success" as const };
+  async delete_image(_args) {
+    return { status: "success" };
   },
 
-  // ── Folder mocks ──
+  // ── Folders ──
   async get_folders() {
-    return { status: "success" as const, folders: [] };
+    return { status: "success", folders: [] };
   },
-  async create_folder() {
-    return { status: "error" as const, message: "Mock mode" };
+  async create_folder(_args) {
+    return { status: "error", message: "Mock mode" };
   },
-  async update_folder() {
-    return { status: "error" as const, message: "Mock mode" };
+  async update_folder(_args) {
+    return { status: "error", message: "Mock mode" };
   },
-  async delete_folder() {
-    return { status: "success" as const };
+  async delete_folder(_args) {
+    return { status: "success" };
   },
-  async add_image_to_folder() {
-    return { status: "success" as const };
+  async add_image_to_folder(_args) {
+    return { status: "success" };
   },
-  async remove_image_from_folder() {
-    return { status: "success" as const };
+  async remove_image_from_folder(_args) {
+    return { status: "success" };
   },
 
-  // ── Tag mocks ──
+  // ── Tags ──
   async get_tags() {
-    return { status: "success" as const, tags: [] };
+    return { status: "success", tags: [] };
   },
-  async create_tag() {
-    return { status: "error" as const, message: "Mock mode" };
+  async create_tag(_args) {
+    return { status: "error", message: "Mock mode" };
   },
-  async update_tag() {
-    return { status: "error" as const, message: "Mock mode" };
+  async update_tag(_args) {
+    return { status: "error", message: "Mock mode" };
   },
-  async delete_tag() {
-    return { status: "success" as const };
+  async delete_tag(_args) {
+    return { status: "success" };
   },
-  async add_tag_to_image() {
-    return { status: "success" as const };
+  async add_tag_to_image(_args) {
+    return { status: "success" };
   },
-  async remove_tag_from_image() {
-    return { status: "success" as const };
+  async remove_tag_from_image(_args) {
+    return { status: "success" };
   },
-  async get_image_tags() {
-    return { status: "success" as const, tags: [] };
+  async get_image_tags(_args) {
+    return { status: "success", tags: [] };
   },
 
-  // ── Settings mocks ──
-  async get_setting() {
-    return { status: "success" as const, value: null };
+  // ── Settings ──
+  async get_setting(_args) {
+    return { status: "success", value: null };
   },
-  async set_setting() {
-    return { status: "success" as const };
+  async set_setting(_args) {
+    return { status: "success" };
   },
-} as PywebviewAPI & { _counter: number };
-
-(mockApi as any)._counter = 0;
+};
