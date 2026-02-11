@@ -1,231 +1,150 @@
 <template>
-  <div class="px-2 py-4 h-full">
-    <Panel class="menu-panel">
-      <template #default>
-        <div>
-          <!-- Prompt -->
-          <EditorContent :editor="editor" class="w-full border rounded border-blue-500" />
-
-          <!-- Engine Controls -->
-          <div v-if="showEngine" class="flex items-center gap-2">
-            <Button
-              v-if="!store.engineReady"
-              label="Start Engine"
-              icon="pi pi-play"
-              size="small"
-              :loading="store.engineStarting"
-              @click="store.startEngine()"
-              class="flex-1" />
-            <Button v-else label="Stop Engine" icon="pi pi-stop" size="small" severity="danger" @click="store.stopEngine()" class="flex-1" />
-            <Tag :value="store.engineReady ? 'Ready' : 'Stopped'" :severity="store.engineReady ? 'success' : 'secondary'" />
-          </div>
-
-          <!-- Model Status -->
-          <div v-if="store.modelStatus" class="text-xs text-surface-500 px-1">
-            {{ store.modelStatus }}
-          </div>
-
-          <!-- Error -->
-          <div v-if="store.error" class="text-xs text-red-500 px-1 bg-red-50 rounded p-2">
-            {{ store.error }}
-          </div>
-
-          <!-- Model Selection -->
-
-          <div class="flex flex-col gap-2">
-            <Select
-              v-model="store.selectedBundleId"
-              :options="store.bundlesByType"
-              option-group-label="label"
-              option-group-children="items"
-              option-label="label"
-              option-value="id"
-              placeholder="Select model bundle"
-              fluid
-              @change="onBundleChange">
-              <template #option="{ option }">
-                <div class="flex items-center justify-between w-full gap-2">
-                  <span class="text-sm">{{ option.label }}</span>
-                  <div class="flex items-center gap-1.5">
-                    <span class="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded" :class="tierClass(option.tier)">
-                      {{ option.tier }}
-                    </span>
-                    <span class="text-[10px] font-mono whitespace-nowrap" :class="vramColor(option.vram_estimate_gb)"> ~{{ option.vram_estimate_gb }} GB </span>
-                  </div>
-                </div>
-              </template>
-              <template #value="{ value, placeholder }">
-                <template v-if="store.selectedBundle">
-                  <div class="flex items-center gap-2">
-                    <span>{{ store.selectedBundle.label }}</span>
-                    <span class="text-[10px] font-mono" :class="vramColor(store.selectedBundle.vram_estimate_gb)">
-                      ~{{ store.selectedBundle.vram_estimate_gb }} GB
-                    </span>
-                  </div>
-                </template>
-                <span v-else class="text-surface-400">{{ placeholder }}</span>
-              </template>
-            </Select>
-            <p v-if="store.selectedBundle" class="text-xs text-surface-500">
-              {{ store.selectedBundle.description }}
-            </p>
-
-            <div class="flex items-center gap-2 mt-1">
-              <ToggleSwitch v-model="showAdvanced" />
-              <span class="text-xs text-surface-500">Advanced model config</span>
-            </div>
-
-            <template v-if="showAdvanced">
-              <div class="flex flex-col gap-2 mt-1">
-                <label class="text-xs font-medium text-surface-600">Transformer</label>
-                <InputText v-model="store.params.transformer_model" size="small" class="w-full" />
-
-                <label class="text-xs font-medium text-surface-600">VAE</label>
-                <InputText v-model="store.params.vae_model" size="small" class="w-full" />
-
-                <label class="text-xs font-medium text-surface-600">CLIP Tokenizer</label>
-                <InputText v-model="store.params.clip_tokenizer" size="small" class="w-full" />
-
-                <label class="text-xs font-medium text-surface-600">CLIP Encoder</label>
-                <InputText v-model="store.params.clip_encoder" size="small" class="w-full" />
-
-                <label class="text-xs font-medium text-surface-600">T5 Tokenizer</label>
-                <InputText v-model="store.params.t5_tokenizer" size="small" class="w-full" />
-
-                <label class="text-xs font-medium text-surface-600">T5 Encoder</label>
-                <InputText v-model="store.params.t5_encoder" size="small" class="w-full" />
-
-                <label class="text-xs font-medium text-surface-600">Qwen3 Tokenizer</label>
-                <InputText v-model="store.params.qwen3_tokenizer" size="small" class="w-full" />
-
-                <label class="text-xs font-medium text-surface-600">Qwen3 Encoder</label>
-                <InputText v-model="store.params.qwen3_encoder" size="small" class="w-full" />
-              </div>
-            </template>
-          </div>
-
-          <!-- Generation Parameters -->
-          <Fieldset legend="Parameters" :toggleable="true">
-            <div class="grid grid-cols-2 gap-4 items-center justify-between">
-              <!-- Steps -->
-              <label class="text-xs font-medium text-surface-600">Steps</label>
-              <InputNumber v-model="store.params.steps" :min="1" :max="100" size="small" fluid />
-
-              <!-- CFG Scale -->
-
-              <label class="text-xs font-medium text-surface-600 grow">CFG Scale</label>
-              <InputNumber
-                v-model="store.params.cfg_scale"
-                :min="0"
-                :max="30"
-                :min-fraction-digits="1"
-                :max-fraction-digits="1"
-                :step="0.1"
-                size="small"
-                fluid />
-
-              <!-- Width -->
-
-              <label class="text-xs font-medium text-surface-600">Width</label>
-              <InputNumber v-model="store.params.width" :min="256" :max="2048" :step="64" size="small" fluid />
-
-              <!-- Height -->
-
-              <label class="text-xs font-medium text-surface-600">Height</label>
-              <InputNumber v-model="store.params.height" :min="256" :max="2048" :step="64" size="small" fluid />
-
-              <!-- Seed -->
-              <div class="flex flex-col items-start">
-                <label class="text-xs font-medium text-surface-600">Seed</label>
-                <p class="text-xs text-surface-400">-1 for random</p>
-              </div>
-              <InputNumber v-model="store.params.seed" :min="-1" size="small" fluid />
-
-              <!-- Sampler -->
-              <label class="text-xs font-medium text-surface-600">Sampler</label>
-              <Select v-model="store.params.sampler" :options="samplerOptions" size="small" fluid />
-
-              <!-- Scheduler -->
-              <label class="text-xs font-medium text-surface-600">Scheduler</label>
-              <Select v-model="store.params.scheduler" :options="schedulerOptions" size="small" fluid />
-            </div>
-          </Fieldset>
-
-          <!-- LoRAs -->
-          <Fieldset legend="LoRAs" :toggleable="true" :collapsed="true">
-            <div class="flex flex-col gap-2">
-              <div v-for="(lora, index) in store.params.loras" :key="index" class="flex flex-col gap-1 p-2 bg-surface-100 rounded">
-                <div class="flex items-center gap-1">
-                  <InputText v-model="lora.model_file" placeholder="LoRA model path" size="small" class="flex-1" />
-                  <Button icon="pi pi-times" size="small" severity="danger" text rounded @click="store.removeLora(index)" />
-                </div>
-                <div class="flex items-center gap-2">
-                  <span class="text-xs text-surface-500 w-16">Strength</span>
-                  <Slider v-model="lora.strength" :min="0" :max="2" :step="0.05" class="flex-1" />
-                  <span class="text-xs text-surface-600 w-8 text-right">
-                    {{ lora.strength.toFixed(2) }}
-                  </span>
-                </div>
-              </div>
-              <Button label="Add LoRA" icon="pi pi-plus" size="small" severity="secondary" outlined @click="store.addLora()" />
-            </div>
-          </Fieldset>
-
-          <!-- Debug Events -->
-          <Fieldset legend="Debug Events">
-            <div class="flex flex-col gap-1">
-              <Select
-                v-model="debugEvent"
-                :options="debugEventOptions"
-                option-label="label"
-                option-value="value"
-                placeholder="Select event to trigger"
-                size="small"
-                fluid
-                @change="onDebugEvent" />
-            </div>
-          </Fieldset>
+  <div class="h-full p-2">
+    <div class="h-full bg-white rounded-xl shadow-sm flex overflow-hidden transition-[width] duration-300 ease-in-out">
+      <!-- Left column: params (always visible) -->
+      <div class="w-120 flex flex-col h-full">
+        <!-- Header -->
+        <div class="flex items-center justify-between px-4 pt-4 pb-2">
+          <div class="text-xl min-h-6 font-semibold text-slate-800">Create</div>
+          <button
+            class="p-1.5 rounded-lg transition-colors"
+            :class="store.chatbotOpen ? 'bg-blue-500 text-white' : 'hover:bg-slate-100 text-slate-500'"
+            title="AI Prompt Assistant"
+            @click="store.toggleChatbot()">
+            <WandSparkles :size="16" />
+          </button>
         </div>
-      </template>
-      <template #footer>
-        <!-- Generate Button -->
-        <Button
-          v-if="!store.isGenerating"
-          label="Generate"
-          icon="pi pi-sparkles"
-          class="w-full"
-          :disabled="!store.engineReady || !store.params.prompt.trim()"
-          @click="store.submitJob()" />
-        <Button v-else label="Cancel" icon="pi pi-stop" class="w-full" severity="danger" @click="store.cancelJob()" />
-      </template>
-    </Panel>
+
+        <!-- Scrollable params -->
+        <div class="flex-1 overflow-y-auto px-4 pb-2 flex flex-col gap-4">
+          <PromptInput @submit="onSubmit" />
+          <AspectRatioStrip />
+          <ModelSelect />
+          <QualitySliders />
+          <StyleSelect />
+          <AdvancedSection />
+
+          <!-- Dev controls (Ctrl+Shift+D) -->
+          <template v-if="store.devMode">
+            <div class="border-t border-slate-200 pt-3 flex flex-col gap-3">
+              <div class="flex items-center gap-1">
+                <Terminal :size="12" class="text-orange-500" />
+                <span class="text-[10px] font-bold text-orange-500 uppercase">Dev Mode</span>
+              </div>
+
+              <!-- Engine controls -->
+              <div class="flex gap-1">
+                <button
+                  v-if="!store.engineReady"
+                  class="flex-1 text-[11px] py-1.5 rounded bg-green-500 text-white hover:bg-green-600 transition-colors disabled:opacity-50"
+                  :disabled="store.engineStarting"
+                  @click="store.startEngine()">
+                  {{ store.engineStarting ? 'Starting...' : 'Start Engine' }}
+                </button>
+                <button v-else class="flex-1 text-[11px] py-1.5 rounded bg-red-500 text-white hover:bg-red-600 transition-colors" @click="store.stopEngine()">
+                  Stop Engine
+                </button>
+                <div
+                  class="text-[10px] px-2 py-1.5 rounded font-medium"
+                  :class="store.engineReady ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'">
+                  {{ store.engineReady ? 'Ready' : 'Stopped' }}
+                </div>
+              </div>
+
+              <!-- Model path overrides -->
+              <div class="flex flex-col gap-1.5">
+                <label class="text-[10px] font-medium text-slate-500">Transformer</label>
+                <input v-model="store.params.transformer_model" class="text-[10px] bg-slate-50 rounded px-2 py-1 border border-slate-200" />
+                <label class="text-[10px] font-medium text-slate-500">VAE</label>
+                <input v-model="store.params.vae_model" class="text-[10px] bg-slate-50 rounded px-2 py-1 border border-slate-200" />
+                <label class="text-[10px] font-medium text-slate-500">CLIP Tokenizer</label>
+                <input v-model="store.params.clip_tokenizer" class="text-[10px] bg-slate-50 rounded px-2 py-1 border border-slate-200" />
+                <label class="text-[10px] font-medium text-slate-500">CLIP Encoder</label>
+                <input v-model="store.params.clip_encoder" class="text-[10px] bg-slate-50 rounded px-2 py-1 border border-slate-200" />
+                <label class="text-[10px] font-medium text-slate-500">T5 Tokenizer</label>
+                <input v-model="store.params.t5_tokenizer" class="text-[10px] bg-slate-50 rounded px-2 py-1 border border-slate-200" />
+                <label class="text-[10px] font-medium text-slate-500">T5 Encoder</label>
+                <input v-model="store.params.t5_encoder" class="text-[10px] bg-slate-50 rounded px-2 py-1 border border-slate-200" />
+                <label class="text-[10px] font-medium text-slate-500">Qwen3 Tokenizer</label>
+                <input v-model="store.params.qwen3_tokenizer" class="text-[10px] bg-slate-50 rounded px-2 py-1 border border-slate-200" />
+                <label class="text-[10px] font-medium text-slate-500">Qwen3 Encoder</label>
+                <input v-model="store.params.qwen3_encoder" class="text-[10px] bg-slate-50 rounded px-2 py-1 border border-slate-200" />
+              </div>
+
+              <!-- Debug events -->
+              <div class="flex flex-col gap-1">
+                <label class="text-[10px] font-medium text-slate-500">Debug Events</label>
+                <Select
+                  v-model="debugEvent"
+                  :options="debugEventOptions"
+                  option-label="label"
+                  option-value="value"
+                  placeholder="Inject event..."
+                  size="small"
+                  fluid
+                  @change="onDebugEvent" />
+              </div>
+            </div>
+          </template>
+        </div>
+
+        <!-- Model status / Error -->
+        <div v-if="store.modelStatus" class="px-4 py-1">
+          <span class="text-[11px] text-slate-500">{{ store.modelStatus }}</span>
+        </div>
+        <div v-if="store.error" class="px-4 py-1">
+          <span class="text-[11px] text-red-500">{{ store.error }}</span>
+        </div>
+
+        <!-- Generate button (pinned at bottom) -->
+        <div class="px-4 py-3 border-t border-slate-100">
+          <Button
+            v-if="!store.isGenerating"
+            class="transition-colors flex items-center justify-center gap-2"
+            severity="primary"
+            fluid
+            raised
+            :disabled="!canGenerate"
+            @click="onSubmit">
+            <Sparkles :size="16" />
+            Generate
+          </Button>
+          <Button v-else class="transition-colors flex items-center justify-center gap-2" severity="danger" fluid raised @click="store.cancelJob()">
+            <Square :size="14" />
+            Cancel
+          </Button>
+        </div>
+      </div>
+
+      <!-- Right column: chatbot (conditional) -->
+      <div class="flex-1 transition-[width] duration-300 ease-in-out" :class="store.chatbotOpen ? 'w-120 border-l border-slate-100 ' : 'w-0'">
+        <ChatbotPanel />
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue';
-import Button from 'primevue/button';
-import Fieldset from 'primevue/fieldset';
-import InputNumber from 'primevue/inputnumber';
-import InputText from 'primevue/inputtext';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { WandSparkles, Sparkles, Square, Terminal } from 'lucide-vue-next';
 import Select from 'primevue/select';
-import Slider from 'primevue/slider';
-import Tag from 'primevue/tag';
-import Textarea from 'primevue/textarea';
-import ToggleSwitch from 'primevue/toggleswitch';
 import { usePywebview } from '@/composables/usePywebview';
 import { useInferenceStore } from '@/stores/inference';
-import { Panel } from 'primevue';
-import { useEditor, EditorContent } from '@tiptap/vue-3';
-import StarterKit from '@tiptap/starter-kit';
-import Placeholder from '@tiptap/extension-placeholder';
+import PromptInput from './PromptInput.vue';
+import AspectRatioStrip from './AspectRatioStrip.vue';
+import ModelSelect from './ModelSelect.vue';
+import StyleSelect from './StyleSelect.vue';
+import QualitySliders from './QualitySliders.vue';
+import AdvancedSection from './AdvancedSection.vue';
+import ChatbotPanel from './ChatbotPanel.vue';
+import { Button } from 'primevue';
 
 const { api, isReady } = usePywebview();
 const store = useInferenceStore();
 
-const showEngine = ref(false);
-const showAdvanced = ref(false);
 const debugEvent = ref<string | null>(null);
+
+const canGenerate = computed(() => store.engineReady && store.params.prompt.trim() && !store.isGenerating);
 
 const debugEventOptions = [
   { label: 'default (reset)', value: 'default' },
@@ -247,95 +166,31 @@ const debugEventOptions = [
   { label: 'job_cancelled', value: 'job_cancelled' },
 ];
 
+function onSubmit() {
+  store.submitJob();
+}
+
 function onDebugEvent(e: any) {
   if (e.value) {
     store.injectDebugEvent(e.value);
   }
 }
 
-const samplerOptions = ['euler', 'euler_a', 'dpm++_2m', 'dpm++_2s', 'dpm++_sde', 'heun', 'lms'];
-const schedulerOptions = ['normal', 'karras', 'exponential', 'sgm_uniform', 'simple', 'ddim_uniform'];
-
-function onBundleChange(e: any) {
-  const bundle = store.bundles.find((b) => b.id === e.value);
-  if (bundle) store.applyBundle(bundle);
-}
-
-function tierClass(tier: string): string {
-  switch (tier) {
-    case 'performance':
-      return 'bg-blue-500/20 text-blue-400';
-    case 'balanced':
-      return 'bg-yellow-500/20 text-yellow-400';
-    case 'quality':
-      return 'bg-purple-500/20 text-purple-400';
-    default:
-      return 'bg-surface-500/20 text-surface-400';
+function onKeydown(e: KeyboardEvent) {
+  if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+    e.preventDefault();
+    store.toggleDevMode();
   }
 }
 
-function vramColor(gb: number): string {
-  if (gb <= 16) return 'text-green-400';
-  if (gb <= 24) return 'text-yellow-400';
-  return 'text-red-400';
-}
-
-const editor = useEditor({
-  extensions: [
-    StarterKit.configure({
-      // Disable most formatting for simple text input
-      heading: false,
-      codeBlock: false,
-      horizontalRule: false,
-      blockquote: false,
-      bulletList: false,
-      orderedList: false,
-      listItem: false,
-      code: false,
-      bold: false,
-      italic: false,
-      strike: false,
-    }),
-    Placeholder.configure({
-      placeholder: 'Describe what you want to generate...',
-    }),
-  ],
-  content: store.params.prompt,
-  editorProps: {
-    attributes: {
-      class: 'focus:outline-none',
-    },
-    handleKeyDown: (_view, event) => {
-      // Emit submit on Enter (without shift)
-      if (event.key === 'Enter' && !event.shiftKey) {
-        event.preventDefault();
-        //emit('submit');
-        return true;
-      }
-      return false;
-    },
-  },
-  onUpdate: ({ editor }) => {
-    const text = editor.getText();
-    //emit('update:modelValue', text);
-  },
-});
-
-// Watch for external value changes and sync to editor
-watch(
-  () => store.params.prompt,
-  (newValue) => {
-    if (editor.value && newValue !== editor.value.getText()) {
-      editor.value.commands.setContent(newValue || '');
-    }
-  },
-);
-
 onMounted(async () => {
+  window.addEventListener('keydown', onKeydown);
+
   const check = setInterval(async () => {
     if (isReady.value) {
       clearInterval(check);
       store.setApi(api.value);
+      await store.loadGpuInfo();
       await store.loadBundles();
       if (store.bundles.length && !store.selectedBundleId) {
         store.applyBundle(store.bundles[0]);
@@ -344,40 +199,8 @@ onMounted(async () => {
     }
   }, 50);
 });
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', onKeydown);
+});
 </script>
-
-<style scoped>
-.menu-panel {
-  height: 100%;
-  display: flex !important;
-  flex-direction: column;
-}
-
-.menu-panel :deep(.p-panel-header) {
-  flex-shrink: 0;
-}
-
-.menu-panel :deep(.p-panel-content-container) {
-  flex: 1;
-  min-height: 0;
-  display: flex !important;
-  flex-direction: column;
-}
-
-.menu-panel :deep(.p-panel-content-wrapper) {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.menu-panel :deep(.p-panel-content) {
-  flex: 1;
-  overflow-y: auto;
-  min-height: 0;
-}
-
-.menu-panel :deep(.p-panel-footer) {
-  flex-shrink: 0;
-}
-</style>

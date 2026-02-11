@@ -67,6 +67,9 @@ export const mockApi: PywebviewAPI = {
   },
 
   // ── Inference mocks ──
+  async get_gpu_info() {
+    return { status: "success" as const, device_type: "cuda", device_name: "NVIDIA RTX 4090 (mock)", total_vram_gb: 24 };
+  },
   async start_engine() {
     return { status: "success" as const };
   },

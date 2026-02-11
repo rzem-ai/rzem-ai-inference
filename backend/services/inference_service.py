@@ -21,6 +21,7 @@ from rzem_ai_inference_engine import (
     JobParams,
     ProgressEvent,
 )
+from rzem_ai_inference_engine.models.memory import detect_device, get_total_vram
 from rzem_ai_inference_engine.types import PreviewConfig
 
 from backend.db.database import Database
@@ -56,6 +57,31 @@ class InferenceService:
     @property
     def ready(self) -> bool:
         return self._engine is not None
+
+    def get_gpu_info(self) -> dict[str, Any]:
+        """Detect GPU device and return its capabilities."""
+        try:
+            device = detect_device()
+            total_bytes = get_total_vram(device)
+            total_gb = round(total_bytes / (1024 ** 3), 1)
+
+            device_name = None
+            if device.type == "cuda":
+                import torch
+                device_name = torch.cuda.get_device_name(device)
+
+            return {
+                "device_type": device.type,
+                "device_name": device_name,
+                "total_vram_gb": total_gb,
+            }
+        except Exception:
+            logger.exception("Failed to detect GPU info")
+            return {
+                "device_type": "cpu",
+                "device_name": None,
+                "total_vram_gb": 0,
+            }
 
     def start(self, device: str = "auto", vram_limit_gb: float | None = None) -> None:
         """Initialize the inference engine and subscribe to all events."""
