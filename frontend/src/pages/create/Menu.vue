@@ -130,6 +130,7 @@ import { WandSparkles, Sparkles, Square, Terminal } from 'lucide-vue-next';
 import Select from 'primevue/select';
 import { usePywebview } from '@/composables/usePywebview';
 import { useInferenceStore } from '@/stores/inference';
+import { useStylesStore } from '@/stores/styles';
 import PromptInput from './PromptInput.vue';
 import AspectRatioStrip from './AspectRatioStrip.vue';
 import ModelSelect from './ModelSelect.vue';
@@ -141,6 +142,7 @@ import { Button } from 'primevue';
 
 const { api, isReady } = usePywebview();
 const store = useInferenceStore();
+const stylesStore = useStylesStore();
 
 const debugEvent = ref<string | null>(null);
 
@@ -190,8 +192,10 @@ onMounted(async () => {
     if (isReady.value) {
       clearInterval(check);
       store.setApi(api.value);
+      stylesStore.setApi(api.value);
       await store.loadGpuInfo();
       await store.loadBundles();
+      stylesStore.loadStyles();
       if (store.bundles.length && !store.selectedBundleId) {
         store.applyBundle(store.bundles[0]);
       }

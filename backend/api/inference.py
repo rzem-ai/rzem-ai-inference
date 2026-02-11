@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import logging
+import json
 import re
 from pathlib import Path
 from typing import Any
@@ -88,6 +89,10 @@ class InferenceAPI:
                 loras=lora_params,
                 **kwargs,
             )
+
+            print(f"submit image generation job: {prompt}")
+            logger.info("submit image generation job: %s", prompt)
+
             job_id = self._inference.submit(params, bundle_id=bundle_id)
             return {"status": "success", "job_id": job_id}
         except Exception as e:

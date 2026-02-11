@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import type { PywebviewAPI } from '@/types/pywebview';
-import type { ModelBundle, SubmitJobParams, LoraParam, InferenceEvent, GeneratedImage } from '@/types/inference';
+import type { ModelBundle, SubmitJobParams, LoraParam, InferenceEvent, GeneratedImage, StyleLoRA } from '@/types/inference';
 
 // Non-reactive module-level state (no reactivity tracking needed)
 let _api: PywebviewAPI | null = null;
@@ -49,6 +49,11 @@ export const useInferenceStore = defineStore('inference', {
     gpuDeviceName: null as string | null,
     gpuTotalVramGb: 0,
 
+    // Style
+    selectedStyleId: null as string | null,
+    stylePromptTemplate: null as string | null,
+    styleNegativePrompt: null as string | null,
+
     // UI state
     chatbotOpen: false,
     activeAspectRatio: '1:1' as string | null,
@@ -56,7 +61,7 @@ export const useInferenceStore = defineStore('inference', {
     devMode: false,
 
     params: {
-      prompt: 'Moebiusstyle, a planet with rings, space dust, psychedelic art',
+      prompt: 'a planet with rings, space dust, psychedelic art',
       transformer_model: 'black-forest-labs/FLUX.1-dev',
       transformer_type: 'flux1_dev',
       vae_model: 'black-forest-labs/FLUX.1-dev',
@@ -197,6 +202,12 @@ export const useInferenceStore = defineStore('inference', {
       if (this.selectedBundleId) {
         jobParams.bundle_id = this.selectedBundleId;
       }
+      if (this.stylePromptTemplate) {
+        jobParams.prompt = this.stylePromptTemplate.replace('{prompt}', this.params.prompt);
+      }
+      if (this.styleNegativePrompt) {
+        jobParams.negative_prompt = this.styleNegativePrompt;
+      }
 
       console.log('submit jobParams: ', jobParams);
 
@@ -222,6 +233,23 @@ export const useInferenceStore = defineStore('inference', {
       this.isGenerating = false;
       this.currentJobId = null;
       this.progress = null;
+    },
+
+    applyStyle(styleId: string, promptTemplate: string, negativePrompt: string | null, loras: StyleLoRA[]) {
+      this.selectedStyleId = styleId;
+      this.stylePromptTemplate = promptTemplate;
+      this.styleNegativePrompt = negativePrompt;
+      this.params.loras = loras.map(l => ({
+        model_file: l.lora_path,
+        strength: l.strength,
+      }));
+    },
+
+    clearStyle() {
+      this.selectedStyleId = null;
+      this.stylePromptTemplate = null;
+      this.styleNegativePrompt = null;
+      this.params.loras = [];
     },
 
     addLora() {

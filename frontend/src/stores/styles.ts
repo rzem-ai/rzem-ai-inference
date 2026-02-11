@@ -1,0 +1,238 @@
+import { defineStore } from 'pinia';
+import type { PywebviewAPI } from '@/types/pywebview';
+import type { Style, StyleLoRA, LoRA, Tag } from '@/types/inference';
+
+let _api: PywebviewAPI | null = null;
+
+export const useStylesStore = defineStore('styles', {
+  state: () => ({
+    styles: [] as Style[],
+    categories: [] as string[],
+    tags: [] as Tag[],
+    loras: [] as LoRA[],
+    loading: false,
+
+    // Filters
+    currentCategory: null as string | null,
+    currentTagId: null as number | null,
+    searchQuery: '',
+    favoritesOnly: false,
+
+    // Editor state
+    editorStyle: null as Style | null,
+    editorLoras: [] as StyleLoRA[],
+    editorTags: [] as Tag[],
+  }),
+
+  getters: {
+    filteredStyles(state): Style[] {
+      return state.styles;
+    },
+  },
+
+  actions: {
+    setApi(apiRef: PywebviewAPI) {
+      _api = apiRef;
+    },
+
+    async loadStyles(reset = true) {
+      if (!_api) return;
+      this.loading = true;
+
+      const res = await _api.get_styles({
+        category: this.currentCategory ?? undefined,
+        tag_id: this.currentTagId ?? undefined,
+        search: this.searchQuery || undefined,
+        favorites_only: this.favoritesOnly,
+      });
+
+      if (res.status === 'success') {
+        this.styles = res.styles ?? [];
+      }
+      this.loading = false;
+    },
+
+    async loadCategories() {
+      if (!_api) return;
+      const res = await _api.get_style_categories();
+      if (res.status === 'success') {
+        this.categories = res.categories ?? [];
+      }
+    },
+
+    async loadTags() {
+      if (!_api) return;
+      const res = await _api.get_tags();
+      if (res.status === 'success') {
+        this.tags = (res.tags ?? []).filter(t => t.category === 'style');
+      }
+    },
+
+    async loadLoras() {
+      if (!_api) return;
+      const res = await _api.get_loras();
+      if (res.status === 'success') {
+        this.loras = res.loras ?? [];
+      }
+    },
+
+    async browseLoras(): Promise<LoRA[]> {
+      if (!_api) return [];
+      const res = await _api.browse_lora_files();
+      if (res.status === 'success' && res.loras?.length) {
+        this.loras = [...this.loras, ...res.loras];
+        return res.loras;
+      }
+      return [];
+    },
+
+    async registerLoraPaths(paths: string[]): Promise<LoRA[]> {
+      if (!_api || !paths.length) return [];
+      const created: LoRA[] = [];
+      for (const path of paths) {
+        const name = path.split('/').pop()?.replace(/\.[^.]+$/, '') || 'Unknown';
+        const res = await _api.create_lora({ id: crypto.randomUUID(), name, path });
+        if (res.status === 'success' && res.lora) {
+          created.push(res.lora);
+        }
+      }
+      if (created.length) {
+        this.loras = [...this.loras, ...created];
+      }
+      return created;
+    },
+
+    // ── CRUD ──
+
+    async createStyle(data: {
+      id: string;
+      name: string;
+      promptTemplate: string;
+      description?: string;
+      negativePrompt?: string;
+      category?: string;
+      thumbnailPath?: string;
+    }) {
+      if (!_api) return;
+      const res = await _api.create_style({
+        id: data.id,
+        name: data.name,
+        prompt_template: data.promptTemplate,
+        description: data.description,
+        negative_prompt: data.negativePrompt,
+        category: data.category,
+        thumbnail_path: data.thumbnailPath,
+      });
+      if (res.status === 'success') {
+        await this.loadStyles();
+        await this.loadCategories();
+      }
+      return res;
+    },
+
+    async updateStyle(styleId: string, data: Record<string, any>) {
+      if (!_api) return;
+      const res = await _api.update_style({ style_id: styleId, ...data });
+      if (res.status === 'success') {
+        await this.loadStyles();
+        await this.loadCategories();
+      }
+      return res;
+    },
+
+    async deleteStyle(styleId: string) {
+      if (!_api) return;
+      const res = await _api.delete_style({ style_id: styleId });
+      if (res.status === 'success') {
+        this.styles = this.styles.filter(s => s.id !== styleId);
+      }
+      return res;
+    },
+
+    async toggleFavorite(styleId: string) {
+      if (!_api) return;
+      const res = await _api.toggle_style_favorite({ style_id: styleId });
+      if (res.status === 'success' && res.style) {
+        const idx = this.styles.findIndex(s => s.id === styleId);
+        if (idx !== -1) {
+          this.styles[idx] = res.style;
+        }
+      }
+    },
+
+    // ── Editor ──
+
+    async loadStyleForEditor(styleId: string) {
+      if (!_api) return;
+      const res = await _api.get_style({ style_id: styleId });
+      if (res.status === 'success') {
+        this.editorStyle = res.style ?? null;
+        this.editorLoras = res.loras ?? [];
+        this.editorTags = res.tags ?? [];
+      }
+      return res;
+    },
+
+    clearEditor() {
+      this.editorStyle = null;
+      this.editorLoras = [];
+      this.editorTags = [];
+    },
+
+    async saveStyleLoras(styleId: string, loras: Array<{ lora_id: string; strength: number; priority?: number }>) {
+      if (!_api) return;
+      const res = await _api.set_style_loras({ style_id: styleId, loras });
+      if (res.status === 'success') {
+        this.editorLoras = res.loras ?? [];
+      }
+      return res;
+    },
+
+    async createTag(name: string): Promise<Tag | null> {
+      if (!_api) return null;
+      const res = await _api.create_tag({ name, category: 'style' });
+      if (res.status === 'success' && res.tag) {
+        this.tags.push(res.tag);
+        return res.tag;
+      }
+      return null;
+    },
+
+    async saveStyleTags(styleId: string, tagIds: number[]) {
+      if (!_api) return;
+      const res = await _api.set_style_tags({ style_id: styleId, tag_ids: tagIds });
+      if (res.status === 'success') {
+        this.editorTags = res.tags ?? [];
+      }
+      return res;
+    },
+
+    // ── Filters ──
+
+    async filterByCategory(category: string | null) {
+      this.currentCategory = category;
+      this.favoritesOnly = false;
+      this.currentTagId = null;
+      await this.loadStyles();
+    },
+
+    async filterByTag(tagId: number | null) {
+      this.currentTagId = tagId;
+      this.favoritesOnly = false;
+      this.currentCategory = null;
+      await this.loadStyles();
+    },
+
+    async searchStyles(query: string) {
+      this.searchQuery = query;
+      await this.loadStyles();
+    },
+
+    async toggleFavoritesFilter() {
+      this.favoritesOnly = !this.favoritesOnly;
+      this.currentCategory = null;
+      this.currentTagId = null;
+      await this.loadStyles();
+    },
+  },
+});

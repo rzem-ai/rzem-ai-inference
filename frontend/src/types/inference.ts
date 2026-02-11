@@ -123,3 +123,45 @@ export interface Tag {
   color: string | null;
   category: string | null;
 }
+
+// ── Style types (matching database schema) ──
+
+export interface Style {
+  id: string;
+  name: string;
+  description: string | null;
+  prompt_template: string;
+  negative_prompt: string | null;
+  default_strength: number;
+  strength_min: number;
+  strength_max: number;
+  category: string | null;
+  thumbnail_path: string | null;
+  is_favorite: number;
+  usage_count: number;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface StyleLoRA {
+  id: number;
+  style_id: string;
+  lora_id: string;
+  strength: number;
+  priority: number;
+  lora_name: string;
+  lora_path: string;
+}
+
+export interface LoRA {
+  id: string;
+  name: string;
+  path: string;
+  trigger_words: string | null;
+  base_model: string | null;
+  size_bytes: number | null;
+  strength: number;
+  is_active: number;
+  created_at: number;
+  metadata: string | null;
+}

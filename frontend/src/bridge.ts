@@ -248,4 +248,103 @@ export const mockApi: PywebviewAPI = {
   async set_setting(_args) {
     return { status: "success" };
   },
+
+  // ── Styles ──
+  async get_styles(_args?) {
+    return {
+      status: "success",
+      styles: [
+        {
+          id: "mock-style-1",
+          name: "Cinematic Film",
+          description: "Hollywood cinematic look with dramatic lighting",
+          prompt_template: "cinematic film still, dramatic lighting, {prompt}, 35mm photograph, film grain",
+          negative_prompt: "cartoon, anime, drawing, painting",
+          default_strength: 1.0,
+          strength_min: 0.5,
+          strength_max: 1.5,
+          category: "Photography",
+          thumbnail_path: null,
+          is_favorite: 1,
+          usage_count: 12,
+          created_at: 1700000000,
+          updated_at: 1700000000,
+        },
+        {
+          id: "mock-style-2",
+          name: "Anime Girl",
+          description: "High quality anime illustration style",
+          prompt_template: "anime illustration, {prompt}, detailed, vibrant colors, studio ghibli",
+          negative_prompt: "photo, realistic, 3d render",
+          default_strength: 1.0,
+          strength_min: 0.5,
+          strength_max: 1.5,
+          category: "Illustration",
+          thumbnail_path: null,
+          is_favorite: 0,
+          usage_count: 8,
+          created_at: 1700100000,
+          updated_at: 1700100000,
+        },
+        {
+          id: "mock-style-3",
+          name: "Watercolor Dream",
+          description: "Soft watercolor painting effect",
+          prompt_template: "watercolor painting, soft edges, {prompt}, paper texture, artistic",
+          negative_prompt: "photo, sharp, digital",
+          default_strength: 1.0,
+          strength_min: 0.5,
+          strength_max: 1.5,
+          category: "Painting",
+          thumbnail_path: null,
+          is_favorite: 0,
+          usage_count: 5,
+          created_at: 1700200000,
+          updated_at: 1700200000,
+        },
+      ],
+    };
+  },
+  async get_style(_args) {
+    return { status: "error", message: "Mock mode" };
+  },
+  async create_style(_args) {
+    return { status: "success", style: undefined };
+  },
+  async update_style(_args) {
+    return { status: "success", style: undefined };
+  },
+  async delete_style(_args) {
+    return { status: "success" };
+  },
+  async toggle_style_favorite(_args) {
+    return { status: "error", message: "Mock mode" };
+  },
+  async get_style_categories() {
+    return { status: "success", categories: ["Photography", "Illustration", "Painting"] };
+  },
+  async get_style_loras(_args) {
+    return { status: "success", loras: [] };
+  },
+  async set_style_loras(_args) {
+    return { status: "success", loras: [] };
+  },
+  async get_style_tags(_args) {
+    return { status: "success", tags: [] };
+  },
+  async set_style_tags(_args) {
+    return { status: "success", tags: [] };
+  },
+  async get_loras() {
+    return { status: "success", loras: [] };
+  },
+  async create_lora(_args) {
+    return { status: "success", lora: undefined };
+  },
+  async browse_lora_files() {
+    return { status: "success", loras: [] };
+  },
+  async browse_image_file() {
+    return { status: "success", path: null };
+  },
 };

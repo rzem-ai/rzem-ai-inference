@@ -384,6 +384,243 @@ class Database:
             )
             return cursor.fetchall()
 
+    # ── Styles ─────────────────────────────────────────────────
+
+    def insert_style(
+        self,
+        *,
+        id: str,
+        name: str,
+        prompt_template: str,
+        description: str | None = None,
+        negative_prompt: str | None = None,
+        category: str | None = None,
+        thumbnail_path: str | None = None,
+    ) -> dict[str, Any] | None:
+        now = int(time.time())
+        with self._lock:
+            self.conn.execute(
+                """INSERT INTO styles
+                   (id, name, description, prompt_template, negative_prompt,
+                    category, thumbnail_path, created_at, updated_at)
+                   VALUES (?,?,?,?,?,?,?,?,?)""",
+                (id, name, description, prompt_template, negative_prompt,
+                 category, thumbnail_path, now, now),
+            )
+            self.conn.commit()
+        return self.get_style(id)
+
+    def get_style(self, style_id: str) -> dict[str, Any] | None:
+        with self._lock:
+            cursor = self.conn.execute(
+                "SELECT * FROM styles WHERE id = ?", (style_id,)
+            )
+            row = cursor.fetchone()
+        return row if row else None
+
+    def get_styles(
+        self,
+        *,
+        category: str | None = None,
+        tag_id: int | None = None,
+        search: str | None = None,
+        favorites_only: bool = False,
+    ) -> list[dict[str, Any]]:
+        where_clauses: list[str] = []
+        params: list[Any] = []
+        joins: list[str] = []
+
+        if category:
+            where_clauses.append("styles.category = ?")
+            params.append(category)
+
+        if tag_id is not None:
+            joins.append("JOIN style_tags st ON st.style_id = styles.id")
+            where_clauses.append("st.tag_id = ?")
+            params.append(tag_id)
+
+        if search:
+            where_clauses.append("(styles.name LIKE ? OR styles.prompt_template LIKE ?)")
+            params.extend([f"%{search}%", f"%{search}%"])
+
+        if favorites_only:
+            where_clauses.append("styles.is_favorite = 1")
+
+        join_sql = " ".join(joins)
+        where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+
+        with self._lock:
+            query_sql = (
+                f"SELECT DISTINCT styles.* FROM styles {join_sql} {where_sql} "
+                f"ORDER BY styles.updated_at DESC"
+            )
+            cursor = self.conn.execute(query_sql, params)
+            return cursor.fetchall()
+
+    def update_style(self, style_id: str, **updates: Any) -> dict[str, Any] | None:
+        allowed = {
+            "name", "description", "prompt_template", "negative_prompt",
+            "category", "thumbnail_path",
+        }
+        filtered = {k: v for k, v in updates.items() if k in allowed}
+        if not filtered:
+            return self.get_style(style_id)
+
+        filtered["updated_at"] = int(time.time())
+        set_clause = ", ".join(f"{k} = ?" for k in filtered)
+        values = list(filtered.values()) + [style_id]
+
+        with self._lock:
+            self.conn.execute(
+                f"UPDATE styles SET {set_clause} WHERE id = ?", values
+            )
+            self.conn.commit()
+        return self.get_style(style_id)
+
+    def delete_style(self, style_id: str) -> bool:
+        with self._lock:
+            cursor = self.conn.execute(
+                "DELETE FROM styles WHERE id = ?", (style_id,)
+            )
+            self.conn.commit()
+        return cursor.rowcount > 0
+
+    def toggle_style_favorite(self, style_id: str) -> dict[str, Any] | None:
+        with self._lock:
+            self.conn.execute(
+                "UPDATE styles SET is_favorite = 1 - is_favorite, updated_at = ? WHERE id = ?",
+                (int(time.time()), style_id),
+            )
+            self.conn.commit()
+        return self.get_style(style_id)
+
+    def get_style_categories(self) -> list[str]:
+        with self._lock:
+            cursor = self.conn.execute(
+                "SELECT DISTINCT category FROM styles WHERE category IS NOT NULL ORDER BY category"
+            )
+            return [row["category"] for row in cursor.fetchall()]
+
+    # ── Style ↔ LoRA ──────────────────────────────────────────
+
+    def get_style_loras(self, style_id: str) -> list[dict[str, Any]]:
+        with self._lock:
+            cursor = self.conn.execute(
+                """SELECT sl.id, sl.style_id, sl.lora_id, sl.strength, sl.priority,
+                          l.name AS lora_name, l.path AS lora_path
+                   FROM style_loras sl
+                   JOIN loras l ON l.id = sl.lora_id
+                   WHERE sl.style_id = ?
+                   ORDER BY sl.priority""",
+                (style_id,),
+            )
+            return cursor.fetchall()
+
+    def set_style_loras(
+        self, style_id: str, loras: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """Replace all LoRA associations for a style.
+
+        Each item in ``loras`` must have ``lora_id``, ``strength``, and
+        optionally ``priority``.
+        """
+        with self._lock:
+            self.conn.execute(
+                "DELETE FROM style_loras WHERE style_id = ?", (style_id,)
+            )
+            for i, lora in enumerate(loras):
+                self.conn.execute(
+                    """INSERT INTO style_loras (style_id, lora_id, strength, priority)
+                       VALUES (?,?,?,?)""",
+                    (style_id, lora["lora_id"], lora.get("strength", 1.0),
+                     lora.get("priority", i)),
+                )
+            self.conn.commit()
+        return self.get_style_loras(style_id)
+
+    # ── Style ↔ Tag ───────────────────────────────────────────
+
+    def get_style_tags(self, style_id: str) -> list[dict[str, Any]]:
+        with self._lock:
+            cursor = self.conn.execute(
+                """SELECT tags.* FROM tags
+                   JOIN style_tags st ON st.tag_id = tags.id
+                   WHERE st.style_id = ?
+                   ORDER BY tags.name""",
+                (style_id,),
+            )
+            return cursor.fetchall()
+
+    def set_style_tags(self, style_id: str, tag_ids: list[int]) -> list[dict[str, Any]]:
+        """Replace all tag associations for a style."""
+        with self._lock:
+            self.conn.execute(
+                "DELETE FROM style_tags WHERE style_id = ?", (style_id,)
+            )
+            for tag_id in tag_ids:
+                self.conn.execute(
+                    "INSERT OR IGNORE INTO style_tags (style_id, tag_id) VALUES (?,?)",
+                    (style_id, tag_id),
+                )
+            self.conn.commit()
+        return self.get_style_tags(style_id)
+
+    def add_tag_to_style(self, style_id: str, tag_id: int) -> None:
+        with self._lock:
+            self.conn.execute(
+                "INSERT OR IGNORE INTO style_tags (style_id, tag_id) VALUES (?,?)",
+                (style_id, tag_id),
+            )
+            self.conn.commit()
+
+    def remove_tag_from_style(self, style_id: str, tag_id: int) -> None:
+        with self._lock:
+            self.conn.execute(
+                "DELETE FROM style_tags WHERE style_id = ? AND tag_id = ?",
+                (style_id, tag_id),
+            )
+            self.conn.commit()
+
+    # ── LoRAs ─────────────────────────────────────────────────
+
+    def get_loras(self) -> list[dict[str, Any]]:
+        with self._lock:
+            cursor = self.conn.execute(
+                "SELECT * FROM loras ORDER BY name"
+            )
+            return cursor.fetchall()
+
+    def get_lora(self, lora_id: str) -> dict[str, Any] | None:
+        with self._lock:
+            cursor = self.conn.execute(
+                "SELECT * FROM loras WHERE id = ?", (lora_id,)
+            )
+            row = cursor.fetchone()
+        return row if row else None
+
+    def insert_lora(
+        self,
+        *,
+        id: str,
+        name: str,
+        path: str,
+        trigger_words: str | None = None,
+        base_model: str | None = None,
+        size_bytes: int | None = None,
+        strength: float = 1.0,
+    ) -> dict[str, Any] | None:
+        now = int(time.time())
+        with self._lock:
+            self.conn.execute(
+                """INSERT INTO loras (id, name, path, trigger_words, base_model,
+                   size_bytes, strength, created_at)
+                   VALUES (?,?,?,?,?,?,?,?)""",
+                (id, name, path, trigger_words, base_model, size_bytes,
+                 strength, now),
+            )
+            self.conn.commit()
+        return self.get_lora(id)
+
     # ── Settings ─────────────────────────────────────────────────
 
     def get_setting(self, key: str) -> str | None:

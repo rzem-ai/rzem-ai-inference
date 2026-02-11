@@ -6,10 +6,11 @@ from backend.api import ApiMeta
 from backend.api.bundles import BundlesAPI
 from backend.api.gallery import GalleryAPI
 from backend.api.inference import InferenceAPI
+from backend.api.styles import StylesAPI
 from backend.api.system import SystemAPI
 
 
-class CombinedAPI(SystemAPI, InferenceAPI, BundlesAPI, GalleryAPI, metaclass=ApiMeta):
+class CombinedAPI(SystemAPI, InferenceAPI, BundlesAPI, GalleryAPI, StylesAPI, metaclass=ApiMeta):
     """Single js_api class that exposes every backend method to the frontend.
 
     pywebview accepts one ``js_api`` object per window, so we merge all
@@ -22,6 +23,7 @@ class CombinedAPI(SystemAPI, InferenceAPI, BundlesAPI, GalleryAPI, metaclass=Api
         InferenceAPI.__init__(self, inference)
         BundlesAPI.__init__(self, bundle_store)
         GalleryAPI.__init__(self, db)
+        StylesAPI.__init__(self, db)
 
     def health_check(self) -> dict:
         return {"status": "ok"}

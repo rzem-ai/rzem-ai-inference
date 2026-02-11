@@ -1,6 +1,6 @@
 -- rzem-ai-inference database schema
--- 10 tables: images, folders, image_folders, tags, image_tags,
---            styles, style_loras, loras, examples, settings
+-- 11 tables: images, folders, image_folders, tags, image_tags,
+--            styles, style_loras, style_tags, loras, examples, settings
 --
 -- PRAGMAs (WAL, foreign_keys) are set in Database.connect() before this runs.
 
@@ -90,6 +90,7 @@ CREATE TABLE IF NOT EXISTS styles (
     name                TEXT NOT NULL,
     description         TEXT,
     prompt_template     TEXT NOT NULL,
+    negative_prompt     TEXT,
     default_strength    REAL NOT NULL DEFAULT 1.0,
     strength_min        REAL NOT NULL DEFAULT 0.5,
     strength_max        REAL NOT NULL DEFAULT 1.5,
@@ -119,6 +120,19 @@ CREATE TABLE IF NOT EXISTS style_loras (
 
 CREATE INDEX IF NOT EXISTS idx_style_loras_style ON style_loras(style_id);
 CREATE INDEX IF NOT EXISTS idx_style_loras_lora  ON style_loras(lora_id);
+
+-- ── Style ↔ Tag (many-to-many) ───────────────────────────────
+
+CREATE TABLE IF NOT EXISTS style_tags (
+    style_id    TEXT NOT NULL,
+    tag_id      INTEGER NOT NULL,
+    PRIMARY KEY (style_id, tag_id),
+    FOREIGN KEY (style_id) REFERENCES styles(id) ON DELETE CASCADE,
+    FOREIGN KEY (tag_id)   REFERENCES tags(id)   ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_style_tags_style ON style_tags(style_id);
+CREATE INDEX IF NOT EXISTS idx_style_tags_tag   ON style_tags(tag_id);
 
 -- ── LoRAs ───────────────────────────────────────────────────────
 

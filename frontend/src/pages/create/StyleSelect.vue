@@ -1,43 +1,73 @@
 <template>
-  <div class="flex flex-col gap-2">
-    <div class="text-base font-medium text-slate-600">Style / LoRAs</div>
+  <div class="flex flex-col gap-1">
+    <div class="text-base font-medium text-slate-600">Style</div>
 
-    <!-- LoRA list -->
-    <div v-for="(lora, index) in store.params.loras" :key="index" class="flex flex-col gap-1 p-2 bg-slate-50 rounded">
-      <div class="flex items-center gap-1">
-        <input
-          v-model="lora.model_file"
-          placeholder="LoRA model path"
-          class="flex-1 text-xs bg-white rounded px-2 py-1.5 border border-slate-200" />
-        <button
-          class="p-1 rounded hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors"
-          @click="store.removeLora(index)">
-          <X :size="14" />
-        </button>
-      </div>
-      <div class="flex items-center gap-2">
-        <span class="text-[11px] text-slate-500 w-14">Strength</span>
-        <Slider v-model="lora.strength" :min="0" :max="2" :step="0.05" class="flex-1" />
-        <span class="text-[11px] text-slate-600 w-8 text-right tabular-nums">
-          {{ lora.strength.toFixed(2) }}
-        </span>
-      </div>
-    </div>
+    <Select
+      :model-value="inferenceStore.selectedStyleId"
+      :options="styleOptions"
+      option-label="name"
+      option-value="id"
+      placeholder="No style"
+      show-clear
+      fluid
+      @change="onStyleChange">
+      <template #option="{ option }">
+        <div class="flex items-center gap-2">
+          <Paintbrush :size="14" class="text-slate-400 shrink-0" />
+          <div class="flex-1 truncate">{{ option.name }}</div>
+          <span v-if="option.category" class="text-[10px] text-slate-400">{{ option.category }}</span>
+        </div>
+      </template>
+      <template #value="{ value, placeholder }">
+        <div v-if="selectedStyle" class="flex items-center gap-2 w-full">
+          <Paintbrush :size="14" class="text-blue-500 shrink-0" />
+          <div class="truncate grow">{{ selectedStyle.name }}</div>
+          <span v-if="selectedStyle.category" class="text-[10px] text-slate-400">{{ selectedStyle.category }}</span>
+        </div>
+        <div v-else class="text-slate-400 text-xs">{{ placeholder }}</div>
+      </template>
+    </Select>
 
-    <!-- Add button -->
-    <button
-      class="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-600 transition-colors py-1"
-      @click="store.addLora()">
-      <Plus :size="14" />
-      <span>Add LoRA</span>
-    </button>
+    <!-- Active style info -->
+    <p v-if="selectedStyle?.description" class="text-[10px] text-slate-400 px-1">
+      {{ selectedStyle.description }}
+    </p>
   </div>
 </template>
 
 <script setup lang="ts">
-import { X, Plus } from 'lucide-vue-next';
-import Slider from 'primevue/slider';
+import { computed } from 'vue';
+import { Paintbrush } from 'lucide-vue-next';
+import { Select } from 'primevue';
 import { useInferenceStore } from '@/stores/inference';
+import { useStylesStore } from '@/stores/styles';
+import { usePywebview } from '@/composables/usePywebview';
 
-const store = useInferenceStore();
+const { api } = usePywebview();
+const inferenceStore = useInferenceStore();
+const stylesStore = useStylesStore();
+
+const styleOptions = computed(() => stylesStore.styles);
+
+const selectedStyle = computed(() =>
+  stylesStore.styles.find(s => s.id === inferenceStore.selectedStyleId) ?? null
+);
+
+async function onStyleChange(e: any) {
+  const styleId = e.value;
+  if (!styleId) {
+    inferenceStore.clearStyle();
+    return;
+  }
+
+  const res = await api.value.get_style({ style_id: styleId });
+  if (res.status === 'success' && res.style) {
+    inferenceStore.applyStyle(
+      res.style.id,
+      res.style.prompt_template,
+      res.style.negative_prompt,
+      res.loras ?? [],
+    );
+  }
+}
 </script>
