@@ -1,7 +1,8 @@
 <template>
   <div class="h-full p-2">
-    <div class="h-full w-72 bg-white rounded-xl shadow-sm flex flex-col overflow-hidden border border-slate-200">
-      <div class="flex flex-col gap-3 p-3 overflow-y-auto">
+    <div class="h-full bg-white rounded-xl shadow-sm flex overflow-hidden border border-slate-200">
+      <!-- -->
+      <div class="w-120 flex flex-col h-full gap-3 p-3 overflow-y-auto">
         <!-- Search bar -->
         <div class="flex items-center gap-2 px-3 h-8 rounded-lg bg-slate-50 border border-slate-200">
           <Search :size="14" class="text-slate-400 shrink-0" />
@@ -9,13 +10,13 @@
             v-model="searchInput"
             type="text"
             placeholder="Search images..."
-            class="flex-1 bg-transparent text-sm text-slate-700 placeholder-slate-400 outline-none" />
+            class="flex-1 bg-transparent  text-slate-700 placeholder-slate-400 outline-none" />
         </div>
 
         <!-- Folders section -->
         <div class="flex flex-col gap-1">
           <div class="flex items-center justify-between px-2">
-            <span class="text-xs font-semibold text-slate-900">Folders</span>
+            <div class=" font-semibold text-slate-900">Folders</div>
             <button class="text-slate-400 hover:text-slate-600 transition-colors" @click="onCreateFolder">
               <Plus :size="14" />
             </button>
@@ -27,12 +28,12 @@
             :class="isAllActive ? 'bg-blue-50 text-blue-600' : 'hover:bg-slate-50 text-slate-700'"
             @click="onFilterAll">
             <Images :size="14" />
-            <span class="flex-1 text-sm font-medium truncate">All Images</span>
-            <span
-              class="text-xs font-medium"
+            <div class="flex-1  font-medium truncate">All Images</div>
+            <div
+              class=" font-medium"
               :class="isAllActive ? 'text-blue-500' : 'text-slate-400'">
               {{ gallery.total }}
-            </span>
+            </div>
           </button>
 
           <!-- Favorites (special item) -->
@@ -41,7 +42,7 @@
             :class="gallery.favoritesOnly ? 'bg-blue-50 text-blue-600' : 'hover:bg-slate-50 text-slate-700'"
             @click="onFilterFavorites">
             <Star :size="14" :class="gallery.favoritesOnly ? 'text-blue-500' : 'text-slate-400'" />
-            <span class="flex-1 text-sm font-medium truncate">Favorites</span>
+            <span class="flex-1  font-medium truncate">Favorites</span>
           </button>
 
           <!-- Dynamic folders -->
@@ -54,14 +55,14 @@
               : 'hover:bg-slate-50 text-slate-700'"
             @click="gallery.filterByFolder(folder.id)">
             <FolderIcon :size="14" class="text-slate-400" />
-            <span class="flex-1 text-sm font-medium truncate">{{ folder.name }}</span>
+            <span class="flex-1  font-medium truncate">{{ folder.name }}</span>
           </button>
         </div>
 
         <!-- Tags section -->
         <div class="flex flex-col gap-2">
           <div class="flex items-center justify-between px-2">
-            <span class="text-xs font-semibold text-slate-900">Tags</span>
+            <span class=" font-semibold text-slate-900">Tags</span>
             <button class="text-slate-400 hover:text-slate-600 transition-colors" @click="onCreateTag">
               <Plus :size="14" />
             </button>
@@ -70,7 +71,7 @@
             <button
               v-for="tag in gallery.tags"
               :key="tag.id"
-              class="px-2.5 py-1 rounded-full text-xs font-medium transition-all"
+              class="px-2.5 py-1 rounded-full  font-medium transition-all"
               :class="gallery.currentTagId === tag.id ? 'ring-2 ring-offset-1' : ''"
               :style="tagStyle(tag)"
               @click="onToggleTag(tag.id)">
