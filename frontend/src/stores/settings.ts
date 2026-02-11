@@ -1,0 +1,185 @@
+import { defineStore } from 'pinia';
+import type { PywebviewAPI } from '@/types/pywebview';
+import type { VramUsage, EngineStatus, CachedModel, DataPaths, DiskUsage } from '@/types/inference';
+
+let _api: PywebviewAPI | null = null;
+
+interface GpuInfo {
+  device_type: string;
+  device_name: string | null;
+  total_vram_gb: number;
+}
+
+export const useSettingsStore = defineStore('settings', {
+  state: () => ({
+    // Inference Engine
+    gpuInfo: null as GpuInfo | null,
+    cudaVersion: null as string | null,
+    vramUsage: null as VramUsage | null,
+    engineStatus: null as EngineStatus | null,
+
+    // API Keys
+    apiKeys: {} as Record<string, string | null>,
+
+    // Model Cache
+    dataPaths: null as DataPaths | null,
+    cachedModels: [] as CachedModel[],
+    cacheTotalSize: 0,
+    diskUsage: null as DiskUsage | null,
+
+    loading: false,
+  }),
+
+  getters: {
+    isEngineReady(state): boolean {
+      return state.engineStatus?.ready ?? false;
+    },
+
+    formattedUptime(state): string {
+      const secs = state.engineStatus?.uptime_seconds;
+      if (secs == null) return '--';
+      const h = Math.floor(secs / 3600);
+      const m = Math.floor((secs % 3600) / 60);
+      const s = secs % 60;
+      if (h > 0) return `${h}h ${m}m ${s}s`;
+      if (m > 0) return `${m}m ${s}s`;
+      return `${s}s`;
+    },
+  },
+
+  actions: {
+    setApi(apiRef: PywebviewAPI) {
+      _api = apiRef;
+    },
+
+    // ── Inference Engine ──
+
+    async loadGpuInfo() {
+      if (!_api) return;
+      const res = await _api.get_gpu_info();
+      if (res.status === 'success') {
+        this.gpuInfo = {
+          device_type: res.device_type ?? 'cpu',
+          device_name: res.device_name ?? null,
+          total_vram_gb: res.total_vram_gb ?? 0,
+        };
+      }
+    },
+
+    async loadCudaVersion() {
+      if (!_api) return;
+      const res = await _api.get_cuda_version();
+      if (res.status === 'success') {
+        this.cudaVersion = res.cuda_version ?? null;
+      }
+    },
+
+    async loadVramUsage() {
+      if (!_api) return;
+      const res = await _api.get_vram_usage();
+      if (res.status === 'success' && res.available) {
+        this.vramUsage = {
+          available: true,
+          allocated: res.allocated ?? 0,
+          reserved: res.reserved ?? 0,
+          free: res.free ?? 0,
+          total: res.total ?? 0,
+        };
+      }
+    },
+
+    async loadEngineStatus() {
+      if (!_api) return;
+      const res = await _api.get_engine_status();
+      if (res.status === 'success') {
+        this.engineStatus = {
+          ready: res.ready ?? false,
+          uptime_seconds: res.uptime_seconds ?? null,
+          completed_count: res.completed_count ?? 0,
+        };
+      }
+    },
+
+    async clearVramCache() {
+      if (!_api) return;
+      await _api.clear_vram_cache();
+      await this.loadVramUsage();
+    },
+
+    async resetEngine() {
+      if (!_api) return;
+      await _api.reset_engine();
+      await this.loadEngineStatus();
+      await this.loadVramUsage();
+    },
+
+    // ── API Keys ──
+
+    async loadApiKey(key: string) {
+      if (!_api) return;
+      const res = await _api.get_setting({ key });
+      if (res.status === 'success') {
+        this.apiKeys[key] = res.value ?? null;
+      }
+    },
+
+    async saveApiKey(key: string, value: string) {
+      if (!_api) return;
+      const res = await _api.set_setting({ key, value });
+      if (res.status === 'success') {
+        this.apiKeys[key] = value;
+      }
+    },
+
+    async deleteApiKey(key: string) {
+      if (!_api) return;
+      const res = await _api.set_setting({ key, value: '' });
+      if (res.status === 'success') {
+        this.apiKeys[key] = null;
+      }
+    },
+
+    // ── Model Cache ──
+
+    async loadDataPaths() {
+      if (!_api) return;
+      const res = await _api.get_data_paths();
+      if (res.status === 'success') {
+        this.dataPaths = {
+          data_dir: res.data_dir ?? '',
+          output_dir: res.output_dir ?? '',
+          hf_cache_dir: res.hf_cache_dir ?? null,
+        };
+      }
+    },
+
+    async loadCacheInfo() {
+      if (!_api) return;
+      const res = await _api.get_cache_info();
+      if (res.status === 'success') {
+        this.cachedModels = res.models ?? [];
+        this.cacheTotalSize = res.total_size ?? 0;
+      }
+    },
+
+    async deleteCachedModel(repoId: string) {
+      if (!_api) return;
+      const res = await _api.delete_cached_model({ repo_id: repoId });
+      if (res.status === 'success') {
+        this.cachedModels = this.cachedModels.filter(m => m.repo_id !== repoId);
+        await this.loadCacheInfo();
+      }
+    },
+
+    async loadDiskUsage() {
+      if (!_api) return;
+      const res = await _api.get_disk_usage();
+      if (res.status === 'success') {
+        this.diskUsage = {
+          output_size: res.output_size ?? 0,
+          hf_cache_size: res.hf_cache_size ?? 0,
+        };
+      }
+    },
+  },
+});

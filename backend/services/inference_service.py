@@ -53,6 +53,8 @@ class InferenceService:
         self._job_params: dict[str, JobParams] = {}  # job_id → params used
         self._job_start_times: dict[str, float] = {}  # job_id → monotonic start
         self._job_bundle_ids: dict[str, str] = {}  # job_id → bundle_id
+        self._start_time: float | None = None  # monotonic time engine started
+        self._completed_count: int = 0  # total jobs completed this session
 
     @property
     def ready(self) -> bool:
@@ -93,6 +95,7 @@ class InferenceService:
             vram_limit_gb=vram_limit_gb,
             preview_config=PreviewConfig(enabled=True, interval=5, max_size=256),
         )
+        self._start_time = time.monotonic()
 
         for event_type in EventType:
             self._engine.on(event_type, self._make_handler(event_type))
@@ -101,6 +104,18 @@ class InferenceService:
         if self._engine is not None:
             self._engine.shutdown()
             self._engine = None
+            self._start_time = None
+
+    def get_engine_status(self) -> dict[str, Any]:
+        """Return engine readiness, uptime, and completed job count."""
+        uptime_seconds = None
+        if self._start_time is not None:
+            uptime_seconds = int(time.monotonic() - self._start_time)
+        return {
+            "ready": self._engine is not None,
+            "uptime_seconds": uptime_seconds,
+            "completed_count": self._completed_count,
+        }
 
     def submit(self, params: JobParams, bundle_id: str | None = None) -> str:
         """Submit a generation job. Returns the job ID."""
@@ -174,6 +189,7 @@ class InferenceService:
 
         # Persist completed images to the database
         if event_type == EventType.JOB_COMPLETED and data.get("image_path"):
+            self._completed_count += 1
             self._persist_image(data)
 
         return FrontendEvent(type=event_type.value, data=data)

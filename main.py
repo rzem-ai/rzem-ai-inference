@@ -71,7 +71,7 @@ def main() -> None:
     inference = InferenceService(output_dir=config.output_dir, db=db)
     bundle_store = BundleStore(data_dir=config.data_dir)
     bundle_store.load()
-    api = CombinedAPI(service, inference, bundle_store, db)
+    api = CombinedAPI(service, inference, bundle_store, db, config)
 
     # In dev mode, start Vite before opening the window
     if config.dev_mode:

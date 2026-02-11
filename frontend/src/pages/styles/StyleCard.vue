@@ -75,12 +75,12 @@ const emit = defineEmits<{
 const { api, isReady } = usePywebview();
 const thumbnailUrl = ref<string | null>(null);
 
-watch(() => props.styleData.thumbnail_path, async (path) => {
+watch([() => props.styleData.thumbnail_path, isReady], async ([path, ready]) => {
   if (!path) {
     thumbnailUrl.value = null;
     return;
   }
-  if (!isReady.value) return;
+  if (!ready) return;
   const res = await api.value.get_image_base64({ image_path: path });
   if (res.status === 'success' && res.data_url) {
     thumbnailUrl.value = res.data_url;

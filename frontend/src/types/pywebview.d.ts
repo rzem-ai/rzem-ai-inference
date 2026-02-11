@@ -1,4 +1,4 @@
-import type { ApiResponse, InferenceEvent, ModelBundle, GalleryImage, Folder, Tag, Style, StyleLoRA, LoRA } from "./inference";
+import type { ApiResponse, InferenceEvent, ModelBundle, GalleryImage, Folder, Tag, Style, StyleLoRA, LoRA, VramUsage, EngineStatus, CachedModel, DataPaths, DiskUsage } from "./inference";
 
 export interface PywebviewAPI {
   // ── System ──
@@ -91,9 +91,20 @@ export interface PywebviewAPI {
   remove_tag_from_image(args: { image_id: string; tag_id: number }): Promise<ApiResponse>;
   get_image_tags(args: { image_id: string }): Promise<ApiResponse<{ tags?: Tag[] }>>;
 
-  // ── Settings ──
+  // ── Settings (key-value) ──
   get_setting(args: { key: string }): Promise<ApiResponse<{ value?: string | null }>>;
   set_setting(args: { key: string; value: string }): Promise<ApiResponse>;
+
+  // ── Settings pages ──
+  get_vram_usage(): Promise<ApiResponse<Partial<VramUsage>>>;
+  clear_vram_cache(): Promise<ApiResponse>;
+  get_engine_status(): Promise<ApiResponse<Partial<EngineStatus>>>;
+  get_cuda_version(): Promise<ApiResponse<{ cuda_version?: string | null }>>;
+  reset_engine(): Promise<ApiResponse>;
+  get_cache_info(): Promise<ApiResponse<{ models?: CachedModel[]; total_size?: number }>>;
+  delete_cached_model(args: { repo_id: string }): Promise<ApiResponse>;
+  get_data_paths(): Promise<ApiResponse<Partial<DataPaths>>>;
+  get_disk_usage(): Promise<ApiResponse<Partial<DiskUsage>>>;
 
   // ── Styles ──
   get_styles(args?: {
