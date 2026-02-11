@@ -13,3 +13,4 @@ frontend/dist/
 # Build artifacts
 build/
 .vite/
+.DS_Store

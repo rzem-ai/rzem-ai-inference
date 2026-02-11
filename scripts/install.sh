@@ -7,7 +7,7 @@ echo "==> Creating Python virtual environment..."
 # Use /usr/bin/python3 with --system-site-packages to access system PyGObject (gi)
 # and GTK/WebKit bindings, which pywebview requires on Linux.
 # Falls back to whatever python3 is in PATH if /usr/bin/python3 doesn't exist.
-PYTHON="${PYTHON:-$(command -v /usr/bin/python3 || command -v python3)}"
+PYTHON="${PYTHON:-$(command -v python3 || command -v /usr/bin/python3)}"
 echo "    Using: $PYTHON ($($PYTHON --version 2>&1))"
 "$PYTHON" -m venv --system-site-packages "$ROOT_DIR/.venv"
 source "$ROOT_DIR/.venv/bin/activate"
