@@ -10,9 +10,9 @@
             <WandSparkles :size="20" />
           </div>
         </RouterLink>
-        <RouterLink :to="{ name: 'about' }" class="">
+        <RouterLink :to="{ name: 'gallery' }" class="">
           <div class="p-2 border border-blue-300 rounded shadow text-surface-800">
-            <BadgeInfo :size="20" />
+            <Images :size="20" />
           </div>
         </RouterLink>
       </div>
@@ -24,5 +24,5 @@
 </template>
 
 <script setup lang="ts">
-import { BadgeInfo, CameraOff, Cog, WandSparkles } from 'lucide-vue-next';
+import { CameraOff, Cog, Images, WandSparkles } from 'lucide-vue-next';
 </script>
