@@ -7,6 +7,22 @@ let _api: PywebviewAPI | null = null;
 let _pollTimer: ReturnType<typeof setInterval> | null = null;
 let _debugImages: { output: string | null; previews: Record<string, string> } | null = null;
 
+export interface AspectRatio {
+  label: string;
+  width: number;
+  height: number;
+}
+
+export const ASPECT_RATIOS: AspectRatio[] = [
+  { label: '1:2', width: 512, height: 1024 },
+  { label: '9:16', width: 576, height: 1024 },
+  { label: '3:4', width: 768, height: 1024 },
+  { label: '1:1', width: 1024, height: 1024 },
+  { label: '4:3', width: 1024, height: 768 },
+  { label: '16:9', width: 1024, height: 576 },
+  { label: '2:1', width: 1024, height: 512 },
+];
+
 export const useInferenceStore = defineStore('inference', {
   state: () => ({
     // Engine state
@@ -27,6 +43,17 @@ export const useInferenceStore = defineStore('inference', {
     // Bundles & form params
     bundles: [] as ModelBundle[],
     selectedBundleId: null as string | null,
+
+    // GPU info
+    gpuDeviceType: null as string | null,
+    gpuDeviceName: null as string | null,
+    gpuTotalVramGb: 0,
+
+    // UI state
+    chatbotOpen: false,
+    activeAspectRatio: '1:1' as string | null,
+    advancedOpen: false,
+    devMode: false,
 
     params: {
       prompt: 'Moebiusstyle, a planet with rings, space dust, psychedelic art',
@@ -83,6 +110,20 @@ export const useInferenceStore = defineStore('inference', {
   actions: {
     setApi(apiRef: PywebviewAPI) {
       _api = apiRef;
+    },
+
+    async loadGpuInfo() {
+      if (!_api) return;
+      try {
+        const res = await _api.get_gpu_info();
+        if (res.status === 'success') {
+          this.gpuDeviceType = res.device_type ?? null;
+          this.gpuDeviceName = res.device_name ?? null;
+          this.gpuTotalVramGb = res.total_vram_gb ?? 0;
+        }
+      } catch {
+        // GPU info is non-critical — fail silently
+      }
     },
 
     async startEngine() {
@@ -189,6 +230,26 @@ export const useInferenceStore = defineStore('inference', {
 
     removeLora(index: number) {
       this.params.loras.splice(index, 1);
+    },
+
+    // ── UI toggles ──
+
+    toggleChatbot() {
+      this.chatbotOpen = !this.chatbotOpen;
+    },
+
+    setAspectRatio(label: string, width: number, height: number) {
+      this.activeAspectRatio = label;
+      this.params.width = width;
+      this.params.height = height;
+    },
+
+    toggleAdvanced() {
+      this.advancedOpen = !this.advancedOpen;
+    },
+
+    toggleDevMode() {
+      this.devMode = !this.devMode;
     },
 
     // ── Polling ──

@@ -25,6 +25,14 @@ class InferenceAPI:
     def __init__(self, inference: InferenceService) -> None:
         self._inference = inference
 
+    def get_gpu_info(self) -> dict[str, Any]:
+        """Return GPU device type, name, and total VRAM."""
+        try:
+            info = self._inference.get_gpu_info()
+            return {"status": "success", **info}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
     def start_engine(self, device: str = "auto", vram_limit_gb: float | None = None) -> dict[str, Any]:
         """Initialize the inference engine."""
         try:

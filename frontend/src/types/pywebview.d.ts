@@ -15,6 +15,11 @@ export interface PywebviewAPI {
   health_check(): Promise<{ status: string }>;
 
   // ── Inference engine ──
+  get_gpu_info(): Promise<ApiResponse<{
+    device_type?: string;
+    device_name?: string | null;
+    total_vram_gb?: number;
+  }>>;
   start_engine(args?: {
     device?: string;
     vram_limit_gb?: number;
