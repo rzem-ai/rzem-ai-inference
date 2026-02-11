@@ -241,12 +241,89 @@ export const mockApi: PywebviewAPI = {
     return { status: "success", tags: [] };
   },
 
-  // ── Settings ──
+  // ── Settings (key-value) ──
   async get_setting(_args) {
     return { status: "success", value: null };
   },
   async set_setting(_args) {
     return { status: "success" };
+  },
+
+  // ── Settings pages ──
+  async get_vram_usage() {
+    return {
+      status: "success",
+      available: true,
+      allocated: 4.2 * 1024 ** 3,
+      reserved: 6.8 * 1024 ** 3,
+      free: 17.2 * 1024 ** 3,
+      total: 24 * 1024 ** 3,
+    };
+  },
+  async clear_vram_cache() {
+    return { status: "success" };
+  },
+  async get_engine_status() {
+    return { status: "success", ready: true, uptime_seconds: 3742, completed_count: 14 };
+  },
+  async get_cuda_version() {
+    return { status: "success", cuda_version: "12.4" };
+  },
+  async reset_engine() {
+    return { status: "success" };
+  },
+  async get_cache_info() {
+    return {
+      status: "success",
+      models: [
+        {
+          repo_id: "black-forest-labs/FLUX.1-dev",
+          repo_type: "model",
+          size_on_disk: 23_800_000_000,
+          nb_files: 12,
+          revisions: [{ commit_hash: "abc123", size_on_disk: 23_800_000_000, last_modified: Date.now() / 1000 }],
+          last_accessed: Date.now() / 1000,
+          last_modified: Date.now() / 1000,
+        },
+        {
+          repo_id: "openai/clip-vit-large-patch14",
+          repo_type: "model",
+          size_on_disk: 1_700_000_000,
+          nb_files: 6,
+          revisions: [{ commit_hash: "def456", size_on_disk: 1_700_000_000, last_modified: Date.now() / 1000 }],
+          last_accessed: Date.now() / 1000,
+          last_modified: Date.now() / 1000,
+        },
+        {
+          repo_id: "google/t5-v1_1-xxl",
+          repo_type: "model",
+          size_on_disk: 11_500_000_000,
+          nb_files: 8,
+          revisions: [{ commit_hash: "ghi789", size_on_disk: 11_500_000_000, last_modified: Date.now() / 1000 }],
+          last_accessed: Date.now() / 1000,
+          last_modified: Date.now() / 1000,
+        },
+      ],
+      total_size: 37_000_000_000,
+    };
+  },
+  async delete_cached_model(_args) {
+    return { status: "success" };
+  },
+  async get_data_paths() {
+    return {
+      status: "success",
+      data_dir: "/home/user/.rzem-ai",
+      output_dir: "/home/user/.rzem-ai/output",
+      hf_cache_dir: "/home/user/.cache/huggingface/hub",
+    };
+  },
+  async get_disk_usage() {
+    return {
+      status: "success",
+      output_size: 2_400_000_000,
+      hf_cache_size: 37_000_000_000,
+    };
   },
 
   // ── Styles ──

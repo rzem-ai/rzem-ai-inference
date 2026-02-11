@@ -23,7 +23,9 @@
       </div>
     </div>
     <div class="flex items-center justify-center h-20 shrink">
-      <div class="p-2 text-surface-600"><Cog :size="30" /></div>
+      <RouterLink :to="{ name: 'settings' }">
+        <div class="p-2 text-surface-600 hover:text-surface-800 transition-colors"><Cog :size="30" /></div>
+      </RouterLink>
     </div>
   </div>
 </template>

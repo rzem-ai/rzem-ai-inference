@@ -165,3 +165,46 @@ export interface LoRA {
   created_at: number;
   metadata: string | null;
 }
+
+// ── Settings types ──
+
+export interface VramUsage {
+  available: boolean;
+  allocated: number;
+  reserved: number;
+  free: number;
+  total: number;
+}
+
+export interface EngineStatus {
+  ready: boolean;
+  uptime_seconds: number | null;
+  completed_count: number;
+}
+
+export interface CachedModelRevision {
+  commit_hash: string;
+  size_on_disk: number;
+  last_modified: number;
+}
+
+export interface CachedModel {
+  repo_id: string;
+  repo_type: string;
+  size_on_disk: number;
+  nb_files: number;
+  revisions: CachedModelRevision[];
+  last_accessed: number;
+  last_modified: number;
+}
+
+export interface DataPaths {
+  data_dir: string;
+  output_dir: string;
+  hf_cache_dir: string | null;
+}
+
+export interface DiskUsage {
+  output_size: number;
+  hf_cache_size: number;
+}

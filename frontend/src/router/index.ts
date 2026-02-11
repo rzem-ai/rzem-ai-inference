@@ -48,6 +48,35 @@ const router = createRouter({
         },
       ],
     },
+    {
+      path: '/settings',
+      components: {
+        default: () => import('@/pages/settings/Main.vue'),
+        menu: () => import('@/pages/settings/Menu.vue'),
+      },
+      children: [
+        {
+          path: '',
+          name: 'settings',
+          redirect: { name: 'settings-engine' },
+        },
+        {
+          path: 'engine',
+          name: 'settings-engine',
+          component: () => import('@/pages/settings/InferenceEngine.vue'),
+        },
+        {
+          path: 'api-keys',
+          name: 'settings-api-keys',
+          component: () => import('@/pages/settings/ApiKeys.vue'),
+        },
+        {
+          path: 'cache',
+          name: 'settings-cache',
+          component: () => import('@/pages/settings/ModelCache.vue'),
+        },
+      ],
+    },
   ],
 });
 
