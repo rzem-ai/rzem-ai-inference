@@ -2,24 +2,11 @@
   <div v-if="showSidebar" class="h-full p-2">
     <div class="h-full bg-white rounded-xl shadow-sm flex flex-col overflow-hidden border border-slate-200">
       <!-- -->
-      <div class="w-120 flex flex-col gap-3 p-3 overflow-y-auto h-full">
-        <!-- Search bar -->
-        <div class="flex items-center gap-2 px-3 h-8 rounded-lg bg-slate-50 border border-slate-200">
-          <Search :size="14" class="text-slate-400 shrink-0" />
-          <input
-            v-model="searchInput"
-            type="text"
-            placeholder="Search styles..."
-            class="flex-1 bg-transparent text-slate-700 placeholder-slate-400 outline-none" />
-        </div>
-
+      <div class="w-120 flex flex-col gap-3 p-3 overflow-y-auto">
         <!-- Collections section -->
         <div class="flex flex-col gap-1">
-          <div class="flex items-center justify-between px-2">
-            <div class="font-semibold text-slate-900">Collections</div>
-            <button class="text-slate-400 hover:text-slate-600 transition-colors">
-              <Plus :size="14" />
-            </button>
+          <div class="flex items-center justify-between px-2 h-8">
+            <div class="font-medium text-slate-900">Collections</div>
           </div>
 
           <!-- All Styles -->
@@ -84,6 +71,7 @@ import { useRoute } from 'vue-router';
 import { Search, Palette, Plus, Star, Folder as FolderIcon } from 'lucide-vue-next';
 import { useStylesStore } from '@/stores/styles';
 import type { Tag } from '@/types/inference';
+import { InputText, InputGroup, InputGroupAddon } from 'primevue';
 
 const route = useRoute();
 const stylesStore = useStylesStore();

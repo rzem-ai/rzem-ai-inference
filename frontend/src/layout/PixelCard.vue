@@ -2,7 +2,7 @@
   <div
     ref="containerRef"
     :class="[
-      'h-14 w-14 relative overflow-hidden grid place-items-center bg-surface-800 border border-[#27272a] rounded isolate transition-colors duration-200 ease-[cubic-bezier(0.5,1,0.89,1)] select-none',
+      'h-14 w-14 relative overflow-hidden grid place-items-center bg-surface-700 border border-blue-400 rounded-xl isolate transition-colors duration-200 ease-[cubic-bezier(0.5,1,0.89,1)] select-none',
       className,
     ]">
     <canvas class="w-full h-full block" ref="canvasRef" />
