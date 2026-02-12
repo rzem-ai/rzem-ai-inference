@@ -1,5 +1,5 @@
 import type { Preset } from '@primeuix/themes/types';
-import type { GlassBaseDesignTokens } from './base/index.d';
+import type { GlassBaseDesignTokens } from './base';
 
 import accordion from './accordion';
 import autocomplete from './autocomplete';
