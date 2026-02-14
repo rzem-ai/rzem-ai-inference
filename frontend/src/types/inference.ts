@@ -78,6 +78,8 @@ export interface GeneratedImage {
   dataUrl?: string;
   seed: number;
   timestamp: number;
+  width?: number;
+  height?: number;
 }
 
 // ── Gallery types (matching database schema) ──

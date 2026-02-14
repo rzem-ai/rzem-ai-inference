@@ -6,7 +6,7 @@
       <!-- Steps -->
       <div class="flex flex-col gap-2">
         <div class="flex justify-between items-center">
-          <span class="text-base text-slate-600">Steps</span>
+          <span class="text-sm font-medium text-slate-600">Steps</span>
           <span class="text-base font-semibold text-slate-500 tabular-nums">{{ store.params.steps }}</span>
         </div>
         <Slider v-model="store.params.steps" :min="1" :max="50" />
@@ -15,7 +15,7 @@
       <!-- Prompt Adherence (CFG) -->
       <div class="flex flex-col gap-2">
         <div class="flex justify-between items-center">
-          <span class="text-base text-slate-600">Prompt Adherence</span>
+          <span class="text-sm font-medium text-slate-600">Prompt Adherence</span>
           <span class="text-base font-semibold text-slate-500 tabular-nums">{{ store.params.cfg_scale.toFixed(1) }}</span>
         </div>
         <Slider :model-value="cfgToInt" @update:model-value="onCfgChange" :min="0" :max="200" />

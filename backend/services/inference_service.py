@@ -187,6 +187,14 @@ class InferenceService:
                 else:
                     data[key] = val
 
+        # Enrich progress/completed events with job dimensions
+        if event_type in (EventType.JOB_PROGRESS, EventType.JOB_COMPLETED):
+            job_id = data.get("job_id")
+            params = self._job_params.get(job_id) if job_id else None
+            if params:
+                data["width"] = params.width
+                data["height"] = params.height
+
         # Persist completed images to the database
         if event_type == EventType.JOB_COMPLETED and data.get("image_path"):
             self._completed_count += 1

@@ -1,22 +1,16 @@
 <template>
-  <div
-    class="flex flex-col h-full"
-    @dragover.prevent="isDragging = true"
-    @dragleave.self="isDragging = false"
-    @drop.prevent="onDrop">
-
+  <div class="flex flex-col h-full" @dragover.prevent="isDragging = true" @dragleave.self="isDragging = false" @drop.prevent="onDrop">
     <!-- Header -->
-    <div class="flex items-center justify-between px-3 py-2 border-b border-slate-100">
-      <div class="flex items-center gap-2">
-        <Bot :size="14" class="text-blue-500" />
-        <span class="text-xs font-semibold text-slate-700">AI Assistant</span>
+    <div class="h-16 px-4 w-full content-end">
+      <div class="flex items-center justify-between w-full border-b border-surface-300 pb-2">
+        <div class="flex items-center gap-x-2">
+          <Bot :size="14" class="text-blue-500" />
+          <span class="text-base font-semibold text-slate-700">AI Assistant</span>
+        </div>
+        <Button class="transition-colors" title="New Chat" text @click="onNewChat">
+          <MessageCirclePlus :size="16" />
+        </Button>
       </div>
-      <button
-        class="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
-        title="New Chat"
-        @click="onNewChat">
-        <Plus :size="14" />
-      </button>
     </div>
 
     <!-- Not configured state -->
@@ -65,14 +59,11 @@
             <div class="max-w-[85%]">
               <!-- Image thumbnails -->
               <div v-if="msg.image_paths" class="flex gap-1 mb-1 justify-end">
-                <div
-                  v-for="(_, i) in parsePaths(msg.image_paths)"
-                  :key="i"
-                  class="w-10 h-10 rounded bg-slate-200 flex items-center justify-center">
+                <div v-for="(_, i) in parsePaths(msg.image_paths)" :key="i" class="w-10 h-10 rounded bg-slate-200 flex items-center justify-center">
                   <ImageIcon :size="12" class="text-slate-400" />
                 </div>
               </div>
-              <div class="bg-blue-500 rounded-lg px-3 py-2 text-xs text-white leading-relaxed">
+              <div class="bg-blue-500 rounded-lg px-3 py-2 text-base text-white leading-relaxed">
                 {{ msg.content }}
               </div>
             </div>
@@ -89,13 +80,13 @@
                 <span
                   v-for="(tool, i) in parseToolCalls(msg.tool_calls)"
                   :key="i"
-                  class="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-600 font-medium">
+                  class="text-lg px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-600 font-medium">
                   {{ formatToolName(tool.name, tool.input) }}
                 </span>
               </div>
               <div
                 v-if="msg.content"
-                class="bg-slate-50 rounded-lg px-3 py-2 text-xs text-slate-700 leading-relaxed prose-chat"
+                class="bg-slate-50 rounded-lg px-3 py-2 text-sm text-slate-700 leading-relaxed prose-chat"
                 v-html="renderMarkdown(msg.content)" />
             </div>
           </div>
@@ -106,7 +97,7 @@
           <div class="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center shrink-0 mt-0.5">
             <Bot :size="14" class="text-white" />
           </div>
-          <div v-if="chatStore.streamingText" class="bg-slate-50 rounded-lg px-3 py-2 text-xs text-slate-700 leading-relaxed prose-chat">
+          <div v-if="chatStore.streamingText" class="bg-slate-50 rounded-lg px-3 py-2 text-base text-slate-700 leading-relaxed prose-chat">
             <span v-html="renderMarkdown(chatStore.streamingText)" />
             <span class="inline-block w-1.5 h-3 bg-blue-500 ml-0.5 animate-pulse rounded-sm" />
           </div>
@@ -141,36 +132,33 @@
       <div
         v-if="isDragging"
         class="absolute inset-0 bg-blue-500/10 border-2 border-dashed border-blue-400 rounded-xl flex items-center justify-center z-10 pointer-events-none">
-        <span class="text-xs font-medium text-blue-600">Drop image here</span>
+        <span class="text-base font-medium text-blue-600">Drop image here</span>
       </div>
 
       <!-- Chat input -->
-      <div class="px-3 py-2 border-t border-slate-100">
-        <div class="flex gap-1.5">
-          <input
-            v-model="chatInput"
-            type="text"
-            placeholder="Ask for prompt help..."
-            class="flex-1 text-xs bg-slate-100 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-300"
-            :disabled="chatStore.isStreaming"
-            @keydown.enter="onSend" />
-          <button
-            class="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50"
-            :disabled="!chatInput.trim() || chatStore.isStreaming"
-            @click="onSend">
+      <div class="px-4 py-3 border-t border-slate-200 min-h-16 bg-surface-100">
+        <InputGroup>
+          <InputText v-model="chatInput" placeholder="Ask for prompt help..." @keydown.enter="onSend" />
+          <InputGroupAddon
+            @click="onSend"
+            :disabled="!isSendMessageEnabled"
+            class="text-base bg-blue-400 text-surface-50"
+            :class="isSendMessageEnabled ? 'cursor-pointer hover:bg-blue-500 hover:text-white' : 'cursor-not-allowed'">
             <SendHorizontal :size="14" />
-          </button>
-        </div>
+          </InputGroupAddon>
+        </InputGroup>
       </div>
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue';
-import { Bot, SendHorizontal, Plus, KeyRound, X, Image as ImageIcon } from 'lucide-vue-next';
+import { computed, ref, watch, nextTick } from 'vue';
+import { Bot, SendHorizontal, Plus, KeyRound, X, Image as ImageIcon, MessageCirclePlus, Divide } from 'lucide-vue-next';
 import { marked } from 'marked';
 import { useChatStore } from '@/stores/chat';
+import { Button, Divider } from 'primevue';
+import { InputGroup, InputGroupAddon, InputNumber, InputNumberInputEvent, InputText } from 'primevue';
 
 const chatStore = useChatStore();
 const chatInput = ref('');
@@ -180,18 +168,30 @@ const messagesContainer = ref<HTMLElement | null>(null);
 
 const suggestionChips = ['Improve my prompt', 'Suggest lighting', 'Art style ideas', 'More detail'];
 
+const isSendMessageEnabled = computed(() => {
+  return !(!chatInput.value.trim() || chatStore.isStreaming);
+});
+
 function renderMarkdown(text: string): string {
   return marked.parse(text, { breaks: true, async: false }) as string;
 }
 
 function parsePaths(json: string | null): string[] {
   if (!json) return [];
-  try { return JSON.parse(json); } catch { return []; }
+  try {
+    return JSON.parse(json);
+  } catch {
+    return [];
+  }
 }
 
 function parseToolCalls(json: string | null): Array<{ name: string; input: Record<string, any> }> {
   if (!json) return [];
-  try { return JSON.parse(json); } catch { return []; }
+  try {
+    return JSON.parse(json);
+  } catch {
+    return [];
+  }
 }
 
 function formatToolName(name: string, input: Record<string, any>): string {
@@ -238,21 +238,28 @@ function scrollToBottom() {
 }
 
 // Auto-scroll when streaming text changes
-watch(() => chatStore.streamingText, () => {
-  nextTick(scrollToBottom);
-});
+watch(
+  () => chatStore.streamingText,
+  () => {
+    nextTick(scrollToBottom);
+  },
+);
 
 // Auto-scroll when new messages arrive
-watch(() => chatStore.messages.length, () => {
-  nextTick(scrollToBottom);
-});
+watch(
+  () => chatStore.messages.length,
+  () => {
+    nextTick(scrollToBottom);
+  },
+);
 </script>
 
 <style scoped>
 .prose-chat :deep(p) {
   margin: 0.25em 0;
 }
-.prose-chat :deep(ul), .prose-chat :deep(ol) {
+.prose-chat :deep(ul),
+.prose-chat :deep(ol) {
   margin: 0.25em 0;
   padding-left: 1.25em;
 }
@@ -263,7 +270,7 @@ watch(() => chatStore.messages.length, () => {
   font-weight: 600;
 }
 .prose-chat :deep(code) {
-  font-size: 0.65rem;
+  font-size: 1rem;
   background: #e2e8f0;
   padding: 0.1em 0.3em;
   border-radius: 0.25em;

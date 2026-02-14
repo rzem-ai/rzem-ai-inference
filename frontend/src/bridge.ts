@@ -425,6 +425,14 @@ export const mockApi: PywebviewAPI = {
     return { status: "success", path: null };
   },
 
+  // ── Batch ──
+  async batch_parse_data(_args) {
+    return { status: "success", columns: [], rows: [] };
+  },
+  async batch_render_template(_args) {
+    return { status: "success", rendered: [], errors: [] };
+  },
+
   // ── Chat ──
   async chat_is_configured() {
     return { status: "success", configured: false };

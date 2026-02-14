@@ -3,7 +3,7 @@ import type { ButtonDesignTokens, ButtonTokenSections } from '@primeuix/themes/t
 export const root: ButtonTokenSections.Root = {
     borderRadius: '{form.field.border.radius}',
     roundedBorderRadius: '2rem',
-    gap: '0.5rem',
+    gap: '0.2rem',
     paddingX: '{form.field.padding.x}',
     paddingY: '{form.field.padding.y}',
     iconOnlyWidth: '2.5rem',

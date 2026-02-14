@@ -33,7 +33,7 @@ export const useInferenceStore = defineStore('inference', {
     // Job state
     currentJobId: null as string | null,
     isGenerating: false,
-    progress: null as { step: number; totalSteps: number } | null,
+    progress: null as { step: number; totalSteps: number, aspectRatio: string } | null,
     error: null as string | null,
 
     // Results
@@ -78,6 +78,12 @@ export const useInferenceStore = defineStore('inference', {
       scheduler: 'simple',
       loras: [] as LoraParam[],
     } as SubmitJobParams,
+
+    // Batch state
+    batchActive: false,
+    batchTotal: 0,
+    batchCompleted: 0,
+    batchJobIds: [] as string[],
 
     // Event log (for debugging)
     events: [] as InferenceEvent[],
@@ -229,17 +235,76 @@ export const useInferenceStore = defineStore('inference', {
 
     async cancelJob() {
       if (!_api || !this.currentJobId) return;
+      if (this.batchActive) {
+        return this.cancelBatch();
+      }
       await _api.cancel_job({ job_id: this.currentJobId });
       this.isGenerating = false;
       this.currentJobId = null;
       this.progress = null;
     },
 
+    // ── Batch ──
+
+    async submitBatch(prompts: string[]) {
+      if (!_api || !this.engineReady || this.isGenerating) return;
+      if (!prompts.length) return;
+
+      this.error = null;
+      this.batchActive = true;
+      this.batchTotal = prompts.length;
+      this.batchCompleted = 0;
+      this.batchJobIds = [];
+      this.isGenerating = true;
+
+      // Freeze seed: use current seed or generate a random one
+      const frozenSeed = this.params.seed >= 0 ? this.params.seed : Math.floor(Math.random() * 2147483647);
+
+      for (const prompt of prompts) {
+        const jobParams: Record<string, any> = { ...this.params, prompt, seed: frozenSeed };
+        if (this.selectedBundleId) {
+          jobParams.bundle_id = this.selectedBundleId;
+        }
+        if (this.stylePromptTemplate) {
+          jobParams.prompt = this.stylePromptTemplate.replace('{prompt}', prompt);
+        }
+        if (this.styleNegativePrompt) {
+          jobParams.negative_prompt = this.styleNegativePrompt;
+        }
+
+        for (const key of Object.keys(jobParams)) {
+          if (jobParams[key] === undefined || jobParams[key] === '') {
+            delete jobParams[key];
+          }
+        }
+
+        const res = await _api.submit_job(jobParams);
+        if (res.status === 'success' && res.job_id) {
+          this.batchJobIds.push(res.job_id);
+        }
+      }
+    },
+
+    async cancelBatch() {
+      if (!_api) return;
+      for (const jobId of this.batchJobIds) {
+        await _api.cancel_job({ job_id: jobId });
+      }
+      this.batchActive = false;
+      this.batchJobIds = [];
+      this.batchTotal = 0;
+      this.batchCompleted = 0;
+      this.isGenerating = false;
+      this.currentJobId = null;
+      this.progress = null;
+      this.previewDataUrl = null;
+    },
+
     applyStyle(styleId: string, promptTemplate: string, negativePrompt: string | null, loras: StyleLoRA[]) {
       this.selectedStyleId = styleId;
       this.stylePromptTemplate = promptTemplate;
       this.styleNegativePrompt = negativePrompt;
-      this.params.loras = loras.map(l => ({
+      this.params.loras = loras.map((l) => ({
         model_file: l.lora_path,
         strength: l.strength,
       }));
@@ -330,7 +395,9 @@ export const useInferenceStore = defineStore('inference', {
 
           case 'job_started':
             console.log('job_started:', event.data);
-            this.progress = { step: 0, totalSteps: this.params.steps };
+            this.currentJobId = event.data.job_id ?? this.currentJobId;
+            this.isGenerating = true;
+            this.progress = { step: 0, totalSteps: this.params.steps, aspectRatio: '1/1' };
             break;
 
           case 'job_progress':
@@ -338,6 +405,7 @@ export const useInferenceStore = defineStore('inference', {
             this.progress = {
               step: event.data.step ?? 0,
               totalSteps: event.data.total_steps ?? this.params.steps,
+              aspectRatio: `${event.data.width}/${event.data.height}`,
             };
             if (event.data.preview_path) {
               this.loadImageDataUrl(event.data.preview_path);
@@ -345,8 +413,6 @@ export const useInferenceStore = defineStore('inference', {
             break;
 
           case 'job_completed': {
-            this.isGenerating = false;
-            this.currentJobId = null;
             this.progress = null;
             this.previewDataUrl = null;
             const img: GeneratedImage = {
@@ -354,6 +420,8 @@ export const useInferenceStore = defineStore('inference', {
               imagePath: event.data.image_path ?? '',
               seed: event.data.seed ?? -1,
               timestamp: event.data.timestamp ?? Date.now() / 1000,
+              width: event.data.width,
+              height: event.data.height,
             };
             if (img.imagePath && _api) {
               const imgRes = await _api.get_image_base64({
@@ -364,22 +432,54 @@ export const useInferenceStore = defineStore('inference', {
               }
             }
             this.generatedImages.unshift(img);
+
+            if (this.batchActive) {
+              this.batchCompleted++;
+              if (this.batchCompleted >= this.batchTotal) {
+                this.batchActive = false;
+                this.isGenerating = false;
+                this.currentJobId = null;
+              }
+            } else {
+              this.isGenerating = false;
+              this.currentJobId = null;
+            }
             break;
           }
 
           case 'job_failed':
-            this.isGenerating = false;
-            this.currentJobId = null;
             this.progress = null;
             this.previewDataUrl = null;
             this.error = event.data.error ?? 'Generation failed';
+
+            if (this.batchActive) {
+              this.batchCompleted++;
+              if (this.batchCompleted >= this.batchTotal) {
+                this.batchActive = false;
+                this.isGenerating = false;
+                this.currentJobId = null;
+              }
+            } else {
+              this.isGenerating = false;
+              this.currentJobId = null;
+            }
             break;
 
           case 'job_cancelled':
-            this.isGenerating = false;
-            this.currentJobId = null;
             this.progress = null;
             this.previewDataUrl = null;
+
+            if (this.batchActive) {
+              this.batchCompleted++;
+              if (this.batchCompleted >= this.batchTotal) {
+                this.batchActive = false;
+                this.isGenerating = false;
+                this.currentJobId = null;
+              }
+            } else {
+              this.isGenerating = false;
+              this.currentJobId = null;
+            }
             break;
 
           default:
@@ -412,8 +512,11 @@ export const useInferenceStore = defineStore('inference', {
       const previews = _debugImages?.previews ?? {};
       const output = _debugImages?.output ?? undefined;
 
+      console.log('previews:', previews)
+
       // Helper: find the best preview for a given step
       function previewForStep(step: number): string | undefined {
+        console.log('previewForStep:', step, previews[String(step)])
         return previews[String(step)];
       }
 
@@ -423,15 +526,42 @@ export const useInferenceStore = defineStore('inference', {
         model_unloaded: { type: 'model_unloaded', data: {} },
         job_queued: { type: 'job_queued', data: { job_id: 'debug-001' } },
         job_started: { type: 'job_started', data: { job_id: 'debug-001' } },
-        job_progress: { type: 'job_progress', data: { job_id: 'debug-001', step: 12, total_steps: 28, preview_path: previewForStep(10) } },
-        job_progress_0: { type: 'job_progress', data: { job_id: 'debug-001', step: 0, total_steps: 28, preview_path: previewForStep(0) } },
-        job_progress_5: { type: 'job_progress', data: { job_id: 'debug-001', step: 5, total_steps: 28, preview_path: previewForStep(5) } },
-        job_progress_10: { type: 'job_progress', data: { job_id: 'debug-001', step: 10, total_steps: 28, preview_path: previewForStep(10) } },
-        job_progress_15: { type: 'job_progress', data: { job_id: 'debug-001', step: 15, total_steps: 28, preview_path: previewForStep(15) } },
-        job_progress_20: { type: 'job_progress', data: { job_id: 'debug-001', step: 20, total_steps: 28, preview_path: previewForStep(20) } },
-        job_progress_25: { type: 'job_progress', data: { job_id: 'debug-001', step: 25, total_steps: 28, preview_path: previewForStep(25) } },
-        job_progress_28: { type: 'job_progress', data: { job_id: 'debug-001', step: 28, total_steps: 28, preview_path: previewForStep(28) } },
-        job_completed: { type: 'job_completed', data: { job_id: 'debug-001', seed: 42, timestamp: Date.now() / 1000, image_path: output } },
+        job_progress: {
+          type: 'job_progress',
+          data: { job_id: 'debug-001', step: 12, total_steps: 28, width: this.params.width, height: this.params.height, preview_path: previewForStep(10) },
+        },
+        job_progress_0: {
+          type: 'job_progress',
+          data: { job_id: 'debug-001', step: 0, total_steps: 28, width: this.params.width, height: this.params.height, preview_path: previewForStep(0) },
+        },
+        job_progress_5: {
+          type: 'job_progress',
+          data: { job_id: 'debug-001', step: 5, total_steps: 28, width: this.params.width, height: this.params.height, preview_path: previewForStep(5) },
+        },
+        job_progress_10: {
+          type: 'job_progress',
+          data: { job_id: 'debug-001', step: 10, total_steps: 28, width: this.params.width, height: this.params.height, preview_path: previewForStep(10) },
+        },
+        job_progress_15: {
+          type: 'job_progress',
+          data: { job_id: 'debug-001', step: 15, total_steps: 28, width: this.params.width, height: this.params.height, preview_path: previewForStep(15) },
+        },
+        job_progress_20: {
+          type: 'job_progress',
+          data: { job_id: 'debug-001', step: 20, total_steps: 28, width: this.params.width, height: this.params.height, preview_path: previewForStep(20) },
+        },
+        job_progress_25: {
+          type: 'job_progress',
+          data: { job_id: 'debug-001', step: 25, total_steps: 28, width: this.params.width, height: this.params.height, preview_path: previewForStep(25) },
+        },
+        job_progress_28: {
+          type: 'job_progress',
+          data: { job_id: 'debug-001', step: 28, total_steps: 28, width: this.params.width, height: this.params.height, preview_path: previewForStep(28) },
+        },
+        job_completed: {
+          type: 'job_completed',
+          data: { job_id: 'debug-001', seed: 42, timestamp: Date.now() / 1000, width: this.params.width, height: this.params.height, image_path: output },
+        },
         job_failed: { type: 'job_failed', data: { job_id: 'debug-001', error: 'CUDA out of memory. Tried to allocate 2.00 GiB' } },
         job_cancelled: { type: 'job_cancelled', data: { job_id: 'debug-001' } },
       };

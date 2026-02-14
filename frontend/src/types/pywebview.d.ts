@@ -150,6 +150,19 @@ export interface PywebviewAPI {
   browse_lora_files(): Promise<ApiResponse<{ loras?: LoRA[] }>>;
   browse_image_file(): Promise<ApiResponse<{ path?: string | null }>>;
 
+  // ── Batch ──
+  batch_parse_data(args: { content: string }): Promise<ApiResponse<{
+    columns?: string[];
+    rows?: Record<string, string>[];
+  }>>;
+  batch_render_template(args: {
+    template: string;
+    rows: Record<string, string>[];
+  }): Promise<ApiResponse<{
+    rendered?: string[];
+    errors?: Array<{ row: number; error: string }>;
+  }>>;
+
   // ── Chat ──
   chat_is_configured(): Promise<ApiResponse<{ configured?: boolean }>>;
   chat_set_api_key(args: { api_key: string }): Promise<ApiResponse>;

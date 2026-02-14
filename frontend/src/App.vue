@@ -14,7 +14,7 @@
 </template>
 
 <script setup lang="ts">
-import NavBar from './layout/NavBar.vue';
+import NavBar from '@/components/NavBar.vue';
 import { useInferenceStore } from '@/stores/inference';
 
 const store = useInferenceStore();

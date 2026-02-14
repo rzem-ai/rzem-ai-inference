@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from backend.api import ApiMeta
+from backend.api.batch import BatchAPI
 from backend.api.bundles import BundlesAPI
 from backend.api.chat import ChatAPI
 from backend.api.gallery import GalleryAPI
@@ -12,7 +13,7 @@ from backend.api.styles import StylesAPI
 from backend.api.system import SystemAPI
 
 
-class CombinedAPI(SystemAPI, InferenceAPI, BundlesAPI, GalleryAPI, StylesAPI, SettingsAPI, ChatAPI, metaclass=ApiMeta):
+class CombinedAPI(SystemAPI, InferenceAPI, BundlesAPI, GalleryAPI, StylesAPI, SettingsAPI, ChatAPI, BatchAPI, metaclass=ApiMeta):
     """Single js_api class that exposes every backend method to the frontend.
 
     pywebview accepts one ``js_api`` object per window, so we merge all

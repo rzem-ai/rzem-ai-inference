@@ -2,11 +2,11 @@
   <div class="flex flex-col gap-4 p-4 overflow-y-auto">
     <!-- Cache Locations -->
     <div>
-      <h2 class="text-sm font-semibold text-slate-900 mb-3">Cache Locations</h2>
+      <div class="text-lg font-semibold text-slate-900 mb-3">Cache Locations</div>
       <div class="grid grid-cols-2 gap-3">
         <div class="bg-white rounded-xl border border-slate-200 p-4">
-          <div class="text-xs font-medium text-slate-500 mb-1">HuggingFace Cache</div>
-          <div class="text-sm font-mono text-slate-700 truncate" :title="settingsStore.dataPaths?.hf_cache_dir ?? ''">
+          <div class="text-base font-medium text-slate-500 mb-1">HuggingFace Cache</div>
+          <div class="text-base font-mono text-slate-700 truncate" :title="settingsStore.dataPaths?.hf_cache_dir ?? ''">
             {{ settingsStore.dataPaths?.hf_cache_dir ?? 'Unknown' }}
           </div>
           <div v-if="settingsStore.diskUsage" class="text-xs text-slate-400 mt-1">
@@ -14,8 +14,8 @@
           </div>
         </div>
         <div class="bg-white rounded-xl border border-slate-200 p-4">
-          <div class="text-xs font-medium text-slate-500 mb-1">Model Output</div>
-          <div class="text-sm font-mono text-slate-700 truncate" :title="settingsStore.dataPaths?.output_dir ?? ''">
+          <div class="text-base font-medium text-slate-500 mb-1">Model Output</div>
+          <div class="text-base font-mono text-slate-700 truncate" :title="settingsStore.dataPaths?.output_dir ?? ''">
             {{ settingsStore.dataPaths?.output_dir ?? 'Unknown' }}
           </div>
           <div v-if="settingsStore.diskUsage" class="text-xs text-slate-400 mt-1">
@@ -28,16 +28,16 @@
     <!-- Cached Models -->
     <div>
       <div class="flex items-center justify-between mb-3">
-        <h2 class="text-sm font-semibold text-slate-900">Cached Models</h2>
+        <div class="text-lg font-semibold text-slate-900">Cached Models</div>
         <button
-          class="text-xs text-blue-600 hover:text-blue-700 font-medium"
+          class="text-base text-blue-600 hover:text-blue-700 font-medium"
           @click="refreshCache">
           Refresh
         </button>
       </div>
 
       <div v-if="settingsStore.cachedModels.length === 0" class="bg-white rounded-xl border border-slate-200 p-6 text-center">
-        <p class="text-sm text-slate-500">No cached models found</p>
+        <p class="text-base text-slate-500">No cached models found</p>
       </div>
 
       <div v-else class="flex flex-col gap-2">
@@ -48,9 +48,9 @@
           <div class="flex-1 min-w-0">
             <div class="text-sm font-medium text-slate-900 truncate">{{ model.repo_id }}</div>
             <div class="flex items-center gap-3 mt-1">
-              <span class="text-xs text-slate-500">{{ formatBytes(model.size_on_disk) }}</span>
-              <span class="text-xs text-slate-400">{{ model.nb_files }} files</span>
-              <span class="text-xs text-slate-400">{{ model.revisions.length }} revision{{ model.revisions.length !== 1 ? 's' : '' }}</span>
+              <span class="text-base text-slate-500">{{ formatBytes(model.size_on_disk) }}</span>
+              <span class="text-base text-slate-400">{{ model.nb_files }} files</span>
+              <span class="text-base text-slate-400">{{ model.revisions.length }} revision{{ model.revisions.length !== 1 ? 's' : '' }}</span>
             </div>
           </div>
           <button
@@ -64,8 +64,8 @@
         <!-- Total usage bar -->
         <div class="bg-white rounded-xl border border-slate-200 p-4 mt-1">
           <div class="flex items-center justify-between mb-2">
-            <span class="text-xs font-medium text-slate-500">Total Cache Size</span>
-            <span class="text-sm font-semibold text-slate-900">{{ formatBytes(settingsStore.cacheTotalSize) }}</span>
+            <span class="text-base font-medium text-slate-500">Total Cache Size</span>
+            <span class="text-base font-semibold text-slate-900">{{ formatBytes(settingsStore.cacheTotalSize) }}</span>
           </div>
           <div class="h-2 rounded-full bg-slate-100 overflow-hidden">
             <div

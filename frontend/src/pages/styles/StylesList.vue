@@ -3,40 +3,61 @@
     <!-- Toolbar -->
     <Toolbar>
       <template #start>
-        <Button severity="primary" size="small"><Plus :size="14" />New Style</Button>
+        <Button severity="primary" @click="router.push({ name: 'styles-new' })"><Plus :size="14" />New Style</Button>
+
         <Divider layout="vertical" />
-        <ToggleButton v-model="selectionMode" onLabel="Select" offLabel="Select" size="small">
-          <template #icon><SquareCheck v-if="selectionMode" :size="14" /> <Square v-else="selectionMode" :size="14" /></template>
-        </ToggleButton>
-        <Button :disabled="!selectedIds.size" severity="secondary" size="small" @click="onDeleteSelected" text><Trash2 :size="14" /> </Button>
+
+        <Button
+          :severity="selectionMode ? 'primary' : 'primary'"
+          :variant="selectionMode ? 'outlined' : 'outlined'"
+          :text="!selectionMode"
+          @click="toggleSelectionMode">
+          <ListTodo :size="18" />
+        </Button>
+
+        <!-- Batch actions -->
+        <Button
+          title="Delete"
+          class="transition-all"
+          :severity="selectionMode ? 'danger' : 'secondary'"
+          :variant="selectionMode && selectedIds.size > 0 ? 'outlined' : 'outlined'"
+          :text="true"
+          :disabled="!selectedIds.size"
+          @click="onDeleteSelected">
+          <Trash2 :size="18" />
+        </Button>
       </template>
 
       <template #center class="w-[50%]">
         <!-- Search bar -->
         <InputGroup>
           <InputGroupAddon> <Search :size="14" class="text-slate-400" /> </InputGroupAddon>
-          <InputText v-model="searchInput" placeholder="Search styles..." size="small" fluid />
+          <InputText v-model="searchInput" placeholder="Search styles..." fluid />
         </InputGroup>
       </template>
 
       <template #end>
-        <!-- View toggle -->
-        <Button
-          size="small"
-          text
-          class="p-1.5 rounded-md transition-colors"
-          :class="viewMode === 'grid' ? 'bg-blue-50 text-blue-600' : 'text-slate-500 hover:bg-slate-50'"
-          @click="viewMode = 'grid'">
-          <LayoutGrid :size="14" />
-        </Button>
-        <Button
-          size="small"
-          text
-          class="p-1.5 rounded-md transition-colors"
-          :class="viewMode === 'list' ? 'bg-blue-50 text-blue-600' : 'text-slate-500 hover:bg-slate-50'"
-          @click="viewMode = 'list'">
-          <ListIcon :size="14" />
-        </Button>
+        <div class="flex gap-2">
+          <!-- Sort -->
+          <Button severity="secondary">
+            <ArrowUpDown :size="14" />
+            <span>Date</span>
+            <ChevronDown :size="12" class="text-slate-400" />
+          </Button>
+          <!-- View toggle -->
+          <SelectButton
+            v-model="viewMode"
+            :options="viewModes"
+            optionLabel="value"
+            dataKey="value"
+            severity="primary"
+            variant="outlined"
+            class="transition-colors">
+            <template #option="slotProps">
+              <component :is="slotProps.option.icon" :size="14" />
+            </template>
+          </SelectButton>
+        </div>
       </template>
     </Toolbar>
 
@@ -58,7 +79,7 @@
       </div>
 
       <!-- Grid view -->
-      <div v-else class="grid gap-3 p-1" :class="viewMode === 'grid' ? 'grid-cols-[repeat(auto-fill,minmax(220px,1fr))]' : 'grid-cols-1'">
+      <div v-else class="grid gap-3 p-1" :class="isGridMode ? 'grid-cols-8' : 'grid-cols-1'">
         <StyleCard
           v-for="style in stylesStore.styles"
           :key="style.id"
@@ -78,23 +99,31 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch } from 'vue';
+import { computed, ref, reactive, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { Search, Plus, SquareCheck, Trash2, LayoutGrid, List as ListIcon, Palette, Square } from 'lucide-vue-next';
+import { Search, Plus, SquareCheck, Trash2, LayoutGrid, List as ListIcon, Palette, Square, ListTodo } from 'lucide-vue-next';
+
+import { Download, FolderInput, Tag as TagIcon, ArrowUpDown, ChevronDown, Image as ImageIcon } from 'lucide-vue-next';
 
 import { useStylesStore } from '@/stores/styles';
 import StyleCard from './StyleCard.vue';
-import { Button, Divider, ToggleButton, Toolbar } from 'primevue';
+import { Button, Divider, ToggleButton, Toolbar, SelectButton } from 'primevue';
 import { InputText, InputGroup, InputGroupAddon } from 'primevue';
 
 const router = useRouter();
 const stylesStore = useStylesStore();
 
-const searchInput = ref('');
+const GRID_VIEW = { value: 'grid', icon: LayoutGrid };
+const LIST_VIEW = { value: 'list', icon: ListIcon };
 
-const viewMode = ref<'grid' | 'list'>('grid');
+const viewMode = ref(GRID_VIEW);
+const viewModes = ref([GRID_VIEW, LIST_VIEW]);
 const selectionMode = ref(false);
 const selectedIds = reactive(new Set<string>());
+
+const searchInput = ref('');
+
+const isGridMode = computed(() => viewMode.value.value === GRID_VIEW.value);
 
 watch(selectionMode, (newValue) => {
   if (!newValue) {
@@ -109,6 +138,13 @@ watch(searchInput, (value) => {
     stylesStore.searchStyles(value);
   }, 300);
 });
+
+function toggleSelectionMode() {
+  selectionMode.value = !selectionMode.value;
+  if (!selectionMode.value) {
+    selectedIds.clear();
+  }
+}
 
 function onCardClick(styleId: string) {
   if (selectionMode.value) {
@@ -129,6 +165,20 @@ function onToggleSelect(styleId: string) {
 function onToggleFavorite(styleId: string) {
   stylesStore.toggleFavorite(styleId);
 }
+
+watch(viewMode, (newViewMode) => {
+  switch (newViewMode?.value) {
+    case GRID_VIEW.value:
+      viewMode.value = GRID_VIEW;
+      return;
+    case LIST_VIEW.value:
+      viewMode.value = LIST_VIEW;
+      return;
+    default:
+      viewMode.value = GRID_VIEW;
+      return;
+  }
+});
 
 async function onDeleteSelected() {
   if (!selectedIds.size) return;
