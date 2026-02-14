@@ -11,7 +11,7 @@ from typing import Any
 
 from rzem_ai_inference_engine import JobParams, LoraParams, TransformerType
 
-from backend.services.inference_service import InferenceService
+from backend.services.inference_manager import InferenceServiceManager
 
 logger = logging.getLogger(__name__)
 
@@ -23,13 +23,13 @@ class InferenceAPI:
     ``window.pywebview.api.<method>(args)``.
     """
 
-    def __init__(self, inference: InferenceService) -> None:
+    def __init__(self, inference: InferenceServiceManager) -> None:
         self._inference = inference
 
     def get_gpu_info(self) -> dict[str, Any]:
         """Return GPU device type, name, and total VRAM."""
         try:
-            info = self._inference.get_gpu_info()
+            info = self._inference.active.get_gpu_info()
             return {"status": "success", **info}
         except Exception as e:
             return {"status": "error", "message": str(e)}
@@ -37,7 +37,7 @@ class InferenceAPI:
     def start_engine(self, device: str = "auto", vram_limit_gb: float | None = None) -> dict[str, Any]:
         """Initialize the inference engine."""
         try:
-            self._inference.start(device=device, vram_limit_gb=vram_limit_gb)
+            self._inference.active.start(device=device, vram_limit_gb=vram_limit_gb)
             return {"status": "success"}
         except Exception as e:
             return {"status": "error", "message": str(e)}
@@ -45,13 +45,13 @@ class InferenceAPI:
     def stop_engine(self) -> dict[str, Any]:
         """Shut down the inference engine."""
         try:
-            self._inference.shutdown()
+            self._inference.active.shutdown()
             return {"status": "success"}
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
     def engine_ready(self) -> dict[str, Any]:
-        return {"status": "success", "ready": self._inference.ready}
+        return {"status": "success", "ready": self._inference.active.ready}
 
     def submit_job(
         self,
@@ -93,21 +93,21 @@ class InferenceAPI:
             print(f"submit image generation job: {prompt}")
             logger.info("submit image generation job: %s", prompt)
 
-            job_id = self._inference.submit(params, bundle_id=bundle_id)
+            job_id = self._inference.active.submit(params, bundle_id=bundle_id)
             return {"status": "success", "job_id": job_id}
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
     def cancel_job(self, job_id: str) -> dict[str, Any]:
         try:
-            self._inference.cancel(job_id)
+            self._inference.active.cancel(job_id)
             return {"status": "success"}
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
     def poll_events(self) -> dict[str, Any]:
         """Drain all buffered engine events. Called by frontend on an interval."""
-        return {"status": "success", "events": self._inference.drain_events()}
+        return {"status": "success", "events": self._inference.active.drain_events()}
 
     def get_image_base64(self, image_path: str) -> dict[str, Any]:
         """Read an image file and return its base64 data URL."""
@@ -125,7 +125,7 @@ class InferenceAPI:
     def get_debug_images(self) -> dict[str, Any]:
         """Find the most recent generation's preview + output images for debug UI."""
         try:
-            output_dir = self._inference._output_dir
+            output_dir = self._inference.local._output_dir
             # Find the most recent output image by mtime
             outputs = sorted(
                 output_dir.glob("*_output.png"),

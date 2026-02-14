@@ -15,7 +15,9 @@ from backend.config import AppConfig
 from backend.db.database import Database
 from backend.services.app_service import AppService
 from backend.services.chat_service import ChatService
-from backend.services.inference_service import InferenceService
+from backend.services.discovery_service import DiscoveryService
+from backend.services.inference_manager import InferenceServiceManager
+from backend.services.inference_service import LocalInferenceService
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +71,16 @@ def main() -> None:
     db = Database(config.data_dir / "inference.db")
     db.connect()
 
-    inference = InferenceService(output_dir=config.output_dir, db=db)
+    local_inference = LocalInferenceService(output_dir=config.output_dir, db=db)
+    manager = InferenceServiceManager(
+        local=local_inference,
+        output_dir=config.output_dir,
+        db=db,
+    )
+
+    discovery = DiscoveryService()
+    discovery.start()
+
     bundle_store = BundleStore(data_dir=config.data_dir)
     bundle_store.load()
 
@@ -78,7 +89,7 @@ def main() -> None:
     if api_key:
         chat_service.set_api_key(api_key)
 
-    api = CombinedAPI(service, inference, bundle_store, db, config, chat_service)
+    api = CombinedAPI(service, manager, discovery, bundle_store, db, config, chat_service)
 
     # In dev mode, start Vite before opening the window
     if config.dev_mode:
@@ -99,6 +110,7 @@ def main() -> None:
         """Kill vite and force-exit. Skip graceful engine shutdown —
         tearing down CUDA from a non-main thread triggers C++ errors.
         Daemon threads and GPU resources are cleaned up by the OS."""
+        discovery.stop()
         _stop_vite()
         os._exit(0)
 

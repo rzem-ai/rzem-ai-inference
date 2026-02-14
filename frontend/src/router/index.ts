@@ -66,6 +66,11 @@ const router = createRouter({
           component: () => import('@/pages/settings/InferenceEngine.vue'),
         },
         {
+          path: 'servers',
+          name: 'settings-servers',
+          component: () => import('@/pages/settings/RemoteServers.vue'),
+        },
+        {
           path: 'api-keys',
           name: 'settings-api-keys',
           component: () => import('@/pages/settings/ApiKeys.vue'),

@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from backend.config import AppConfig
-from backend.services.inference_service import InferenceService
+from backend.services.inference_manager import InferenceServiceManager
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +30,7 @@ def _dir_size_bytes(path: Path) -> int:
 class SettingsAPI:
     """pywebview js_api mixin for settings pages."""
 
-    def __init__(self, inference: InferenceService, config: AppConfig) -> None:
+    def __init__(self, inference: InferenceServiceManager, config: AppConfig) -> None:
         self._inference = inference
         self._config = config
 
@@ -78,7 +78,7 @@ class SettingsAPI:
     def get_engine_status(self) -> dict[str, Any]:
         """Return engine readiness, uptime, and job count."""
         try:
-            status = self._inference.get_engine_status()
+            status = self._inference.active.get_engine_status()
             return {"status": "success", **status}
         except Exception as e:
             logger.error("Failed to get engine status: %s", e)
@@ -96,7 +96,7 @@ class SettingsAPI:
     def reset_engine(self) -> dict[str, Any]:
         """Stop engine, clear VRAM, restart."""
         try:
-            self._inference.shutdown()
+            self._inference.local.shutdown()
             import torch
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()

@@ -1,4 +1,4 @@
-import type { ApiResponse, InferenceEvent, ModelBundle, GalleryImage, Folder, Tag, Style, StyleLoRA, LoRA, VramUsage, EngineStatus, CachedModel, DataPaths, DiskUsage, Conversation, ConversationMessage, ChatEvent } from "./inference";
+import type { ApiResponse, InferenceEvent, ModelBundle, GalleryImage, Folder, Tag, Style, StyleLoRA, LoRA, VramUsage, EngineStatus, CachedModel, DataPaths, DiskUsage, Conversation, ConversationMessage, ChatEvent, DiscoveredServer } from "./inference";
 
 export interface PywebviewAPI {
   // ── System ──
@@ -161,6 +161,15 @@ export interface PywebviewAPI {
   }): Promise<ApiResponse<{
     rendered?: string[];
     errors?: Array<{ row: number; error: string }>;
+  }>>;
+
+  // ── Discovery ──
+  get_discovered_servers(): Promise<ApiResponse<{ servers?: DiscoveredServer[] }>>;
+  connect_to_server(args: { host: string; port: number }): Promise<ApiResponse<{ mode?: string }>>;
+  disconnect_from_server(): Promise<ApiResponse<{ mode?: string }>>;
+  get_connection_mode(): Promise<ApiResponse<{
+    mode?: string;
+    connected_server?: { host: string; port: number } | null;
   }>>;
 
   // ── Chat ──

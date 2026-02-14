@@ -433,6 +433,20 @@ export const mockApi: PywebviewAPI = {
     return { status: "success", rendered: [], errors: [] };
   },
 
+  // ── Discovery ──
+  async get_discovered_servers() {
+    return { status: "success", servers: [] };
+  },
+  async connect_to_server(_args: { host: string; port: number }) {
+    return { status: "success", mode: "remote" };
+  },
+  async disconnect_from_server() {
+    return { status: "success", mode: "local" };
+  },
+  async get_connection_mode() {
+    return { status: "success", mode: "local", connected_server: null };
+  },
+
   // ── Chat ──
   async chat_is_configured() {
     return { status: "success", configured: false };
