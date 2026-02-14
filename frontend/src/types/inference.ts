@@ -13,7 +13,19 @@ export type EventType =
   | "job_cancelled"
   | "model_loading"
   | "model_loaded"
-  | "model_unloaded";
+  | "model_unloaded"
+  | "server_connected"
+  | "server_disconnected";
+
+// ── Discovery types ──
+
+export interface DiscoveredServer {
+  name: string;
+  host: string;
+  port: number;
+  device: string;
+  version: string;
+}
 
 export interface InferenceEvent {
   type: EventType;

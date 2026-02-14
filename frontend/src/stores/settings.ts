@@ -10,6 +10,12 @@ interface GpuInfo {
   total_vram_gb: number;
 }
 
+interface RemoteEngineInfo {
+  device: string;
+  jobs_queued: number;
+  jobs_running: number;
+}
+
 export const useSettingsStore = defineStore('settings', {
   state: () => ({
     // Inference Engine
@@ -17,6 +23,10 @@ export const useSettingsStore = defineStore('settings', {
     cudaVersion: null as string | null,
     vramUsage: null as VramUsage | null,
     engineStatus: null as EngineStatus | null,
+
+    // Connection mode
+    connectionMode: 'local' as string,
+    remoteEngineInfo: null as RemoteEngineInfo | null,
 
     // API Keys
     apiKeys: {} as Record<string, string | null>,
@@ -33,6 +43,10 @@ export const useSettingsStore = defineStore('settings', {
   getters: {
     isEngineReady(state): boolean {
       return state.engineStatus?.ready ?? false;
+    },
+
+    isRemote(state): boolean {
+      return state.connectionMode === 'remote';
     },
 
     formattedUptime(state): string {
@@ -90,13 +104,30 @@ export const useSettingsStore = defineStore('settings', {
 
     async loadEngineStatus() {
       if (!_api) return;
-      const res = await _api.get_engine_status();
+      const res = await _api.get_engine_status() as any;
       if (res.status === 'success') {
         this.engineStatus = {
           ready: res.ready ?? false,
           uptime_seconds: res.uptime_seconds ?? null,
           completed_count: res.completed_count ?? 0,
         };
+        if (res.remote) {
+          this.remoteEngineInfo = {
+            device: res.device ?? 'unknown',
+            jobs_queued: res.jobs_queued ?? 0,
+            jobs_running: res.jobs_running ?? 0,
+          };
+        } else {
+          this.remoteEngineInfo = null;
+        }
+      }
+    },
+
+    async loadConnectionMode() {
+      if (!_api) return;
+      const res = await _api.get_connection_mode();
+      if (res.status === 'success') {
+        this.connectionMode = res.mode ?? 'local';
       }
     },
 

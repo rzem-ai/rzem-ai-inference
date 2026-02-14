@@ -25,18 +25,12 @@ from rzem_ai_inference_engine.models.memory import detect_device, get_total_vram
 from rzem_ai_inference_engine.types import PreviewConfig
 
 from backend.db.database import Database
+from backend.services.inference_protocol import FrontendEvent
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class FrontendEvent:
-    """Serializable event for the frontend."""
-    type: str
-    data: dict[str, Any]
-
-
-class InferenceService:
+class LocalInferenceService:
     """Manages the InferenceEngine lifecycle and buffers events for frontend polling.
 
     Events from the engine's background thread are collected into a thread-safe

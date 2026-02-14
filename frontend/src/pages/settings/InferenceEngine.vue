@@ -1,5 +1,11 @@
 <template>
   <div class="flex flex-col gap-4 p-4 overflow-y-auto">
+    <!-- Connection Mode Banner (remote only) -->
+    <div v-if="settingsStore.isRemote" class="bg-blue-50 border border-blue-200 rounded-xl p-3 flex items-center gap-2">
+      <Wifi :size="14" class="text-blue-600" />
+      <span class="text-sm text-blue-700 font-medium">Connected to remote server</span>
+    </div>
+
     <!-- System Info -->
     <div>
       <h2 class="text-lg font-semibold text-slate-900 mb-3">System Info</h2>
@@ -17,16 +23,21 @@
           </div>
         </div>
         <div class="bg-white rounded-xl border border-slate-200 p-4">
-          <div class="text-sm font-medium text-slate-500 mb-1">CUDA</div>
+          <div class="text-sm font-medium text-slate-500 mb-1">
+            {{ settingsStore.isRemote ? 'Device' : 'CUDA' }}
+          </div>
           <div class="text-base font-semibold text-slate-900">
-            {{ settingsStore.cudaVersion ?? 'N/A' }}
+            {{ settingsStore.isRemote
+              ? settingsStore.remoteEngineInfo?.device ?? 'unknown'
+              : settingsStore.cudaVersion ?? 'N/A'
+            }}
           </div>
         </div>
       </div>
     </div>
 
-    <!-- VRAM Usage -->
-    <div>
+    <!-- VRAM Usage (local only) -->
+    <div v-if="!settingsStore.isRemote">
       <div class="flex items-center justify-between mb-3">
         <h2 class="text-lg font-semibold text-slate-900">VRAM Usage</h2>
         <button
@@ -67,6 +78,25 @@
       </div>
     </div>
 
+    <!-- Remote Queue Info (remote only) -->
+    <div v-if="settingsStore.isRemote && settingsStore.remoteEngineInfo">
+      <h2 class="text-lg font-semibold text-slate-900 mb-3">Remote Queue</h2>
+      <div class="grid grid-cols-2 gap-3">
+        <div class="bg-white rounded-xl border border-slate-200 p-4">
+          <div class="text-sm font-medium text-slate-500 mb-1">Jobs Queued</div>
+          <div class="text-base font-semibold text-slate-900">
+            {{ settingsStore.remoteEngineInfo.jobs_queued }}
+          </div>
+        </div>
+        <div class="bg-white rounded-xl border border-slate-200 p-4">
+          <div class="text-sm font-medium text-slate-500 mb-1">Jobs Running</div>
+          <div class="text-base font-semibold text-slate-900">
+            {{ settingsStore.remoteEngineInfo.jobs_running }}
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Engine Status -->
     <div>
       <h2 class="text-lg font-semibold text-slate-900 mb-3">Engine Status</h2>
@@ -92,7 +122,7 @@
             <div class="text-base font-medium text-slate-900">{{ settingsStore.engineStatus?.completed_count ?? 0 }}</div>
           </div>
         </div>
-        <div class="flex gap-2 pt-3 border-t border-slate-100">
+        <div v-if="!settingsStore.isRemote" class="flex gap-2 pt-3 border-t border-slate-100">
           <button
             class="px-3 py-1.5 text-sm font-medium rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors"
             @click="handleResetEngine">
@@ -111,6 +141,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted } from 'vue';
+import { Wifi } from 'lucide-vue-next';
 import { useSettingsStore } from '@/stores/settings';
 
 const settingsStore = useSettingsStore();
@@ -156,13 +187,16 @@ async function handleClearVram() {
 }
 
 let vramInterval: ReturnType<typeof setInterval>;
+let statusInterval: ReturnType<typeof setInterval>;
 
 onMounted(async () => {
   await settingsStore.loadVramUsage();
   vramInterval = setInterval(() => settingsStore.loadVramUsage(), 5000);
+  statusInterval = setInterval(() => settingsStore.loadEngineStatus(), 5000);
 });
 
 onUnmounted(() => {
   clearInterval(vramInterval);
+  clearInterval(statusInterval);
 });
 </script>

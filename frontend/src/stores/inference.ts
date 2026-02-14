@@ -390,6 +390,17 @@ export const useInferenceStore = defineStore('inference', {
             this.modelStatus = null;
             break;
 
+          case 'server_connected':
+            console.log('server_connected:', event.data);
+            this.engineReady = true;
+            break;
+
+          case 'server_disconnected':
+            console.log('server_disconnected:', event.data);
+            this.engineReady = false;
+            this.error = event.data.message ?? 'Disconnected from remote server';
+            break;
+
           case 'job_queued':
             break;
 
