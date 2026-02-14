@@ -1,7 +1,7 @@
 import type { DividerDesignTokens, DividerTokenSections } from '@primeuix/themes/types/divider';
 
 export const root: DividerTokenSections.Root = {
-    borderColor: '{content.border.color}'
+    borderColor: '{surface.300}'
 };
 
 export const content: DividerTokenSections.Content = {
@@ -13,15 +13,15 @@ export const horizontal: DividerTokenSections.Horizontal = {
     margin: '1rem 0',
     padding: '0 1rem',
     content: {
-        padding: '0 0.5rem'
+        padding: '0 0.1rem'
     }
 };
 
 export const vertical: DividerTokenSections.Vertical = {
-    margin: '0 1rem',
-    padding: '0.5rem 0',
+    margin: '0 0.5rem',
+    padding: '0.8rem 0',
     content: {
-        padding: '0.5rem 0'
+        padding: '0.1rem 0'
     }
 };
 

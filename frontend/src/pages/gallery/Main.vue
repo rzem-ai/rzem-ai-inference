@@ -1,26 +1,58 @@
 <template>
-  <div class="h-full flex flex-col p-2 pl-0 gap-2">
+  <div class="h-full flex flex-col px-2 py-4 gap-2">
     <!-- Toolbar -->
-    <Toolbar>
+    <Toolbar class="shadow-lg">
       <template #start>
-        <Button severity="primary" size="small" @click="onCreateFolder"><Plus :size="14" />New Folder</Button>
+        <Button severity="primary" @click="onCreateFolder"><Plus :size="14" />New Folder</Button>
+
         <Divider layout="vertical" />
+
         <Button
-          @click="toggleSelectionMode"
-          :severity="selectionMode ? 'primary' : 'secondary'"
-          :variant="selectionMode ? '' : 'outlined'"
+          :severity="selectionMode ? 'primary' : 'primary'"
+          :variant="selectionMode ? 'outlined' : 'outlined'"
           :text="!selectionMode"
-          size="small">
-          <ListTodo :size="14" />
+          @click="toggleSelectionMode">
+          <ListTodo :size="18" />
+        </Button>
+
+        <!-- Batch actions -->
+        <Button
+          title="Download"
+          class="transition-all"
+          :severity="selectionMode ? 'primary' : 'secondary'"
+          :variant="selectionMode && selectedIds.size > 0 ? '' : ''"
+          :text="true"
+          :disabled="!selectedIds.size">
+          <Download :size="18" />
         </Button>
         <Button
-          :disabled="!selectedIds.size"
-          @click="onDeleteSelected"
+          title="Move to folder"
+          class="transition-all"
+          :severity="selectionMode ? 'primary' : 'secondary'"
+          :variant="selectionMode && selectedIds.size > 0 ? '' : ''"
+          :text="true"
+          :disabled="!selectedIds.size">
+          <FolderInput :size="18" />
+        </Button>
+        <Button
+          title="Tag"
+          class="transition-all"
+          :severity="selectionMode ? 'primary' : 'secondary'"
+          :variant="selectionMode && selectedIds.size > 0 ? '' : ''"
+          :text="true"
+          :disabled="!selectedIds.size">
+          <TagIcon :size="18" />
+        </Button>
+
+        <Button
+          title="Delete"
+          class="transition-all"
           :severity="selectionMode ? 'danger' : 'secondary'"
-          :variant="selectionMode ? 'outlined' : ''"
-          :text="!selectionMode"
-          size="small">
-          <Trash2 :size="14" />
+          :variant="selectionMode && selectedIds.size > 0 ? 'outlined' : 'outlined'"
+          :text="true"
+          :disabled="!selectedIds.size"
+          @click="onDeleteSelected">
+          <Trash2 :size="18" />
         </Button>
       </template>
 
@@ -28,95 +60,34 @@
         <!-- Search bar -->
         <InputGroup>
           <InputGroupAddon> <Search :size="14" class="text-slate-400" /> </InputGroupAddon>
-          <InputText v-model="searchInput" placeholder="Search images..." size="small" fluid />
+          <InputText v-model="searchInput" placeholder="Search images..." fluid />
         </InputGroup>
       </template>
 
       <template #end>
-        <!-- View toggle -->
-        <Button
-          size="small"
-          text
-          class="p-1.5 rounded-md transition-colors"
-          :class="viewMode === 'grid' ? 'bg-blue-50 text-blue-600' : 'text-slate-500 hover:bg-slate-50'"
-          @click="viewMode = 'grid'">
-          <LayoutGrid :size="14" />
-        </Button>
-        <Button
-          size="small"
-          text
-          class="p-1.5 rounded-md transition-colors"
-          :class="viewMode === 'list' ? 'bg-blue-50 text-blue-600' : 'text-slate-500 hover:bg-slate-50'"
-          @click="viewMode = 'list'">
-          <ListIcon :size="14" />
-        </Button>
+        <div class="flex gap-2">
+          <!-- Sort -->
+          <Button severity="secondary">
+            <ArrowUpDown :size="14" />
+            <span>Date</span>
+            <ChevronDown :size="12" class="text-slate-400" />
+          </Button>
+          <!-- View toggle -->
+          <SelectButton
+            v-model="viewMode"
+            :options="viewModes"
+            optionLabel="value"
+            dataKey="value"
+            severity="primary"
+            variant="outlined"
+            class="transition-colors">
+            <template #option="slotProps">
+              <component :is="slotProps.option.icon" :size="14" />
+            </template>
+          </SelectButton>
+        </div>
       </template>
     </Toolbar>
-
-    <!-- Toolbar -->
-    <div class="flex items-center gap-1.5 px-3 h-14 bg-white rounded-xl border border-slate-200 shrink-0">
-      <!-- Select toggle -->
-      <ToggleButton v-model="selectionMode" onLabel="Select" offLabel="Select" size="small">
-        <template #icon><SquareCheck v-if="selectionMode" :size="14" /> <Square v-else="selectionMode" :size="14" /></template>
-      </ToggleButton>
-
-      <div class="w-px h-4 bg-slate-200" />
-
-      <!-- Batch actions -->
-      <button
-        class="p-1.5 rounded-md text-slate-500 hover:bg-slate-50 hover:text-slate-700 disabled:opacity-30 disabled:pointer-events-none transition-colors"
-        :disabled="!selectedIds.size"
-        title="Download">
-        <Download :size="14" />
-      </button>
-      <button
-        class="p-1.5 rounded-md text-slate-500 hover:bg-slate-50 hover:text-slate-700 disabled:opacity-30 disabled:pointer-events-none transition-colors"
-        :disabled="!selectedIds.size"
-        title="Move to folder">
-        <FolderInput :size="14" />
-      </button>
-      <button
-        class="p-1.5 rounded-md text-slate-500 hover:bg-slate-50 hover:text-slate-700 disabled:opacity-30 disabled:pointer-events-none transition-colors"
-        :disabled="!selectedIds.size"
-        title="Tag">
-        <TagIcon :size="14" />
-      </button>
-      <button
-        class="p-1.5 rounded-md text-slate-500 hover:bg-slate-50 hover:text-slate-700 disabled:opacity-30 disabled:pointer-events-none transition-colors"
-        :disabled="!selectedIds.size"
-        title="Delete"
-        @click="onDeleteSelected">
-        <Trash2 :size="14" />
-      </button>
-
-      <!-- Spacer -->
-      <div class="flex-1" />
-
-      <div class="w-px h-4 bg-slate-200" />
-
-      <!-- Sort -->
-      <button class="flex items-center gap-1.5 px-2.5 h-7 rounded-md bg-slate-50 text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors">
-        <ArrowUpDown :size="14" />
-        <span>Date</span>
-        <ChevronDown :size="12" class="text-slate-400" />
-      </button>
-
-      <div class="w-px h-4 bg-slate-200" />
-
-      <!-- View toggle -->
-      <button
-        class="p-1.5 rounded-md transition-colors"
-        :class="viewMode === 'grid' ? 'bg-blue-50 text-blue-600' : 'text-slate-500 hover:bg-slate-50'"
-        @click="viewMode = 'grid'">
-        <LayoutGrid :size="14" />
-      </button>
-      <button
-        class="p-1.5 rounded-md transition-colors"
-        :class="viewMode === 'list' ? 'bg-blue-50 text-blue-600' : 'text-slate-500 hover:bg-slate-50'"
-        @click="viewMode = 'list'">
-        <ListIcon :size="14" />
-      </button>
-    </div>
 
     <!-- Image grid area -->
     <div class="flex-1 min-h-0 overflow-y-auto rounded-xl" ref="scrollRef">
@@ -130,7 +101,7 @@
       </div>
 
       <!-- Grid view -->
-      <div v-else class="grid gap-3 p-1" :class="viewMode === 'grid' ? 'grid-cols-[repeat(auto-fill,minmax(180px,1fr))]' : 'grid-cols-1'">
+      <div v-else class="grid gap-3 p-1" :class="isGridMode ? 'grid-cols-6' : 'grid-cols-1'">
         <GalleryCard
           v-for="image in gallery.images"
           :key="image.id"
@@ -149,13 +120,28 @@
         <div class="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
       </div>
     </div>
+
+    <!-- Image overlay (full-screen lightbox) -->
+    <ImageOverlay
+      v-if="selectedImage"
+      :visible="overlayVisible"
+      :image="selectedImage"
+      @close="overlayVisible = false"
+      @open-detail="detailVisible = true"
+      @favorite="onToggleFavorite" />
+
+    <!-- Image detail dialog -->
+    <ImageDetailDialog
+      v-if="selectedImage"
+      v-model:visible="detailVisible"
+      :image="selectedImage"
+      @close-all="overlayVisible = false" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onUnmounted, watch } from 'vue';
+import { computed, ref, reactive, onMounted, onUnmounted, watch } from 'vue';
 import {
-  SquareCheck,
   Download,
   FolderInput,
   Tag as TagIcon,
@@ -163,29 +149,43 @@ import {
   ArrowUpDown,
   ChevronDown,
   LayoutGrid,
+  Search,
+  Plus,
   List as ListIcon,
   Image as ImageIcon,
-  Square,
   ListTodo,
 } from 'lucide-vue-next';
-import { Search, Plus, Palette } from 'lucide-vue-next';
 
 import { useGalleryStore } from '@/stores/gallery';
+import type { GalleryImage } from '@/types/inference';
 import GalleryCard from './GalleryCard.vue';
-import { Button, Divider, ToggleButton, Toolbar } from 'primevue';
+import ImageOverlay from './ImageOverlay.vue';
+import ImageDetailDialog from './ImageDetailDialog.vue';
+import { Button, Divider, Toolbar, SelectButton } from 'primevue';
 import { InputText, InputGroup, InputGroupAddon } from 'primevue';
 
 const gallery = useGalleryStore();
 
-const viewMode = ref<'grid' | 'list'>('grid');
+const GRID_VIEW = { value: 'grid', icon: LayoutGrid };
+const LIST_VIEW = { value: 'list', icon: ListIcon };
+
+const viewMode = ref(GRID_VIEW);
+const viewModes = ref([GRID_VIEW, LIST_VIEW]);
 const selectionMode = ref(false);
 const selectedIds = reactive(new Set<string>());
 
 const searchInput = ref('');
 
+// Overlay & detail dialog state
+const selectedImage = ref<GalleryImage | null>(null);
+const overlayVisible = ref(false);
+const detailVisible = ref(false);
+
 const scrollRef = ref<HTMLElement>();
 const loadMoreRef = ref<HTMLElement>();
 let loadMoreObserver: IntersectionObserver | null = null;
+
+const isGridMode = computed(() => viewMode.value.value === GRID_VIEW.value);
 
 watch(selectionMode, (newValue) => {
   if (!newValue) {
@@ -209,9 +209,30 @@ function toggleSelectionMode() {
   }
 }
 
+watch(viewMode, (newViewMode) => {
+  switch (newViewMode?.value) {
+    case GRID_VIEW.value:
+      viewMode.value = GRID_VIEW;
+      return;
+    case LIST_VIEW.value:
+      viewMode.value = LIST_VIEW;
+      return;
+    default:
+      viewMode.value = GRID_VIEW;
+      return;
+  }
+});
+
 function onCardClick(imageId: string) {
   if (selectionMode.value) {
     onToggleSelect(imageId);
+    return;
+  }
+  // Open the lightbox overlay
+  const image = gallery.images.find(i => i.id === imageId);
+  if (image) {
+    selectedImage.value = image;
+    overlayVisible.value = true;
   }
 }
 

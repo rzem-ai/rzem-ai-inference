@@ -16,14 +16,14 @@
     <!-- Manual W/H inputs -->
     <div class="flex gap-2 items-center">
       <InputGroup>
-        <InputGroupAddon> W </InputGroupAddon>
+        <InputGroupAddon class="text-base"> W </InputGroupAddon>
         <InputNumber v-model="store.params.width" placeholder="Width" :useGrouping="false" :min="256" :max="2048" :step="64" @input="onManualWidth" />
       </InputGroup>
 
       <X :size="12" class="text-slate-400 shrink-0" />
 
       <InputGroup>
-        <InputGroupAddon> H </InputGroupAddon>
+        <InputGroupAddon class="text-base"> H </InputGroupAddon>
         <InputNumber v-model="store.params.height" placeholder="height" :useGrouping="false" :min="256" :max="2048" :step="64" @input="onManualHeight" />
       </InputGroup>
     </div>

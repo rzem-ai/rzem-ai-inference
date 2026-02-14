@@ -13,7 +13,7 @@
                 ? 'text-blue-400 shadow-blue-400/50  hover:shadow-blue-500'
                 : 'text-surface-400 hover:text-blue-500 shadow-surface-400/50  hover:shadow-blue-500'
             ">
-            <WandSparkles :size="20" />
+            <ImagePlus :size="20" />
           </div>
         </RouterLink>
         <RouterLink :to="{ name: 'gallery' }" class="" v-slot="{ isActive, href, navigate }">
@@ -53,7 +53,7 @@
 </template>
 
 <script setup lang="ts">
-import { CameraOff, Cog, Images, Palette, WandSparkles } from 'lucide-vue-next';
-import PixelCard from './PixelCard.vue';
+import { CameraOff, Cog, Images, Palette, ImagePlus } from 'lucide-vue-next';
+import PixelCard from '../components/PixelCard.vue';
 import { isActive } from '@tiptap/core';
 </script>

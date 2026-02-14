@@ -10,35 +10,36 @@
     <div v-show="store.advancedOpen" class="flex flex-col gap-3 pt-2">
       <!-- Seed -->
       <div class="flex flex-col gap-1">
-        <span class="text-xs font-medium text-slate-600">Seed</span>
+        <span class="text-sm font-medium text-slate-600">Seed</span>
         <div class="flex gap-1">
-          <input
-            type="number"
-            v-model.number="store.params.seed"
-            class="flex-1 text-xs bg-slate-100 rounded px-2 py-1.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
-          <button class="p-1.5 rounded hover:bg-slate-100 text-slate-500 transition-colors" title="Randomize" @click="store.params.seed = -1">
-            <Shuffle :size="14" />
-          </button>
-          <button
-            class="p-1.5 rounded hover:bg-slate-100 transition-colors"
-            :class="store.params.seed !== -1 ? 'text-blue-500' : 'text-slate-400'"
-            title="Lock seed"
-            @click="toggleLock">
-            <Lock :size="14" />
-          </button>
+          <InputGroup>
+            <InputNumber v-model="store.params.seed" placeholder="Search styles..." fluid />
+            <InputGroupAddon
+              class="bg-surface-200 hover:bg-surface-400 text-surface-700 hover:text-surface-50 cursor-pointer"
+              title="Randomize"
+              @click="store.params.seed = -1">
+              <Shuffle :size="14" />
+            </InputGroupAddon>
+            <InputGroupAddon
+              class="bg-surface-200 hover:bg-surface-400 text-surface-700 hover:text-surface-50 cursor-pointer"
+              title="Lock seed"
+              @click="toggleLock">
+              <Lock :size="14" />
+            </InputGroupAddon>
+          </InputGroup>
         </div>
       </div>
 
       <!-- Sampler -->
       <div class="flex flex-col gap-1">
-        <span class="text-xs font-medium text-slate-600">Sampler</span>
-        <Select v-model="store.params.sampler" :options="samplerOptions" class="compact-select" size="small" />
+        <div class="text-sm font-medium text-slate-600">Sampler</div>
+        <Select v-model="store.params.sampler" :options="samplerOptions" />
       </div>
 
       <!-- Scheduler -->
       <div class="flex flex-col gap-1">
-        <span class="text-xs font-medium text-slate-600">Scheduler</span>
-        <Select v-model="store.params.scheduler" :options="schedulerOptions" class="compact-select" size="small" />
+        <div class="text-sm font-medium text-slate-600">Scheduler</div>
+        <Select v-model="store.params.scheduler" :options="schedulerOptions" />
       </div>
     </div>
   </div>
@@ -46,8 +47,8 @@
 
 <script setup lang="ts">
 import { ChevronDown, Shuffle, Lock } from 'lucide-vue-next';
-import Select from 'primevue/select';
 import { useInferenceStore } from '@/stores/inference';
+import { InputGroup, InputGroupAddon, InputNumber, Select } from 'primevue';
 
 const store = useInferenceStore();
 
@@ -63,9 +64,4 @@ function toggleLock() {
 }
 </script>
 
-<style scoped>
-.compact-select :deep(.p-select) {
-  padding: 0.25rem 0.5rem;
-  font-size: 0.75rem;
-}
-</style>
+<style scoped></style>
