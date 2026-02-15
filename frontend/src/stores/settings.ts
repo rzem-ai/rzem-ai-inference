@@ -37,6 +37,10 @@ export const useSettingsStore = defineStore('settings', {
     cacheTotalSize: 0,
     diskUsage: null as DiskUsage | null,
 
+    // Generation / Preview
+    previewInterval: 5,
+    previewMaxSize: 256,
+
     loading: false,
   }),
 
@@ -167,6 +171,36 @@ export const useSettingsStore = defineStore('settings', {
       const res = await _api.set_setting({ key, value: '' });
       if (res.status === 'success') {
         this.apiKeys[key] = null;
+      }
+    },
+
+    // ── Generation / Preview ──
+
+    async loadPreviewSettings() {
+      if (!_api) return;
+      const intervalRes = await _api.get_setting({ key: 'PREVIEW_INTERVAL' });
+      if (intervalRes.status === 'success' && intervalRes.value) {
+        this.previewInterval = parseInt(intervalRes.value, 10) || 5;
+      }
+      const sizeRes = await _api.get_setting({ key: 'PREVIEW_MAX_SIZE' });
+      if (sizeRes.status === 'success' && sizeRes.value) {
+        this.previewMaxSize = parseInt(sizeRes.value, 10) || 256;
+      }
+    },
+
+    async savePreviewInterval(value: number) {
+      if (!_api) return;
+      const res = await _api.set_setting({ key: 'PREVIEW_INTERVAL', value: String(value) });
+      if (res.status === 'success') {
+        this.previewInterval = value;
+      }
+    },
+
+    async savePreviewMaxSize(value: number) {
+      if (!_api) return;
+      const res = await _api.set_setting({ key: 'PREVIEW_MAX_SIZE', value: String(value) });
+      if (res.status === 'success') {
+        this.previewMaxSize = value;
       }
     },
 

@@ -80,6 +80,11 @@ const router = createRouter({
           name: 'settings-cache',
           component: () => import('@/pages/settings/ModelCache.vue'),
         },
+        {
+          path: 'generation',
+          name: 'settings-generation',
+          component: () => import('@/pages/settings/Generation.vue'),
+        },
       ],
     },
   ],
