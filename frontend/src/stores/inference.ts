@@ -33,7 +33,7 @@ export const useInferenceStore = defineStore('inference', {
     // Job state
     currentJobId: null as string | null,
     isGenerating: false,
-    progress: null as { step: number; totalSteps: number, aspectRatio: string } | null,
+    progress: null as { step: number; totalSteps: number; aspectRatio: string; width: number; height: number } | null,
     error: null as string | null,
 
     // Results
@@ -408,7 +408,13 @@ export const useInferenceStore = defineStore('inference', {
             console.log('job_started:', event.data);
             this.currentJobId = event.data.job_id ?? this.currentJobId;
             this.isGenerating = true;
-            this.progress = { step: 0, totalSteps: this.params.steps, aspectRatio: '1/1' };
+            this.progress = {
+              step: 0,
+              totalSteps: this.params.steps,
+              aspectRatio: '1/1',
+              width: event.data.width,
+              height: event.data.height,
+            };
             break;
 
           case 'job_progress':
@@ -417,6 +423,8 @@ export const useInferenceStore = defineStore('inference', {
               step: event.data.step ?? 0,
               totalSteps: event.data.total_steps ?? this.params.steps,
               aspectRatio: `${event.data.width}/${event.data.height}`,
+              width: event.data.width,
+              height: event.data.height,
             };
             if (event.data.preview_path) {
               this.loadImageDataUrl(event.data.preview_path);
@@ -523,11 +531,11 @@ export const useInferenceStore = defineStore('inference', {
       const previews = _debugImages?.previews ?? {};
       const output = _debugImages?.output ?? undefined;
 
-      console.log('previews:', previews)
+      console.log('previews:', previews);
 
       // Helper: find the best preview for a given step
       function previewForStep(step: number): string | undefined {
-        console.log('previewForStep:', step, previews[String(step)])
+        console.log('previewForStep:', step, previews[String(step)]);
         return previews[String(step)];
       }
 
