@@ -79,6 +79,24 @@ class LocalInferenceService:
                 "total_vram_gb": 0,
             }
 
+    def _load_preview_config(self) -> PreviewConfig:
+        """Read preview settings from the database, falling back to defaults."""
+        interval = 5
+        max_size = 256
+        raw = self._db.get_setting("PREVIEW_INTERVAL")
+        if raw is not None:
+            try:
+                interval = max(1, int(raw))
+            except (ValueError, TypeError):
+                pass
+        raw = self._db.get_setting("PREVIEW_MAX_SIZE")
+        if raw is not None:
+            try:
+                max_size = max(64, int(raw))
+            except (ValueError, TypeError):
+                pass
+        return PreviewConfig(enabled=True, interval=interval, max_size=max_size)
+
     def start(self, device: str = "auto", vram_limit_gb: float | None = None) -> None:
         """Initialize the inference engine and subscribe to all events."""
         if self._engine is not None:
@@ -87,7 +105,7 @@ class LocalInferenceService:
         self._engine = InferenceEngine(
             device=device,
             vram_limit_gb=vram_limit_gb,
-            preview_config=PreviewConfig(enabled=True, interval=5, max_size=256),
+            preview_config=self._load_preview_config(),
         )
         self._start_time = time.monotonic()
 
