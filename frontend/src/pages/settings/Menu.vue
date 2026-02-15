@@ -21,7 +21,7 @@
 
 <script setup lang="ts">
 import { useRoute } from 'vue-router';
-import { Cog, Cpu, KeyRound, HardDrive, Wifi, Plus } from 'lucide-vue-next';
+import { Cog, Cpu, KeyRound, HardDrive, Wifi, Plus, SlidersHorizontal } from 'lucide-vue-next';
 import { Button } from 'primevue';
 import MenuPanel from '@/components/MenuPanel.vue';
 
@@ -32,5 +32,6 @@ const navItems = [
   { label: 'Remote Servers', icon: Wifi, route: 'settings-servers' },
   { label: 'API Keys', icon: KeyRound, route: 'settings-api-keys' },
   { label: 'Model Cache', icon: HardDrive, route: 'settings-cache' },
+  { label: 'Generation', icon: SlidersHorizontal, route: 'settings-generation' },
 ];
 </script>
