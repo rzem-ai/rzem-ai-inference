@@ -43,11 +43,11 @@ Depends on a sibling repo `../rzem-ai-inference-engine` (editable install) which
 
 ```bash
 # Setup (one-time)
-bash scripts/install.sh        # Creates .venv, installs Python + Node deps
+bash scripts/install.sh        # Creates .venv (uv), installs Python + Node deps
 
 # Development (two terminals)
 cd frontend && npm run dev     # Terminal 1: Vite HMR on :1978
-DEV_MODE=1 python main.py     # Terminal 2: pywebview window → localhost:1978
+bash scripts/dev.sh            # Terminal 2: pywebview window → localhost:1978
 
 # Or browser-only dev (mock API, no Python needed)
 cd frontend && npm run dev     # Open http://localhost:1978 in browser
@@ -56,8 +56,12 @@ cd frontend && npm run dev     # Open http://localhost:1978 in browser
 cd frontend && npm run build       # Production build → dist/
 cd frontend && npm run type-check  # vue-tsc --noEmit
 
-# Build distributable
+# Run / Build
+bash scripts/run.sh            # Build frontend (if needed) + run app
 bash scripts/build.sh          # PyInstaller → build/dist/Inference/
+
+# Run any Python command in the project venv
+uv run python main.py
 ```
 
 No test framework is configured. No linter is configured.

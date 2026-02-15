@@ -36,6 +36,7 @@ Dependencies:
 
 - Python 3.13+
 - Node.js 20+
+- [uv](https://docs.astral.sh/uv/) (Python package manager)
 - [rzem-ai-inference-engine](../rzem-ai-inference-engine) repository cloned as a sibling directory
 
 ## Setup
@@ -46,10 +47,9 @@ bash scripts/install.sh
 ```
 
 This script:
-1. Creates a virtual environment with `--system-site-packages` (required for Linux pywebview/GTK bindings)
-2. Installs the sibling `rzem-ai-inference-engine` as an editable package
-3. Installs all Python dependencies
-4. Installs all frontend Node dependencies
+1. Creates a virtual environment with `uv venv --system-site-packages` (required for Linux pywebview/GTK bindings)
+2. Runs `uv sync` to install all Python dependencies from `pyproject.toml` (including `rzem-ai-inference-engine` as an editable package)
+3. Installs all frontend Node dependencies
 
 ## Development
 
@@ -60,7 +60,7 @@ This script:
 cd frontend && npm run dev
 
 # Terminal 2: pywebview window → localhost:1978 (real inference engine)
-DEV_MODE=1 python main.py
+bash scripts/dev.sh
 ```
 
 **Browser-only development (frontend work, no GPU needed):**
@@ -77,12 +77,10 @@ The mock API provides fake generation responses, allowing UI development without
 **Run from source:**
 
 ```bash
-cd frontend && npm run build
-cd ..
-python main.py
+bash scripts/run.sh
 ```
 
-The pywebview window loads built assets from `frontend/dist/`.
+This builds the frontend (if needed) and runs the app. The pywebview window loads built assets from `frontend/dist/`.
 
 **Build distributable:**
 
@@ -123,8 +121,11 @@ Creates a PyInstaller executable in `build/dist/Inference/` with all dependencie
 │   │           └── Menu.vue                 # Generation parameters sidebar
 │   └── ...
 ├── scripts/
-│   ├── install.sh                           # Setup script
-│   └── build.sh                             # PyInstaller build
+│   ├── install.sh                           # Setup: venv + deps + frontend
+│   ├── dev.sh                               # Run in dev mode (DEV_MODE=1)
+│   ├── run.sh                               # Run production build
+│   ├── build.sh                             # PyInstaller build
+│   └── package.sh                           # Build + create release archive
 └── README.md
 ```
 
@@ -153,7 +154,7 @@ Creates a PyInstaller executable in `build/dist/Inference/` with all dependencie
 
 ### Platform-Specific
 
-- **Linux GTK bindings**: `.venv` created with `--system-site-packages` for `gi` module
+- **Linux GTK bindings**: `.venv` created with `uv venv --system-site-packages` for `gi` module
 - **CUDA teardown**: App uses `os._exit(0)` to avoid C++ errors from non-main thread GPU cleanup
 - **Port 1978**: Hardcoded in `vite.config.ts` (strictPort) and `backend/config.py`
 
@@ -167,14 +168,13 @@ cd frontend && npm run type-check
 cd frontend && npm run build
 
 # Run production build locally
-python main.py
+bash scripts/run.sh
 
 # Build distributable executable
 bash scripts/build.sh
 
-# Activate virtual environment manually
-source .venv/bin/activate  # Linux/macOS
-.venv\Scripts\activate     # Windows
+# Run any Python command in the project venv
+uv run python main.py
 ```
 
 ## Development Tips
@@ -218,9 +218,9 @@ The virtual environment needs `--system-site-packages` for GTK bindings. Recreat
 
 ```bash
 rm -rf .venv
-python -m venv .venv --system-site-packages
+uv venv --system-site-packages --python /usr/bin/python3 .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+uv sync
 ```
 
 ### Frontend can't connect to backend

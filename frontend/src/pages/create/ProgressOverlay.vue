@@ -1,6 +1,6 @@
 <template>
   <!-- Progress overlay -->
-  <div v-if="store.isGenerating" class="absolute bottom-0 left-0 right-0 bg-white/80 backdrop-blur-sm px-4 py-3">
+  <div v-if="store.isGenerating" class="absolute top-0 left-0 right-0 bg-white/80 backdrop-blur-sm px-4 py-3 z-50">
     <!-- Batch progress header -->
     <div v-if="store.batchActive" class="flex justify-between text-xs text-slate-600 mb-1.5">
       <span class="font-medium">Batch: Image {{ store.batchCompleted + 1 }} of {{ store.batchTotal }}</span>

@@ -5,11 +5,19 @@ description = "Desktop inference UI: pywebview + Vue 3 + rzem-ai-inference-engin
 requires-python = ">=3.13"
 dependencies = [
     "pywebview>=5.3",
+    "gguf>=0.10.0",
+    "anthropic>=0.42.0",
+    "websocket-client>=1.0",
+    "requests>=2.28",
+    "zeroconf>=0.80",
     "rzem-ai-inference-engine",
 ]
 
 [tool.uv.sources]
 rzem-ai-inference-engine = { path = "../rzem-ai-inference-engine", editable = true }
+
+[tool.setuptools.packages.find]
+include = ["backend*"]
 
 [project.scripts]
 app = "main:main"

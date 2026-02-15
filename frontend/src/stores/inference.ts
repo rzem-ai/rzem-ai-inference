@@ -378,34 +378,41 @@ export const useInferenceStore = defineStore('inference', {
         switch (event.type) {
           case 'model_loading':
             console.log('model_loading:', event.data);
+
             this.modelStatus = event.data.message ?? 'Loading model...';
             break;
 
           case 'model_loaded':
             console.log('model_loaded:', event.data);
+
             this.modelStatus = 'Model loaded';
             break;
 
           case 'model_unloaded':
             this.modelStatus = null;
+
             break;
 
           case 'server_connected':
             console.log('server_connected:', event.data);
+
             this.engineReady = true;
             break;
 
           case 'server_disconnected':
             console.log('server_disconnected:', event.data);
+
             this.engineReady = false;
             this.error = event.data.message ?? 'Disconnected from remote server';
             break;
 
           case 'job_queued':
+            console.log('job_queued:', event.data);
             break;
 
           case 'job_started':
             console.log('job_started:', event.data);
+
             this.currentJobId = event.data.job_id ?? this.currentJobId;
             this.isGenerating = true;
             this.progress = {
@@ -419,6 +426,7 @@ export const useInferenceStore = defineStore('inference', {
 
           case 'job_progress':
             console.log('job_progress:', event.data);
+
             this.progress = {
               step: event.data.step ?? 0,
               totalSteps: event.data.total_steps ?? this.params.steps,
@@ -432,6 +440,8 @@ export const useInferenceStore = defineStore('inference', {
             break;
 
           case 'job_completed': {
+            console.log('job_completed:', event.data);
+
             this.progress = null;
             this.previewDataUrl = null;
             const img: GeneratedImage = {
@@ -442,10 +452,12 @@ export const useInferenceStore = defineStore('inference', {
               width: event.data.width,
               height: event.data.height,
             };
+
             if (img.imagePath && _api) {
               const imgRes = await _api.get_image_base64({
                 image_path: img.imagePath,
               });
+
               if (imgRes.status === 'success' && imgRes.data_url) {
                 img.dataUrl = imgRes.data_url;
               }
@@ -454,6 +466,7 @@ export const useInferenceStore = defineStore('inference', {
 
             if (this.batchActive) {
               this.batchCompleted++;
+
               if (this.batchCompleted >= this.batchTotal) {
                 this.batchActive = false;
                 this.isGenerating = false;
@@ -463,10 +476,13 @@ export const useInferenceStore = defineStore('inference', {
               this.isGenerating = false;
               this.currentJobId = null;
             }
+
             break;
           }
 
           case 'job_failed':
+            console.log('job_failed:', event.data);
+
             this.progress = null;
             this.previewDataUrl = null;
             this.error = event.data.error ?? 'Generation failed';
@@ -485,6 +501,8 @@ export const useInferenceStore = defineStore('inference', {
             break;
 
           case 'job_cancelled':
+            console.log('job_cancelled:', event.data);
+
             this.progress = null;
             this.previewDataUrl = null;
 
