@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-col h-full" @dragover.prevent="isDragging = true" @dragleave.self="isDragging = false" @drop.prevent="onDrop">
+  <div class="flex flex-col h-full">
     <!-- Header -->
     <div class="h-16 px-4 w-full content-end">
       <div class="flex items-center justify-between w-full border-b border-surface-300 pb-2">
@@ -35,6 +35,25 @@
 
     <!-- Configured state -->
     <template v-else>
+      <!-- Scan buttons -->
+      <div class="flex gap-1.5 px-3 py-2 border-b border-slate-100">
+        <button
+          class="flex-1 py-1.5 rounded border border-dashed border-purple-300 bg-purple-50 text-center hover:bg-purple-100 hover:border-purple-500 transition-colors"
+          @click="openPicker('style')">
+          <span class="text-[10px] font-medium text-purple-600">Style</span>
+        </button>
+        <button
+          class="flex-1 py-1.5 rounded border border-dashed border-blue-300 bg-blue-50 text-center hover:bg-blue-100 hover:border-blue-500 transition-colors"
+          @click="openPicker('both')">
+          <span class="text-[10px] font-medium text-blue-600">Style+Subject</span>
+        </button>
+        <button
+          class="flex-1 py-1.5 rounded border border-dashed border-green-300 bg-green-50 text-center hover:bg-green-100 hover:border-green-500 transition-colors"
+          @click="openPicker('subject')">
+          <span class="text-[10px] font-medium text-green-600">Subject</span>
+        </button>
+      </div>
+
       <!-- Messages area -->
       <div ref="messagesContainer" class="flex-1 overflow-y-auto px-3 py-2 flex flex-col gap-3">
         <!-- Empty state with suggestions -->
@@ -128,13 +147,6 @@
         </div>
       </div>
 
-      <!-- Drag overlay -->
-      <div
-        v-if="isDragging"
-        class="absolute inset-0 bg-blue-500/10 border-2 border-dashed border-blue-400 rounded-xl flex items-center justify-center z-10 pointer-events-none">
-        <span class="text-base font-medium text-blue-600">Drop image here</span>
-      </div>
-
       <!-- Chat input -->
       <div class="px-4 py-3 border-t border-slate-200 min-h-16 bg-surface-100">
         <InputGroup>
@@ -149,28 +161,63 @@
         </InputGroup>
       </div>
     </template>
+
+    <!-- Image picker dialog -->
+    <Dialog v-model:visible="pickerVisible" modal header="Select an image" :style="{ width: '400px' }">
+      <button
+        class="w-full mb-3 py-2 rounded border border-dashed border-slate-300 bg-slate-50 text-sm text-slate-600 hover:bg-slate-100 hover:border-slate-400 transition-colors flex items-center justify-center gap-2"
+        @click="onBrowseFile">
+        <FolderOpen :size="14" />
+        Browse files...
+      </button>
+      <div v-if="inferenceStore.generatedImages.length" class="grid grid-cols-4 gap-2 max-h-80 overflow-y-auto">
+        <div
+          v-for="img in inferenceStore.generatedImages"
+          :key="img.jobId"
+          class="aspect-square rounded cursor-pointer overflow-hidden border-2 border-transparent hover:border-blue-500 transition-colors"
+          @click="onPickImage(img.imagePath)">
+          <img v-if="img.dataUrl" :src="img.dataUrl" alt="" class="w-full h-full object-cover" />
+          <div v-else class="w-full h-full bg-slate-200 flex items-center justify-center">
+            <ImageIcon :size="16" class="text-slate-400" />
+          </div>
+        </div>
+      </div>
+    </Dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch, nextTick } from 'vue';
-import { Bot, SendHorizontal, Plus, KeyRound, X, Image as ImageIcon, MessageCirclePlus, Divide } from 'lucide-vue-next';
+import { Bot, SendHorizontal, KeyRound, X, Image as ImageIcon, MessageCirclePlus, FolderOpen } from 'lucide-vue-next';
 import { marked } from 'marked';
 import { useChatStore } from '@/stores/chat';
-import { Button, Divider } from 'primevue';
-import { InputGroup, InputGroupAddon, InputNumber, InputNumberInputEvent, InputText } from 'primevue';
+import { useInferenceStore } from '@/stores/inference';
+import { usePywebview } from '@/composables/usePywebview';
+import { Button, Dialog } from 'primevue';
+import { InputGroup, InputGroupAddon, InputText } from 'primevue';
 
 const chatStore = useChatStore();
+const inferenceStore = useInferenceStore();
+const { api } = usePywebview();
 const chatInput = ref('');
 const apiKeyInput = ref('');
-const isDragging = ref(false);
 const messagesContainer = ref<HTMLElement | null>(null);
+
+// Image picker state
+const pickerVisible = ref(false);
+const pickerMode = ref<'style' | 'subject' | 'both'>('both');
 
 const suggestionChips = ['Improve my prompt', 'Suggest lighting', 'Art style ideas', 'More detail'];
 
 const isSendMessageEnabled = computed(() => {
   return !(!chatInput.value.trim() || chatStore.isStreaming);
 });
+
+const scanPrompts: Record<string, string> = {
+  style: 'Analyze this image and describe its artistic style in detail. Then update my prompt to use the same style while keeping my current subject.',
+  subject: 'Analyze this image and describe its subject in detail. Then update my prompt to use the same subject while keeping my current style.',
+  both: 'Analyze this image in exhaustive detail — subject, composition, lighting, color palette, artistic style, medium, mood, and any notable visual elements. Then update my prompt to reproduce this image as closely as possible.',
+};
 
 function renderMarkdown(text: string): string {
   return marked.parse(text, { breaks: true, async: false }) as string;
@@ -223,12 +270,29 @@ async function onSetApiKey() {
   apiKeyInput.value = '';
 }
 
-function onDrop(e: DragEvent) {
-  isDragging.value = false;
-  const imagePath = e.dataTransfer?.getData('text/image-path');
-  if (imagePath) {
-    chatStore.addPendingImage(imagePath);
+function openPicker(mode: 'style' | 'subject' | 'both') {
+  pickerMode.value = mode;
+  pickerVisible.value = true;
+}
+
+async function onBrowseFile() {
+  if (!api.value) return;
+  const res = await api.value.browse_image_file();
+  if (res.status === 'success' && res.path) {
+    await onPickImage(res.path);
   }
+}
+
+async function onPickImage(imagePath: string) {
+  pickerVisible.value = false;
+
+  // Ensure a conversation exists
+  if (!chatStore.activeConversationId) {
+    await chatStore.createConversation();
+  }
+
+  chatStore.addPendingImage(imagePath);
+  chatStore.sendMessage(scanPrompts[pickerMode.value]);
 }
 
 function scrollToBottom() {

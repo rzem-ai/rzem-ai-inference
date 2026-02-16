@@ -5,7 +5,7 @@
       <div v-if="store.isGenerating && store.previewDataUrl" class="rounded-2xl p-4 h-full flex justify-center w-full">
         <!-- Live preview during generation -->
         <div ref="imageWrapper" class="w-full h-full flex justify-center">
-          <div class="border-surface-400 border rounded-2xl shadow-md shadow-surface-800/90">
+          <div class=" ">
             <img :src="store.previewDataUrl" alt="Generation preview" class="rounded-2xl" style="filter: blur(1px)" :style="placeholderStyle" />
           </div>
         </div>
@@ -14,7 +14,7 @@
       <div v-else-if="displayedImage?.dataUrl" class="rounded-2xl p-4 h-full flex justify-center w-full">
         <!-- Live preview during generation -->
         <div ref="imageWrapper" class="w-full h-full flex justify-center">
-          <div class="border-surface-400 border rounded-2xl shadow-md shadow-surface-800/90">
+          <div class=" ">
             <img :src="displayedImage.dataUrl" alt="Generated image" class="rounded-2xl" :style="placeholderStyle" />
           </div>
         </div>

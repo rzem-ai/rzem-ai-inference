@@ -9,6 +9,10 @@ import 'primeicons/primeicons.css';
 
 document.documentElement.classList.add('light');
 
+// Prevent WebKit/pywebview from navigating to dropped files
+document.addEventListener('dragover', (e) => e.preventDefault());
+document.addEventListener('drop', (e) => e.preventDefault());
+
 const app = createApp(App);
 
 app.use(createPinia());

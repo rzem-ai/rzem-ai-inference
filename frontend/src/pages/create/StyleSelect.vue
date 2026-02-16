@@ -29,9 +29,9 @@
     </Select>
 
     <!-- Active style info -->
-    <p v-if="selectedStyle?.description" class="text-lg text-slate-400 px-1">
+    <div v-if="selectedStyle?.description" class="text-lg text-slate-400 px-1 line-clamp-2">
       {{ selectedStyle.description }}
-    </p>
+    </div>
   </div>
 </template>
 

@@ -11,7 +11,7 @@
           draggable="true"
           @dragstart="(e) => e.dataTransfer?.setData('text/image-path', img.imagePath)"
           @click="selectedIndex = index">
-          <img v-if="img.dataUrl" :src="img.dataUrl" alt="" class="w-full h-full object-cover" />
+          <img v-if="img.dataUrl" :src="img.dataUrl" alt="" draggable="false" class="w-full h-full object-cover" />
           <div v-else class="w-full h-full bg-slate-200 flex items-center justify-center">
             <ImageIcon :size="10" class="text-slate-400" />
           </div>
