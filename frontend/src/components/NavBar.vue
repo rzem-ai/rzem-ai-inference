@@ -5,46 +5,34 @@
     </div>
     <div class="flex grow place-content-center">
       <div class="place-content-start flex flex-col gap-4">
-        <RouterLink :to="{ name: 'create' }" class="" v-slot="{ isActive, href, navigate }">
+        <RouterLink :to="{ name: 'create' }" v-slot="{ isActive }">
           <div
-            class="p-3 border border-surface-300 rounded-lg shadow transition-all duration-300 ease-in-out"
-            :class="
-              isActive
-                ? 'text-blue-400 shadow-blue-400/50  hover:shadow-blue-500'
-                : 'text-surface-400 hover:text-blue-500 shadow-surface-400/50  hover:shadow-blue-500'
-            ">
+            class="p-3 transition-all duration-300 ease-in-out"
+            :class="isActive ? 'text-white' : 'text-surface-400 hover:text-white'">
             <ImagePlus :size="20" />
           </div>
         </RouterLink>
-        <RouterLink :to="{ name: 'gallery' }" class="" v-slot="{ isActive, href, navigate }">
+        <RouterLink :to="{ name: 'gallery' }" v-slot="{ isActive }">
           <div
-            class="p-3 border border-surface-300 rounded-lg shadow transition-all duration-300 ease-in-out"
-            :class="
-              isActive
-                ? 'text-blue-400 shadow-blue-400/50  hover:shadow-blue-500'
-                : 'text-surface-400 hover:text-blue-500 shadow-surface-400/50  hover:shadow-blue-500'
-            ">
+            class="p-3 transition-all duration-300 ease-in-out"
+            :class="isActive ? 'text-white' : 'text-surface-400 hover:text-white'">
             <Images :size="20" />
           </div>
         </RouterLink>
-        <RouterLink :to="{ name: 'styles' }" class="" v-slot="{ isActive, href, navigate }">
+        <RouterLink :to="{ name: 'styles' }" v-slot="{ isActive }">
           <div
-            class="p-3 border border-surface-300 rounded-lg shadow transition-all duration-300 ease-in-out"
-            :class="
-              isActive
-                ? 'text-blue-400 shadow-blue-400/50  hover:shadow-blue-500'
-                : 'text-surface-400 hover:text-blue-500 shadow-surface-400/50  hover:shadow-blue-500'
-            ">
+            class="p-3 transition-all duration-300 ease-in-out"
+            :class="isActive ? 'text-white' : 'text-surface-400 hover:text-white'">
             <Palette :size="20" />
           </div>
         </RouterLink>
       </div>
     </div>
     <div class="flex items-center justify-center h-20 shrink">
-      <RouterLink :to="{ name: 'settings' }" v-slot="{ isActive, href, navigate }">
+      <RouterLink :to="{ name: 'settings' }" v-slot="{ isActive }">
         <div
-          class="p-2 transition-all duration-300 ease-in-out"
-          :class="isActive ? 'text-blue-400 hover:text-blue-500' : 'text-surface-400  hover:text-blue-500'">
+          class="p-3 transition-all duration-300 ease-in-out"
+          :class="isActive ? 'text-white' : 'text-surface-400 hover:text-white'">
           <Cog :size="20" />
         </div>
       </RouterLink>
@@ -53,7 +41,6 @@
 </template>
 
 <script setup lang="ts">
-import { CameraOff, Cog, Images, Palette, ImagePlus } from 'lucide-vue-next';
+import { Cog, Images, Palette, ImagePlus } from 'lucide-vue-next';
 import PixelCard from '../components/PixelCard.vue';
-import { isActive } from '@tiptap/core';
 </script>

@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import type { PywebviewAPI } from '@/types/pywebview';
-import type { Style, StyleLoRA, LoRA, Tag } from '@/types/inference';
+import type { Style, StyleLoRA, StyleExample, LoRA, Tag } from '@/types/inference';
 
 let _api: PywebviewAPI | null = null;
 
@@ -22,6 +22,7 @@ export const useStylesStore = defineStore('styles', {
     editorStyle: null as Style | null,
     editorLoras: [] as StyleLoRA[],
     editorTags: [] as Tag[],
+    editorExamples: [] as StyleExample[],
   }),
 
   getters: {
@@ -169,6 +170,7 @@ export const useStylesStore = defineStore('styles', {
         this.editorStyle = res.style ?? null;
         this.editorLoras = res.loras ?? [];
         this.editorTags = res.tags ?? [];
+        this.editorExamples = res.examples ?? [];
       }
       return res;
     },
@@ -177,6 +179,7 @@ export const useStylesStore = defineStore('styles', {
       this.editorStyle = null;
       this.editorLoras = [];
       this.editorTags = [];
+      this.editorExamples = [];
     },
 
     async saveStyleLoras(styleId: string, loras: Array<{ lora_id: string; strength: number; priority?: number }>) {
@@ -203,6 +206,56 @@ export const useStylesStore = defineStore('styles', {
       const res = await _api.set_style_tags({ style_id: styleId, tag_ids: tagIds });
       if (res.status === 'success') {
         this.editorTags = res.tags ?? [];
+      }
+      return res;
+    },
+
+    // ── Examples ──
+
+    async addExample(styleId: string, data: {
+      prompt: string;
+      imagePath?: string;
+      seed?: number;
+      width?: number;
+      height?: number;
+      steps?: number;
+      cfgScale?: number;
+    }) {
+      if (!_api) return;
+      const res = await _api.create_style_example({
+        style_id: styleId,
+        prompt: data.prompt,
+        image_path: data.imagePath,
+        seed: data.seed,
+        width: data.width,
+        height: data.height,
+        steps: data.steps,
+        cfg_scale: data.cfgScale,
+      });
+      if (res.status === 'success' && res.example) {
+        this.editorExamples.push(res.example);
+      }
+      return res;
+    },
+
+    async removeExample(exampleId: string) {
+      if (!_api) return;
+      const res = await _api.delete_style_example({ example_id: exampleId });
+      if (res.status === 'success') {
+        this.editorExamples = this.editorExamples.filter(e => e.id !== exampleId);
+      }
+      return res;
+    },
+
+    // ── Import ──
+
+    async importCivitaiMetadata() {
+      if (!_api) return null;
+      const res = await _api.browse_and_import_metadata();
+      if (res.status === 'success' && res.styles?.length) {
+        await this.loadStyles();
+        await this.loadCategories();
+        await this.loadTags();
       }
       return res;
     },

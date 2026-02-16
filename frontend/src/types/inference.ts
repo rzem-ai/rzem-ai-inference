@@ -167,6 +167,15 @@ export interface StyleLoRA {
   lora_path: string;
 }
 
+export interface StyleExample {
+  id: string;
+  entity_type: string;
+  entity_id: string;
+  example_type: string;
+  content: string;
+  created_at: number;
+}
+
 export interface LoRA {
   id: string;
   name: string;

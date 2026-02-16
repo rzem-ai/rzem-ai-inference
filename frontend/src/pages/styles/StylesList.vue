@@ -4,6 +4,7 @@
     <Toolbar>
       <template #start>
         <Button severity="primary" @click="router.push({ name: 'styles-new' })"><Plus :size="14" />New Style</Button>
+        <Button severity="secondary" :loading="importing" @click="onImportMetadata"> <FolderInput :size="14" /> Import </Button>
 
         <Divider layout="vertical" />
 
@@ -79,7 +80,10 @@
       </div>
 
       <!-- Grid view -->
-      <div v-else class="grid gap-3 p-1" :class="isGridMode ? 'grid-cols-8' : 'grid-cols-1'">
+      <div
+        v-else
+        class="grid gap-3 p-1"
+        :class="isGridMode ? ' sm:grid-cols-1 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 3xl:grid-cols-5 grid-cols-2' : 'grid-cols-1'">
         <StyleCard
           v-for="style in stylesStore.styles"
           :key="style.id"
@@ -101,13 +105,12 @@
 <script setup lang="ts">
 import { computed, ref, reactive, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { Search, Plus, SquareCheck, Trash2, LayoutGrid, List as ListIcon, Palette, Square, ListTodo } from 'lucide-vue-next';
-
-import { Download, FolderInput, Tag as TagIcon, ArrowUpDown, ChevronDown, Image as ImageIcon } from 'lucide-vue-next';
+import { Search, Plus, Trash2, LayoutGrid, List as ListIcon, Palette, ListTodo } from 'lucide-vue-next';
+import { FolderInput, ArrowUpDown, ChevronDown } from 'lucide-vue-next';
 
 import { useStylesStore } from '@/stores/styles';
 import StyleCard from './StyleCard.vue';
-import { Button, Divider, ToggleButton, Toolbar, SelectButton } from 'primevue';
+import { Button, Divider, Toolbar, SelectButton } from 'primevue';
 import { InputText, InputGroup, InputGroupAddon } from 'primevue';
 
 const router = useRouter();
@@ -122,6 +125,7 @@ const selectionMode = ref(false);
 const selectedIds = reactive(new Set<string>());
 
 const searchInput = ref('');
+const importing = ref(false);
 
 const isGridMode = computed(() => viewMode.value.value === GRID_VIEW.value);
 
@@ -189,6 +193,12 @@ async function onDeleteSelected() {
     await stylesStore.deleteStyle(id);
   }
   selectedIds.clear();
+}
+
+async function onImportMetadata() {
+  importing.value = true;
+  await stylesStore.importCivitaiMetadata();
+  importing.value = false;
 }
 </script>
 

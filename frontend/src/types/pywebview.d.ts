@@ -1,4 +1,4 @@
-import type { ApiResponse, InferenceEvent, ModelBundle, GalleryImage, Folder, Tag, Style, StyleLoRA, LoRA, VramUsage, EngineStatus, CachedModel, DataPaths, DiskUsage, Conversation, ConversationMessage, ChatEvent, DiscoveredServer } from "./inference";
+import type { ApiResponse, InferenceEvent, ModelBundle, GalleryImage, Folder, Tag, Style, StyleLoRA, StyleExample, LoRA, VramUsage, EngineStatus, CachedModel, DataPaths, DiskUsage, Conversation, ConversationMessage, ChatEvent, DiscoveredServer } from "./inference";
 
 export interface PywebviewAPI {
   // ── System ──
@@ -113,7 +113,7 @@ export interface PywebviewAPI {
     search?: string;
     favorites_only?: boolean;
   }): Promise<ApiResponse<{ styles?: Style[] }>>;
-  get_style(args: { style_id: string }): Promise<ApiResponse<{ style?: Style; loras?: StyleLoRA[]; tags?: Tag[] }>>;
+  get_style(args: { style_id: string }): Promise<ApiResponse<{ style?: Style; loras?: StyleLoRA[]; tags?: Tag[]; examples?: StyleExample[] }>>;
   create_style(args: {
     id: string;
     name: string;
@@ -127,6 +127,20 @@ export interface PywebviewAPI {
   delete_style(args: { style_id: string }): Promise<ApiResponse>;
   toggle_style_favorite(args: { style_id: string }): Promise<ApiResponse<{ style?: Style }>>;
   get_style_categories(): Promise<ApiResponse<{ categories?: string[] }>>;
+
+  // ── Style examples ──
+  get_style_examples(args: { style_id: string }): Promise<ApiResponse<{ examples?: StyleExample[] }>>;
+  create_style_example(args: {
+    style_id: string;
+    prompt: string;
+    image_path?: string;
+    seed?: number;
+    width?: number;
+    height?: number;
+    steps?: number;
+    cfg_scale?: number;
+  }): Promise<ApiResponse<{ example?: StyleExample }>>;
+  delete_style_example(args: { example_id: string }): Promise<ApiResponse>;
 
   // ── Style ↔ LoRA ──
   get_style_loras(args: { style_id: string }): Promise<ApiResponse<{ loras?: StyleLoRA[] }>>;
@@ -149,6 +163,8 @@ export interface PywebviewAPI {
   }): Promise<ApiResponse<{ lora?: LoRA }>>;
   browse_lora_files(): Promise<ApiResponse<{ loras?: LoRA[] }>>;
   browse_image_file(): Promise<ApiResponse<{ path?: string | null }>>;
+  browse_and_import_metadata(): Promise<ApiResponse<{ styles?: Style[]; errors?: string[] }>>;
+  import_civitai_metadata(args: { file_path?: string; json_content?: string }): Promise<ApiResponse<{ style?: Style }>>;
 
   // ── Batch ──
   batch_parse_data(args: { content: string }): Promise<ApiResponse<{

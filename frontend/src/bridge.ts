@@ -400,6 +400,15 @@ export const mockApi: PywebviewAPI = {
   async get_style_categories() {
     return { status: "success", categories: ["Photography", "Illustration", "Painting"] };
   },
+  async get_style_examples(_args) {
+    return { status: "success", examples: [] };
+  },
+  async create_style_example(_args) {
+    return { status: "success", example: undefined };
+  },
+  async delete_style_example(_args) {
+    return { status: "success" };
+  },
   async get_style_loras(_args) {
     return { status: "success", loras: [] };
   },
@@ -423,6 +432,27 @@ export const mockApi: PywebviewAPI = {
   },
   async browse_image_file() {
     return { status: "success", path: null };
+  },
+  async browse_and_import_metadata() {
+    return { status: "success", styles: [], errors: [] };
+  },
+  async import_civitai_metadata(_args: { file_path?: string; json_content?: string }) {
+    return {
+      status: "success",
+      style: {
+        id: "mock-imported-style",
+        name: "Imported Style (mock)",
+        description: "Imported from CivitAI metadata",
+        prompt_template: "trigger_word {prompt}",
+        negative_prompt: null,
+        category: null,
+        thumbnail_path: null,
+        is_favorite: 0,
+        usage_count: 0,
+        created_at: Date.now() / 1000,
+        updated_at: Date.now() / 1000,
+      },
+    };
   },
 
   // ── Batch ──

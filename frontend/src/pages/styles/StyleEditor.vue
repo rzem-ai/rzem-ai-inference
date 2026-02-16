@@ -1,52 +1,55 @@
 <template>
   <div class="h-full flex flex-col gap-2">
     <!-- Toolbar -->
-    <div class="flex items-center gap-1.5 px-3 h-10 bg-white rounded-xl border border-slate-200 shrink-0">
-      <button
-        class="flex items-center gap-1.5 px-2.5 h-7 rounded-md bg-slate-50 text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors"
-        @click="goBack">
-        <ArrowLeft :size="14" />
-        <span>Back to Styles</span>
-      </button>
+    <Toolbar>
+      <template #start>
+        <Button @click="goBack" severity="secondary">
+          <ArrowLeft :size="14" />
+          <span>Back to Styles</span>
+        </Button>
+      </template>
 
+      <template #center class="w-[50%]"> </template>
+
+      <template #end>
+        <Button :disabled="!canSave" @click="onSave">
+          <Save :size="14" />
+          <div>{{ isNew ? 'Create' : 'Save' }}</div>
+        </Button>
+      </template>
+    </Toolbar>
+
+    <!-- Toolbar -->
+    <div class="flex items-center gap-1.5 px-3 h-10 bg-white rounded-xl border border-surface-200 shrink-0">
       <div class="flex-1" />
-
-      <button
-        class="flex items-center gap-1.5 px-2.5 h-7 rounded-md bg-blue-500 text-xs font-medium text-white hover:bg-blue-600 transition-colors disabled:opacity-50"
-        :disabled="!canSave"
-        @click="onSave">
-        <Save :size="14" />
-        <span>{{ isNew ? 'Create' : 'Save' }}</span>
-      </button>
     </div>
 
     <!-- Editor content -->
-    <div class="flex-1 min-h-0 overflow-y-auto">
-      <div class="max-w-5xl mx-auto p-4 grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <!-- Left column: Core details -->
-        <div class="flex flex-col gap-4">
+    <div class="flex-1 min-h-0 overflow-hidden mx-auto max-w-8xl ">
+      <div class="grid grid-cols-2 gap-8 h-full">
+        <!-- Center column: Core details -->
+        <div class="flex flex-col gap-4 flex-1 max-w-160 overflow-y-auto min-h-0">
           <!-- Thumbnail -->
           <div
-            class="relative aspect-video w-full rounded-lg overflow-hidden border-2 transition-colors cursor-pointer"
-            :class="isThumbnailDragging
-              ? 'border-blue-400 bg-blue-50'
-              : thumbnailDataUrl
-                ? 'border-slate-200 hover:border-blue-300'
-                : 'border-dashed border-slate-200 bg-slate-100 hover:border-blue-300 hover:bg-blue-50/30'"
+            class="relative w-full h-100 rounded-lg overflow-hidden border-2 transition-colors cursor-pointer"
+            :class="
+              isThumbnailDragging
+                ? 'border-blue-400 bg-blue-50'
+                : thumbnailDataUrl
+                  ? 'border-surface-200 hover:border-blue-300'
+                  : 'border-dashed border-surface-200 bg-surface-100 hover:border-blue-300 hover:bg-blue-50/30'
+            "
             @click="onBrowseThumbnail"
             @dragenter.prevent="onThumbnailDragEnter"
             @dragleave.prevent="onThumbnailDragLeave"
             @dragover.prevent
             @drop.prevent="onThumbnailDrop">
-            <img
-              v-if="thumbnailDataUrl"
-              :src="thumbnailDataUrl"
-              class="absolute inset-0 w-full h-full object-cover" />
+            <img v-if="thumbnailDataUrl" :src="thumbnailDataUrl" class="absolute inset-0 w-full h-full object-cover" />
             <div
               v-if="!thumbnailDataUrl || isThumbnailDragging"
               class="absolute inset-0 flex items-center justify-center pointer-events-none"
               :class="thumbnailDataUrl ? 'bg-black/40' : ''">
-              <div class="text-center" :class="thumbnailDataUrl || isThumbnailDragging ? 'text-white' : 'text-slate-300'">
+              <div class="text-center" :class="thumbnailDataUrl || isThumbnailDragging ? 'text-white' : 'text-surface-300'">
                 <ImagePlus :size="32" class="mx-auto mb-1" />
                 <p class="text-xs">{{ isThumbnailDragging ? 'Drop image here' : 'Drop or click to set thumbnail' }}</p>
               </div>
@@ -54,167 +57,287 @@
           </div>
 
           <!-- Name -->
-          <div class="flex flex-col gap-1">
-            <label class="text-xs font-medium text-slate-600">Name</label>
-            <input
-              v-model="form.name"
-              type="text"
-              placeholder="Style name"
-              class="px-3 h-9 rounded-lg bg-slate-50 border border-slate-200 text-sm text-slate-700 placeholder-slate-400 outline-none focus:border-blue-400 transition-colors" />
+          <div class="flex flex-col gap-0">
+            <label class="text-lg font-semibold text-surface-700">Name</label>
+            <InputText v-model="form.name" placeholder="Style name" />
           </div>
 
           <!-- Collection (category) -->
-          <div class="flex flex-col gap-1">
-            <label class="text-xs font-medium text-slate-600">Collection</label>
-            <input
-              v-model="form.category"
-              type="text"
-              placeholder="e.g. Photography, Illustration, Painting"
-              class="px-3 h-9 rounded-lg bg-slate-50 border border-slate-200 text-sm text-slate-700 placeholder-slate-400 outline-none focus:border-blue-400 transition-colors" />
+          <div class="flex flex-col gap-0">
+            <label class="text-lg font-semibold text-surface-700">Collection</label>
+            <InputText v-model="form.category" placeholder="e.g. Photography, Illustration, Painting" />
           </div>
 
           <!-- Description -->
-          <div class="flex flex-col gap-1">
-            <label class="text-xs font-medium text-slate-600">Description</label>
-            <textarea
+          <div class="flex flex-col gap-0">
+            <label class="text-lg font-semibold text-surface-700">Description</label>
+            <TextEditor
               v-model="form.description"
-              rows="2"
               placeholder="Brief description of this style"
-              class="px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-sm text-slate-700 placeholder-slate-400 outline-none focus:border-blue-400 transition-colors resize-none" />
+              editor-class=" bg-white border border-surface-300  text-surface-900 min-h-40 max-h-80 transition-colors " />
           </div>
 
-          <!-- Positive prompt template -->
-          <div class="flex flex-col gap-1">
-            <label class="text-xs font-medium text-slate-600">Prompt Template</label>
-            <textarea
-              v-model="form.promptTemplate"
-              rows="4"
-              placeholder="cinematic film still, {prompt}, 35mm photograph, film grain"
-              class="px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-sm text-slate-700 placeholder-slate-400 outline-none focus:border-blue-400 transition-colors resize-none font-mono" />
-            <p class="text-[10px] text-slate-400">Use {prompt} as a placeholder for the user's prompt</p>
-          </div>
-
-          <!-- Negative prompt -->
-          <div class="flex flex-col gap-1">
-            <label class="text-xs font-medium text-slate-600">Negative Prompt</label>
-            <textarea
-              v-model="form.negativePrompt"
-              rows="3"
-              placeholder="Things to avoid in generated images"
-              class="px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-sm text-slate-700 placeholder-slate-400 outline-none focus:border-blue-400 transition-colors resize-none font-mono" />
+          <!-- Tags -->
+          <div class="flex flex-col gap-0">
+            <label class="text-lg font-semibold text-surface-700">Tags</label>
+            <div class="flex flex-col gap-2">
+              <!-- Tag input with suggestions -->
+              <div class="relative">
+                <InputText
+                  v-model="tagInput"
+                  placeholder="Type to add a tag..."
+                  fluid
+                  @focus="showTagSuggestions = true"
+                  @keydown.enter.prevent="onTagEnter"
+                  @keydown.escape="showTagSuggestions = false" />
+                <ul
+                  v-if="showTagSuggestions && tagSuggestions.length"
+                  class="absolute z-10 w-full mt-1 bg-white border border-surface-200 rounded-lg shadow-lg max-h-32 overflow-y-auto">
+                  <li
+                    v-for="tag in tagSuggestions"
+                    :key="tag.id"
+                    class="px-3 py-1.5 text-sm text-surface-700 hover:bg-blue-50 cursor-pointer transition-colors"
+                    @mousedown.prevent="addExistingTag(tag)">
+                    {{ tag.name }}
+                  </li>
+                </ul>
+                <p v-if="tagInput.trim() && !tagSuggestions.length && showTagSuggestions" class="mt-1 text-[10px] text-surface-400">
+                  Press Enter to create "{{ tagInput.trim() }}"
+                </p>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <Chip
+                  v-for="tag in allEditorTags"
+                  :key="tag.id"
+                  :label="tag.name"
+                  @remove="removeTag(tag.id)"
+                  removable
+                  class="border border-surface-300 rounded-xl py-0 px-2" />
+              </div>
+            </div>
           </div>
         </div>
 
-        <!-- Right column: LoRAs and Tags -->
-        <div class="flex flex-col gap-4">
-          <!-- Tags -->
-          <div class="flex flex-col gap-2 p-3 rounded-lg bg-white border border-slate-200">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-semibold text-slate-700">Tags</span>
-            </div>
-            <div class="flex flex-wrap gap-1.5">
-              <span
-                v-for="tag in allEditorTags"
-                :key="tag.id"
-                class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600">
-                {{ tag.name }}
-                <button class="hover:text-red-500 transition-colors" @click="removeTag(tag.id)">
-                  <X :size="10" />
-                </button>
-              </span>
-            </div>
+        <!-- Right column: Tags, LoRAs, and Examples -->
+        <div class="flex flex-col gap-6 flex-1 max-w-160 overflow-y-auto min-h-0">
+          <!-- Positive prompt template -->
+          <div class="flex flex-col gap-0">
+            <label class="text-lg font-semibold text-surface-700">Prompt Template</label>
+            <TextEditor
+              v-model="form.promptTemplate"
+              placeholder="In style of Moebius {prompt}"
+              editor-class=" bg-white border border-surface-300 text-sm text-surface-900 min-h-[60px] max-h-[100px] focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-400 transition-colors cursor-text" />
+            <p class="text-xs text-blue-600">Use {prompt} as a placeholder for the user's prompt</p>
+          </div>
 
-            <!-- Tag input with suggestions -->
-            <div class="relative">
-              <input
-                v-model="tagInput"
-                type="text"
-                placeholder="Type to add a tag..."
-                class="w-full px-3 h-8 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-700 placeholder-slate-400 outline-none focus:border-blue-400 transition-colors"
-                @focus="showTagSuggestions = true"
-                @keydown.enter.prevent="onTagEnter"
-                @keydown.escape="showTagSuggestions = false" />
-              <ul
-                v-if="showTagSuggestions && tagSuggestions.length"
-                class="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-32 overflow-y-auto">
-                <li
-                  v-for="tag in tagSuggestions"
-                  :key="tag.id"
-                  class="px-3 py-1.5 text-xs text-slate-700 hover:bg-blue-50 cursor-pointer transition-colors"
-                  @mousedown.prevent="addExistingTag(tag)">
-                  {{ tag.name }}
-                </li>
-              </ul>
-              <p v-if="tagInput.trim() && !tagSuggestions.length && showTagSuggestions" class="mt-1 text-[10px] text-slate-400">
-                Press Enter to create "{{ tagInput.trim() }}"
-              </p>
-            </div>
+          <!-- Negative prompt (collapsible) -->
+          <div v-if="false" class="flex flex-col gap-0">
+            <button
+              type="button"
+              class="flex items-center gap-1.5 h-9 px-2.5 rounded-md bg-white border border-surface-300 text-lg font-medium text-surface-700 hover:bg-surface-50 transition-colors"
+              @click="showNegativePrompt = !showNegativePrompt">
+              <ChevronRight :size="14" class="text-surface-500 transition-transform" :class="showNegativePrompt ? 'rotate-90' : ''" />
+              Negative Prompt
+            </button>
+            <TextEditor
+              v-if="showNegativePrompt"
+              v-model="form.negativePrompt"
+              placeholder="Things to avoid in generated images"
+              editor-class="mt-1.5 px-3 py-2.5 rounded-md bg-white border border-surface-300 text-sm text-surface-400 min-h-[60px] max-h-[100px] focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-400 transition-colors cursor-text" />
           </div>
 
           <!-- LoRAs -->
-          <div class="flex flex-col gap-2 p-3 rounded-lg bg-white border border-slate-200">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-semibold text-slate-700">LoRA Models</span>
-            </div>
-
-            <!-- Associated LoRAs -->
-            <div v-if="stylesStore.editorLoras.length" class="flex flex-col gap-2">
-              <div
-                v-for="lora in stylesStore.editorLoras"
-                :key="lora.id"
-                class="flex items-center gap-2 p-2 rounded-lg bg-slate-50 border border-slate-100">
-                <Layers :size="14" class="text-slate-400 shrink-0" />
-                <div class="flex-1 min-w-0">
-                  <p class="text-xs font-medium text-slate-700 truncate">{{ lora.lora_name }}</p>
-                  <p class="text-[10px] text-slate-400 truncate">{{ lora.lora_path }}</p>
-                </div>
-                <div class="flex items-center gap-2 shrink-0">
-                  <input
-                    type="range"
-                    :value="lora.strength"
-                    min="0"
-                    max="2"
-                    step="0.05"
-                    class="w-20 h-1 accent-blue-500" />
-                  <span class="text-[10px] text-slate-500 w-7 text-right">{{ lora.strength.toFixed(2) }}</span>
+          <div class="flex flex-col gap-0">
+            <label class="text-lg font-semibold text-surface-700">LoRA Models</label>
+            <div class="flex flex-col gap-2.5 p-3 rounded-lg bg-white border border-surface-200">
+              <!-- Associated LoRAs -->
+              <div v-if="stylesStore.editorLoras.length" class="flex flex-col gap-2.5">
+                <div
+                  v-for="lora in stylesStore.editorLoras"
+                  :key="lora.id"
+                  class="flex items-center gap-2.5 p-3.5 rounded-lg bg-white border border-surface-200">
+                  <div class="flex items-center justify-center w-8 h-8 rounded-md bg-blue-50 shrink-0">
+                    <Layers :size="16" class="text-blue-600" />
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <p class="text-[13px] font-semibold text-surface-800 truncate">{{ lora.lora_name }}</p>
+                    <p class="text-[11px] text-surface-400 truncate">{{ lora.lora_path }}</p>
+                  </div>
+                  <div class="flex items-center gap-2.5 shrink-0">
+                    <input type="range" :value="lora.strength" min="0" max="2" step="0.05" class="w-20 h-1.5 accent-blue-500" />
+                    <span class="text-xs font-medium text-surface-500 w-9 text-right">{{ lora.strength.toFixed(2) }}</span>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <!-- Pending LoRAs (not yet saved to style) -->
-            <div v-if="pendingLoras.length" class="flex flex-col gap-2">
-              <div
-                v-for="lora in pendingLoras"
-                :key="lora.id"
-                class="flex items-center gap-2 p-2 rounded-lg bg-blue-50 border border-blue-100">
-                <Layers :size="14" class="text-blue-400 shrink-0" />
-                <div class="flex-1 min-w-0">
-                  <p class="text-xs font-medium text-slate-700 truncate">{{ lora.name }}</p>
-                  <p class="text-[10px] text-slate-400 truncate">{{ lora.path }}</p>
+              <!-- Pending LoRAs (not yet saved to style) -->
+              <div v-if="pendingLoras.length" class="flex flex-col gap-2.5">
+                <div v-for="lora in pendingLoras" :key="lora.id" class="flex items-center gap-2.5 p-3.5 rounded-lg bg-blue-50 border border-blue-200">
+                  <div class="flex items-center justify-center w-8 h-8 rounded-md bg-blue-100 shrink-0">
+                    <Layers :size="16" class="text-blue-600" />
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <p class="text-[13px] font-semibold text-surface-800 truncate">{{ lora.name }}</p>
+                    <p class="text-[11px] text-surface-400 truncate">{{ lora.path }}</p>
+                  </div>
+                  <button class="text-surface-400 hover:text-red-500 transition-colors shrink-0" @click="removePendingLora(lora.id)">
+                    <X :size="14" />
+                  </button>
                 </div>
-                <button class="text-slate-400 hover:text-red-500 transition-colors shrink-0" @click="removePendingLora(lora.id)">
-                  <X :size="14" />
-                </button>
               </div>
-            </div>
 
-            <!-- Drop zone / browse button -->
-            <div
-              class="flex items-center justify-center w-full h-20 rounded-lg border-2 border-dashed transition-colors cursor-pointer"
-              :class="isDragging
-                ? 'border-blue-400 bg-blue-50 text-blue-500'
-                : 'border-slate-200 text-slate-400 hover:border-blue-300 hover:text-blue-400 hover:bg-blue-50/50'"
-              @click="onBrowseLoras"
-              @dragenter.prevent="onDragEnter"
-              @dragleave.prevent="onDragLeave"
-              @dragover.prevent
-              @drop.prevent="onDrop">
-              <div class="text-center pointer-events-none">
-                <Plus :size="20" class="mx-auto mb-1" />
-                <p class="text-xs">{{ isDragging ? 'Drop LoRA files here' : 'Drop or click to add LoRA files' }}</p>
+              <!-- Drop zone / browse button -->
+              <div
+                class="flex flex-col items-center justify-center w-full h-20 rounded-lg border-[1.5px] border-dashed transition-colors cursor-pointer"
+                :class="
+                  isDragging
+                    ? 'border-blue-400 bg-blue-50 text-blue-500'
+                    : 'border-surface-300 bg-surface-50 text-surface-400 hover:border-blue-300 hover:text-blue-500 hover:bg-blue-50/50'
+                "
+                @click="onBrowseLoras"
+                @dragenter.prevent="onDragEnter"
+                @dragleave.prevent="onDragLeave"
+                @dragover.prevent
+                @drop.prevent="onDrop">
+                <div class="text-center pointer-events-none">
+                  <Plus :size="20" class="mx-auto mb-1" />
+                  <p class="text-xs font-normal">{{ isDragging ? 'Drop LoRA files here' : 'Drop or click to add LoRA files' }}</p>
+                </div>
               </div>
             </div>
           </div>
+
+          <!-- Example Prompts -->
+          <div class="flex flex-col gap-2">
+            <div class="flex items-center justify-between">
+              <label class="text-lg font-semibold text-surface-700">Example Prompts ( {{ stylesStore.editorExamples.length }} )</label>
+              <Button severity="secondary" variant="outlined" v-if="!isNew" @click="showAddExample = true">
+                <Plus :size="13" />
+                Add Example
+              </Button>
+            </div>
+
+            <!-- Example cards -->
+            <template v-if="stylesStore.editorExamples.length">
+              <div v-for="example in parsedExamples" :key="example.id" class="rounded-lg border border-surface-300 overflow-hidden bg-white">
+                <!-- Image -->
+                <div v-if="example.imageDataUrl" class="h-32.5 overflow-hidden">
+                  <img :src="example.imageDataUrl" class="w-full h-full object-cover" />
+                </div>
+                <!-- Body -->
+                <div class="p-3 flex flex-col gap-2">
+                  <p class="text-base font-medium text-surface-800 line-clamp-2">{{ example.prompt }}</p>
+                  <div class="flex flex-wrap gap-1">
+                    <!-- -->
+                    <div v-if="example.seed != null" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-surface-100">
+                      <div class="font-medium text-sm text-surface-400">Seed</div>
+                      <div class="font-medium text-base font-mono text-surface-600">{{ example.seed }}</div>
+                    </div>
+
+                    <!-- -->
+                    <div v-if="example.width && example.height" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-surface-100">
+                      <div class="font-medium text-sm text-surface-400">Size</div>
+                      <div class="font-medium text-base font-mono text-surface-600">{{ example.width }}×{{ example.height }}</div>
+                    </div>
+
+                    <!-- -->
+                    <div v-if="example.steps != null" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-surface-100">
+                      <div class="font-medium text-sm text-surface-400">Steps</div>
+                      <div class="font-medium text-base font-mono text-surface-600">{{ example.steps }}</div>
+                    </div>
+
+                    <!-- -->
+                    <div v-if="example.cfg_scale != null" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-surface-100">
+                      <div class="font-medium text-sm text-surface-400">CFG</div>
+                      <div class="font-medium text-base font-mono text-surface-600">{{ example.cfg_scale }}</div>
+                    </div>
+                  </div>
+
+                  <!-- -->
+                  <Button @click="useExample(example)" severity="primary" variant="outlined">
+                    <Play :size="11" :fill="'currentColor'" />
+                    Use This
+                  </Button>
+                </div>
+              </div>
+            </template>
+
+            <p v-else class="text-[10px] text-surface-400 text-center py-3">
+              {{ isNew ? 'Save the style first to add examples' : 'No examples yet' }}
+            </p>
+          </div>
+
+          <!-- Add Example Dialog -->
+          <Dialog v-model:visible="showAddExample" header="Add Example Prompt" modal :style="{ width: '28rem' }">
+            <div class="flex flex-col gap-3 pt-2">
+              <div class="flex flex-col gap-1">
+                <label class="text-xs font-medium text-surface-600">Prompt</label>
+                <textarea
+                  v-model="exampleForm.prompt"
+                  rows="3"
+                  placeholder="Example prompt text"
+                  class="px-3 py-2 rounded-lg bg-surface-50 border border-surface-200 text-sm text-surface-700 placeholder-surface-400 outline-none focus:border-blue-400 transition-colors resize-none" />
+              </div>
+              <div class="flex flex-col gap-1">
+                <label class="text-xs font-medium text-surface-600">Image (optional)</label>
+                <button
+                  class="flex items-center gap-2 px-3 h-9 rounded-lg bg-surface-50 border border-surface-200 text-xs text-surface-600 hover:border-blue-400 transition-colors"
+                  @click="onBrowseExampleImage">
+                  <ImagePlus :size="14" />
+                  {{ exampleForm.imagePath ? exampleForm.imagePath.split('/').pop() : 'Browse image...' }}
+                </button>
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <div class="flex flex-col gap-1">
+                  <label class="text-xs font-medium text-surface-600">Seed</label>
+                  <input
+                    v-model.number="exampleForm.seed"
+                    type="number"
+                    placeholder="Random"
+                    class="px-3 h-8 rounded-lg bg-surface-50 border border-surface-200 text-xs text-surface-700 placeholder-surface-400 outline-none focus:border-blue-400" />
+                </div>
+                <div class="flex flex-col gap-1">
+                  <label class="text-xs font-medium text-surface-600">Steps</label>
+                  <input
+                    v-model.number="exampleForm.steps"
+                    type="number"
+                    placeholder="—"
+                    class="px-3 h-8 rounded-lg bg-surface-50 border border-surface-200 text-xs text-surface-700 placeholder-surface-400 outline-none focus:border-blue-400" />
+                </div>
+                <div class="flex flex-col gap-1">
+                  <label class="text-xs font-medium text-surface-600">Width</label>
+                  <input
+                    v-model.number="exampleForm.width"
+                    type="number"
+                    placeholder="—"
+                    class="px-3 h-8 rounded-lg bg-surface-50 border border-surface-200 text-xs text-surface-700 placeholder-surface-400 outline-none focus:border-blue-400" />
+                </div>
+                <div class="flex flex-col gap-1">
+                  <label class="text-xs font-medium text-surface-600">Height</label>
+                  <input
+                    v-model.number="exampleForm.height"
+                    type="number"
+                    placeholder="—"
+                    class="px-3 h-8 rounded-lg bg-surface-50 border border-surface-200 text-xs text-surface-700 placeholder-surface-400 outline-none focus:border-blue-400" />
+                </div>
+              </div>
+              <div class="flex flex-col gap-1">
+                <label class="text-xs font-medium text-surface-600">CFG Scale</label>
+                <input
+                  v-model.number="exampleForm.cfgScale"
+                  type="number"
+                  step="0.1"
+                  placeholder="—"
+                  class="px-3 h-8 rounded-lg bg-surface-50 border border-surface-200 text-xs text-surface-700 placeholder-surface-400 outline-none focus:border-blue-400" />
+              </div>
+            </div>
+            <template #footer>
+              <div class="flex justify-end gap-2">
+                <Button severity="secondary" @click="showAddExample = false">Cancel</Button>
+                <Button :disabled="!exampleForm.prompt.trim()" @click="onAddExample">Add Example</Button>
+              </div>
+            </template>
+          </Dialog>
         </div>
       </div>
     </div>
@@ -224,10 +347,12 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { ArrowLeft, Save, X, Layers, Plus, ImagePlus } from 'lucide-vue-next';
+import { ArrowLeft, Save, X, Layers, Plus, ImagePlus, ChevronRight, Play } from 'lucide-vue-next';
 import { useStylesStore } from '@/stores/styles';
 import { usePywebview } from '@/composables/usePywebview';
 import type { LoRA, Tag } from '@/types/inference';
+import { Button, Chip, Toolbar, Dialog, InputText } from 'primevue';
+import TextEditor from '@/components/TextEditor.vue';
 
 const LORA_EXTENSIONS = ['.safetensors', '.ckpt', '.pt'];
 const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp', '.bmp'];
@@ -253,6 +378,9 @@ const pendingTags = ref<Tag[]>([]);
 const isDragging = ref(false);
 let dragCounter = 0;
 
+// Negative prompt collapsible
+const showNegativePrompt = ref(false);
+
 // Thumbnail
 const thumbnailPath = ref<string | null>(null);
 const thumbnailDataUrl = ref<string | null>(null);
@@ -265,13 +393,11 @@ const showTagSuggestions = ref(false);
 
 const allEditorTags = computed(() => [...stylesStore.editorTags, ...pendingTags.value]);
 
-const assignedTagIds = computed(() => new Set(allEditorTags.value.map(t => t.id)));
+const assignedTagIds = computed(() => new Set(allEditorTags.value.map((t) => t.id)));
 
 const tagSuggestions = computed(() => {
   const q = tagInput.value.trim().toLowerCase();
-  return stylesStore.tags
-    .filter(t => !assignedTagIds.value.has(t.id))
-    .filter(t => !q || t.name.toLowerCase().includes(q));
+  return stylesStore.tags.filter((t) => !assignedTagIds.value.has(t.id)).filter((t) => !q || t.name.toLowerCase().includes(q));
 });
 
 const canSave = computed(() => form.value.name.trim() && form.value.promptTemplate.trim());
@@ -287,21 +413,25 @@ onMounted(async () => {
 });
 
 // Populate form when editor style loads
-watch(() => stylesStore.editorStyle, async (style) => {
-  if (style) {
-    form.value = {
-      name: style.name,
-      description: style.description ?? '',
-      promptTemplate: style.prompt_template,
-      negativePrompt: style.negative_prompt ?? '',
-      category: style.category ?? '',
-    };
-    if (style.thumbnail_path) {
-      thumbnailPath.value = style.thumbnail_path;
-      await loadThumbnail(style.thumbnail_path);
+watch(
+  () => stylesStore.editorStyle,
+  async (style) => {
+    if (style) {
+      form.value = {
+        name: style.name,
+        description: style.description ?? '',
+        promptTemplate: style.prompt_template,
+        negativePrompt: style.negative_prompt ?? '',
+        category: style.category ?? '',
+      };
+      if (style.thumbnail_path) {
+        thumbnailPath.value = style.thumbnail_path;
+        await loadThumbnail(style.thumbnail_path);
+      }
     }
-  }
-}, { immediate: true });
+  },
+  { immediate: true },
+);
 
 function goBack() {
   router.push({ name: 'styles' });
@@ -331,7 +461,10 @@ async function onSave() {
         await stylesStore.saveStyleLoras(id, loras);
       }
       if (pendingTags.value.length) {
-        await stylesStore.saveStyleTags(id, pendingTags.value.map(t => t.id));
+        await stylesStore.saveStyleTags(
+          id,
+          pendingTags.value.map((t) => t.id),
+        );
       }
       router.push({ name: 'styles' });
     }
@@ -350,13 +483,13 @@ async function onSave() {
 
 function removeTag(tagId: number) {
   // Remove from pending if it's there
-  const wasPending = pendingTags.value.some(t => t.id === tagId);
+  const wasPending = pendingTags.value.some((t) => t.id === tagId);
   if (wasPending) {
-    pendingTags.value = pendingTags.value.filter(t => t.id !== tagId);
+    pendingTags.value = pendingTags.value.filter((t) => t.id !== tagId);
     return;
   }
   if (!styleId.value) return;
-  const remaining = stylesStore.editorTags.filter(t => t.id !== tagId).map(t => t.id);
+  const remaining = stylesStore.editorTags.filter((t) => t.id !== tagId).map((t) => t.id);
   stylesStore.saveStyleTags(styleId.value, remaining);
 }
 
@@ -364,7 +497,7 @@ async function addTag(tag: Tag) {
   if (assignedTagIds.value.has(tag.id)) return;
 
   if (styleId.value) {
-    const currentIds = stylesStore.editorTags.map(t => t.id);
+    const currentIds = stylesStore.editorTags.map((t) => t.id);
     await stylesStore.saveStyleTags(styleId.value, [...currentIds, tag.id]);
   } else {
     pendingTags.value.push(tag);
@@ -382,7 +515,7 @@ async function onTagEnter() {
   if (!name) return;
 
   // Check if an exact match exists in suggestions
-  const existing = stylesStore.tags.find(t => t.name.toLowerCase() === name.toLowerCase());
+  const existing = stylesStore.tags.find((t) => t.name.toLowerCase() === name.toLowerCase());
   if (existing && !assignedTagIds.value.has(existing.id)) {
     await addTag(existing);
     return;
@@ -396,14 +529,14 @@ async function onTagEnter() {
 }
 
 function removePendingLora(loraId: string) {
-  pendingLoras.value = pendingLoras.value.filter(l => l.id !== loraId);
+  pendingLoras.value = pendingLoras.value.filter((l) => l.id !== loraId);
 }
 
 async function addLoras(loras: LoRA[]) {
   if (!loras.length) return;
 
   if (styleId.value) {
-    const existing = stylesStore.editorLoras.map(l => ({
+    const existing = stylesStore.editorLoras.map((l) => ({
       lora_id: l.lora_id,
       strength: l.strength,
       priority: l.priority,
@@ -443,12 +576,15 @@ function extractPathsFromDrop(e: DragEvent, extensions: string[]): string[] {
   const uriList = e.dataTransfer?.getData('text/uri-list') ?? '';
   return uriList
     .split(/\r?\n/)
-    .filter(line => line && !line.startsWith('#'))
-    .map(uri => {
-      try { return decodeURIComponent(new URL(uri).pathname); }
-      catch { return ''; }
+    .filter((line) => line && !line.startsWith('#'))
+    .map((uri) => {
+      try {
+        return decodeURIComponent(new URL(uri).pathname);
+      } catch {
+        return '';
+      }
     })
-    .filter(p => p && extensions.some(ext => p.endsWith(ext)));
+    .filter((p) => p && extensions.some((ext) => p.endsWith(ext)));
 }
 
 async function onDrop(e: DragEvent) {
@@ -504,5 +640,129 @@ async function onThumbnailDrop(e: DragEvent) {
   if (paths.length) {
     await setThumbnail(paths[0]);
   }
+}
+
+// ── Examples ──
+
+interface ParsedExample {
+  id: string;
+  prompt: string;
+  image_path?: string | null;
+  imageDataUrl?: string | null;
+  seed?: number | null;
+  width?: number | null;
+  height?: number | null;
+  steps?: number | null;
+  cfg_scale?: number | null;
+}
+
+const showAddExample = ref(false);
+const exampleForm = ref({
+  prompt: '',
+  imagePath: '',
+  seed: undefined as number | undefined,
+  width: undefined as number | undefined,
+  height: undefined as number | undefined,
+  steps: undefined as number | undefined,
+  cfgScale: undefined as number | undefined,
+});
+
+const exampleImageCache = ref<Record<string, string>>({});
+
+const parsedExamples = computed<ParsedExample[]>(() => {
+  return stylesStore.editorExamples.map((ex) => {
+    try {
+      const content = JSON.parse(ex.content);
+      return {
+        id: ex.id,
+        prompt: content.prompt ?? '',
+        image_path: content.image_path,
+        imageDataUrl: content.image_path ? exampleImageCache.value[content.image_path] : null,
+        seed: content.seed,
+        width: content.width,
+        height: content.height,
+        steps: content.steps,
+        cfg_scale: content.cfg_scale,
+      };
+    } catch {
+      return { id: ex.id, prompt: '(invalid example)' };
+    }
+  });
+});
+
+// Load images for examples that have image_path
+watch(
+  () => stylesStore.editorExamples,
+  async (examples) => {
+    for (const ex of examples) {
+      try {
+        const content = JSON.parse(ex.content);
+        if (content.image_path && !exampleImageCache.value[content.image_path]) {
+          // Check if it's a URL (CivitAI) or local path
+          if (content.image_path.startsWith('http://') || content.image_path.startsWith('https://')) {
+            // For URLs, use them directly
+            exampleImageCache.value[content.image_path] = content.image_path;
+          } else {
+            // For local paths, load via backend
+            const res = await api.value.get_image_base64({ image_path: content.image_path });
+            if (res.status === 'success' && res.data_url) {
+              exampleImageCache.value[content.image_path] = res.data_url;
+            }
+          }
+        }
+      } catch {
+        /* skip */
+      }
+    }
+  },
+  { immediate: true },
+);
+
+// Auto-expand negative prompt if it has content
+watch(
+  () => form.value.negativePrompt,
+  (val) => {
+    if (val && !showNegativePrompt.value) {
+      showNegativePrompt.value = true;
+    }
+  },
+  { immediate: true },
+);
+
+function useExample(example: ParsedExample) {
+  form.value.promptTemplate = example.prompt;
+}
+
+async function onBrowseExampleImage() {
+  const res = await api.value.browse_image_file();
+  if (res.status === 'success' && res.path) {
+    exampleForm.value.imagePath = res.path;
+  }
+}
+
+async function onAddExample() {
+  if (!styleId.value || !exampleForm.value.prompt.trim()) return;
+
+  await stylesStore.addExample(styleId.value, {
+    prompt: exampleForm.value.prompt.trim(),
+    imagePath: exampleForm.value.imagePath || undefined,
+    seed: exampleForm.value.seed,
+    width: exampleForm.value.width,
+    height: exampleForm.value.height,
+    steps: exampleForm.value.steps,
+    cfgScale: exampleForm.value.cfgScale,
+  });
+
+  // Reset form
+  exampleForm.value = {
+    prompt: '',
+    imagePath: '',
+    seed: undefined,
+    width: undefined,
+    height: undefined,
+    steps: undefined,
+    cfgScale: undefined,
+  };
+  showAddExample.value = false;
 }
 </script>

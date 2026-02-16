@@ -1,10 +1,10 @@
 <template>
   <div class="h-screen flex">
-    <div class="w-20 h-full shrink-0 overflow-hidden">
+    <div class="w-18 mr-2 h-full shrink-0 overflow-hidden bg-surface-800 border-r border-surface-500">
       <NavBar />
     </div>
     <!-- :class="store.chatbotOpen ? 'w-220' : 'w-120'" -->
-    <aside class="h-full shrink-0 transition-[width] duration-300 ease-in-out" >
+    <aside class="h-full shrink-0 transition-[width] duration-300 ease-in-out">
       <RouterView name="menu" />
     </aside>
     <main class="h-full min-w-0 flex-1">
@@ -15,7 +15,4 @@
 
 <script setup lang="ts">
 import NavBar from '@/components/NavBar.vue';
-import { useInferenceStore } from '@/stores/inference';
-
-const store = useInferenceStore();
 </script>

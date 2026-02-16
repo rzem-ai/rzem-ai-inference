@@ -355,6 +355,12 @@ class Database:
             row = cursor.fetchone()
         return row if row else None
 
+    def get_tag_by_name(self, name: str) -> dict[str, Any] | None:
+        with self._lock:
+            cursor = self.conn.execute("SELECT * FROM tags WHERE name = ?", (name,))
+            row = cursor.fetchone()
+        return row if row else None
+
     # ── Tag associations ─────────────────────────────────────────
 
     def add_tag_to_image(self, image_id: str, tag_id: int) -> None:
@@ -583,6 +589,14 @@ class Database:
 
     # ── LoRAs ─────────────────────────────────────────────────
 
+    def get_lora_by_path(self, path: str) -> dict[str, Any] | None:
+        with self._lock:
+            cursor = self.conn.execute(
+                "SELECT * FROM loras WHERE path = ?", (path,)
+            )
+            row = cursor.fetchone()
+        return row if row else None
+
     def get_loras(self) -> list[dict[str, Any]]:
         with self._lock:
             cursor = self.conn.execute(
@@ -620,6 +634,48 @@ class Database:
             )
             self.conn.commit()
         return self.get_lora(id)
+
+    # ── Examples ──────────────────────────────────────────────────
+
+    def get_examples(self, entity_type: str, entity_id: str) -> list[dict[str, Any]]:
+        with self._lock:
+            cursor = self.conn.execute(
+                """SELECT * FROM examples
+                   WHERE entity_type = ? AND entity_id = ?
+                   ORDER BY created_at""",
+                (entity_type, entity_id),
+            )
+            return cursor.fetchall()
+
+    def insert_example(
+        self,
+        *,
+        id: str,
+        entity_type: str,
+        entity_id: str,
+        example_type: str,
+        content: str,
+    ) -> dict[str, Any] | None:
+        now = int(time.time())
+        with self._lock:
+            self.conn.execute(
+                """INSERT INTO examples (id, entity_type, entity_id, example_type, content, created_at)
+                   VALUES (?,?,?,?,?,?)""",
+                (id, entity_type, entity_id, example_type, content, now),
+            )
+            self.conn.commit()
+            cursor = self.conn.execute(
+                "SELECT * FROM examples WHERE id = ?", (id,)
+            )
+            return cursor.fetchone()
+
+    def delete_example(self, example_id: str) -> bool:
+        with self._lock:
+            cursor = self.conn.execute(
+                "DELETE FROM examples WHERE id = ?", (example_id,)
+            )
+            self.conn.commit()
+        return cursor.rowcount > 0
 
     # ── Settings ─────────────────────────────────────────────────
 
