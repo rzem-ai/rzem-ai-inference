@@ -1,0 +1,251 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            platform: linux-x86_64
+            archive: tar.gz
+            separator: ':'
+          - runner: macos-latest
+            platform: macos-arm64
+            archive: tar.gz
+            separator: ':'
+          - runner: windows-latest
+            platform: windows-x86_64
+            archive: zip
+            separator: ';'
+
+    runs-on: ${{ matrix.runner }}
+    name: Build (${{ matrix.platform }})
+
+    steps:
+      # ── Free disk space (CUDA builds are ~7+ GB) ────────────────
+      - name: Free disk space (Linux)
+        if: runner.os == 'Linux'
+        uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: false
+
+      - name: Free disk space (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (Test-Path "C:\hostedtoolcache") { Remove-Item -Recurse -Force "C:\hostedtoolcache" }
+          if (Test-Path "C:\Program Files\dotnet") { Remove-Item -Recurse -Force "C:\Program Files\dotnet" }
+
+      # ── Checkout both repos side-by-side ────────────────────────
+      # pyproject.toml references ../rzem-ai-inference-engine as editable dep
+      - name: Checkout app
+        uses: actions/checkout@v4
+        with:
+          path: rzem-ai-inference
+
+      - name: Checkout engine
+        uses: actions/checkout@v4
+        with:
+          repository: rzem-ai/rzem-ai-inference-engine
+          ref: main
+          path: rzem-ai-inference-engine
+
+      # ── Setup ───────────────────────────────────────────────────
+      - name: Install system dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev gir1.2-webkit2-4.1
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # ── Install Python dependencies ─────────────────────────────
+      - name: Install Python dependencies
+        shell: bash
+        working-directory: rzem-ai-inference
+        env:
+          # Windows needs explicit CUDA backend; Linux gets it from PyPI automatically
+          UV_TORCH_BACKEND: ${{ runner.os == 'Windows' && 'cu124' || '' }}
+        run: |
+          # Linux needs --system-site-packages for pywebview GTK bindings (gi module)
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            uv venv --system-site-packages
+          else
+            uv venv
+          fi
+          uv sync
+          uv pip install pyinstaller
+
+      # ── Build frontend ──────────────────────────────────────────
+      - name: Build frontend
+        working-directory: rzem-ai-inference/frontend
+        run: |
+          npm ci
+          npm run build
+
+      # ── Build with PyInstaller ──────────────────────────────────
+      - name: Build application
+        shell: bash
+        working-directory: rzem-ai-inference
+        env:
+          SEPARATOR: ${{ matrix.separator }}
+        run: |
+          uv run pyinstaller \
+            --name "Inference" \
+            --windowed \
+            --noconfirm \
+            --add-data "frontend/dist${SEPARATOR}frontend/dist" \
+            main.py
+
+      # ── Archive ─────────────────────────────────────────────────
+      - name: Extract version from tag
+        id: version
+        shell: bash
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Archive (tar.gz)
+        if: matrix.archive == 'tar.gz'
+        shell: bash
+        working-directory: rzem-ai-inference/dist
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          archive="Inference-${VERSION}-${PLATFORM}.tar.gz"
+          tar -czf "$archive" Inference
+          # Split if larger than 1.9 GB (GitHub Release 2 GiB limit)
+          size=$(stat -f%z "$archive" 2>/dev/null || stat -c%s "$archive")
+          if [ "$size" -gt 2040109465 ]; then
+            split -b 1900m "$archive" "${archive}.part-"
+            rm "$archive"
+          fi
+
+      - name: Archive (zip)
+        if: matrix.archive == 'zip'
+        shell: pwsh
+        working-directory: rzem-ai-inference/dist
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          $archive = "Inference-${env:VERSION}-${env:PLATFORM}.zip"
+          Compress-Archive -Path Inference -DestinationPath $archive
+          # Split if larger than 1.9 GB
+          $size = (Get-Item $archive).Length
+          if ($size -gt 2040109465) {
+            $bytes = [System.IO.File]::ReadAllBytes($archive)
+            $chunkSize = 1900 * 1024 * 1024
+            $index = 0
+            for ($offset = 0; $offset -lt $bytes.Length; $offset += $chunkSize) {
+              $len = [Math]::Min($chunkSize, $bytes.Length - $offset)
+              $chunk = New-Object byte[] $len
+              [Array]::Copy($bytes, $offset, $chunk, 0, $len)
+              $partName = "${archive}.part-$('{0:D2}' -f $index)"
+              [System.IO.File]::WriteAllBytes("$PWD/$partName", $chunk)
+              $index++
+            }
+            Remove-Item $archive
+          }
+
+      # ── Upload ──────────────────────────────────────────────────
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.platform }}
+          path: |
+            rzem-ai-inference/dist/*.tar.gz
+            rzem-ai-inference/dist/*.tar.gz.part-*
+            rzem-ai-inference/dist/*.zip
+            rzem-ai-inference/dist/*.zip.part-*
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    name: Create Release
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: List artifacts
+        run: find artifacts -type f | sort
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          # Check if any split archives exist
+          SPLIT_NOTE=""
+          if compgen -G "artifacts/*.part-*" > /dev/null 2>&1; then
+            SPLIT_NOTE=$(cat <<'NOTES'
+
+          ---
+
+          ### Reassembling split archives
+
+          Some archives exceed GitHub's 2 GB per-file limit and have been split.
+          To reassemble:
+
+          **Linux/macOS (tar.gz):**
+          ```bash
+          cat Inference-*.tar.gz.part-* > Inference.tar.gz
+          tar -xzf Inference.tar.gz
+          ```
+
+          **Windows (zip):**
+          ```powershell
+          Get-Content Inference-*.zip.part-* -Encoding Byte -ReadCount 0 | Set-Content Inference.zip -Encoding Byte
+          Expand-Archive Inference.zip
+          ```
+          NOTES
+          )
+          fi
+
+          # Create draft release with all artifacts
+          gh release create "$TAG" \
+            --draft \
+            --generate-notes \
+            --title "Release ${TAG}" \
+            artifacts/*
+
+          # Append split archive instructions if needed
+          if [ -n "$SPLIT_NOTE" ]; then
+            EXISTING_NOTES=$(gh release view "$TAG" --json body -q .body)
+            gh release edit "$TAG" --notes "${EXISTING_NOTES}${SPLIT_NOTE}"
+          fi
+
+          # Publish
+          gh release edit "$TAG" --draft=false

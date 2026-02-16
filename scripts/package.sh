@@ -6,7 +6,7 @@ DIST_DIR="$ROOT_DIR/build/dist"
 PACKAGE_DIR="$ROOT_DIR/build/packages"
 
 APP_NAME="Inference"
-VERSION="${1:-0.1.0}"
+VERSION="${1:-0.2.0}"
 PLATFORM="$(uname -s | tr '[:upper:]' '[:lower:]')"
 ARCH="$(uname -m)"
 
