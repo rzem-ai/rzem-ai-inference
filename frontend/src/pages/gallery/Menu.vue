@@ -72,14 +72,12 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue';
-import { Plus, Images, Star, Folder as FolderIcon, WandSparkles } from 'lucide-vue-next';
-import { usePywebview } from '@/composables/usePywebview';
+import { Plus, Images, Star, Folder as FolderIcon } from 'lucide-vue-next';
 import { useGalleryStore } from '@/stores/gallery';
 import type { Tag } from '@/types/inference';
 import { Button } from 'primevue';
 import MenuPanel from '@/components/MenuPanel.vue';
 
-const { api, isReady } = usePywebview();
 const gallery = useGalleryStore();
 
 const searchInput = ref('');
@@ -136,14 +134,7 @@ function onCreateTag() {
   }
 }
 
-// Initialize gallery store once API is ready
 onMounted(() => {
-  const check = setInterval(async () => {
-    if (isReady.value) {
-      clearInterval(check);
-      gallery.setApi(api.value);
-      await Promise.all([gallery.loadImages(), gallery.loadFolders(), gallery.loadTags()]);
-    }
-  }, 50);
+  gallery.init();
 });
 </script>

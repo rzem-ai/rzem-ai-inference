@@ -61,6 +61,7 @@ export interface PywebviewAPI {
   }): Promise<ApiResponse<{ images?: GalleryImage[]; total?: number }>>;
   get_image(args: { image_id: string }): Promise<ApiResponse<{ image?: GalleryImage }>>;
   toggle_favorite(args: { image_id: string }): Promise<ApiResponse<{ image?: GalleryImage }>>;
+  save_image_as(args: { file_path: string }): Promise<ApiResponse<{ saved?: boolean; path?: string }>>;
   delete_image(args: { image_id: string }): Promise<ApiResponse>;
 
   // ── Folders ──
@@ -200,6 +201,7 @@ export interface PywebviewAPI {
     content: string;
     image_paths?: string[];
     generation_context?: Record<string, any>;
+    display_text?: string;
   }): Promise<ApiResponse>;
   poll_chat_events(): Promise<ApiResponse<{ events?: ChatEvent[] }>>;
 }

@@ -41,6 +41,22 @@ export const useSettingsStore = defineStore('settings', {
     previewInterval: 5,
     previewMaxSize: 256,
 
+    // AI Prompts
+    aiPrompts: {
+      style: {
+        prompt: 'Analyze this image and describe its artistic style in detail. Then update my prompt to use the same style while keeping my current subject.',
+        displayText: 'Analyze style from image',
+      },
+      both: {
+        prompt: 'Analyze this image in exhaustive detail — subject, composition, lighting, color palette, artistic style, medium, mood, and any notable visual elements. Then update my prompt to reproduce this image as closely as possible.',
+        displayText: 'Analyze style and subject from image',
+      },
+      subject: {
+        prompt: 'Analyze this image and describe its subject in detail. Then update my prompt to use the same subject while keeping my current style.',
+        displayText: 'Analyze subject from image',
+      },
+    } as Record<string, { prompt: string; displayText: string }>,
+
     loading: false,
   }),
 
@@ -201,6 +217,39 @@ export const useSettingsStore = defineStore('settings', {
       const res = await _api.set_setting({ key: 'PREVIEW_MAX_SIZE', value: String(value) });
       if (res.status === 'success') {
         this.previewMaxSize = value;
+      }
+    },
+
+    // ── AI Prompts ──
+
+    async loadAiPrompts() {
+      if (!_api) return;
+      const keys = ['style', 'both', 'subject'] as const;
+      for (const key of keys) {
+        const promptRes = await _api.get_setting({ key: `AI_PROMPT_${key.toUpperCase()}` });
+        if (promptRes.status === 'success' && promptRes.value) {
+          this.aiPrompts[key].prompt = promptRes.value;
+        }
+        const displayRes = await _api.get_setting({ key: `AI_DISPLAY_${key.toUpperCase()}` });
+        if (displayRes.status === 'success' && displayRes.value) {
+          this.aiPrompts[key].displayText = displayRes.value;
+        }
+      }
+    },
+
+    async saveAiPrompt(key: string, prompt: string) {
+      if (!_api) return;
+      const res = await _api.set_setting({ key: `AI_PROMPT_${key.toUpperCase()}`, value: prompt });
+      if (res.status === 'success') {
+        this.aiPrompts[key].prompt = prompt;
+      }
+    },
+
+    async saveAiDisplayText(key: string, displayText: string) {
+      if (!_api) return;
+      const res = await _api.set_setting({ key: `AI_DISPLAY_${key.toUpperCase()}`, value: displayText });
+      if (res.status === 'success') {
+        this.aiPrompts[key].displayText = displayText;
       }
     },
 

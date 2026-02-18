@@ -78,18 +78,16 @@
             <div class="max-w-[85%]">
               <!-- Image thumbnails -->
               <div v-if="msg.image_paths" class="flex gap-1 mb-1 justify-end">
-                <div v-for="(_, i) in parsePaths(msg.image_paths)" :key="i" class="w-10 h-10 rounded bg-slate-200 flex items-center justify-center">
-                  <ImageIcon :size="12" class="text-slate-400" />
-                </div>
+                <ChatImageThumb v-for="path in parsePaths(msg.image_paths)" :key="path" :path="path" />
               </div>
               <div class="bg-blue-500 rounded-lg px-3 py-2 text-base text-white leading-relaxed">
-                {{ msg.content }}
+                {{ msg.display_text || msg.content }}
               </div>
             </div>
           </div>
 
           <!-- Assistant message -->
-          <div v-else class="flex gap-2">
+          <div v-else-if="msg.role === 'assistant'" class="flex gap-2">
             <div class="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center shrink-0 mt-0.5">
               <Bot :size="14" class="text-white" />
             </div>
@@ -107,6 +105,18 @@
                 v-if="msg.content"
                 class="bg-slate-50 rounded-lg px-3 py-2 text-sm text-slate-700 leading-relaxed prose-chat"
                 v-html="renderMarkdown(msg.content)" />
+            </div>
+          </div>
+
+          <!-- Error message -->
+          <div v-else-if="msg.role === 'error'" class="flex gap-2">
+            <div class="w-6 h-6 rounded-full bg-red-500 flex items-center justify-center shrink-0 mt-0.5">
+              <TriangleAlert :size="14" class="text-white" />
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-700 leading-relaxed">
+                {{ msg.content }}
+              </div>
             </div>
           </div>
         </template>
@@ -188,16 +198,19 @@
 
 <script setup lang="ts">
 import { computed, ref, watch, nextTick } from 'vue';
-import { Bot, SendHorizontal, KeyRound, X, Image as ImageIcon, MessageCirclePlus, FolderOpen } from 'lucide-vue-next';
+import { Bot, SendHorizontal, KeyRound, X, Image as ImageIcon, MessageCirclePlus, FolderOpen, TriangleAlert } from 'lucide-vue-next';
 import { marked } from 'marked';
 import { useChatStore } from '@/stores/chat';
 import { useInferenceStore } from '@/stores/inference';
+import { useSettingsStore } from '@/stores/settings';
 import { usePywebview } from '@/composables/usePywebview';
+import ChatImageThumb from './ChatImageThumb.vue';
 import { Button, Dialog } from 'primevue';
 import { InputGroup, InputGroupAddon, InputText } from 'primevue';
 
 const chatStore = useChatStore();
 const inferenceStore = useInferenceStore();
+const settingsStore = useSettingsStore();
 const { api } = usePywebview();
 const chatInput = ref('');
 const apiKeyInput = ref('');
@@ -213,11 +226,6 @@ const isSendMessageEnabled = computed(() => {
   return !(!chatInput.value.trim() || chatStore.isStreaming);
 });
 
-const scanPrompts: Record<string, string> = {
-  style: 'Analyze this image and describe its artistic style in detail. Then update my prompt to use the same style while keeping my current subject.',
-  subject: 'Analyze this image and describe its subject in detail. Then update my prompt to use the same subject while keeping my current style.',
-  both: 'Analyze this image in exhaustive detail — subject, composition, lighting, color palette, artistic style, medium, mood, and any notable visual elements. Then update my prompt to reproduce this image as closely as possible.',
-};
 
 function renderMarkdown(text: string): string {
   return marked.parse(text, { breaks: true, async: false }) as string;
@@ -292,7 +300,8 @@ async function onPickImage(imagePath: string) {
   }
 
   chatStore.addPendingImage(imagePath);
-  chatStore.sendMessage(scanPrompts[pickerMode.value]);
+  const aiPrompt = settingsStore.aiPrompts[pickerMode.value];
+  chatStore.sendMessage(aiPrompt.prompt, aiPrompt.displayText);
 }
 
 function scrollToBottom() {

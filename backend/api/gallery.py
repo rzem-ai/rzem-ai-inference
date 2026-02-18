@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import logging
 import os
+import shutil
 from typing import Any
+
+import webview
 
 from backend.db.database import Database
 
@@ -61,6 +64,32 @@ class GalleryAPI:
             return {"status": "success", "image": image}
         except Exception as e:
             logger.error("Failed to toggle favorite: %s", e)
+            return {"status": "error", "message": str(e)}
+
+    def save_image_as(self, file_path: str, **kwargs) -> dict[str, Any]:
+        """Open a native Save As dialog and copy the image to the chosen location."""
+        try:
+            if not os.path.isfile(file_path):
+                return {"status": "error", "message": "Source file not found"}
+
+            ext = os.path.splitext(file_path)[1] or ".png"
+            basename = os.path.basename(file_path)
+            window = webview.windows[0]
+            result = window.create_file_dialog(
+                webview.FileDialog.SAVE,
+                save_filename=basename,
+                file_types=(f"Image (*{ext})",),
+            )
+            if not result:
+                return {"status": "success", "saved": False}
+
+            dest = str(result) if isinstance(result, str) else str(result[0])
+            if not dest.lower().endswith(ext.lower()):
+                dest += ext
+            shutil.copy2(file_path, dest)
+            return {"status": "success", "saved": True, "path": dest}
+        except Exception as e:
+            logger.error("Failed to save image: %s", e)
             return {"status": "error", "message": str(e)}
 
     def delete_image(self, image_id: str) -> dict[str, Any]:

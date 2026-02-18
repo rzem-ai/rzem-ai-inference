@@ -124,6 +124,7 @@ class ChatService:
         user_content: str,
         image_paths: list[str] | None = None,
         generation_context: dict[str, Any] | None = None,
+        display_text: str | None = None,
     ) -> None:
         """Persist user message and spawn streaming response thread."""
         # Persist user message
@@ -132,6 +133,7 @@ class ChatService:
             conversation_id=conversation_id,
             role="user",
             content=user_content,
+            display_text=display_text,
             image_paths=json.dumps(image_paths) if image_paths else None,
         )
         # Touch conversation updated_at

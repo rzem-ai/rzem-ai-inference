@@ -1,8 +1,10 @@
 import { defineStore } from 'pinia';
 import type { PywebviewAPI } from '@/types/pywebview';
 import type { GalleryImage, Folder, Tag } from '@/types/inference';
+import { waitForPywebview, getApi, mockApi } from '@/bridge';
 
 let _api: PywebviewAPI | null = null;
+let _initPromise: Promise<void> | null = null;
 
 export const useGalleryStore = defineStore('gallery', {
   state: () => ({
@@ -29,8 +31,25 @@ export const useGalleryStore = defineStore('gallery', {
   },
 
   actions: {
-    setApi(apiRef: PywebviewAPI) {
-      _api = apiRef;
+    /**
+     * Initialize the store: wait for the pywebview bridge, then load all data.
+     * Safe to call from multiple components -- only runs once.
+     */
+    async init() {
+      if (_initPromise) return _initPromise;
+      _initPromise = this._doInit();
+      return _initPromise;
+    },
+
+    async _doInit() {
+      try {
+        await waitForPywebview();
+        _api = getApi() ?? mockApi;
+      } catch {
+        // Running in browser mode -- use mock
+        _api = mockApi;
+      }
+      await Promise.all([this.loadImages(), this.loadFolders(), this.loadTags()]);
     },
 
     async loadImages(reset = true) {
@@ -41,24 +60,29 @@ export const useGalleryStore = defineStore('gallery', {
         this.images = [];
       }
 
-      const res = await _api.get_gallery_images({
-        limit: this.pageSize,
-        offset: this.page * this.pageSize,
-        folder_id: this.currentFolderId ?? undefined,
-        tag_id: this.currentTagId ?? undefined,
-        search: this.searchQuery || undefined,
-        favorites_only: this.favoritesOnly,
-      });
+      try {
+        const res = await _api.get_gallery_images({
+          limit: this.pageSize,
+          offset: this.page * this.pageSize,
+          folder_id: this.currentFolderId ?? undefined,
+          tag_id: this.currentTagId ?? undefined,
+          search: this.searchQuery || undefined,
+          favorites_only: this.favoritesOnly,
+        });
 
-      if (res.status === 'success') {
-        if (reset) {
-          this.images = res.images ?? [];
-        } else {
-          this.images.push(...(res.images ?? []));
+        if (res.status === 'success') {
+          if (reset) {
+            this.images = res.images ?? [];
+          } else {
+            this.images.push(...(res.images ?? []));
+          }
+          this.total = res.total ?? 0;
         }
-        this.total = res.total ?? 0;
+      } catch (e) {
+        console.error('[gallery] Failed to load images:', e);
+      } finally {
+        this.loading = false;
       }
-      this.loading = false;
     },
 
     async loadMore() {

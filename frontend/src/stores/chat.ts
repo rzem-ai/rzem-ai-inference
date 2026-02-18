@@ -87,7 +87,7 @@ export const useChatStore = defineStore('chat', {
       }
     },
 
-    async sendMessage(content: string) {
+    async sendMessage(content: string, displayText?: string) {
       if (!_api || !this.activeConversationId || !content.trim()) return;
 
       const inferenceStore = useInferenceStore();
@@ -105,12 +105,13 @@ export const useChatStore = defineStore('chat', {
         generationContext.model = inferenceStore.selectedBundle.label;
       }
 
-      // Optimistically add user message
+      // Optimistically add user message (show displayText in the bubble if provided)
       const userMsg: ConversationMessage = {
         id: crypto.randomUUID(),
         conversation_id: this.activeConversationId,
         role: 'user',
         content,
+        display_text: displayText ?? null,
         image_paths: this.pendingImagePaths.length ? JSON.stringify(this.pendingImagePaths) : null,
         tool_calls: null,
         created_at: Math.floor(Date.now() / 1000),
@@ -128,6 +129,7 @@ export const useChatStore = defineStore('chat', {
         content,
         image_paths: imagePaths,
         generation_context: generationContext,
+        display_text: displayText,
       });
 
       this.startChatPolling();
@@ -189,12 +191,24 @@ export const useChatStore = defineStore('chat', {
             this.reloadMessages();
             break;
 
-          case 'chat_error':
+          case 'chat_error': {
             this.isStreaming = false;
             this.streamingText = '';
             this.stopChatPolling();
-            console.error('Chat error:', event.data.error);
+            const raw = event.data.error ?? 'An unknown error occurred.';
+            const msgMatch = raw.match(/'message':\s*'([^']+)'/);
+            this.messages.push({
+              id: crypto.randomUUID(),
+              conversation_id: this.activeConversationId ?? '',
+              role: 'error',
+              content: msgMatch ? msgMatch[1] : raw,
+              display_text: null,
+              image_paths: null,
+              tool_calls: null,
+              created_at: Math.floor(Date.now() / 1000),
+            });
             break;
+          }
         }
       }
     },

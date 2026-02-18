@@ -748,6 +748,7 @@ class Database:
         conversation_id: str,
         role: str,
         content: str,
+        display_text: str | None = None,
         image_paths: str | None = None,
         tool_calls: str | None = None,
     ) -> dict[str, Any]:
@@ -755,9 +756,9 @@ class Database:
         with self._lock:
             self.conn.execute(
                 """INSERT INTO conversation_messages
-                   (id, conversation_id, role, content, image_paths, tool_calls, created_at)
-                   VALUES (?,?,?,?,?,?,?)""",
-                (id, conversation_id, role, content, image_paths, tool_calls, now),
+                   (id, conversation_id, role, content, display_text, image_paths, tool_calls, created_at)
+                   VALUES (?,?,?,?,?,?,?,?)""",
+                (id, conversation_id, role, content, display_text, image_paths, tool_calls, now),
             )
             self.conn.commit()
             cursor = self.conn.execute(

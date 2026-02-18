@@ -109,6 +109,7 @@
           :selected="selectedIds.has(image.id)"
           @click="onCardClick"
           @favorite="onToggleFavorite"
+          @open-detail="detailVisible = true"
           @select="onToggleSelect" />
       </div>
 
@@ -267,8 +268,11 @@ function onCreateFolder() {
   }
 }
 
-// Infinite scroll: load more when the sentinel enters viewport
+// Initialize gallery store (idempotent -- safe if Menu.vue already called it)
 onMounted(() => {
+  gallery.init();
+
+  // Infinite scroll: load more when the sentinel enters viewport
   loadMoreObserver = new IntersectionObserver(
     ([entry]) => {
       if (entry.isIntersecting && gallery.hasMore && !gallery.loading) {

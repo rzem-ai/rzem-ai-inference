@@ -38,6 +38,7 @@ export const useInferenceStore = defineStore('inference', {
 
     // Results
     generatedImages: [] as GeneratedImage[],
+    selectedImageIndex: 0,
     previewDataUrl: null as string | null,
 
     // Bundles & form params
@@ -90,8 +91,8 @@ export const useInferenceStore = defineStore('inference', {
   }),
 
   getters: {
-    latestImage(state): GeneratedImage | null {
-      return state.generatedImages[0] ?? null;
+    selectedImage(state): GeneratedImage | null {
+      return state.generatedImages[state.selectedImageIndex] ?? null;
     },
 
     selectedBundle(state): ModelBundle | null {
@@ -231,6 +232,14 @@ export const useInferenceStore = defineStore('inference', {
         return;
       }
       this.currentJobId = res.job_id ?? null;
+    },
+
+    selectImage(index: number) {
+      this.selectedImageIndex = index;
+      const img = this.generatedImages[index];
+      if (img?.params) {
+        Object.assign(this.params, img.params);
+      }
     },
 
     async cancelJob() {
@@ -451,6 +460,7 @@ export const useInferenceStore = defineStore('inference', {
               timestamp: event.data.timestamp ?? Date.now() / 1000,
               width: event.data.width,
               height: event.data.height,
+              params: { ...this.params, seed: event.data.seed ?? -1 },
             };
 
             if (img.imagePath && _api) {
@@ -463,6 +473,7 @@ export const useInferenceStore = defineStore('inference', {
               }
             }
             this.generatedImages.unshift(img);
+            this.selectedImageIndex = 0;
 
             if (this.batchActive) {
               this.batchCompleted++;

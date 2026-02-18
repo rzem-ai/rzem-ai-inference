@@ -1,42 +1,35 @@
 <template>
   <Teleport to="body">
     <Transition name="overlay-fade">
-      <div
-        v-if="visible"
-        class="fixed inset-0 z-50 flex items-center justify-center"
-        @keydown.escape="close"
-        tabindex="0"
-        ref="overlayRef">
+      <div v-if="visible" class="fixed inset-0 z-50 flex items-center justify-center" @keydown.escape="close" tabindex="0" ref="overlayRef">
         <!-- Backdrop -->
         <div class="absolute inset-0 bg-black/90" @click="close" />
 
         <!-- Close button -->
         <button
-          class="absolute top-4 right-4 z-10 p-2 rounded-full bg-white/10 backdrop-blur-sm
-                 text-white/70 hover:text-white hover:bg-white/20 transition-colors"
+          class="absolute top-4 right-4 z-10 p-2 rounded-full bg-white/10 backdrop-blur-sm text-white/70 hover:text-white hover:bg-white/20 transition-colors"
           @click="close">
           <X :size="20" />
         </button>
 
+        <!-- Download button -->
+        <button
+          class="absolute top-4 right-28 z-10 p-2 rounded-full bg-white/10 backdrop-blur-sm text-white/70 hover:text-white hover:bg-white/20 transition-colors"
+          @click="onDownload">
+          <Download :size="20" />
+        </button>
+
         <!-- Favorite button -->
         <button
-          class="absolute top-4 right-16 z-10 p-2 rounded-full bg-white/10 backdrop-blur-sm
-                 text-white/70 hover:text-white hover:bg-white/20 transition-colors"
+          class="absolute top-4 right-16 z-10 p-2 rounded-full bg-white/10 backdrop-blur-sm text-white/70 hover:text-white hover:bg-white/20 transition-colors"
           @click="emit('favorite', image.id)">
-          <Star
-            :size="20"
-            :class="image.favorite ? 'fill-yellow-400 text-yellow-400' : ''" />
+          <Star :size="20" :class="image.favorite ? 'fill-yellow-400 text-yellow-400' : ''" />
         </button>
 
         <!-- Image container -->
-        <div class="relative max-w-[90vw] max-h-[90vh] z-[1]">
+        <div class="relative max-w-[90vw] max-h-[90vh] z-1">
           <!-- Image -->
-          <img
-            v-if="dataUrl"
-            :src="dataUrl"
-            :alt="image.prompt"
-            class="max-w-[90vw] max-h-[90vh] object-contain rounded-lg select-none"
-            draggable="false" />
+          <img v-if="dataUrl" :src="dataUrl" :alt="image.prompt" class="max-w-[90vw] max-h-[90vh] object-contain rounded-lg select-none" draggable="false" />
 
           <!-- Loading state -->
           <div v-else class="w-64 h-64 flex items-center justify-center">
@@ -46,8 +39,7 @@
           <!-- Prompt bar (lower third) -->
           <div
             v-if="dataUrl"
-            class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent
-                   rounded-b-lg cursor-pointer transition-colors hover:from-black/95"
+            class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent rounded-b-lg cursor-pointer transition-colors hover:from-black/95"
             @click.stop="emit('openDetail')">
             <div class="px-5 pb-4 pt-12">
               <p class="text-white/90 text-sm leading-relaxed line-clamp-2">{{ image.prompt }}</p>
@@ -70,7 +62,7 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue';
-import { X, Star, Info } from 'lucide-vue-next';
+import { X, Star, Info, Download } from 'lucide-vue-next';
 import { getApi, mockApi } from '@/bridge';
 import type { GalleryImage } from '@/types/inference';
 
@@ -92,6 +84,11 @@ function close() {
   emit('close');
 }
 
+async function onDownload() {
+  const api = getApi() ?? mockApi;
+  await api.save_image_as({ file_path: props.image.file_path });
+}
+
 async function loadFullImage() {
   const api = getApi() ?? mockApi;
   const res = await api.get_image_base64({ image_path: props.image.file_path });
@@ -111,6 +108,7 @@ watch(
       overlayRef.value?.focus();
     }
   },
+  { immediate: true },
 );
 </script>
 

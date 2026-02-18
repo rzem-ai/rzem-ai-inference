@@ -74,6 +74,7 @@ class ChatAPI:
         content: str,
         image_paths: list[str] | None = None,
         generation_context: dict[str, Any] | None = None,
+        display_text: str | None = None,
         **kwargs,
     ) -> dict[str, Any]:
         try:
@@ -82,6 +83,7 @@ class ChatAPI:
                 user_content=content,
                 image_paths=image_paths,
                 generation_context=generation_context,
+                display_text=display_text,
             )
             return {"status": "success"}
         except Exception as e:

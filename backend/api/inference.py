@@ -13,7 +13,7 @@ from rzem_ai_inference_engine import JobParams, LoraParams, TransformerType
 
 from backend.services.inference_manager import InferenceServiceManager
 
-logger = logging.getLogger(__name__)
+from loguru import logger
 
 
 class InferenceAPI:
@@ -90,8 +90,11 @@ class InferenceAPI:
                 **kwargs,
             )
 
-            print(f"submit image generation job: {prompt}")
-            logger.info("submit image generation job: %s", prompt)
+            logger.info(f"Submit image generation job: prompt: '{prompt}'")
+            logger.info(f"Submit image generation job:   seed: '{seed}'")
+            logger.info(f"Submit image generation job:  steps: '{steps}'")
+            logger.info(f"Submit image generation job:  width: '{width}'")
+            logger.info(f"Submit image generation job: height: '{height}'")
 
             job_id = self._inference.active.submit(params, bundle_id=bundle_id)
             return {"status": "success", "job_id": job_id}

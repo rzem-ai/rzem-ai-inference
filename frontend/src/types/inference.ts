@@ -92,6 +92,7 @@ export interface GeneratedImage {
   timestamp: number;
   width?: number;
   height?: number;
+  params?: SubmitJobParams;
 }
 
 // ── Gallery types (matching database schema) ──
@@ -244,8 +245,9 @@ export interface Conversation {
 export interface ConversationMessage {
   id: string;
   conversation_id: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'error';
   content: string;
+  display_text: string | null;
   image_paths: string | null;
   tool_calls: string | null;
   created_at: number;

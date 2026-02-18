@@ -183,6 +183,7 @@ CREATE TABLE IF NOT EXISTS conversation_messages (
     conversation_id     TEXT NOT NULL,
     role                TEXT NOT NULL,
     content             TEXT NOT NULL,
+    display_text        TEXT,
     image_paths         TEXT,
     tool_calls          TEXT,
     created_at          INTEGER NOT NULL,

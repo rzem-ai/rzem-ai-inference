@@ -4,6 +4,7 @@ import PrimeVue from 'primevue/config';
 import Glass from './theme';
 import App from './App.vue';
 import router from './router';
+import './theme/fonts/fonts.css';
 import './style.css';
 import 'primeicons/primeicons.css';
 

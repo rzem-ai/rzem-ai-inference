@@ -21,7 +21,7 @@
 
 <script setup lang="ts">
 import { useRoute } from 'vue-router';
-import { Cog, Cpu, KeyRound, HardDrive, Wifi, Plus, SlidersHorizontal } from 'lucide-vue-next';
+import { Cog, Cpu, KeyRound, HardDrive, Wifi, Plus, SlidersHorizontal, Bot } from 'lucide-vue-next';
 import { Button } from 'primevue';
 import MenuPanel from '@/components/MenuPanel.vue';
 
@@ -33,5 +33,6 @@ const navItems = [
   { label: 'API Keys', icon: KeyRound, route: 'settings-api-keys' },
   { label: 'Model Cache', icon: HardDrive, route: 'settings-cache' },
   { label: 'Generation', icon: SlidersHorizontal, route: 'settings-generation' },
+  { label: 'AI', icon: Bot, route: 'settings-ai' },
 ];
 </script>

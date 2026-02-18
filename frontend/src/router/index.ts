@@ -85,6 +85,11 @@ const router = createRouter({
           name: 'settings-generation',
           component: () => import('@/pages/settings/Generation.vue'),
         },
+        {
+          path: 'ai',
+          name: 'settings-ai',
+          component: () => import('@/pages/settings/AI.vue'),
+        },
       ],
     },
   ],

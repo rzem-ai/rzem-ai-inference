@@ -194,6 +194,9 @@ export const mockApi: PywebviewAPI = {
   async toggle_favorite(_args) {
     return { status: "error", message: "Mock mode" };
   },
+  async save_image_as(_args) {
+    return { status: "success", saved: false };
+  },
   async delete_image(_args) {
     return { status: "success" };
   },
