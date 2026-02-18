@@ -1,6 +1,6 @@
 [project]
 name = "rzem-ai-inference"
-version = "0.2.0"
+version = "0.3.0"
 description = "Desktop inference UI: pywebview + Vue 3 + rzem-ai-inference-engine"
 requires-python = ">=3.13"
 dependencies = [

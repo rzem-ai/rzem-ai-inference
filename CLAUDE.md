@@ -1,36 +1,5 @@
 # CLAUDE.md
 
-## ⚠️ CRITICAL: NO BACKWARD COMPATIBILITY
-
-**HIGHEST PRIORITY RULE:**
-
-This application has NOT been released to users. There are NO production deployments. As such, **backward compatibility is NOT required and should NOT be implemented.**
-
-**DO NOT:**
-
-- ❌ Keep old code paths "for compatibility"
-- ❌ Add fallback logic for legacy behavior
-- ❌ Maintain deprecated fields or methods
-- ❌ Write migration code for unreleased features
-- ❌ Write database migration code (schema changes = delete DB)
-- ❌ Preserve old APIs "just in case"
-- ❌ Add conditional logic like `if old_field exists... else new_field`
-
-**DO:**
-
-- ✅ Delete old code completely when replacing it
-- ✅ Update all references to use new approach
-- ✅ Break things if needed to move forward
-- ✅ Refactor aggressively
-- ✅ Simplify without legacy concerns
-- ✅ For database schema changes: tell user to delete the database file
-
-**If you find backward compatibility code: REMOVE IT.**
-
-This rule overrides all other considerations. Clean, simple code is more valuable than compatibility that no users need.
-
----
-
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## What This Is
@@ -109,7 +78,7 @@ Every Python API method returns `{"status": "success", ...}` or `{"status": "err
 - **Vite port 1978**: Hardcoded in both `vite.config.ts` (strictPort) and `backend/config.py`
 - **`os._exit(0)` on close**: Tearing down CUDA from non-main thread causes C++ errors; the app force-exits instead
 - **`--system-site-packages` venv**: Required on Linux for pywebview's GTK/WebKit bindings (system `gi` module)
-- **No backward compatibility needed**: App not released yet — delete DB file for schema changes, refactor freely
+- **Database migrations**: Use proper migration strategies for schema changes
 
 ## Frontend Stack
 
