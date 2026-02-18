@@ -14,18 +14,21 @@
       @change="onBundleChange">
       <template #option="{ option }">
         <div class="flex items-center justify-between w-full gap-2">
-          <div class=" ">{{ option.label }}</div>
+          <div>{{ option.label }}</div>
           <div class="flex items-center gap-1.5">
             <Tag :severity="tierClass(option.tier)" class="uppercase">{{ option.tier }}</Tag>
-            <Tag :severity="vramClass(option.vram_estimate_gb)">~{{ option.vram_estimate_gb }} GB</Tag>
+            <Tag v-if="option.source === 'cloud'" severity="info">Cloud</Tag>
+            <Tag v-else :severity="vramClass(option.vram_estimate_gb)">~{{ option.vram_estimate_gb }} GB</Tag>
           </div>
         </div>
       </template>
       <template #value="{ value, placeholder }">
         <div v-if="store.selectedBundle" class="flex items-center gap-2 w-full">
-          <Brain :size="14" class="text-blue-500 shrink-0" />
+          <Cloud v-if="store.selectedBundle.source === 'cloud'" :size="14" class="text-cyan-500 shrink-0" />
+          <Brain v-else :size="14" class="text-blue-500 shrink-0" />
           <div class="truncate grow">{{ store.selectedBundle.label }}</div>
-          <Tag :severity="vramClass(store.selectedBundle.vram_estimate_gb)">~{{ store.selectedBundle.vram_estimate_gb }} GB</Tag>
+          <Tag v-if="store.selectedBundle.source === 'cloud'" severity="info">Cloud</Tag>
+          <Tag v-else :severity="vramClass(store.selectedBundle.vram_estimate_gb)">~{{ store.selectedBundle.vram_estimate_gb }} GB</Tag>
         </div>
         <div v-else class="text-slate-400 text-xs">{{ placeholder }}</div>
       </template>
@@ -34,7 +37,7 @@
 </template>
 
 <script setup lang="ts">
-import { Brain } from 'lucide-vue-next';
+import { Brain, Cloud } from 'lucide-vue-next';
 import { Select, Tag } from 'primevue';
 import { useInferenceStore } from '@/stores/inference';
 
@@ -46,7 +49,6 @@ function onBundleChange(e: any) {
 }
 
 function tierClass(tier: string): string {
-  console.log(tier)
   switch (tier) {
     case 'performance':
       return 'success';

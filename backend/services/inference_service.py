@@ -234,7 +234,7 @@ class LocalInferenceService:
         loras_json = None
         bundle_id = self._job_bundle_ids.pop(job_id, None)
         if params:
-            model_config = json.dumps({
+            config_dict = {
                 "transformer_model": params.transformer_model,
                 "transformer_type": params.transformer_type.value if hasattr(params.transformer_type, "value") else str(params.transformer_type),
                 "vae_model": params.vae_model,
@@ -246,7 +246,11 @@ class LocalInferenceService:
                 "qwen3_encoder": params.qwen3_encoder,
                 "sampler": params.sampler,
                 "scheduler": params.scheduler,
-            })
+            }
+            if params.fal_endpoint:
+                config_dict["source"] = "cloud"
+                config_dict["fal_endpoint"] = params.fal_endpoint
+            model_config = json.dumps(config_dict)
             if params.loras:
                 loras_json = json.dumps([
                     {"model_file": l.model_file, "strength": l.strength}

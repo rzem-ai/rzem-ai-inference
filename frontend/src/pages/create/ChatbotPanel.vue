@@ -94,16 +94,11 @@
             <div class="flex-1 min-w-0">
               <!-- Tool use badges -->
               <div v-if="msg.tool_calls" class="flex gap-1 mb-1 flex-wrap">
-                <span
-                  v-for="(tool, i) in parseToolCalls(msg.tool_calls)"
-                  :key="i"
-                  class="text-lg px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-600 font-medium">
-                  {{ formatToolName(tool.name, tool.input) }}
-                </span>
+                <Tag v-for="(tool, i) in parseToolCalls(msg.tool_calls)" :key="i" :value="formatToolName(tool.name, tool.input)" />
               </div>
               <div
                 v-if="msg.content"
-                class="bg-slate-50 rounded-lg px-3 py-2 text-sm text-slate-700 leading-relaxed prose-chat"
+                class="bg-slate-50 rounded-lg px-3 py-2 text-base text-slate-700 leading-relaxed prose-chat"
                 v-html="renderMarkdown(msg.content)" />
             </div>
           </div>
@@ -128,7 +123,7 @@
           </div>
           <div v-if="chatStore.streamingText" class="bg-slate-50 rounded-lg px-3 py-2 text-base text-slate-700 leading-relaxed prose-chat">
             <span v-html="renderMarkdown(chatStore.streamingText)" />
-            <span class="inline-block w-1.5 h-3 bg-blue-500 ml-0.5 animate-pulse rounded-sm" />
+            <span class="inline-block w-3 h-3 bg-blue-500 ml-0.5 animate-pulse rounded-sm"></span>
           </div>
           <div v-else class="bg-slate-50 rounded-lg px-3 py-2">
             <div class="flex gap-1 items-center">
@@ -205,7 +200,7 @@ import { useInferenceStore } from '@/stores/inference';
 import { useSettingsStore } from '@/stores/settings';
 import { usePywebview } from '@/composables/usePywebview';
 import ChatImageThumb from './ChatImageThumb.vue';
-import { Button, Dialog } from 'primevue';
+import { Button, Dialog, Tag } from 'primevue';
 import { InputGroup, InputGroupAddon, InputText } from 'primevue';
 
 const chatStore = useChatStore();
@@ -225,7 +220,6 @@ const suggestionChips = ['Improve my prompt', 'Suggest lighting', 'Art style ide
 const isSendMessageEnabled = computed(() => {
   return !(!chatInput.value.trim() || chatStore.isStreaming);
 });
-
 
 function renderMarkdown(text: string): string {
   return marked.parse(text, { breaks: true, async: false }) as string;

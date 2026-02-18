@@ -1333,7 +1333,9 @@ requires-dist = [
     { name = "click" },
     { name = "diffusers", specifier = ">=0.32" },
     { name = "einops" },
+    { name = "fal-client", marker = "extra == 'fal'", specifier = ">=0.5" },
     { name = "fastapi", specifier = ">=0.110" },
+    { name = "httpx", marker = "extra == 'fal'" },
     { name = "huggingface-hub" },
     { name = "loguru" },
     { name = "pillow" },
@@ -1348,7 +1350,7 @@ requires-dist = [
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.27" },
     { name = "zeroconf", specifier = ">=0.131" },
 ]
-provides-extras = ["build"]
+provides-extras = ["fal", "build"]
 
 [[package]]
 name = "safetensors"

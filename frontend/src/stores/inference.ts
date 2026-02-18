@@ -78,6 +78,7 @@ export const useInferenceStore = defineStore('inference', {
       sampler: 'euler',
       scheduler: 'simple',
       loras: [] as LoraParam[],
+      fal_endpoint: undefined,
     } as SubmitJobParams,
 
     // Batch state
@@ -105,6 +106,7 @@ export const useInferenceStore = defineStore('inference', {
         flux2_dev: 'FLUX.2 Dev',
         z_image: 'Z-Image',
         qwen_image: 'Qwen-Image',
+        fal_cloud: 'FAL.ai Cloud',
       };
       const groups = new Map<string, ModelBundle[]>();
       for (const b of state.bundles) {
@@ -191,6 +193,7 @@ export const useInferenceStore = defineStore('inference', {
       this.params.cfg_scale = bundle.cfg_scale;
       this.params.sampler = bundle.sampler;
       this.params.scheduler = bundle.scheduler;
+      this.params.fal_endpoint = bundle.fal_endpoint;
     },
 
     async submitJob() {

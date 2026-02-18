@@ -2,7 +2,7 @@
 
 export type ApiResponse<T = {}> = { status: "success" | "error"; message?: string } & T;
 
-export type TransformerType = "flux1_dev" | "flux2_dev" | "z_image" | "qwen_image";
+export type TransformerType = "flux1_dev" | "flux2_dev" | "z_image" | "qwen_image" | "fal_cloud";
 
 export type EventType =
   | "job_queued"
@@ -54,6 +54,8 @@ export interface ModelBundle {
   scheduler: string;
   vram_estimate_gb: number;
   is_default: boolean;
+  source?: string;
+  fal_endpoint?: string;
 }
 
 export interface LoraParam {
@@ -75,6 +77,7 @@ export interface SubmitJobParams {
   scheduler: string;
   loras: LoraParam[];
   bundle_id?: string;
+  fal_endpoint?: string;
   // Optional text encoder overrides
   clip_tokenizer?: string;
   clip_encoder?: string;

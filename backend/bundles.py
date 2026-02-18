@@ -15,7 +15,7 @@ class ModelBundle:
     id: str
     label: str
     description: str
-    transformer_type: str  # "flux1_dev" | "flux2_dev" | "z_image" | "qwen_image"
+    transformer_type: str  # "flux1_dev" | "flux2_dev" | "z_image" | "qwen_image" | "fal_cloud"
     tier: str  # "performance" | "balanced" | "quality"
     transformer_model: str
     vae_model: str
@@ -31,6 +31,8 @@ class ModelBundle:
     scheduler: str = "normal"
     vram_estimate_gb: float = 0.0
     is_default: bool = True
+    source: str = "local"  # "local" | "cloud"
+    fal_endpoint: str | None = None
 
 
 # ── Shared encoder repos ──
@@ -134,6 +136,46 @@ DEFAULT_BUNDLES: list[ModelBundle] = [
         steps=28,
         cfg_scale=1.0,
         vram_estimate_gb=48.2,
+    ),
+    # ── FAL.ai Cloud ──
+    ModelBundle(
+        id="fal_flux_schnell",
+        label="FLUX.1 Schnell",
+        description="FAL.ai cloud — FLUX.1 Schnell, fastest cloud generation",
+        transformer_type="fal_cloud",
+        tier="performance",
+        transformer_model="fal-ai/flux/schnell",
+        vae_model="cloud",
+        steps=4,
+        cfg_scale=1.0,
+        source="cloud",
+        fal_endpoint="fal-ai/flux/schnell",
+    ),
+    ModelBundle(
+        id="fal_flux_dev",
+        label="FLUX.1 Dev",
+        description="FAL.ai cloud — FLUX.1 Dev, balanced quality and speed",
+        transformer_type="fal_cloud",
+        tier="balanced",
+        transformer_model="fal-ai/flux/dev",
+        vae_model="cloud",
+        steps=28,
+        cfg_scale=3.5,
+        source="cloud",
+        fal_endpoint="fal-ai/flux/dev",
+    ),
+    ModelBundle(
+        id="fal_flux2_pro",
+        label="FLUX.2 Pro",
+        description="FAL.ai cloud — FLUX.2 Pro, highest quality cloud generation",
+        transformer_type="fal_cloud",
+        tier="quality",
+        transformer_model="fal-ai/flux-2-pro",
+        vae_model="cloud",
+        steps=28,
+        cfg_scale=1.0,
+        source="cloud",
+        fal_endpoint="fal-ai/flux-2-pro",
     ),
 ]
 

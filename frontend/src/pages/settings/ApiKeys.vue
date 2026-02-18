@@ -58,9 +58,11 @@
 import { reactive, onMounted } from 'vue';
 import { Info, Eye, EyeOff, Copy, Check, Trash2, KeySquare } from 'lucide-vue-next';
 import { Message, Card, InputGroup, InputGroupAddon, InputText, Tag, Button } from 'primevue';
+import { useInferenceStore } from '@/stores/inference';
 import { useSettingsStore } from '@/stores/settings';
 
 const settingsStore = useSettingsStore();
+const inferenceStore = useInferenceStore();
 
 const keyDefinitions = [
   {
@@ -109,12 +111,22 @@ async function handleSave(key: string) {
     await settingsStore.deleteApiKey(key);
     localKeys[key] = '';
   }
+  if (key === 'FAL_KEY') {
+    await inferenceStore.loadBundles();
+  }
 }
 
 async function handleDelete(key: string) {
   await settingsStore.deleteApiKey(key);
   localKeys[key] = '';
   visibleKeys[key] = false;
+  if (key === 'FAL_KEY') {
+    // Deselect current bundle if it's a cloud bundle
+    if (inferenceStore.selectedBundle?.source === 'cloud') {
+      inferenceStore.selectedBundleId = null;
+    }
+    await inferenceStore.loadBundles();
+  }
 }
 
 async function handleCopy(key: string) {

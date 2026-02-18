@@ -24,8 +24,8 @@ class CombinedAPI(SystemAPI, InferenceAPI, BundlesAPI, GalleryAPI, StylesAPI, Se
 
     def __init__(self, service, manager, discovery, bundle_store, db, config, chat_service) -> None:
         SystemAPI.__init__(self, service)
-        InferenceAPI.__init__(self, manager)
-        BundlesAPI.__init__(self, bundle_store)
+        InferenceAPI.__init__(self, manager, db)
+        BundlesAPI.__init__(self, bundle_store, db)
         GalleryAPI.__init__(self, db)
         StylesAPI.__init__(self, db)
         SettingsAPI.__init__(self, manager, config)

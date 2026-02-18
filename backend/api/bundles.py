@@ -6,6 +6,7 @@ import logging
 from typing import Any
 
 from backend.bundles import BundleStore
+from backend.db.database import Database
 
 logger = logging.getLogger(__name__)
 
@@ -13,12 +14,18 @@ logger = logging.getLogger(__name__)
 class BundlesAPI:
     """pywebview js_api mixin for model bundle operations."""
 
-    def __init__(self, bundle_store: BundleStore) -> None:
+    def __init__(self, bundle_store: BundleStore, db: Database) -> None:
         self._bundle_store = bundle_store
+        self._bundles_db = db
 
     def get_bundles(self) -> dict[str, Any]:
         try:
-            return {"status": "success", "bundles": self._bundle_store.get_all()}
+            bundles = self._bundle_store.get_all()
+            # Hide cloud bundles if FAL_KEY is not configured
+            fal_key = self._bundles_db.get_setting("FAL_KEY")
+            if not fal_key:
+                bundles = [b for b in bundles if b.get("source", "local") != "cloud"]
+            return {"status": "success", "bundles": bundles}
         except Exception as e:
             logger.error("Failed to get bundles: %s", e)
             return {"status": "error", "message": str(e)}

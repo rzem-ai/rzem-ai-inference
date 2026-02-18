@@ -11,6 +11,7 @@ from typing import Any
 
 from rzem_ai_inference_engine import JobParams, LoraParams, TransformerType
 
+from backend.db.database import Database
 from backend.services.inference_manager import InferenceServiceManager
 
 from loguru import logger
@@ -23,8 +24,9 @@ class InferenceAPI:
     ``window.pywebview.api.<method>(args)``.
     """
 
-    def __init__(self, inference: InferenceServiceManager) -> None:
+    def __init__(self, inference: InferenceServiceManager, db: Database) -> None:
         self._inference = inference
+        self._inference_db = db
 
     def get_gpu_info(self) -> dict[str, Any]:
         """Return GPU device type, name, and total VRAM."""
@@ -68,11 +70,21 @@ class InferenceAPI:
         scheduler: str = "normal",
         loras: list[dict] | None = None,
         bundle_id: str | None = None,
+        fal_endpoint: str | None = None,
         **kwargs,
     ) -> dict[str, Any]:
         """Submit a generation job. Returns ``{status, job_id}``."""
         try:
             lora_params = [LoraParams(**l) for l in (loras or [])]
+
+            # Inject FAL API key from DB for cloud jobs
+            extra_kwargs: dict[str, Any] = {}
+            if transformer_type == "fal_cloud":
+                fal_api_key = self._inference_db.get_setting("FAL_KEY")
+                if not fal_api_key:
+                    return {"status": "error", "message": "FAL API key not configured"}
+                extra_kwargs["fal_endpoint"] = fal_endpoint
+                extra_kwargs["fal_api_key"] = fal_api_key
 
             params = JobParams(
                 prompt=prompt,
@@ -87,6 +99,7 @@ class InferenceAPI:
                 sampler=sampler,
                 scheduler=scheduler,
                 loras=lora_params,
+                **extra_kwargs,
                 **kwargs,
             )
 
