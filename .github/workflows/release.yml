@@ -89,9 +89,11 @@ jobs:
         shell: bash
         working-directory: rzem-ai-inference
         env:
-          # Windows needs explicit CUDA backend; Linux gets it from PyPI automatically
+          # Only set torch backend on Windows (CUDA); other platforms use default PyPI wheels
           UV_TORCH_BACKEND: ${{ runner.os == 'Windows' && 'cu124' || '' }}
         run: |
+          # Unset UV_TORCH_BACKEND if empty — uv 0.10+ errors on --torch-backend ""
+          if [ -z "$UV_TORCH_BACKEND" ]; then unset UV_TORCH_BACKEND; fi
           # Linux needs --system-site-packages for pywebview GTK bindings (gi module)
           if [ "$RUNNER_OS" = "Linux" ]; then
             uv venv --system-site-packages
