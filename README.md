@@ -4,13 +4,18 @@ Desktop AI image generation application with a Python inference backend and mode
 
 ## What is Rzem AI Inference?
 
-A native desktop application for AI-powered image generation. The app runs local inference using the [rzem-ai-inference-engine](../rzem-ai-inference-engine) and provides a polished UI for creating, managing, and refining AI-generated images.
+A native desktop application for AI-powered image generation. The app runs local inference using the [rzem-ai-inference-engine](../rzem-ai-inference-engine) and also supports cloud generation via FAL.ai. It provides a polished UI for creating, managing, and refining AI-generated images.
 
 **Key Features:**
-- Local AI image generation (no cloud dependencies)
-- Real-time progress tracking with event-driven architecture
+- Local AI image generation with automatic VRAM management
+- FAL.ai cloud generation (FLUX.1 Dev/Pro, FLUX.2 Dev/Flex/Pro)
+- Image gallery with folders and tagging
+- Style presets with LoRA support
+- AI chat assistant (Claude integration)
+- CSV batch processing for bulk generation
+- Remote inference server discovery (mDNS/DNS-SD)
 - Rich prompt editing with Tiptap
-- Job queue management
+- Real-time progress tracking with event-driven architecture
 - Custom Glass theme UI with PrimeVue components
 
 ## Architecture
@@ -20,12 +25,25 @@ Python Backend (pywebview)  ←—js_api bridge—→  Vue 3 Frontend (Vite)
      │                                              │
      ├── main.py (entry point)                      ├── PrimeVue 4 (Glass theme)
      ├── backend/config.py                          ├── Tailwind CSS 4
-     ├── backend/api/                               ├── Tiptap (rich text)
-     │   ├── system.py                              ├── Pinia (state)
-     │   └── inference.py (generation API)          └── Vue Router (hash mode)
-     └── backend/services/
-         ├── app_service.py
-         └── inference_service.py (engine wrapper)
+     ├── backend/db/ (SQLite)                       ├── Tiptap (rich text)
+     ├── backend/api/                               ├── Pinia (state)
+     │   ├── system.py                              └── Vue Router (hash mode)
+     │   ├── inference.py
+     │   ├── bundles.py
+     │   ├── gallery.py
+     │   ├── styles.py
+     │   ├── settings.py
+     │   ├── chat.py
+     │   ├── batch.py
+     │   └── discovery.py
+     ├── backend/services/
+     │   ├── app_service.py
+     │   ├── inference_service.py
+     │   ├── inference_manager.py
+     │   ├── remote_inference_service.py
+     │   ├── chat_service.py
+     │   └── discovery_service.py
+     └── backend/bundles.py (model bundle definitions)
 
 Dependencies:
      └── ../rzem-ai-inference-engine (editable install)
@@ -96,13 +114,29 @@ Creates a PyInstaller executable in `build/dist/Inference/` with all dependencie
 ├── main.py                                  # Python entry point
 ├── backend/
 │   ├── config.py                            # Dev/prod mode, window settings
+│   ├── bundles.py                           # Model bundle definitions (local + cloud)
+│   ├── db/
+│   │   ├── database.py                      # SQLite database (images, folders, tags, styles, settings, conversations)
+│   │   └── schema.sql                       # Database schema
 │   ├── api/
 │   │   ├── combined.py                      # CombinedAPI (js_api object)
 │   │   ├── system.py                        # SystemAPI (app lifecycle)
-│   │   └── inference.py                     # InferenceAPI (generation, jobs)
+│   │   ├── inference.py                     # InferenceAPI (generation, jobs)
+│   │   ├── bundles.py                       # BundlesAPI (model bundle management)
+│   │   ├── gallery.py                       # GalleryAPI (images, folders, tags)
+│   │   ├── styles.py                        # StylesAPI (style presets, LoRAs)
+│   │   ├── settings.py                      # SettingsAPI (GPU info, cache, config)
+│   │   ├── chat.py                          # ChatAPI (Claude AI assistant)
+│   │   ├── batch.py                         # BatchAPI (CSV bulk generation)
+│   │   └── discovery.py                     # DiscoveryAPI (remote server discovery)
 │   └── services/
 │       ├── app_service.py                   # App lifecycle (thread-safe)
-│       └── inference_service.py             # Inference engine wrapper + event queue
+│       ├── inference_service.py             # Local inference engine wrapper + event queue
+│       ├── inference_manager.py             # Switches between local/remote inference
+│       ├── remote_inference_service.py      # Remote inference via REST API
+│       ├── inference_protocol.py            # Shared protocol definitions
+│       ├── chat_service.py                  # Claude AI integration
+│       └── discovery_service.py             # LAN server discovery (mDNS)
 ├── frontend/
 │   ├── src/
 │   │   ├── main.ts                          # Vue + PrimeVue + Pinia + Router
@@ -110,15 +144,21 @@ Creates a PyInstaller executable in `build/dist/Inference/` with all dependencie
 │   │   ├── composables/usePywebview.ts      # Reactive bridge composable
 │   │   ├── stores/
 │   │   │   ├── app.ts                       # App state
-│   │   │   └── inference.ts                 # Inference state, job lifecycle, event polling
+│   │   │   ├── inference.ts                 # Inference state, job lifecycle, event polling
+│   │   │   ├── gallery.ts                   # Image gallery, folders, tags
+│   │   │   ├── styles.ts                    # Style presets, LoRAs
+│   │   │   ├── settings.ts                  # Settings, GPU info
+│   │   │   ├── chat.ts                      # Conversations, messages
+│   │   │   └── discovery.ts                 # Remote server discovery
 │   │   ├── types/pywebview.d.ts             # TypeScript API definitions
 │   │   ├── theme/                           # Custom Glass theme preset
 │   │   ├── router/index.ts                  # Hash-mode router
 │   │   ├── components/                      # Shared components
 │   │   └── pages/
-│   │       └── create/                      # Image generation UI
-│   │           ├── Main.vue                 # Results gallery
-│   │           └── Menu.vue                 # Generation parameters sidebar
+│   │       ├── create/                      # Image generation UI
+│   │       ├── gallery/                     # Image gallery with folders/tags
+│   │       ├── styles/                      # Style preset management
+│   │       └── settings/                    # App settings (API keys, GPU, cache, remote servers)
 │   └── ...
 ├── scripts/
 │   ├── install.sh                           # Setup: venv + deps + frontend
@@ -140,7 +180,9 @@ Creates a PyInstaller executable in `build/dist/Inference/` with all dependencie
 
 ### Inference Engine Integration
 
-- **Event-driven**: Inference engine fires events (`progress_update`, `generation_complete`) from background threads
+- **Local + remote**: `InferenceManager` switches between `LocalInferenceService` and `RemoteInferenceService`
+- **FAL.ai cloud**: Cloud bundles inject the API key from settings into `JobParams` before submission
+- **Event-driven**: Inference engine fires events from background threads
 - **Event polling**: `InferenceService` queues events (max 500); frontend polls `poll_events()` every 200ms
 - **Image handling**: PIL images → saved as PNG files → frontend receives paths → calls `get_image_base64()` to load
 - **Job lifecycle**: Queue → Running → Complete/Failed (tracked in `stores/inference.ts`)
@@ -157,6 +199,7 @@ Creates a PyInstaller executable in `build/dist/Inference/` with all dependencie
 - **Linux GTK bindings**: `.venv` created with `uv venv --system-site-packages` for `gi` module
 - **CUDA teardown**: App uses `os._exit(0)` to avoid C++ errors from non-main thread GPU cleanup
 - **Port 1978**: Hardcoded in `vite.config.ts` (strictPort) and `backend/config.py`
+- **Database migrations**: Use proper migration strategies for schema changes
 
 ## Common Commands
 
@@ -205,10 +248,6 @@ Enable event logging in the inference store to see real-time event flow:
 // frontend/src/stores/inference.ts
 console.log('[Event]', event.type, event.data);
 ```
-
-### Database Schema Changes
-
-This app has not been released yet. For database schema changes, simply delete the database file and restart — no migration code needed.
 
 ## Troubleshooting
 
