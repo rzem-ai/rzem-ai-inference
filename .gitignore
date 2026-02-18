@@ -15,3 +15,4 @@ frontend/dist/
 build/
 .vite/
 .DS_Store
+.env
