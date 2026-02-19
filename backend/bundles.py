@@ -33,6 +33,7 @@ class ModelBundle:
     is_default: bool = True
     source: str = "local"  # "local" | "cloud"
     fal_endpoint: str | None = None
+    fal_aspectratio: list[str] | None = None
 
 
 # ── Shared encoder repos ──

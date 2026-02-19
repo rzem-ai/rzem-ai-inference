@@ -16,3 +16,4 @@ build/
 .vite/
 .DS_Store
 .env
+logs/

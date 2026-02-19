@@ -56,6 +56,7 @@ export interface ModelBundle {
   is_default: boolean;
   source?: string;
   fal_endpoint?: string;
+  fal_aspectratio?: string[];
 }
 
 export interface LoraParam {
@@ -78,6 +79,7 @@ export interface SubmitJobParams {
   loras: LoraParam[];
   bundle_id?: string;
   fal_endpoint?: string;
+  fal_aspectratio?: string[];
   // Optional text encoder overrides
   clip_tokenizer?: string;
   clip_encoder?: string;

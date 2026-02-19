@@ -1,10 +1,10 @@
 <template>
-  <div class="flex flex-col gap-1 mb-2">
+  <div v-if="showQuality" class="flex flex-col gap-1 mb-2">
     <div class="text-base font-medium text-slate-600">Quality</div>
 
     <div class="flex flex-col gap-3">
-      <!-- Steps -->
-      <div class="flex flex-col gap-2">
+      <!-- Steps (hidden when bundle declares steps=0 — not supported by endpoint) -->
+      <div v-if="showSteps" class="flex flex-col gap-2">
         <div class="flex justify-between items-center">
           <span class="text-sm font-medium text-slate-600">Steps</span>
           <span class="text-base font-semibold text-slate-500 tabular-nums">{{ store.params.steps }}</span>
@@ -12,8 +12,8 @@
         <Slider v-model="store.params.steps" :min="1" :max="50" />
       </div>
 
-      <!-- Prompt Adherence (CFG) -->
-      <div class="flex flex-col gap-2">
+      <!-- Prompt Adherence (CFG) (hidden when bundle declares cfg_scale=0 — not supported by endpoint) -->
+      <div v-if="showCfgScale" class="flex flex-col gap-2">
         <div class="flex justify-between items-center">
           <span class="text-sm font-medium text-slate-600">Prompt Adherence</span>
           <span class="text-base font-semibold text-slate-500 tabular-nums">{{ store.params.cfg_scale.toFixed(1) }}</span>
@@ -30,6 +30,10 @@ import Slider from 'primevue/slider';
 import { useInferenceStore } from '@/stores/inference';
 
 const store = useInferenceStore();
+
+const showSteps = computed(() => store.selectedBundle?.steps !== 0);
+const showCfgScale = computed(() => store.selectedBundle?.cfg_scale !== 0);
+const showQuality = computed(() => showSteps.value || showCfgScale.value);
 
 // Map 0.0–30.0 float to 0–300 int for slider precision
 const cfgToInt = computed(() => Math.round(store.params.cfg_scale * 10));

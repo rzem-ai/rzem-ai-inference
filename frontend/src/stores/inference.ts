@@ -214,6 +214,7 @@ export const useInferenceStore = defineStore('inference', {
       this.params.sampler = bundle.sampler;
       this.params.scheduler = bundle.scheduler;
       this.params.fal_endpoint = bundle.fal_endpoint;
+      this.params.fal_aspectratio = bundle.fal_aspectratio;
     },
 
     async submitJob() {
