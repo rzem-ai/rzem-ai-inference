@@ -97,10 +97,10 @@ jobs:
         shell: bash
         working-directory: rzem-ai-inference
         env:
-          UV_TORCH_BACKEND: ${{ matrix.torch_backend }}
+          TORCH_BACKEND: ${{ matrix.torch_backend }}
         run: |
-          # Unset UV_TORCH_BACKEND if empty — uv 0.10+ errors on --torch-backend ""
-          if [ -z "$UV_TORCH_BACKEND" ]; then unset UV_TORCH_BACKEND; fi
+          # Only export UV_TORCH_BACKEND when non-empty — uv errors on --torch-backend ""
+          if [ -n "$TORCH_BACKEND" ]; then export UV_TORCH_BACKEND="$TORCH_BACKEND"; fi
           # Linux needs --system-site-packages for pywebview GTK bindings (gi module)
           if [ "$RUNNER_OS" = "Linux" ]; then
             uv venv --system-site-packages
