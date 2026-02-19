@@ -7,6 +7,25 @@ let _api: PywebviewAPI | null = null;
 let _pollTimer: ReturnType<typeof setInterval> | null = null;
 let _debugImages: { output: string | null; previews: Record<string, string> } | null = null;
 
+const EXAMPLE_PROMPTS = [
+  'Portrait of an elderly woman with deep wrinkles and kind eyes, silver hair pulled back, wearing a hand-knitted shawl, soft window light, shot on medium format film',
+  'Misty mountain valley at dawn, layers of fog rolling between pine-covered ridges, golden sunlight breaking through clouds, aerial perspective',
+  'A lone astronaut standing on the edge of a massive crater on an alien world, two moons visible in the violet sky, bioluminescent plants growing from the rocky terrain',
+  'An ancient library carved into the trunk of a colossal tree, warm candlelight illuminating endless rows of leather-bound books, dust motes floating in golden light beams',
+  'Brutalist concrete apartment building overgrown with lush tropical plants, birds nesting in the balconies, morning fog, shot from below looking up',
+  'A weathered fishing boat resting on a pebble beach at golden hour, nets draped over the hull, calm turquoise sea in the background, Mediterranean coast',
+  'A red fox curled up sleeping in a snow-covered hollow log, soft winter light filtering through bare branches, frost crystals on its fur',
+  'A massive steampunk clockwork mechanism filling an entire cathedral, gears and cogs of brass and copper, shafts of light streaming through stained glass windows',
+  'Narrow alleyway in Tokyo at night after rain, neon signs reflecting in puddles, a single figure with an umbrella walking away, atmospheric perspective',
+  'An abandoned greenhouse reclaimed by nature, shattered glass roof, wild roses and ivy climbing the iron frame, sunbeams cutting through the overgrowth',
+  'Close-up of hands shaping wet clay on a potter\'s wheel, motion blur on the spinning clay, warm studio light, shallow depth of field',
+  'A cosmic whale swimming through a nebula, its body made of constellations and stardust, trailing aurora-like light, deep space background',
+];
+
+function randomExamplePrompt(): string {
+  return EXAMPLE_PROMPTS[Math.floor(Math.random() * EXAMPLE_PROMPTS.length)];
+}
+
 export interface AspectRatio {
   label: string;
   width: number;
@@ -62,7 +81,7 @@ export const useInferenceStore = defineStore('inference', {
     devMode: false,
 
     params: {
-      prompt: 'a planet with rings, space dust, psychedelic art',
+      prompt: randomExamplePrompt(),
       transformer_model: 'black-forest-labs/FLUX.1-dev',
       transformer_type: 'flux1_dev',
       vae_model: 'black-forest-labs/FLUX.1-dev',
