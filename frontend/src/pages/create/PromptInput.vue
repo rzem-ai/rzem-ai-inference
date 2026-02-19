@@ -37,7 +37,7 @@ const editor = useEditor({
   content: store.params.prompt,
   editorProps: {
     attributes: {
-      class: 'focus:outline-none min-h-[60px] max-h-[80px] overflow-y-auto text-lg overscroll-contain',
+      class: 'focus:outline-none min-h-[60px] max-h-[300px] overflow-y-auto text-lg overscroll-contain',
     },
     handleKeyDown: (_view, event) => {
       if (event.key === 'Enter' && event.ctrlKey) {
@@ -49,7 +49,7 @@ const editor = useEditor({
     },
   },
   onUpdate: ({ editor: e }) => {
-    store.params.prompt = e.getText();
+    store.applyParams({ prompt: e.getText() });
   },
 });
 
