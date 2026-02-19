@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS images (
     file_path       TEXT NOT NULL,
     thumbnail_path  TEXT,
     prompt          TEXT NOT NULL,
+    raw_prompt      TEXT,
     negative_prompt TEXT,
     width           INTEGER NOT NULL,
     height          INTEGER NOT NULL,

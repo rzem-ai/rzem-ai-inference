@@ -14,17 +14,25 @@ jobs:
       matrix:
         include:
           - runner: ubuntu-latest
-            platform: linux-x86_64
+            platform: linux-x86_64-cpu
             archive: tar.gz
             separator: ':'
+            torch_backend: cpu
+          - runner: ubuntu-latest
+            platform: linux-x86_64-cuda
+            archive: tar.gz
+            separator: ':'
+            torch_backend: cu128
           - runner: macos-latest
             platform: macos-arm64
             archive: tar.gz
             separator: ':'
+            torch_backend: ''
           - runner: windows-latest
             platform: windows-x86_64
             archive: zip
             separator: ';'
+            torch_backend: cu128
 
     runs-on: ${{ matrix.runner }}
     name: Build (${{ matrix.platform }})
@@ -32,7 +40,7 @@ jobs:
     steps:
       # ── Free disk space (CUDA builds are ~7+ GB) ────────────────
       - name: Free disk space (Linux)
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && contains(matrix.torch_backend, 'cu')
         uses: jlumbroso/free-disk-space@v1.3.1
         with:
           tool-cache: false
@@ -89,8 +97,7 @@ jobs:
         shell: bash
         working-directory: rzem-ai-inference
         env:
-          # Only set torch backend on Windows (CUDA); other platforms use default PyPI wheels
-          UV_TORCH_BACKEND: ${{ runner.os == 'Windows' && 'cu124' || '' }}
+          UV_TORCH_BACKEND: ${{ matrix.torch_backend }}
         run: |
           # Unset UV_TORCH_BACKEND if empty — uv 0.10+ errors on --torch-backend ""
           if [ -z "$UV_TORCH_BACKEND" ]; then unset UV_TORCH_BACKEND; fi

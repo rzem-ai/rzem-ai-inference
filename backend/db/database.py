@@ -81,6 +81,7 @@ class Database:
         cfg_scale: float,
         seed: int,
         thumbnail_path: str | None = None,
+        raw_prompt: str | None = None,
         negative_prompt: str | None = None,
         file_size: int | None = None,
         bundle_id: str | None = None,
@@ -94,13 +95,13 @@ class Database:
         with self._lock:
             self.conn.execute(
                 """INSERT INTO images
-                   (id, file_path, thumbnail_path, prompt, negative_prompt,
+                   (id, file_path, thumbnail_path, prompt, raw_prompt, negative_prompt,
                     width, height, file_size, steps, cfg_scale, seed,
                     bundle_id, model_config, loras, favorite,
                     generation_time_ms, status, created_at, updated_at)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
-                    id, file_path, thumbnail_path, prompt, negative_prompt,
+                    id, file_path, thumbnail_path, prompt, raw_prompt, negative_prompt,
                     width, height, file_size, steps, cfg_scale, seed,
                     bundle_id, model_config, loras, favorite,
                     generation_time_ms, status, now, now,

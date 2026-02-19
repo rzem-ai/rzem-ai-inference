@@ -56,31 +56,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Folder as FolderIcon, Palette, Plus, Star } from 'lucide-vue-next';
 import { useStylesStore } from '@/stores/styles';
 import type { Tag } from '@/types/inference';
-import { InputText, InputGroup, Button } from 'primevue';
+import { Button } from 'primevue';
 import MenuPanel from '@/components/MenuPanel.vue';
 
 const route = useRoute();
 const router = useRouter();
 const stylesStore = useStylesStore();
 
-const searchInput = ref('');
-
 const showSidebar = computed(() => route.name === 'styles');
-
-const isAllActive = computed(() => !stylesStore.currentCategory && !stylesStore.favoritesOnly && !stylesStore.currentTagId);
-
-let searchTimeout: ReturnType<typeof setTimeout>;
-watch(searchInput, (value) => {
-  clearTimeout(searchTimeout);
-  searchTimeout = setTimeout(() => {
-    stylesStore.searchStyles(value);
-  }, 300);
-});
 
 function tagStyle(tag: Tag) {
   const color = tag.color || '#64748b';
@@ -91,20 +79,20 @@ function tagStyle(tag: Tag) {
 }
 
 function onFilterAll() {
-  stylesStore.favoritesOnly = false;
-  stylesStore.currentTagId = null;
+  stylesStore.setFavoritesOnly(false);
+  stylesStore.setCurrentTagId(null);
   stylesStore.filterByCategory(null);
 }
 
 function onFilterFavorites() {
-  stylesStore.currentCategory = null;
-  stylesStore.currentTagId = null;
+  stylesStore.setCurrentCategory(null);
+  stylesStore.setCurrentTagId(null);
   stylesStore.toggleFavoritesFilter();
 }
 
 function onToggleTag(tagId: number) {
-  stylesStore.favoritesOnly = false;
-  stylesStore.currentCategory = null;
+  stylesStore.setFavoritesOnly(false);
+  stylesStore.setCurrentCategory(null);
   stylesStore.filterByTag(stylesStore.currentTagId === tagId ? null : tagId);
 }
 </script>

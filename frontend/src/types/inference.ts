@@ -107,6 +107,7 @@ export interface GalleryImage {
   file_path: string;
   thumbnail_path: string | null;
   prompt: string;
+  raw_prompt: string | null;
   negative_prompt: string | null;
   width: number;
   height: number;
@@ -207,6 +208,22 @@ export interface EngineStatus {
   ready: boolean;
   uptime_seconds: number | null;
   completed_count: number;
+  remote?: boolean;
+  device?: string;
+  jobs_queued?: number;
+  jobs_running?: number;
+}
+
+export interface GpuInfo {
+  device_type: string;
+  device_name: string | null;
+  total_vram_gb: number;
+}
+
+export interface RemoteEngineInfo {
+  device: string;
+  jobs_queued: number;
+  jobs_running: number;
 }
 
 export interface CachedModelRevision {

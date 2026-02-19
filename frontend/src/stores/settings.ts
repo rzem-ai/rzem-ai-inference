@@ -1,20 +1,8 @@
 import { defineStore } from 'pinia';
 import type { PywebviewAPI } from '@/types/pywebview';
-import type { VramUsage, EngineStatus, CachedModel, DataPaths, DiskUsage } from '@/types/inference';
+import type { VramUsage, EngineStatus, CachedModel, DataPaths, DiskUsage, GpuInfo, RemoteEngineInfo } from '@/types/inference';
 
 let _api: PywebviewAPI | null = null;
-
-interface GpuInfo {
-  device_type: string;
-  device_name: string | null;
-  total_vram_gb: number;
-}
-
-interface RemoteEngineInfo {
-  device: string;
-  jobs_queued: number;
-  jobs_running: number;
-}
 
 export const useSettingsStore = defineStore('settings', {
   state: () => ({
@@ -124,7 +112,7 @@ export const useSettingsStore = defineStore('settings', {
 
     async loadEngineStatus() {
       if (!_api) return;
-      const res = await _api.get_engine_status() as any;
+      const res = await _api.get_engine_status();
       if (res.status === 'success') {
         this.engineStatus = {
           ready: res.ready ?? false,
@@ -294,6 +282,16 @@ export const useSettingsStore = defineStore('settings', {
           hf_cache_size: res.hf_cache_size ?? 0,
         };
       }
+    },
+
+    // ── State setters ──
+
+    setConnectionMode(mode: string) {
+      this.connectionMode = mode;
+    },
+
+    setRemoteEngineInfo(info: RemoteEngineInfo | null) {
+      this.remoteEngineInfo = info;
     },
   },
 });

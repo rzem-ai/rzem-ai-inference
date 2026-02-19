@@ -11,6 +11,7 @@ export const useGalleryStore = defineStore('gallery', {
     images: [] as GalleryImage[],
     total: 0,
     loading: false,
+    error: null as string | null,
 
     folders: [] as Folder[],
     tags: [] as Tag[],
@@ -78,7 +79,8 @@ export const useGalleryStore = defineStore('gallery', {
           }
           this.total = res.total ?? 0;
         }
-      } catch (e) {
+      } catch (e: any) {
+        this.error = e.message ?? 'Failed to load images';
         console.error('[gallery] Failed to load images:', e);
       } finally {
         this.loading = false;
@@ -100,6 +102,11 @@ export const useGalleryStore = defineStore('gallery', {
           this.images[idx] = res.image;
         }
       }
+    },
+
+    async batchSaveImages(imageIds: string[]) {
+      if (!_api) return;
+      return await _api.batch_save_images({ image_ids: imageIds });
     },
 
     async deleteImage(imageId: string) {
@@ -195,6 +202,20 @@ export const useGalleryStore = defineStore('gallery', {
     async removeTagFromImage(imageId: string, tagId: number) {
       if (!_api) return;
       await _api.remove_tag_from_image({ image_id: imageId, tag_id: tagId });
+    },
+
+    // ── State setters ──
+
+    setFavoritesOnly(val: boolean) {
+      this.favoritesOnly = val;
+    },
+
+    setCurrentTagId(id: number | null) {
+      this.currentTagId = id;
+    },
+
+    setCurrentFolderId(id: string | null) {
+      this.currentFolderId = id;
     },
 
     // ── Filter helpers ──

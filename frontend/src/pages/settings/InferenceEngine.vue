@@ -116,7 +116,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted } from 'vue';
-import { Message, Card, InputGroup, InputGroupAddon, InputText, Tag, Button } from 'primevue';
+import { Button } from 'primevue';
 import { Wifi } from 'lucide-vue-next';
 import { useSettingsStore } from '@/stores/settings';
 

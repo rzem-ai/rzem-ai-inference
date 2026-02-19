@@ -231,6 +231,9 @@ export const mockApi: PywebviewAPI = {
   async save_image_as(_args) {
     return { status: "success", saved: false };
   },
+  async batch_save_images(_args) {
+    return { status: "success", saved_count: 0 };
+  },
   async delete_image(_args) {
     return { status: "success" };
   },
@@ -482,6 +485,9 @@ export const mockApi: PywebviewAPI = {
         description: "Imported from CivitAI metadata",
         prompt_template: "trigger_word {prompt}",
         negative_prompt: null,
+        default_strength: 1.0,
+        strength_min: 0.5,
+        strength_max: 1.5,
         category: null,
         thumbnail_path: null,
         is_favorite: 0,

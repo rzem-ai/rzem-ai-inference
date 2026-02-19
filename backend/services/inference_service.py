@@ -47,6 +47,8 @@ class LocalInferenceService:
         self._job_params: dict[str, JobParams] = {}  # job_id → params used
         self._job_start_times: dict[str, float] = {}  # job_id → monotonic start
         self._job_bundle_ids: dict[str, str] = {}  # job_id → bundle_id
+        self._job_style_ids: dict[str, str] = {}  # job_id → style_id
+        self._job_raw_prompts: dict[str, str] = {}  # job_id → raw user prompt
         self._start_time: float | None = None  # monotonic time engine started
         self._completed_count: int = 0  # total jobs completed this session
 
@@ -129,7 +131,13 @@ class LocalInferenceService:
             "completed_count": self._completed_count,
         }
 
-    def submit(self, params: JobParams, bundle_id: str | None = None) -> str:
+    def submit(
+        self,
+        params: JobParams,
+        bundle_id: str | None = None,
+        style_id: str | None = None,
+        raw_prompt: str | None = None,
+    ) -> str:
         """Submit a generation job. Returns the job ID."""
         if not self._engine:
             raise RuntimeError("Engine not started")
@@ -138,6 +146,10 @@ class LocalInferenceService:
         self._job_start_times[job_id] = time.monotonic()
         if bundle_id:
             self._job_bundle_ids[job_id] = bundle_id
+        if style_id:
+            self._job_style_ids[job_id] = style_id
+        if raw_prompt is not None:
+            self._job_raw_prompts[job_id] = raw_prompt
         return job_id
 
     def cancel(self, job_id: str) -> None:
@@ -233,6 +245,8 @@ class LocalInferenceService:
         model_config = None
         loras_json = None
         bundle_id = self._job_bundle_ids.pop(job_id, None)
+        style_id = self._job_style_ids.pop(job_id, None)
+        raw_prompt = self._job_raw_prompts.pop(job_id, None)
         if params:
             config_dict = {
                 "transformer_model": params.transformer_model,
@@ -250,6 +264,8 @@ class LocalInferenceService:
             if params.fal_endpoint:
                 config_dict["source"] = "cloud"
                 config_dict["fal_endpoint"] = params.fal_endpoint
+            if style_id:
+                config_dict["style_id"] = style_id
             model_config = json.dumps(config_dict)
             if params.loras:
                 loras_json = json.dumps([
@@ -262,6 +278,7 @@ class LocalInferenceService:
                 id=str(uuid.uuid4()),
                 file_path=file_path,
                 prompt=params.prompt if params else "",
+                raw_prompt=raw_prompt,
                 width=params.width if params else 0,
                 height=params.height if params else 0,
                 steps=params.steps if params else 0,

@@ -25,11 +25,7 @@ export const useStylesStore = defineStore('styles', {
     editorExamples: [] as StyleExample[],
   }),
 
-  getters: {
-    filteredStyles(state): Style[] {
-      return state.styles;
-    },
-  },
+  getters: {},
 
   actions: {
     setApi(apiRef: PywebviewAPI) {
@@ -39,18 +35,20 @@ export const useStylesStore = defineStore('styles', {
     async loadStyles(reset = true) {
       if (!_api) return;
       this.loading = true;
+      try {
+        const res = await _api.get_styles({
+          category: this.currentCategory ?? undefined,
+          tag_id: this.currentTagId ?? undefined,
+          search: this.searchQuery || undefined,
+          favorites_only: this.favoritesOnly,
+        });
 
-      const res = await _api.get_styles({
-        category: this.currentCategory ?? undefined,
-        tag_id: this.currentTagId ?? undefined,
-        search: this.searchQuery || undefined,
-        favorites_only: this.favoritesOnly,
-      });
-
-      if (res.status === 'success') {
-        this.styles = res.styles ?? [];
+        if (res.status === 'success') {
+          this.styles = res.styles ?? [];
+        }
+      } finally {
+        this.loading = false;
       }
-      this.loading = false;
     },
 
     async loadCategories() {
@@ -258,6 +256,20 @@ export const useStylesStore = defineStore('styles', {
         await this.loadTags();
       }
       return res;
+    },
+
+    // ── State setters ──
+
+    setFavoritesOnly(val: boolean) {
+      this.favoritesOnly = val;
+    },
+
+    setCurrentTagId(id: number | null) {
+      this.currentTagId = id;
+    },
+
+    setCurrentCategory(category: string | null) {
+      this.currentCategory = category;
     },
 
     // ── Filters ──

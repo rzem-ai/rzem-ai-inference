@@ -68,7 +68,7 @@
 
 <script setup lang="ts">
 import { onMounted, onUnmounted } from 'vue';
-import { Message, Card, InputGroup, InputGroupAddon, InputText, Tag, Button } from 'primevue';
+import { Message, Card, Tag, Button } from 'primevue';
 import { Wifi } from 'lucide-vue-next';
 import { useDiscoveryStore } from '@/stores/discovery';
 import { useInferenceStore } from '@/stores/inference';
@@ -86,7 +86,7 @@ function isConnectedTo(server: { host: string; port: number }): boolean {
 async function handleConnect(host: string, port: number) {
   await discoveryStore.connectToServer(host, port);
   if (discoveryStore.isRemote) {
-    settingsStore.connectionMode = 'remote';
+    settingsStore.setConnectionMode('remote');
     inferenceStore.engineReady = true;
     inferenceStore.startPolling();
     await settingsStore.loadGpuInfo();
@@ -96,8 +96,8 @@ async function handleConnect(host: string, port: number) {
 
 async function handleDisconnect() {
   await discoveryStore.disconnectFromServer();
-  settingsStore.connectionMode = 'local';
-  settingsStore.remoteEngineInfo = null;
+  settingsStore.setConnectionMode('local');
+  settingsStore.setRemoteEngineInfo(null);
   inferenceStore.engineReady = false;
   inferenceStore.stopPolling();
   await settingsStore.loadGpuInfo();

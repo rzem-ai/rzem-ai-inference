@@ -1,79 +1,69 @@
 <template>
-  <Dialog
-    v-model:visible="visibleModel"
-    modal
-    :draggable="false"
-    :closable="true"
-    header="Image Details"
-    class="w-[700px] max-w-[95vw]">
+  <Dialog v-model:visible="visibleModel" modal :draggable="false" :closable="true" header="Image Details" class="w-250 max-w-[95vw]">
     <div class="flex flex-col gap-4">
       <!-- Prompt -->
-      <div>
-        <label class="text-xs font-medium text-surface-500 uppercase tracking-wide">Prompt</label>
-        <p class="mt-1 text-sm leading-relaxed">{{ image.prompt }}</p>
+      <div class="rounded-lg bg-surface-50 px-3 py-2">
+        <label class="text-base font-semibold text-surface-900 uppercase tracking-wide">Prompt</label>
+        <div class="text-base p-2 leading-relaxed font-mono">{{ image.prompt }}</div>
       </div>
 
       <!-- Negative prompt -->
       <div v-if="image.negative_prompt">
-        <label class="text-xs font-medium text-surface-500 uppercase tracking-wide">Negative Prompt</label>
-        <p class="mt-1 text-sm leading-relaxed text-surface-500">{{ image.negative_prompt }}</p>
+        <label class="text-sm font-semibold text-surface-800 uppercase tracking-wide">Negative Prompt</label>
+        <p class="mt-1 text-base leading-relaxed text-surface-500">{{ image.negative_prompt }}</p>
       </div>
 
       <!-- Parameters grid -->
       <div class="grid grid-cols-3 gap-3">
-        <div class="rounded-lg bg-surface-50 px-3 py-2">
-          <span class="block text-[10px] font-medium text-surface-400 uppercase tracking-wide">Size</span>
-          <span class="block text-sm mt-0.5 font-mono">{{ image.width }} x {{ image.height }}</span>
+        <div class="flex flex-col gap-1 rounded-lg bg-surface-50 px-3 py-2">
+          <div class="text-base font-semibold text-surface-600 uppercase tracking-wide">Size</div>
+          <div class="text-base font-mono">{{ image.width }} x {{ image.height }}</div>
         </div>
-        <div class="rounded-lg bg-surface-50 px-3 py-2">
-          <span class="block text-[10px] font-medium text-surface-400 uppercase tracking-wide">Steps</span>
-          <span class="block text-sm mt-0.5 font-mono">{{ image.steps }}</span>
+        <div class="flex flex-col gap-1 rounded-lg bg-surface-50 px-3 py-2">
+          <div class="text-base font-semibold text-surface-400 uppercase tracking-wide">Steps</div>
+          <div class="text-base mt-0.5 font-mono">{{ image.steps }}</div>
         </div>
-        <div class="rounded-lg bg-surface-50 px-3 py-2">
-          <span class="block text-[10px] font-medium text-surface-400 uppercase tracking-wide">CFG Scale</span>
-          <span class="block text-sm mt-0.5 font-mono">{{ image.cfg_scale }}</span>
+        <div class="flex flex-col gap-1 rounded-lg bg-surface-50 px-3 py-2">
+          <div class="text-base font-semibold text-surface-400 uppercase tracking-wide">CFG Scale</div>
+          <div class="text-base mt-0.5 font-mono">{{ image.cfg_scale }}</div>
         </div>
-        <div class="rounded-lg bg-surface-50 px-3 py-2">
-          <span class="block text-[10px] font-medium text-surface-400 uppercase tracking-wide">Seed</span>
-          <span class="block text-sm mt-0.5 font-mono">{{ image.seed }}</span>
+        <div class="flex flex-col gap-1 rounded-lg bg-surface-50 px-3 py-2">
+          <div class="text-base font-semibold text-surface-400 uppercase tracking-wide">Seed</div>
+          <div class="text-base mt-0.5 font-mono">{{ image.seed }}</div>
         </div>
-        <div class="rounded-lg bg-surface-50 px-3 py-2">
-          <span class="block text-[10px] font-medium text-surface-400 uppercase tracking-wide">Sampler</span>
-          <span class="block text-sm mt-0.5 font-mono">{{ parsedConfig?.sampler ?? '—' }}</span>
+        <div class="flex flex-col gap-1 rounded-lg bg-surface-50 px-3 py-2">
+          <div class="text-base font-semibold text-surface-400 uppercase tracking-wide">Sampler</div>
+          <div class="text-base mt-0.5 font-mono">{{ parsedConfig?.sampler ?? '—' }}</div>
         </div>
-        <div class="rounded-lg bg-surface-50 px-3 py-2">
-          <span class="block text-[10px] font-medium text-surface-400 uppercase tracking-wide">Scheduler</span>
-          <span class="block text-sm mt-0.5 font-mono">{{ parsedConfig?.scheduler ?? '—' }}</span>
+        <div class="flex flex-col gap-1 rounded-lg bg-surface-50 px-3 py-2">
+          <div class="text-base font-semibold text-surface-400 uppercase tracking-wide">Scheduler</div>
+          <div class="text-base mt-0.5 font-mono">{{ parsedConfig?.scheduler ?? '—' }}</div>
         </div>
-        <div class="rounded-lg bg-surface-50 px-3 py-2 col-span-3">
-          <span class="block text-[10px] font-medium text-surface-400 uppercase tracking-wide">Model</span>
-          <span class="block text-sm mt-0.5 font-mono">{{ modelDisplayName }}</span>
+        <div v-if="image.generation_time_ms" class="flex flex-col gap-1 rounded-lg bg-surface-50 px-3 py-2">
+          <div class="text-base font-semibold text-surface-400 uppercase tracking-wide">Generation Time</div>
+          <div class="text-base mt-0.5 font-mono">{{ formatDuration(image.generation_time_ms) }}</div>
         </div>
-        <div v-if="image.generation_time_ms" class="rounded-lg bg-surface-50 px-3 py-2">
-          <span class="block text-[10px] font-medium text-surface-400 uppercase tracking-wide">Generation Time</span>
-          <span class="block text-sm mt-0.5 font-mono">{{ formatDuration(image.generation_time_ms) }}</span>
+        <div v-if="image.file_size" class="flex flex-col gap-1 rounded-lg bg-surface-50 px-3 py-2">
+          <div class="text-base font-semibold text-surface-400 uppercase tracking-wide">File Size</div>
+          <div class="text-base mt-0.5 font-mono">{{ formatFileSize(image.file_size) }}</div>
         </div>
-        <div v-if="image.file_size" class="rounded-lg bg-surface-50 px-3 py-2">
-          <span class="block text-[10px] font-medium text-surface-400 uppercase tracking-wide">File Size</span>
-          <span class="block text-sm mt-0.5 font-mono">{{ formatFileSize(image.file_size) }}</span>
+        <div class="flex flex-col gap-1 rounded-lg bg-surface-50 px-3 py-2">
+          <div class="text-base font-semibold text-surface-400 uppercase tracking-wide">Created</div>
+          <div class="text-base mt-0.5 font-mono">{{ formatDate(image.created_at) }}</div>
         </div>
-        <div class="rounded-lg bg-surface-50 px-3 py-2">
-          <span class="block text-[10px] font-medium text-surface-400 uppercase tracking-wide">Created</span>
-          <span class="block text-sm mt-0.5 font-mono">{{ formatDate(image.created_at) }}</span>
+        <div class="flex flex-col gap-1 rounded-lg bg-surface-50 px-3 py-2 col-div-3 col-span-3">
+          <div class="text-base font-medium text-surface-400 uppercase tracking-wide">Model</div>
+          <div class="text-base mt-0.5 font-mono">{{ modelDisplayName }}</div>
         </div>
-      </div>
-
-      <!-- LoRAs -->
-      <div v-if="parsedLoras.length > 0">
-        <label class="text-xs font-medium text-surface-500 uppercase tracking-wide">LoRAs</label>
-        <div class="mt-1 flex flex-wrap gap-1.5">
-          <span
-            v-for="lora in parsedLoras"
-            :key="lora.model_file"
-            class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface-100 text-xs">
-            {{ loraDisplayName(lora.model_file) }}
-            <span class="text-surface-400">{{ lora.strength }}</span>
-          </span>
+        <!-- LoRAs -->
+        <div v-if="parsedLoras.length > 0" class="flex flex-col gap-1 rounded-lg bg-surface-50 px-3 py-2 col-div-3 col-span-3">
+          <div class="text-base font-medium text-surface-400 uppercase tracking-wide">LoRAs</div>
+          <div class="flex flex-wrap gap-2">
+            <Tag v-for="lora in parsedLoras" :key="lora.model_file">
+              {{ loraDisplayName(lora.model_file) }}
+              <div class="text-surface-400">{{ lora.strength }}</div>
+            </Tag>
+          </div>
         </div>
       </div>
     </div>
@@ -81,12 +71,10 @@
     <template #footer>
       <div class="flex items-center justify-between w-full">
         <Button severity="primary" @click="usePrompt">
-          <RotateCcw :size="14" />
+          <ClipboardCheck :size="14" />
           Use Prompt
         </Button>
-        <Button severity="secondary" variant="outlined" @click="visibleModel = false">
-          Close
-        </Button>
+        <Button severity="secondary" variant="outlined" @click="visibleModel = false"> Close </Button>
       </div>
     </template>
   </Dialog>
@@ -94,10 +82,11 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { RotateCcw } from 'lucide-vue-next';
+import { ClipboardCheck } from 'lucide-vue-next';
 import { useRouter } from 'vue-router';
-import { Dialog, Button } from 'primevue';
+import { Dialog, Button, Tag } from 'primevue';
 import { useInferenceStore, ASPECT_RATIOS } from '@/stores/inference';
+import { usePywebview } from '@/composables/usePywebview';
 import type { GalleryImage, LoraParam } from '@/types/inference';
 
 const props = defineProps<{
@@ -112,6 +101,7 @@ const emit = defineEmits<{
 
 const router = useRouter();
 const inference = useInferenceStore();
+const { api } = usePywebview();
 
 // Parse the JSON model_config snapshot
 const parsedConfig = computed(() => {
@@ -173,48 +163,72 @@ async function usePrompt() {
   const config = parsedConfig.value;
 
   // Restore prompt and generation params
-  inference.params.prompt = img.prompt;
-  inference.params.width = img.width;
-  inference.params.height = img.height;
-  inference.params.steps = img.steps;
-  inference.params.cfg_scale = img.cfg_scale;
-  inference.params.seed = img.seed;
+  const params: Record<string, any> = {
+    prompt: img.prompt,
+    width: img.width,
+    height: img.height,
+    steps: img.steps,
+    cfg_scale: img.cfg_scale,
+    seed: img.seed,
+  };
 
   // Restore sampler/scheduler from model_config snapshot
-  if (config?.sampler) inference.params.sampler = config.sampler;
-  if (config?.scheduler) inference.params.scheduler = config.scheduler;
+  if (config?.sampler) params.sampler = config.sampler;
+  if (config?.scheduler) params.scheduler = config.scheduler;
 
   // Restore model settings from config snapshot
-  if (config?.transformer_model) inference.params.transformer_model = config.transformer_model;
-  if (config?.transformer_type) inference.params.transformer_type = config.transformer_type;
-  if (config?.vae_model) inference.params.vae_model = config.vae_model;
+  if (config?.transformer_model) params.transformer_model = config.transformer_model;
+  if (config?.transformer_type) params.transformer_type = config.transformer_type;
+  if (config?.vae_model) params.vae_model = config.vae_model;
 
   // Restore LoRAs
-  inference.params.loras = parsedLoras.value.map(l => ({
+  params.loras = parsedLoras.value.map((l) => ({
     model_file: l.model_file,
     strength: l.strength,
   }));
 
+  inference.applyParams(params);
+
   // Try to match and apply the original bundle
   if (img.bundle_id) {
-    const bundle = inference.bundles.find(b => b.id === img.bundle_id);
+    const bundle = inference.bundles.find((b) => b.id === img.bundle_id);
     if (bundle) {
       inference.applyBundle(bundle);
       // Re-apply image-specific overrides that applyBundle may have changed
-      inference.params.prompt = img.prompt;
-      inference.params.width = img.width;
-      inference.params.height = img.height;
-      inference.params.seed = img.seed;
+      inference.applyParams({
+        prompt: img.prompt,
+        width: img.width,
+        height: img.height,
+        seed: img.seed,
+      });
     } else {
-      inference.selectedBundleId = img.bundle_id;
+      inference.setSelectedBundleId(img.bundle_id);
     }
   }
 
+  // Restore style if one was used
+  const styleId = config?.style_id;
+  if (styleId) {
+    const res = await api.value.get_style({ style_id: styleId });
+    if (res.status === 'success' && res.style) {
+      inference.applyStyle(
+        res.style.id,
+        res.style.prompt_template,
+        res.style.negative_prompt,
+        res.loras ?? [],
+      );
+      // Use the stored raw prompt (pre-template) so it doesn't get double-expanded
+      if (img.raw_prompt) {
+        inference.applyParams({ prompt: img.raw_prompt });
+      }
+    }
+  } else {
+    inference.clearStyle();
+  }
+
   // Find matching aspect ratio
-  const matchingRatio = ASPECT_RATIOS.find(
-    r => r.width === img.width && r.height === img.height,
-  );
-  inference.activeAspectRatio = matchingRatio?.label ?? null;
+  const matchingRatio = ASPECT_RATIOS.find((r) => r.width === img.width && r.height === img.height);
+  inference.setActiveAspectRatio(matchingRatio?.label ?? null);
 
   // Close everything and navigate
   visibleModel.value = false;
@@ -222,4 +236,3 @@ async function usePrompt() {
   await router.push({ name: 'create' });
 }
 </script>
-

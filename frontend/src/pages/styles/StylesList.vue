@@ -170,20 +170,6 @@ function onToggleFavorite(styleId: string) {
   stylesStore.toggleFavorite(styleId);
 }
 
-watch(viewMode, (newViewMode) => {
-  switch (newViewMode?.value) {
-    case GRID_VIEW.value:
-      viewMode.value = GRID_VIEW;
-      return;
-    case LIST_VIEW.value:
-      viewMode.value = LIST_VIEW;
-      return;
-    default:
-      viewMode.value = GRID_VIEW;
-      return;
-  }
-});
-
 async function onDeleteSelected() {
   if (!selectedIds.size) return;
   const count = selectedIds.size;

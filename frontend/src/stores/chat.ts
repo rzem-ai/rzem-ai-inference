@@ -124,15 +124,29 @@ export const useChatStore = defineStore('chat', {
       this.isStreaming = true;
       this.streamingText = '';
 
-      await _api.chat_send_message({
-        conversation_id: this.activeConversationId,
-        content,
-        image_paths: imagePaths,
-        generation_context: generationContext,
-        display_text: displayText,
-      });
+      try {
+        await _api.chat_send_message({
+          conversation_id: this.activeConversationId,
+          content,
+          image_paths: imagePaths,
+          generation_context: generationContext,
+          display_text: displayText,
+        });
 
-      this.startChatPolling();
+        this.startChatPolling();
+      } catch (e: any) {
+        this.isStreaming = false;
+        this.messages.push({
+          id: crypto.randomUUID(),
+          conversation_id: this.activeConversationId ?? '',
+          role: 'error',
+          content: e.message ?? 'Failed to send message',
+          display_text: null,
+          image_paths: null,
+          tool_calls: null,
+          created_at: Math.floor(Date.now() / 1000),
+        });
+      }
     },
 
     startChatPolling() {
@@ -173,13 +187,15 @@ export const useChatStore = defineStore('chat', {
             const toolInput = event.data.tool_input ?? {};
 
             if (toolName === 'update_prompt' && toolInput.prompt) {
-              inferenceStore.params.prompt = toolInput.prompt;
+              inferenceStore.applyParams({ prompt: toolInput.prompt });
             } else if (toolName === 'update_generation_settings') {
-              if (toolInput.width !== undefined) inferenceStore.params.width = toolInput.width;
-              if (toolInput.height !== undefined) inferenceStore.params.height = toolInput.height;
-              if (toolInput.steps !== undefined) inferenceStore.params.steps = toolInput.steps;
-              if (toolInput.cfg_scale !== undefined) inferenceStore.params.cfg_scale = toolInput.cfg_scale;
-              if (toolInput.seed !== undefined) inferenceStore.params.seed = toolInput.seed;
+              const updates: Record<string, any> = {};
+              if (toolInput.width !== undefined) updates.width = toolInput.width;
+              if (toolInput.height !== undefined) updates.height = toolInput.height;
+              if (toolInput.steps !== undefined) updates.steps = toolInput.steps;
+              if (toolInput.cfg_scale !== undefined) updates.cfg_scale = toolInput.cfg_scale;
+              if (toolInput.seed !== undefined) updates.seed = toolInput.seed;
+              inferenceStore.applyParams(updates);
             }
             break;
           }

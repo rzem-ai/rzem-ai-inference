@@ -33,22 +33,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { computed } from 'vue';
 import { useInferenceStore } from '@/stores/inference';
 
 const store = useInferenceStore();
-const selectedIndex = ref(0);
 
 const progressPercent = computed(() => {
   if (!store.progress) return 0;
   return Math.round((store.progress.step / store.progress.totalSteps) * 100);
 });
-
-// Select newest image when a new one is added
-watch(
-  () => store.generatedImages.length,
-  () => {
-    selectedIndex.value = 0;
-  },
-);
 </script>

@@ -33,23 +33,23 @@
 <script setup lang="ts">
 import { X } from 'lucide-vue-next';
 import { useInferenceStore, ASPECT_RATIOS } from '@/stores/inference';
-import { InputGroup, InputGroupAddon, InputNumber, InputNumberInputEvent, InputText } from 'primevue';
+import { InputGroup, InputGroupAddon, InputNumber, InputNumberInputEvent } from 'primevue';
 
 const store = useInferenceStore();
 
 function onManualWidth(e: InputNumberInputEvent) {
   const val = parseInt(e.formattedValue);
   if (!isNaN(val) && val >= 256 && val <= 2048) {
-    store.params.width = val;
-    store.activeAspectRatio = null;
+    store.applyParams({ width: val });
+    store.setActiveAspectRatio(null);
   }
 }
 
 function onManualHeight(e: InputNumberInputEvent) {
   const val = parseInt(e.formattedValue);
   if (!isNaN(val) && val >= 256 && val <= 2048) {
-    store.params.height = val;
-    store.activeAspectRatio = null;
+    store.applyParams({ height: val });
+    store.setActiveAspectRatio(null);
   }
 }
 </script>

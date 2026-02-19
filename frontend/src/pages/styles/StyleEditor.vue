@@ -130,22 +130,6 @@
             <p class="text-xs text-blue-600">Use {prompt} as a placeholder for the user's prompt</p>
           </div>
 
-          <!-- Negative prompt (collapsible) -->
-          <div v-if="false" class="flex flex-col gap-0">
-            <button
-              type="button"
-              class="flex items-center gap-1.5 h-9 px-2.5 rounded-md bg-white border border-surface-300 text-lg font-medium text-surface-700 hover:bg-surface-50 transition-colors"
-              @click="showNegativePrompt = !showNegativePrompt">
-              <ChevronRight :size="14" class="text-surface-500 transition-transform" :class="showNegativePrompt ? 'rotate-90' : ''" />
-              Negative Prompt
-            </button>
-            <TextEditor
-              v-if="showNegativePrompt"
-              v-model="form.negativePrompt"
-              placeholder="Things to avoid in generated images"
-              editor-class="mt-1.5 px-3 py-2.5 rounded-md bg-white border border-surface-300 text-sm text-surface-400 min-h-[60px] max-h-[100px] focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-400 transition-colors cursor-text" />
-          </div>
-
           <!-- LoRAs -->
           <div class="flex flex-col gap-0">
             <label class="text-lg font-semibold text-surface-700">LoRA Models</label>
@@ -347,7 +331,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { ArrowLeft, Save, X, Layers, Plus, ImagePlus, ChevronRight, Play } from 'lucide-vue-next';
+import { ArrowLeft, Save, X, Layers, Plus, ImagePlus, Play } from 'lucide-vue-next';
 import { useStylesStore } from '@/stores/styles';
 import { usePywebview } from '@/composables/usePywebview';
 import type { LoRA, Tag } from '@/types/inference';
@@ -377,9 +361,6 @@ const pendingLoras = ref<LoRA[]>([]);
 const pendingTags = ref<Tag[]>([]);
 const isDragging = ref(false);
 let dragCounter = 0;
-
-// Negative prompt collapsible
-const showNegativePrompt = ref(false);
 
 // Thumbnail
 const thumbnailPath = ref<string | null>(null);
@@ -713,17 +694,6 @@ watch(
       } catch {
         /* skip */
       }
-    }
-  },
-  { immediate: true },
-);
-
-// Auto-expand negative prompt if it has content
-watch(
-  () => form.value.negativePrompt,
-  (val) => {
-    if (val && !showNegativePrompt.value) {
-      showNegativePrompt.value = true;
     }
   },
   { immediate: true },

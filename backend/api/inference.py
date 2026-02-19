@@ -70,6 +70,8 @@ class InferenceAPI:
         scheduler: str = "normal",
         loras: list[dict] | None = None,
         bundle_id: str | None = None,
+        style_id: str | None = None,
+        raw_prompt: str | None = None,
         fal_endpoint: str | None = None,
         **kwargs,
     ) -> dict[str, Any]:
@@ -109,7 +111,9 @@ class InferenceAPI:
             logger.info(f"Submit image generation job:  width: '{width}'")
             logger.info(f"Submit image generation job: height: '{height}'")
 
-            job_id = self._inference.active.submit(params, bundle_id=bundle_id)
+            job_id = self._inference.active.submit(
+                params, bundle_id=bundle_id, style_id=style_id, raw_prompt=raw_prompt,
+            )
             return {"status": "success", "job_id": job_id}
         except Exception as e:
             return {"status": "error", "message": str(e)}

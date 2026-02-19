@@ -190,7 +190,7 @@ const finalNoFocus = computed(() => props.noFocus ?? variantCfg.value.noFocus);
 
 let resizeObserver: ResizeObserver | null = null;
 
-const initPixels = () => {
+function initPixels() {
   if (!containerRef.value || !canvasRef.value) return;
 
   const rect = containerRef.value.getBoundingClientRect();
@@ -218,9 +218,9 @@ const initPixels = () => {
     }
   }
   pixelsRef.value = pxs;
-};
+}
 
-const doAnimate = (fnName: keyof Pixel) => {
+function doAnimate(fnName: keyof Pixel) {
   animationRef.value = requestAnimationFrame(() => doAnimate(fnName));
   const timeNow = performance.now();
   const timePassed = timeNow - timePreviousRef.value;
@@ -246,14 +246,14 @@ const doAnimate = (fnName: keyof Pixel) => {
   if (allIdle && animationRef.value) {
     cancelAnimationFrame(animationRef.value);
   }
-};
+}
 
-const handleAnimation = (name: keyof Pixel) => {
+function handleAnimation(name: keyof Pixel) {
   if (animationRef.value !== null) {
     cancelAnimationFrame(animationRef.value);
   }
   animationRef.value = requestAnimationFrame(() => doAnimate(name));
-};
+}
 
 watch([finalGap, finalSpeed, finalColors, finalNoFocus], () => {
   initPixels();

@@ -51,6 +51,8 @@ class RemoteInferenceService:
         self._job_params: dict[str, Any] = {}
         self._job_start_times: dict[str, float] = {}
         self._job_bundle_ids: dict[str, str] = {}
+        self._job_style_ids: dict[str, str] = {}
+        self._job_raw_prompts: dict[str, str] = {}
 
     @property
     def ready(self) -> bool:
@@ -75,7 +77,13 @@ class RemoteInferenceService:
             self._ws_thread.join(timeout=3)
             self._ws_thread = None
 
-    def submit(self, params: Any, bundle_id: str | None = None) -> str:
+    def submit(
+        self,
+        params: Any,
+        bundle_id: str | None = None,
+        style_id: str | None = None,
+        raw_prompt: str | None = None,
+    ) -> str:
         """Submit a generation job to the remote server via POST /jobs."""
         payload = params.model_dump() if hasattr(params, "model_dump") else dict(params)
 
@@ -94,6 +102,10 @@ class RemoteInferenceService:
         self._job_start_times[job_id] = time.monotonic()
         if bundle_id:
             self._job_bundle_ids[job_id] = bundle_id
+        if style_id:
+            self._job_style_ids[job_id] = style_id
+        if raw_prompt is not None:
+            self._job_raw_prompts[job_id] = raw_prompt
 
         return job_id
 
@@ -281,8 +293,10 @@ class RemoteInferenceService:
         model_config = None
         loras_json = None
         bundle_id = self._job_bundle_ids.pop(job_id, None)
+        style_id = self._job_style_ids.pop(job_id, None)
+        raw_prompt = self._job_raw_prompts.pop(job_id, None)
         if params:
-            model_config = json.dumps({
+            config_dict = {
                 "transformer_model": params.transformer_model,
                 "transformer_type": params.transformer_type.value if hasattr(params.transformer_type, "value") else str(params.transformer_type),
                 "vae_model": params.vae_model,
@@ -295,7 +309,10 @@ class RemoteInferenceService:
                 "sampler": params.sampler,
                 "scheduler": params.scheduler,
                 "remote_server": f"{self._host}:{self._port}",
-            })
+            }
+            if style_id:
+                config_dict["style_id"] = style_id
+            model_config = json.dumps(config_dict)
             if params.loras:
                 loras_json = json.dumps([
                     {"model_file": l.model_file, "strength": l.strength}
@@ -307,6 +324,7 @@ class RemoteInferenceService:
                 id=str(uuid.uuid4()),
                 file_path=file_path,
                 prompt=params.prompt if params else "",
+                raw_prompt=raw_prompt,
                 width=params.width if params else 0,
                 height=params.height if params else 0,
                 steps=params.steps if params else 0,

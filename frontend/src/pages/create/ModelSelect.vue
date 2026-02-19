@@ -43,7 +43,7 @@ import { useInferenceStore } from '@/stores/inference';
 
 const store = useInferenceStore();
 
-function onBundleChange(e: any) {
+function onBundleChange(e: { value: string }) {
   const bundle = store.bundles.find((b) => b.id === e.value);
   if (bundle) store.applyBundle(bundle);
 }

@@ -90,7 +90,7 @@ const debugEventOptions = [
   { label: 'job_cancelled', value: 'job_cancelled' },
 ];
 
-function onDebugEvent(e: any) {
+function onDebugEvent(e: { value: string }) {
   if (e.value) {
     store.injectDebugEvent(e.value);
   }

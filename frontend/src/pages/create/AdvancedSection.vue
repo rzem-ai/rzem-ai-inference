@@ -17,7 +17,7 @@
             <InputGroupAddon
               class="bg-surface-200 hover:bg-surface-400 text-surface-700 hover:text-surface-50 cursor-pointer"
               title="Randomize"
-              @click="store.params.seed = -1">
+              @click="store.applyParams({ seed: -1 })">
               <Shuffle :size="14" />
             </InputGroupAddon>
             <InputGroupAddon
@@ -57,9 +57,9 @@ const schedulerOptions = ['normal', 'karras', 'exponential', 'sgm_uniform', 'sim
 
 function toggleLock() {
   if (store.params.seed === -1) {
-    store.params.seed = Math.floor(Math.random() * 2147483647);
+    store.applyParams({ seed: Math.floor(Math.random() * 2147483647) });
   } else {
-    store.params.seed = -1;
+    store.applyParams({ seed: -1 });
   }
 }
 </script>

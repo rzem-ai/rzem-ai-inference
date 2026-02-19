@@ -32,13 +32,33 @@
     <div v-if="selectedStyle?.description" class="text-lg text-slate-400 px-1 line-clamp-2">
       {{ selectedStyle.description }}
     </div>
+
+    <!-- Style LoRAs -->
+    <div v-if="inferenceStore.styleLoras.length" class="flex flex-col gap-2 mt-1">
+      <Card v-for="(lora, index) in inferenceStore.styleLoras" :key="lora.id" class="lora-card">
+        <template #content>
+          <div class="flex flex-col gap-1">
+            <div class="flex justify-between items-center">
+              <span class="text-sm text-slate-500 truncate">{{ lora.lora_name }}</span>
+              <span class="text-base font-semibold text-slate-500 tabular-nums">{{ lora.strength.toFixed(2) }}</span>
+            </div>
+            <Slider
+              :model-value="strengthToInt(lora.strength)"
+              @update:model-value="(val: number | number[]) => onStrengthChange(index, val)"
+              :min="0"
+              :max="200" />
+          </div>
+        </template>
+      </Card>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
 import { Paintbrush } from 'lucide-vue-next';
-import { Select } from 'primevue';
+import { Card, Select } from 'primevue';
+import Slider from 'primevue/slider';
 import { useInferenceStore } from '@/stores/inference';
 import { useStylesStore } from '@/stores/styles';
 import { usePywebview } from '@/composables/usePywebview';
@@ -53,7 +73,7 @@ const selectedStyle = computed(() =>
   stylesStore.styles.find(s => s.id === inferenceStore.selectedStyleId) ?? null
 );
 
-async function onStyleChange(e: any) {
+async function onStyleChange(e: { value: string }) {
   const styleId = e.value;
   if (!styleId) {
     inferenceStore.clearStyle();
@@ -70,4 +90,20 @@ async function onStyleChange(e: any) {
     );
   }
 }
+
+// Map 0.00–2.00 float to 0–200 int for slider precision
+function strengthToInt(strength: number): number {
+  return Math.round(strength * 100);
+}
+
+function onStrengthChange(index: number, val: number | number[]) {
+  const v = Array.isArray(val) ? val[0] : val;
+  inferenceStore.updateStyleLoraStrength(index, v / 100);
+}
 </script>
+
+<style scoped>
+.lora-card :deep(.p-card-body) {
+  padding: 0.625rem 0.75rem;
+}
+</style>

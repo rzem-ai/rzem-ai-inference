@@ -1,4 +1,4 @@
-import type { ApiResponse, InferenceEvent, ModelBundle, GalleryImage, Folder, Tag, Style, StyleLoRA, StyleExample, LoRA, VramUsage, EngineStatus, CachedModel, DataPaths, DiskUsage, Conversation, ConversationMessage, ChatEvent, DiscoveredServer } from "./inference";
+import type { ApiResponse, InferenceEvent, ModelBundle, SubmitJobParams, GalleryImage, Folder, Tag, Style, StyleLoRA, StyleExample, LoRA, VramUsage, EngineStatus, CachedModel, DataPaths, DiskUsage, Conversation, ConversationMessage, ChatEvent, DiscoveredServer } from "./inference";
 
 export interface PywebviewAPI {
   // ── System ──
@@ -28,7 +28,7 @@ export interface PywebviewAPI {
   engine_ready(): Promise<ApiResponse<{ ready: boolean }>>;
 
   // ── Jobs ──
-  submit_job(args: Record<string, any>): Promise<ApiResponse<{ job_id?: string }>>;
+  submit_job(args: SubmitJobParams): Promise<ApiResponse<{ job_id?: string }>>;
   cancel_job(args: { job_id: string }): Promise<ApiResponse>;
   poll_events(): Promise<ApiResponse<{ events?: InferenceEvent[] }>>;
 
@@ -45,7 +45,7 @@ export interface PywebviewAPI {
   get_bundles(): Promise<ApiResponse<{ bundles?: ModelBundle[] }>>;
   get_bundle(args: { bundle_id: string }): Promise<ApiResponse<{ bundle?: ModelBundle }>>;
   get_bundles_for_type(args: { transformer_type: string }): Promise<ApiResponse<{ bundles?: ModelBundle[] }>>;
-  create_bundle(args: Record<string, any>): Promise<ApiResponse<{ bundle?: ModelBundle }>>;
+  create_bundle(args: Partial<ModelBundle> & { id: string; label: string; transformer_type: string }): Promise<ApiResponse<{ bundle?: ModelBundle }>>;
   update_bundle(args: { bundle_id: string } & Partial<ModelBundle>): Promise<ApiResponse<{ bundle?: ModelBundle }>>;
   delete_bundle(args: { bundle_id: string }): Promise<ApiResponse>;
   reset_default_bundles(): Promise<ApiResponse<{ bundles?: ModelBundle[] }>>;
@@ -62,6 +62,7 @@ export interface PywebviewAPI {
   get_image(args: { image_id: string }): Promise<ApiResponse<{ image?: GalleryImage }>>;
   toggle_favorite(args: { image_id: string }): Promise<ApiResponse<{ image?: GalleryImage }>>;
   save_image_as(args: { file_path: string }): Promise<ApiResponse<{ saved?: boolean; path?: string }>>;
+  batch_save_images(args: { image_ids: string[] }): Promise<ApiResponse<{ saved_count?: number; folder?: string }>>;
   delete_image(args: { image_id: string }): Promise<ApiResponse>;
 
   // ── Folders ──

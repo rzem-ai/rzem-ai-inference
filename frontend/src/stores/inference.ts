@@ -73,6 +73,7 @@ export const useInferenceStore = defineStore('inference', {
     selectedStyleId: null as string | null,
     stylePromptTemplate: null as string | null,
     styleNegativePrompt: null as string | null,
+    styleLoras: [] as StyleLoRA[],
 
     // UI state
     chatbotOpen: false,
@@ -225,20 +226,20 @@ export const useInferenceStore = defineStore('inference', {
       this.isGenerating = true;
       this.progress = null;
 
-      console.log('submit job: ', this.params);
-
       const jobParams: Record<string, any> = { ...this.params };
       if (this.selectedBundleId) {
         jobParams.bundle_id = this.selectedBundleId;
       }
+      if (this.selectedStyleId) {
+        jobParams.style_id = this.selectedStyleId;
+      }
       if (this.stylePromptTemplate) {
+        jobParams.raw_prompt = this.params.prompt;
         jobParams.prompt = this.stylePromptTemplate.replace('{prompt}', this.params.prompt);
       }
       if (this.styleNegativePrompt) {
         jobParams.negative_prompt = this.styleNegativePrompt;
       }
-
-      console.log('submit jobParams: ', jobParams);
 
       // Clean out undefined keys so Python doesn't get "undefined" strings
       for (const key of Object.keys(jobParams)) {
@@ -296,7 +297,11 @@ export const useInferenceStore = defineStore('inference', {
         if (this.selectedBundleId) {
           jobParams.bundle_id = this.selectedBundleId;
         }
+        if (this.selectedStyleId) {
+          jobParams.style_id = this.selectedStyleId;
+        }
         if (this.stylePromptTemplate) {
+          jobParams.raw_prompt = prompt;
           jobParams.prompt = this.stylePromptTemplate.replace('{prompt}', prompt);
         }
         if (this.styleNegativePrompt) {
@@ -335,6 +340,7 @@ export const useInferenceStore = defineStore('inference', {
       this.selectedStyleId = styleId;
       this.stylePromptTemplate = promptTemplate;
       this.styleNegativePrompt = negativePrompt;
+      this.styleLoras = loras;
       this.params.loras = loras.map((l) => ({
         model_file: l.lora_path,
         strength: l.strength,
@@ -345,7 +351,16 @@ export const useInferenceStore = defineStore('inference', {
       this.selectedStyleId = null;
       this.stylePromptTemplate = null;
       this.styleNegativePrompt = null;
+      this.styleLoras = [];
       this.params.loras = [];
+    },
+
+    updateStyleLoraStrength(index: number, strength: number) {
+      if (index < 0 || index >= this.styleLoras.length) return;
+      this.styleLoras[index].strength = strength;
+      if (this.params.loras[index]) {
+        this.params.loras[index].strength = strength;
+      }
     },
 
     addLora() {
@@ -354,6 +369,24 @@ export const useInferenceStore = defineStore('inference', {
 
     removeLora(index: number) {
       this.params.loras.splice(index, 1);
+    },
+
+    // ── State setters ──
+
+    applyParams(partial: Partial<SubmitJobParams>) {
+      Object.assign(this.params, partial);
+    },
+
+    setError(error: string | null) {
+      this.error = error;
+    },
+
+    setActiveAspectRatio(ratio: string | null) {
+      this.activeAspectRatio = ratio;
+    },
+
+    setSelectedBundleId(id: string | null) {
+      this.selectedBundleId = id;
     },
 
     // ── UI toggles ──
@@ -395,7 +428,7 @@ export const useInferenceStore = defineStore('inference', {
       try {
         const res = await _api.poll_events();
         if (res.status === 'success' && res.events?.length) {
-          this.processEvents(res.events);
+          await this.processEvents(res.events);
         }
       } catch {
         // Silently ignore poll errors
@@ -408,42 +441,30 @@ export const useInferenceStore = defineStore('inference', {
 
         switch (event.type) {
           case 'model_loading':
-            console.log('model_loading:', event.data);
-
             this.modelStatus = event.data.message ?? 'Loading model...';
             break;
 
           case 'model_loaded':
-            console.log('model_loaded:', event.data);
-
             this.modelStatus = 'Model loaded';
             break;
 
           case 'model_unloaded':
             this.modelStatus = null;
-
             break;
 
           case 'server_connected':
-            console.log('server_connected:', event.data);
-
             this.engineReady = true;
             break;
 
           case 'server_disconnected':
-            console.log('server_disconnected:', event.data);
-
             this.engineReady = false;
             this.error = event.data.message ?? 'Disconnected from remote server';
             break;
 
           case 'job_queued':
-            console.log('job_queued:', event.data);
             break;
 
           case 'job_started':
-            console.log('job_started:', event.data);
-
             this.currentJobId = event.data.job_id ?? this.currentJobId;
             this.isGenerating = true;
             this.progress = {
@@ -456,8 +477,6 @@ export const useInferenceStore = defineStore('inference', {
             break;
 
           case 'job_progress':
-            console.log('job_progress:', event.data);
-
             this.progress = {
               step: event.data.step ?? 0,
               totalSteps: event.data.total_steps ?? this.params.steps,
@@ -471,8 +490,6 @@ export const useInferenceStore = defineStore('inference', {
             break;
 
           case 'job_completed': {
-            console.log('job_completed:', event.data);
-
             this.progress = null;
             this.previewDataUrl = null;
             const img: GeneratedImage = {
@@ -485,21 +502,12 @@ export const useInferenceStore = defineStore('inference', {
               params: { ...this.params, seed: event.data.seed ?? -1 },
             };
 
-            if (img.imagePath && _api) {
-              const imgRes = await _api.get_image_base64({
-                image_path: img.imagePath,
-              });
-
-              if (imgRes.status === 'success' && imgRes.data_url) {
-                img.dataUrl = imgRes.data_url;
-              }
-            }
+            await this.loadCompletedImage(img);
             this.generatedImages.unshift(img);
             this.selectedImageIndex = 0;
 
             if (this.batchActive) {
               this.batchCompleted++;
-
               if (this.batchCompleted >= this.batchTotal) {
                 this.batchActive = false;
                 this.isGenerating = false;
@@ -509,13 +517,10 @@ export const useInferenceStore = defineStore('inference', {
               this.isGenerating = false;
               this.currentJobId = null;
             }
-
             break;
           }
 
           case 'job_failed':
-            console.log('job_failed:', event.data);
-
             this.progress = null;
             this.previewDataUrl = null;
             this.error = event.data.error ?? 'Generation failed';
@@ -534,8 +539,6 @@ export const useInferenceStore = defineStore('inference', {
             break;
 
           case 'job_cancelled':
-            console.log('job_cancelled:', event.data);
-
             this.progress = null;
             this.previewDataUrl = null;
 
@@ -551,10 +554,15 @@ export const useInferenceStore = defineStore('inference', {
               this.currentJobId = null;
             }
             break;
-
-          default:
-            console.log('event:', event.type, event.data);
         }
+      }
+    },
+
+    async loadCompletedImage(img: GeneratedImage) {
+      if (!img.imagePath || !_api) return;
+      const res = await _api.get_image_base64({ image_path: img.imagePath });
+      if (res.status === 'success' && res.data_url) {
+        img.dataUrl = res.data_url;
       }
     },
 

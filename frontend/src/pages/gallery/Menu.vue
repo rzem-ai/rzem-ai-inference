@@ -1,7 +1,7 @@
 <template>
   <MenuPanel title="Gallery" :icon="Images">
     <template #title-button>
-      <Button class="transition-colors" severity="primary" title="AI Prompt Assistant">
+      <Button class="transition-colors" severity="primary" title="AI Prompt Assistant" disabled>
         <Plus :size="16" />
       </Button>
     </template>
@@ -71,7 +71,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue';
+import { computed, onMounted } from 'vue';
 import { Plus, Images, Star, Folder as FolderIcon } from 'lucide-vue-next';
 import { useGalleryStore } from '@/stores/gallery';
 import type { Tag } from '@/types/inference';
@@ -80,18 +80,7 @@ import MenuPanel from '@/components/MenuPanel.vue';
 
 const gallery = useGalleryStore();
 
-const searchInput = ref('');
-
 const isAllActive = computed(() => !gallery.currentFolderId && !gallery.favoritesOnly && !gallery.currentTagId);
-
-// Debounced search
-let searchTimeout: ReturnType<typeof setTimeout>;
-watch(searchInput, (value) => {
-  clearTimeout(searchTimeout);
-  searchTimeout = setTimeout(() => {
-    gallery.searchImages(value);
-  }, 300);
-});
 
 function tagStyle(tag: Tag) {
   const color = tag.color || '#64748b';
@@ -102,29 +91,21 @@ function tagStyle(tag: Tag) {
 }
 
 function onFilterAll() {
-  gallery.favoritesOnly = false;
-  gallery.currentTagId = null;
+  gallery.setFavoritesOnly(false);
+  gallery.setCurrentTagId(null);
   gallery.filterByFolder(null);
 }
 
 function onFilterFavorites() {
-  gallery.currentFolderId = null;
-  gallery.currentTagId = null;
+  gallery.setCurrentFolderId(null);
+  gallery.setCurrentTagId(null);
   gallery.toggleFavoritesFilter();
 }
 
 function onToggleTag(tagId: number) {
-  gallery.favoritesOnly = false;
-  gallery.currentFolderId = null;
+  gallery.setFavoritesOnly(false);
+  gallery.setCurrentFolderId(null);
   gallery.filterByTag(gallery.currentTagId === tagId ? null : tagId);
-}
-
-function onCreateFolder() {
-  const name = prompt('Folder name:');
-  if (name?.trim()) {
-    const id = crypto.randomUUID();
-    gallery.createFolder(id, name.trim());
-  }
 }
 
 function onCreateTag() {

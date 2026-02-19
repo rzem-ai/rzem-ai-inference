@@ -92,6 +92,30 @@ class GalleryAPI:
             logger.error("Failed to save image: %s", e)
             return {"status": "error", "message": str(e)}
 
+    def batch_save_images(self, image_ids: list[str], **kwargs) -> dict[str, Any]:
+        """Open a native folder picker and copy selected images to the chosen folder."""
+        try:
+            window = webview.windows[0]
+            result = window.create_file_dialog(webview.FileDialog.FOLDER)
+            if not result:
+                return {"status": "success", "saved_count": 0}
+
+            dest_folder = str(result) if isinstance(result, str) else str(result[0])
+            saved = 0
+            for image_id in image_ids:
+                image = self._db.get_image(image_id)
+                if not image:
+                    continue
+                file_path = image.get("file_path")
+                if file_path and os.path.isfile(file_path):
+                    shutil.copy2(file_path, dest_folder)
+                    saved += 1
+
+            return {"status": "success", "saved_count": saved, "folder": dest_folder}
+        except Exception as e:
+            logger.error("Failed to batch save images: %s", e)
+            return {"status": "error", "message": str(e)}
+
     def delete_image(self, image_id: str) -> dict[str, Any]:
         try:
             image = self._db.get_image(image_id)

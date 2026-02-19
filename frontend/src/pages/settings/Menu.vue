@@ -28,11 +28,11 @@ import MenuPanel from '@/components/MenuPanel.vue';
 const route = useRoute();
 
 const navItems = [
-  { label: 'Inference Engine', icon: Cpu, route: 'settings-engine' },
-  { label: 'Remote Servers', icon: Wifi, route: 'settings-servers' },
   { label: 'API Keys', icon: KeyRound, route: 'settings-api-keys' },
+  { label: 'AI Assistant', icon: Bot, route: 'settings-ai' },
+  { label: 'Image Generation', icon: SlidersHorizontal, route: 'settings-generation' },
+  { label: 'Inference Engine', icon: Cpu, route: 'settings-engine' },
   { label: 'Model Cache', icon: HardDrive, route: 'settings-cache' },
-  { label: 'Generation', icon: SlidersHorizontal, route: 'settings-generation' },
-  { label: 'AI', icon: Bot, route: 'settings-ai' },
+  { label: 'Remote Servers', icon: Wifi, route: 'settings-servers' },
 ];
 </script>

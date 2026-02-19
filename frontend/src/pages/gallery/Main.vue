@@ -20,29 +20,32 @@
           title="Download"
           class="transition-all"
           :severity="selectionMode ? 'primary' : 'secondary'"
-          :variant="selectionMode && selectedIds.size > 0 ? '' : ''"
           :text="true"
-          :disabled="!selectedIds.size">
+          :disabled="!selectedIds.size"
+          @click="onDownloadSelected">
           <Download :size="18" />
         </Button>
         <Button
           title="Move to folder"
           class="transition-all"
           :severity="selectionMode ? 'primary' : 'secondary'"
-          :variant="selectionMode && selectedIds.size > 0 ? '' : ''"
           :text="true"
-          :disabled="!selectedIds.size">
+          :disabled="!selectedIds.size"
+          @click="folderPopover?.toggle($event)">
           <FolderInput :size="18" />
         </Button>
         <Button
           title="Tag"
           class="transition-all"
           :severity="selectionMode ? 'primary' : 'secondary'"
-          :variant="selectionMode && selectedIds.size > 0 ? '' : ''"
           :text="true"
-          :disabled="!selectedIds.size">
+          :disabled="!selectedIds.size"
+          @click="tagPopover?.toggle($event)">
           <TagIcon :size="18" />
         </Button>
+
+        <FolderPopover ref="folderPopover" :image-ids="[...selectedIds]" @moved="onImagesMoved" />
+        <TagPopover ref="tagPopover" :image-ids="[...selectedIds]" @tagged="onImagesTagged" />
 
         <Button
           title="Delete"
@@ -67,7 +70,7 @@
       <template #end>
         <div class="flex gap-2">
           <!-- Sort -->
-          <Button severity="secondary">
+          <Button severity="secondary" disabled>
             <ArrowUpDown :size="14" />
             <span>Date</span>
             <ChevronDown :size="12" class="text-slate-400" />
@@ -162,6 +165,8 @@ import type { GalleryImage } from '@/types/inference';
 import GalleryCard from './GalleryCard.vue';
 import ImageOverlay from './ImageOverlay.vue';
 import ImageDetailDialog from './ImageDetailDialog.vue';
+import FolderPopover from './FolderPopover.vue';
+import TagPopover from './TagPopover.vue';
 import { Button, Divider, Toolbar, SelectButton } from 'primevue';
 import { InputText, InputGroup, InputGroupAddon } from 'primevue';
 
@@ -176,6 +181,8 @@ const selectionMode = ref(false);
 const selectedIds = reactive(new Set<string>());
 
 const searchInput = ref('');
+const folderPopover = ref<InstanceType<typeof FolderPopover>>();
+const tagPopover = ref<InstanceType<typeof TagPopover>>();
 
 // Overlay & detail dialog state
 const selectedImage = ref<GalleryImage | null>(null);
@@ -209,20 +216,6 @@ function toggleSelectionMode() {
     selectedIds.clear();
   }
 }
-
-watch(viewMode, (newViewMode) => {
-  switch (newViewMode?.value) {
-    case GRID_VIEW.value:
-      viewMode.value = GRID_VIEW;
-      return;
-    case LIST_VIEW.value:
-      viewMode.value = LIST_VIEW;
-      return;
-    default:
-      viewMode.value = GRID_VIEW;
-      return;
-  }
-});
 
 function onCardClick(imageId: string) {
   if (selectionMode.value) {
@@ -258,6 +251,23 @@ async function onDeleteSelected() {
     await gallery.deleteImage(id);
   }
   selectedIds.clear();
+}
+
+async function onDownloadSelected() {
+  if (!selectedIds.size) return;
+  await gallery.batchSaveImages([...selectedIds]);
+}
+
+function onImagesMoved() {
+  if (gallery.currentFolderId) {
+    gallery.loadImages();
+  }
+}
+
+function onImagesTagged() {
+  if (gallery.currentTagId) {
+    gallery.loadImages();
+  }
 }
 
 function onCreateFolder() {
