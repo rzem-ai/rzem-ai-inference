@@ -67,7 +67,9 @@ const { api } = usePywebview();
 const inferenceStore = useInferenceStore();
 const stylesStore = useStylesStore();
 
-const styleOptions = computed(() => stylesStore.styles);
+const styleOptions = computed(() =>
+  [...stylesStore.styles].sort((a, b) => a.name.localeCompare(b.name))
+);
 
 const selectedStyle = computed(() =>
   stylesStore.styles.find(s => s.id === inferenceStore.selectedStyleId) ?? null

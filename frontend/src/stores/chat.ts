@@ -1,9 +1,8 @@
 import { defineStore } from 'pinia';
-import type { PywebviewAPI } from '@/types/pywebview';
+import { getApiAsync } from '@/bridge';
 import type { Conversation, ConversationMessage, ChatEvent } from '@/types/inference';
 import { useInferenceStore } from '@/stores/inference';
 
-let _api: PywebviewAPI | null = null;
 let _pollTimer: ReturnType<typeof setInterval> | null = null;
 
 export const useChatStore = defineStore('chat', {
@@ -24,37 +23,33 @@ export const useChatStore = defineStore('chat', {
   },
 
   actions: {
-    setApi(apiRef: PywebviewAPI) {
-      _api = apiRef;
-    },
-
     async checkConfigured() {
-      if (!_api) return;
-      const res = await _api.chat_is_configured();
+      const api = await getApiAsync();
+      const res = await api.chat_is_configured();
       if (res.status === 'success') {
         this.isConfigured = res.configured ?? false;
       }
     },
 
     async setApiKey(apiKey: string) {
-      if (!_api) return;
-      const res = await _api.chat_set_api_key({ api_key: apiKey });
+      const api = await getApiAsync();
+      const res = await api.chat_set_api_key({ api_key: apiKey });
       if (res.status === 'success') {
         this.isConfigured = true;
       }
     },
 
     async loadConversations() {
-      if (!_api) return;
-      const res = await _api.chat_get_conversations();
+      const api = await getApiAsync();
+      const res = await api.chat_get_conversations();
       if (res.status === 'success' && res.conversations) {
         this.conversations = res.conversations;
       }
     },
 
     async createConversation(title?: string) {
-      if (!_api) return;
-      const res = await _api.chat_create_conversation({ title: title ?? 'New Chat' });
+      const api = await getApiAsync();
+      const res = await api.chat_create_conversation({ title: title ?? 'New Chat' });
       if (res.status === 'success' && res.conversation) {
         this.conversations.unshift(res.conversation);
         this.activeConversationId = res.conversation.id;
@@ -64,18 +59,18 @@ export const useChatStore = defineStore('chat', {
     },
 
     async switchConversation(id: string) {
-      if (!_api) return;
+      const api = await getApiAsync();
       this.activeConversationId = id;
       this.streamingText = '';
-      const res = await _api.chat_get_messages({ conversation_id: id });
+      const res = await api.chat_get_messages({ conversation_id: id });
       if (res.status === 'success' && res.messages) {
         this.messages = res.messages;
       }
     },
 
     async deleteConversation(id: string) {
-      if (!_api) return;
-      await _api.chat_delete_conversation({ conversation_id: id });
+      const api = await getApiAsync();
+      await api.chat_delete_conversation({ conversation_id: id });
       this.conversations = this.conversations.filter(c => c.id !== id);
       if (this.activeConversationId === id) {
         this.activeConversationId = this.conversations[0]?.id ?? null;
@@ -88,7 +83,8 @@ export const useChatStore = defineStore('chat', {
     },
 
     async sendMessage(content: string, displayText?: string) {
-      if (!_api || !this.activeConversationId || !content.trim()) return;
+      if (!this.activeConversationId || !content.trim()) return;
+      const api = await getApiAsync();
 
       const inferenceStore = useInferenceStore();
       const generationContext: Record<string, any> = {
@@ -125,7 +121,7 @@ export const useChatStore = defineStore('chat', {
       this.streamingText = '';
 
       try {
-        await _api.chat_send_message({
+        await api.chat_send_message({
           conversation_id: this.activeConversationId,
           content,
           image_paths: imagePaths,
@@ -162,9 +158,9 @@ export const useChatStore = defineStore('chat', {
     },
 
     async pollChatEvents() {
-      if (!_api) return;
+      const api = await getApiAsync();
       try {
-        const res = await _api.poll_chat_events();
+        const res = await api.poll_chat_events();
         if (res.status === 'success' && res.events?.length) {
           this.processChatEvents(res.events);
         }
@@ -230,8 +226,9 @@ export const useChatStore = defineStore('chat', {
     },
 
     async reloadMessages() {
-      if (!_api || !this.activeConversationId) return;
-      const res = await _api.chat_get_messages({ conversation_id: this.activeConversationId });
+      if (!this.activeConversationId) return;
+      const api = await getApiAsync();
+      const res = await api.chat_get_messages({ conversation_id: this.activeConversationId });
       if (res.status === 'success' && res.messages) {
         this.messages = res.messages;
       }

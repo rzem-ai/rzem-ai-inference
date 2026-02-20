@@ -45,16 +45,16 @@
             <div class="bg-amber-400 transition-all" :style="{ width: cachedPct + '%' }" />
           </div>
           <div class="flex gap-4 text-sm">
-            <div class="flex items-center gap-1.5">
-              <div class="w-2.5 h-2.5 rounded-full bg-blue-500" />
+            <div class="flex items-center gap-1">
+              <div class="w-2 h-2 rounded-full bg-blue-500" />
               <span class="text-slate-600">Used {{ formatBytes(settingsStore.vramUsage.allocated) }} ({{ allocatedPct.toFixed(1) }}%)</span>
             </div>
-            <div class="flex items-center gap-1.5">
-              <div class="w-2.5 h-2.5 rounded-full bg-amber-400" />
+            <div class="flex items-center gap-1">
+              <div class="w-2 h-2 rounded-full bg-amber-400" />
               <span class="text-slate-600">Cached {{ formatBytes(cachedBytes) }} ({{ cachedPct.toFixed(1) }}%)</span>
             </div>
-            <div class="flex items-center gap-1.5">
-              <div class="w-2.5 h-2.5 rounded-full bg-emerald-400" />
+            <div class="flex items-center gap-1">
+              <div class="w-2 h-2 rounded-full bg-emerald-400" />
               <span class="text-slate-600">Free {{ formatBytes(settingsStore.vramUsage.free) }} ({{ freePct.toFixed(1) }}%)</span>
             </div>
           </div>
@@ -89,7 +89,7 @@
         <div class="flex items-center justify-between mb-4">
           <div class="flex items-center gap-3">
             <span
-              class="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium"
+              class="inline-flex items-center px-2 py-1 rounded-full text-sm font-medium"
               :class="settingsStore.isEngineReady ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'">
               {{ settingsStore.isEngineReady ? 'Ready' : 'Stopped' }}
             </span>
@@ -97,11 +97,11 @@
         </div>
         <div class="grid grid-cols-2 gap-4 mb-4">
           <div>
-            <div class="text-sm text-slate-500 mb-0.5">Uptime</div>
+            <div class="text-sm text-slate-500 mb-1">Uptime</div>
             <div class="text-base font-medium text-slate-900">{{ settingsStore.formattedUptime }}</div>
           </div>
           <div>
-            <div class="text-sm text-slate-500 mb-0.5">Jobs Completed</div>
+            <div class="text-sm text-slate-500 mb-1">Jobs Completed</div>
             <div class="text-base font-medium text-slate-900">{{ settingsStore.engineStatus?.completed_count ?? 0 }}</div>
           </div>
         </div>
@@ -111,13 +111,32 @@
         </div>
       </div>
     </div>
+
+    <!-- Image Generation -->
+    <div>
+      <h2 class="text-lg font-semibold text-slate-900 mb-3">Image Generation</h2>
+      <div class="bg-white rounded-xl border border-slate-200 p-4">
+        <div class="flex items-center justify-between">
+          <div class="min-w-0 flex-1">
+            <div class="text-sm font-medium text-slate-500 mb-1">Output Directory</div>
+            <div class="text-sm text-slate-700 truncate" :title="settingsStore.dataPaths?.output_dir">
+              {{ settingsStore.dataPaths?.output_dir ?? 'Loading...' }}
+            </div>
+          </div>
+          <Button severity="secondary" size="small" class="ml-4 shrink-0" @click="handleBrowseOutputDir">
+            <FolderOpen :size="14" class="mr-1" />
+            Browse
+          </Button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted } from 'vue';
 import { Button } from 'primevue';
-import { Wifi } from 'lucide-vue-next';
+import { FolderOpen, Wifi } from 'lucide-vue-next';
 import { useSettingsStore } from '@/stores/settings';
 
 const settingsStore = useSettingsStore();
@@ -160,6 +179,10 @@ async function handleResetEngine() {
 
 async function handleClearVram() {
   await settingsStore.clearVramCache();
+}
+
+async function handleBrowseOutputDir() {
+  await settingsStore.browseOutputDirectory();
 }
 
 let vramInterval: ReturnType<typeof setInterval>;

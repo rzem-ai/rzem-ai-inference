@@ -58,6 +58,8 @@ export interface PywebviewAPI {
     tag_id?: number;
     search?: string;
     favorites_only?: boolean;
+    sort_by?: string;
+    sort_order?: string;
   }): Promise<ApiResponse<{ images?: GalleryImage[]; total?: number }>>;
   get_image(args: { image_id: string }): Promise<ApiResponse<{ image?: GalleryImage }>>;
   toggle_favorite(args: { image_id: string }): Promise<ApiResponse<{ image?: GalleryImage }>>;
@@ -107,6 +109,7 @@ export interface PywebviewAPI {
   delete_cached_model(args: { repo_id: string }): Promise<ApiResponse>;
   get_data_paths(): Promise<ApiResponse<Partial<DataPaths>>>;
   get_disk_usage(): Promise<ApiResponse<Partial<DiskUsage>>>;
+  browse_output_directory(): Promise<ApiResponse<{ changed?: boolean; output_dir?: string }>>;
 
   // ── Styles ──
   get_styles(args?: {
@@ -114,6 +117,8 @@ export interface PywebviewAPI {
     tag_id?: number;
     search?: string;
     favorites_only?: boolean;
+    sort_by?: string;
+    sort_order?: string;
   }): Promise<ApiResponse<{ styles?: Style[] }>>;
   get_style(args: { style_id: string }): Promise<ApiResponse<{ style?: Style; loras?: StyleLoRA[]; tags?: Tag[]; examples?: StyleExample[] }>>;
   create_style(args: {

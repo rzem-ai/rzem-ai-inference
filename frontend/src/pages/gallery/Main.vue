@@ -70,11 +70,32 @@
       <template #end>
         <div class="flex gap-2">
           <!-- Sort -->
-          <Button severity="secondary" disabled>
+          <Button severity="secondary" @click="sortPopover?.toggle($event)">
             <ArrowUpDown :size="14" />
-            <span>Date</span>
+            <span>{{ currentSortLabel }}</span>
             <ChevronDown :size="12" class="text-slate-400" />
           </Button>
+          <Popover ref="sortPopover">
+            <div class="flex flex-col gap-1 min-w-40 p-1">
+              <div class="px-2 py-1 text-xs font-semibold text-slate-400 uppercase tracking-wide">Sort by</div>
+              <button
+                v-for="opt in gallerySortOptions"
+                :key="opt.value"
+                class="flex items-center justify-between gap-2 px-3 py-1 rounded-lg text-left w-full transition-colors"
+                :class="gallery.sortBy === opt.value ? 'bg-blue-50 text-blue-600' : 'hover:bg-slate-50 text-slate-700'"
+                @click="onSortBy(opt.value)">
+                <span class="font-medium">{{ opt.label }}</span>
+                <Check v-if="gallery.sortBy === opt.value" :size="14" />
+              </button>
+              <Divider class="my-1!" />
+              <button
+                class="flex items-center gap-2 px-3 py-1 rounded-lg text-left w-full transition-colors hover:bg-slate-50 text-slate-700"
+                @click="onToggleSortOrder">
+                <component :is="gallery.sortOrder === 'asc' ? ArrowUpAZ : ArrowDownAZ" :size="14" />
+                <span class="font-medium">{{ gallery.sortOrder === 'asc' ? 'Ascending' : 'Descending' }}</span>
+              </button>
+            </div>
+          </Popover>
           <!-- View toggle -->
           <SelectButton
             v-model="viewMode"
@@ -151,7 +172,10 @@ import {
   Tag as TagIcon,
   Trash2,
   ArrowUpDown,
+  ArrowUpAZ,
+  ArrowDownAZ,
   ChevronDown,
+  Check,
   LayoutGrid,
   Search,
   Plus,
@@ -167,7 +191,7 @@ import ImageOverlay from './ImageOverlay.vue';
 import ImageDetailDialog from './ImageDetailDialog.vue';
 import FolderPopover from './FolderPopover.vue';
 import TagPopover from './TagPopover.vue';
-import { Button, Divider, Toolbar, SelectButton } from 'primevue';
+import { Button, Divider, Toolbar, SelectButton, Popover } from 'primevue';
 import { InputText, InputGroup, InputGroupAddon } from 'primevue';
 
 const gallery = useGalleryStore();
@@ -183,6 +207,19 @@ const selectedIds = reactive(new Set<string>());
 const searchInput = ref('');
 const folderPopover = ref<InstanceType<typeof FolderPopover>>();
 const tagPopover = ref<InstanceType<typeof TagPopover>>();
+const sortPopover = ref();
+
+const gallerySortOptions = [
+  { value: 'created_at', label: 'Date' },
+  { value: 'raw_prompt', label: 'Prompt' },
+  { value: 'steps', label: 'Steps' },
+  { value: 'seed', label: 'Seed' },
+  { value: 'file_size', label: 'File Size' },
+];
+
+const currentSortLabel = computed(() =>
+  gallerySortOptions.find(o => o.value === gallery.sortBy)?.label ?? 'Date'
+);
 
 // Overlay & detail dialog state
 const selectedImage = ref<GalleryImage | null>(null);
@@ -268,6 +305,16 @@ function onImagesTagged() {
   if (gallery.currentTagId) {
     gallery.loadImages();
   }
+}
+
+function onSortBy(value: string) {
+  gallery.setSort(value);
+  sortPopover.value?.hide();
+}
+
+function onToggleSortOrder() {
+  gallery.toggleSortOrder();
+  sortPopover.value?.hide();
 }
 
 function onCreateFolder() {

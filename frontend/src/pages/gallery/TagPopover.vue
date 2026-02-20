@@ -3,11 +3,11 @@
     <div class="flex flex-col gap-1 min-w-48 max-h-64 overflow-y-auto p-1">
       <div class="px-2 py-1 text-xs font-semibold text-slate-400 uppercase tracking-wide">Add tags</div>
 
-      <div class="flex flex-wrap gap-1.5 px-2 py-1">
+      <div class="flex flex-wrap gap-1 px-2 py-1">
         <button
           v-for="tag in gallery.tags"
           :key="tag.id"
-          class="px-2.5 py-1 rounded-full font-medium transition-all text-xs"
+          class="px-2 py-1 rounded-full font-medium transition-all text-xs"
           :style="tagStyle(tag)"
           @click="onToggleTag(tag)">
           {{ tag.name }}
@@ -21,7 +21,7 @@
       <Divider />
 
       <button
-        class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-left w-full transition-colors hover:bg-blue-50 text-blue-600"
+        class="flex items-center gap-2 px-3 py-1 rounded-lg text-left w-full transition-colors hover:bg-blue-50 text-blue-600"
         @click="onNewTag">
         <Plus :size="14" class="shrink-0" />
         <span class="font-medium">New Tag</span>

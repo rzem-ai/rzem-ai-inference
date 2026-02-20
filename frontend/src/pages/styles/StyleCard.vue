@@ -3,7 +3,7 @@
     class="group relative rounded-lg overflow-hidden cursor-pointer bg-white border border-slate-200 hover:border-slate-300 transition-colors"
     :class="{ 'ring-2 ring-blue-500 border-blue-500': selected }"
     @click="emit('click', styleData.id)">
-    <div class="aspect-[4/3] w-full relative bg-slate-50 flex items-center justify-center">
+    <div class="aspect-4/3 w-full relative bg-slate-50 flex items-center justify-center">
       <!-- Thumbnail image -->
       <img
         v-if="thumbnailUrl"
@@ -16,15 +16,15 @@
       <!-- Category badge -->
       <div
         v-if="styleData.category"
-        class="absolute top-1.5 left-1.5 px-2 py-0.5 rounded-full bg-black/30 backdrop-blur-sm text-white text-[10px] font-medium">
+        class="absolute top-1 left-1 px-2 py-1 rounded-full bg-black/30 backdrop-blur-sm text-white text-xs font-medium">
         {{ styleData.category }}
       </div>
 
       <!-- Favorite button -->
       <button
-        class="absolute top-1.5 right-1.5 p-1 rounded-full bg-black/30 backdrop-blur-sm
+        class="absolute top-1 right-1 p-1 rounded-full bg-black/30 backdrop-blur-sm
                opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/50"
-        :class="{ '!opacity-100': styleData.is_favorite }"
+        :class="{ 'opacity-100!': styleData.is_favorite }"
         @click.stop="emit('favorite', styleData.id)">
         <Star
           :size="14"
@@ -34,8 +34,8 @@
 
       <!-- Selection checkbox -->
       <div
-        class="absolute bottom-1.5 left-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
-        :class="{ '!opacity-100': selected }">
+        class="absolute bottom-1 left-1 opacity-0 group-hover:opacity-100 transition-opacity"
+        :class="{ 'opacity-100!': selected }">
         <button
           class="w-5 h-5 rounded border-2 flex items-center justify-center transition-colors"
           :class="selected
@@ -48,9 +48,9 @@
     </div>
 
     <!-- Info section -->
-    <div class="p-2.5">
+    <div class="p-2">
       <h3 class="text-sm font-medium text-slate-800 truncate">{{ styleData.name }}</h3>
-      <p class="text-[11px] text-slate-400 mt-0.5 line-clamp-2">{{ styleData.prompt_template }}</p>
+      <p class="text-sm text-slate-400 mt-1 line-clamp-2">{{ styleData.prompt_template }}</p>
     </div>
   </div>
 </template>

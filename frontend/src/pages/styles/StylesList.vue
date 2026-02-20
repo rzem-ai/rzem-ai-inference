@@ -40,11 +40,32 @@
       <template #end>
         <div class="flex gap-2">
           <!-- Sort -->
-          <Button severity="secondary">
+          <Button severity="secondary" @click="sortPopover?.toggle($event)">
             <ArrowUpDown :size="14" />
-            <span>Date</span>
+            <span>{{ currentSortLabel }}</span>
             <ChevronDown :size="12" class="text-slate-400" />
           </Button>
+          <Popover ref="sortPopover">
+            <div class="flex flex-col gap-1 min-w-40 p-1">
+              <div class="px-2 py-1 text-xs font-semibold text-slate-400 uppercase tracking-wide">Sort by</div>
+              <button
+                v-for="opt in styleSortOptions"
+                :key="opt.value"
+                class="flex items-center justify-between gap-2 px-3 py-1 rounded-lg text-left w-full transition-colors"
+                :class="stylesStore.sortBy === opt.value ? 'bg-blue-50 text-blue-600' : 'hover:bg-slate-50 text-slate-700'"
+                @click="onSortBy(opt.value)">
+                <span class="font-medium">{{ opt.label }}</span>
+                <Check v-if="stylesStore.sortBy === opt.value" :size="14" />
+              </button>
+              <Divider class="my-1!" />
+              <button
+                class="flex items-center gap-2 px-3 py-1 rounded-lg text-left w-full transition-colors hover:bg-slate-50 text-slate-700"
+                @click="onToggleSortOrder">
+                <component :is="stylesStore.sortOrder === 'asc' ? ArrowUpAZ : ArrowDownAZ" :size="14" />
+                <span class="font-medium">{{ stylesStore.sortOrder === 'asc' ? 'Ascending' : 'Descending' }}</span>
+              </button>
+            </div>
+          </Popover>
           <!-- View toggle -->
           <SelectButton
             v-model="viewMode"
@@ -72,7 +93,7 @@
           <p class="text-xs text-slate-300 mt-1">Create a style to define reusable prompt templates</p>
           <RouterLink
             :to="{ name: 'styles-new' }"
-            class="inline-flex items-center gap-1.5 mt-4 px-4 py-2 rounded-lg bg-blue-500 text-sm font-medium text-white hover:bg-blue-600 transition-colors">
+            class="inline-flex items-center gap-1 mt-4 px-4 py-2 rounded-lg bg-blue-500 text-sm font-medium text-white hover:bg-blue-600 transition-colors">
             <Plus :size="16" />
             <span>Create Style</span>
           </RouterLink>
@@ -106,11 +127,11 @@
 import { computed, ref, reactive, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Search, Plus, Trash2, LayoutGrid, List as ListIcon, Palette, ListTodo } from 'lucide-vue-next';
-import { FolderInput, ArrowUpDown, ChevronDown } from 'lucide-vue-next';
+import { FolderInput, ArrowUpDown, ArrowUpAZ, ArrowDownAZ, ChevronDown, Check } from 'lucide-vue-next';
 
 import { useStylesStore } from '@/stores/styles';
 import StyleCard from './StyleCard.vue';
-import { Button, Divider, Toolbar, SelectButton } from 'primevue';
+import { Button, Divider, Toolbar, SelectButton, Popover } from 'primevue';
 import { InputText, InputGroup, InputGroupAddon } from 'primevue';
 
 const router = useRouter();
@@ -126,6 +147,18 @@ const selectedIds = reactive(new Set<string>());
 
 const searchInput = ref('');
 const importing = ref(false);
+const sortPopover = ref();
+
+const styleSortOptions = [
+  { value: 'updated_at', label: 'Last Modified' },
+  { value: 'created_at', label: 'Date Created' },
+  { value: 'name', label: 'Name' },
+  { value: 'usage_count', label: 'Usage' },
+];
+
+const currentSortLabel = computed(() =>
+  styleSortOptions.find(o => o.value === stylesStore.sortBy)?.label ?? 'Last Modified'
+);
 
 const isGridMode = computed(() => viewMode.value.value === GRID_VIEW.value);
 
@@ -179,6 +212,16 @@ async function onDeleteSelected() {
     await stylesStore.deleteStyle(id);
   }
   selectedIds.clear();
+}
+
+function onSortBy(value: string) {
+  stylesStore.setSort(value);
+  sortPopover.value?.hide();
+}
+
+function onToggleSortOrder() {
+  stylesStore.toggleSortOrder();
+  sortPopover.value?.hide();
 }
 
 async function onImportMetadata() {

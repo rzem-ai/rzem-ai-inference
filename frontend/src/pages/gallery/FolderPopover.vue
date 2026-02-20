@@ -6,7 +6,7 @@
       <button
         v-for="folder in gallery.folders"
         :key="folder.id"
-        class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-left w-full transition-colors hover:bg-slate-50 text-slate-700"
+        class="flex items-center gap-2 px-3 py-1 rounded-lg text-left w-full transition-colors hover:bg-slate-50 text-slate-700"
         @click="onSelectFolder(folder.id)">
         <FolderIcon :size="14" class="text-slate-400 shrink-0" />
         <span class="font-medium truncate">{{ folder.name }}</span>
@@ -19,7 +19,7 @@
       <Divider />
 
       <button
-        class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-left w-full transition-colors hover:bg-blue-50 text-blue-600"
+        class="flex items-center gap-2 px-3 py-1 rounded-lg text-left w-full transition-colors hover:bg-blue-50 text-blue-600"
         @click="onNewFolder">
         <Plus :size="14" class="shrink-0" />
         <span class="font-medium">New Folder</span>

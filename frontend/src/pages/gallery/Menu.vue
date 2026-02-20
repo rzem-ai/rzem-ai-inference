@@ -53,11 +53,11 @@
             <Plus :size="14" />
           </button>
         </div>
-        <div class="flex flex-wrap gap-1.5 px-2">
+        <div class="flex flex-wrap gap-1 px-2">
           <button
             v-for="tag in gallery.tags"
             :key="tag.id"
-            class="px-2.5 py-1 rounded-full font-medium transition-all"
+            class="px-2 py-1 rounded-full font-medium transition-all"
             :class="gallery.currentTagId === tag.id ? 'ring-2 ring-offset-1' : ''"
             :style="tagStyle(tag)"
             @click="onToggleTag(tag.id)">

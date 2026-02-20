@@ -21,39 +21,39 @@
         </div>
         <div class="flex flex-col gap-1 rounded-lg bg-surface-50 px-3 py-2">
           <div class="text-base font-semibold text-surface-400 uppercase tracking-wide">Steps</div>
-          <div class="text-base mt-0.5 font-mono">{{ image.steps }}</div>
+          <div class="text-base mt-1 font-mono">{{ image.steps }}</div>
         </div>
         <div class="flex flex-col gap-1 rounded-lg bg-surface-50 px-3 py-2">
           <div class="text-base font-semibold text-surface-400 uppercase tracking-wide">CFG Scale</div>
-          <div class="text-base mt-0.5 font-mono">{{ image.cfg_scale }}</div>
+          <div class="text-base mt-1 font-mono">{{ image.cfg_scale }}</div>
         </div>
         <div class="flex flex-col gap-1 rounded-lg bg-surface-50 px-3 py-2">
           <div class="text-base font-semibold text-surface-400 uppercase tracking-wide">Seed</div>
-          <div class="text-base mt-0.5 font-mono">{{ image.seed }}</div>
+          <div class="text-base mt-1 font-mono">{{ image.seed }}</div>
         </div>
         <div class="flex flex-col gap-1 rounded-lg bg-surface-50 px-3 py-2">
           <div class="text-base font-semibold text-surface-400 uppercase tracking-wide">Sampler</div>
-          <div class="text-base mt-0.5 font-mono">{{ parsedConfig?.sampler ?? '—' }}</div>
+          <div class="text-base mt-1 font-mono">{{ parsedConfig?.sampler ?? '—' }}</div>
         </div>
         <div class="flex flex-col gap-1 rounded-lg bg-surface-50 px-3 py-2">
           <div class="text-base font-semibold text-surface-400 uppercase tracking-wide">Scheduler</div>
-          <div class="text-base mt-0.5 font-mono">{{ parsedConfig?.scheduler ?? '—' }}</div>
+          <div class="text-base mt-1 font-mono">{{ parsedConfig?.scheduler ?? '—' }}</div>
         </div>
         <div v-if="image.generation_time_ms" class="flex flex-col gap-1 rounded-lg bg-surface-50 px-3 py-2">
           <div class="text-base font-semibold text-surface-400 uppercase tracking-wide">Generation Time</div>
-          <div class="text-base mt-0.5 font-mono">{{ formatDuration(image.generation_time_ms) }}</div>
+          <div class="text-base mt-1 font-mono">{{ formatDuration(image.generation_time_ms) }}</div>
         </div>
         <div v-if="image.file_size" class="flex flex-col gap-1 rounded-lg bg-surface-50 px-3 py-2">
           <div class="text-base font-semibold text-surface-400 uppercase tracking-wide">File Size</div>
-          <div class="text-base mt-0.5 font-mono">{{ formatFileSize(image.file_size) }}</div>
+          <div class="text-base mt-1 font-mono">{{ formatFileSize(image.file_size) }}</div>
         </div>
         <div class="flex flex-col gap-1 rounded-lg bg-surface-50 px-3 py-2">
           <div class="text-base font-semibold text-surface-400 uppercase tracking-wide">Created</div>
-          <div class="text-base mt-0.5 font-mono">{{ formatDate(image.created_at) }}</div>
+          <div class="text-base mt-1 font-mono">{{ formatDate(image.created_at) }}</div>
         </div>
         <div class="flex flex-col gap-1 rounded-lg bg-surface-50 px-3 py-2 col-div-3 col-span-3">
           <div class="text-base font-medium text-surface-400 uppercase tracking-wide">Model</div>
-          <div class="text-base mt-0.5 font-mono">{{ modelDisplayName }}</div>
+          <div class="text-base mt-1 font-mono">{{ modelDisplayName }}</div>
         </div>
         <!-- LoRAs -->
         <div v-if="parsedLoras.length > 0" class="flex flex-col gap-1 rounded-lg bg-surface-50 px-3 py-2 col-div-3 col-span-3">

@@ -147,6 +147,25 @@ function handleClick() {
 - **Layout**: TailwindCSS utility classes
 - **Custom**: Scoped CSS only when PrimeVue/Tailwind insufficient
 
+### Tailwind CSS Rules
+
+- **No arbitrary pixel values**: Never use bracket syntax like `text-[13px]` or `w-[200px]`. Use the closest standard Tailwind class instead.
+  - `text-[10px]` → `text-xs`
+  - `text-[11px]` → `text-sm`
+  - `text-[13px]` → `text-base`
+  - For spacing/sizing brackets, convert to Tailwind units: `min-h-[60px]` → `min-h-15`, `max-h-[80px]` → `max-h-20`
+- **No point-sized values**: Never use fractional spacing like `gap-2.5` or `p-3.5`. Use whole numbers only.
+  - `gap-2.5` → `gap-2`, `p-3.5` → `p-3`, `py-1.5` → `py-1`
+  - For `0.5` values, round up to `1` (e.g., `mt-0.5` → `mt-1`)
+- **Tailwind v4 important modifier**: The `!` goes at the end (suffix), not the beginning (prefix).
+  - `!opacity-100` → `opacity-100!`
+  - `!my-1` → `my-1!`
+  - `!bg-white` → `bg-white!`
+- **Tailwind v4 bare values**: Use bare values instead of arbitrary bracket syntax for utilities that accept them natively.
+  - `aspect-[4/3]` → `aspect-4/3`
+  - `aspect-[16/9]` → `aspect-16/9`
+  - `columns-[2]` → `columns-2`
+
 ### State Management (Pinia)
 
 **Use Options API for all Pinia stores:**

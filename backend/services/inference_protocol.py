@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
 
@@ -38,3 +39,5 @@ class InferenceServiceProtocol(Protocol):
     def get_engine_status(self) -> dict[str, Any]: ...
 
     def get_gpu_info(self) -> dict[str, Any]: ...
+
+    def set_output_dir(self, output_dir: Path) -> None: ...

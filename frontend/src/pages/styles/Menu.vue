@@ -8,28 +8,28 @@
     <template #content>
       <!-- Collections section -->
       <div class="flex flex-col gap-1">
-        <div class="flex items-center justify-between px-2 h-8">
+        <div class="flex h-8 items-center justify-between px-2">
           <div class="font-medium text-slate-900">Collections</div>
         </div>
 
         <!-- Favorites -->
         <button
-          class="flex items-center gap-2 px-3 h-8 rounded-lg text-left w-full transition-colors"
-          :class="stylesStore.favoritesOnly ? 'bg-blue-50 text-blue-600' : 'hover:bg-slate-50 text-slate-700'"
+          class="flex h-8 w-full items-center gap-2 rounded-lg px-3 text-left transition-colors"
+          :class="stylesStore.favoritesOnly ? 'bg-blue-50 text-blue-600' : 'text-slate-700 hover:bg-slate-50'"
           @click="onFilterFavorites">
           <Star :size="14" :class="stylesStore.favoritesOnly ? 'text-blue-500' : 'text-slate-400'" />
-          <span class="flex-1 font-medium truncate">Favorites</span>
+          <span class="flex-1 truncate font-medium">Favorites</span>
         </button>
 
         <!-- Dynamic categories -->
         <button
           v-for="cat in stylesStore.categories"
           :key="cat"
-          class="flex items-center gap-2 px-3 h-8 rounded-lg text-left w-full transition-colors"
-          :class="stylesStore.currentCategory === cat ? 'bg-blue-50 text-blue-600' : 'hover:bg-slate-50 text-slate-700'"
+          class="flex h-8 w-full items-center gap-2 rounded-lg px-3 text-left transition-colors"
+          :class="stylesStore.currentCategory === cat ? 'bg-blue-50 text-blue-600' : 'text-slate-700 hover:bg-slate-50'"
           @click="stylesStore.filterByCategory(cat)">
           <FolderIcon :size="14" class="text-slate-400" />
-          <span class="flex-1 font-medium truncate">{{ cat }}</span>
+          <span class="flex-1 truncate font-medium">{{ cat }}</span>
         </button>
       </div>
 
@@ -38,17 +38,17 @@
         <div class="px-2">
           <span class="font-semibold text-slate-900">Tags</span>
         </div>
-        <div class="flex flex-wrap gap-1.5 px-2">
+        <div class="flex flex-wrap gap-1 px-2">
           <button
             v-for="tag in stylesStore.tags"
             :key="tag.id"
-            class="px-2.5 py-1 rounded-full font-medium transition-all"
+            class="rounded-full px-2 py-1 font-medium transition-all"
             :class="stylesStore.currentTagId === tag.id ? 'ring-2 ring-offset-1' : ''"
             :style="tagStyle(tag)"
             @click="onToggleTag(tag.id)">
             {{ tag.name }}
           </button>
-          <span v-if="!stylesStore.tags.length" class="text-slate-400 px-1">No style tags</span>
+          <span v-if="!stylesStore.tags.length" class="px-1 text-slate-400">No style tags</span>
         </div>
       </div>
     </template>

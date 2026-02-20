@@ -37,7 +37,7 @@ const editor = useEditor({
   content: store.params.prompt,
   editorProps: {
     attributes: {
-      class: 'focus:outline-none min-h-[60px] max-h-[300px] overflow-y-auto text-lg overscroll-contain',
+      class: 'focus:outline-none min-h-15 max-h-75 overflow-y-auto text-lg overscroll-contain',
     },
     handleKeyDown: (_view, event) => {
       if (event.key === 'Enter' && event.ctrlKey) {

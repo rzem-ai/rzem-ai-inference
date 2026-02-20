@@ -33,6 +33,8 @@
     "@tailwindcss/vite": "^4.1.0",
     "@vitejs/plugin-vue": "^5.2.0",
     "autoprefixer": "^10.4.0",
+    "prettier": "^3.8.1",
+    "prettier-plugin-tailwindcss": "^0.7.2",
     "tailwindcss": "^4.1.0",
     "typescript": "~5.7.0",
     "vite": "^6.2.0",

@@ -1,8 +1,7 @@
 import { defineStore } from 'pinia';
-import type { PywebviewAPI } from '@/types/pywebview';
+import { getApiAsync } from '@/bridge';
 import type { DiscoveredServer } from '@/types/inference';
 
-let _api: PywebviewAPI | null = null;
 let _pollTimer: ReturnType<typeof setInterval> | null = null;
 
 export const useDiscoveryStore = defineStore('discovery', {
@@ -21,14 +20,10 @@ export const useDiscoveryStore = defineStore('discovery', {
   },
 
   actions: {
-    setApi(apiRef: PywebviewAPI) {
-      _api = apiRef;
-    },
-
     async refreshServers() {
-      if (!_api) return;
       try {
-        const res = await _api.get_discovered_servers();
+        const api = await getApiAsync();
+        const res = await api.get_discovered_servers();
         if (res.status === 'success' && res.servers) {
           this.servers = res.servers;
         }
@@ -38,9 +33,9 @@ export const useDiscoveryStore = defineStore('discovery', {
     },
 
     async loadConnectionMode() {
-      if (!_api) return;
       try {
-        const res = await _api.get_connection_mode();
+        const api = await getApiAsync();
+        const res = await api.get_connection_mode();
         if (res.status === 'success') {
           this.connectionMode = res.mode ?? 'local';
           this.connectedServer = res.connected_server ?? null;
@@ -51,11 +46,12 @@ export const useDiscoveryStore = defineStore('discovery', {
     },
 
     async connectToServer(host: string, port: number) {
-      if (!_api || this.connecting) return;
+      if (this.connecting) return;
       this.connecting = true;
       this.error = null;
       try {
-        const res = await _api.connect_to_server({ host, port });
+        const api = await getApiAsync();
+        const res = await api.connect_to_server({ host, port });
         if (res.status === 'success') {
           this.connectionMode = res.mode ?? 'remote';
           this.connectedServer = { host, port };
@@ -70,10 +66,10 @@ export const useDiscoveryStore = defineStore('discovery', {
     },
 
     async disconnectFromServer() {
-      if (!_api) return;
       this.error = null;
       try {
-        const res = await _api.disconnect_from_server();
+        const api = await getApiAsync();
+        const res = await api.disconnect_from_server();
         if (res.status === 'success') {
           this.connectionMode = res.mode ?? 'local';
           this.connectedServer = null;

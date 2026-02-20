@@ -1,3 +1,18 @@
+# Copyright (C) 2026 alexrzem
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 import logging
 import os
 import signal
@@ -71,10 +86,16 @@ def main() -> None:
     db = Database(config.data_dir / "inference.db")
     db.connect()
 
-    local_inference = LocalInferenceService(output_dir=config.output_dir, db=db)
+    # Use custom output directory from DB settings, falling back to default
+    output_dir = config.output_dir
+    custom_output = db.get_setting("OUTPUT_DIR")
+    if custom_output:
+        output_dir = Path(custom_output)
+
+    local_inference = LocalInferenceService(output_dir=output_dir, db=db)
     manager = InferenceServiceManager(
         local=local_inference,
-        output_dir=config.output_dir,
+        output_dir=output_dir,
         db=db,
     )
 

@@ -7,7 +7,10 @@ import os
 from pathlib import Path
 from typing import Any
 
+import webview
+
 from backend.config import AppConfig
+from backend.db.database import Database
 from backend.services.inference_manager import InferenceServiceManager
 
 logger = logging.getLogger(__name__)
@@ -30,9 +33,10 @@ def _dir_size_bytes(path: Path) -> int:
 class SettingsAPI:
     """pywebview js_api mixin for settings pages."""
 
-    def __init__(self, inference: InferenceServiceManager, config: AppConfig) -> None:
+    def __init__(self, inference: InferenceServiceManager, config: AppConfig, db: Database) -> None:
         self._inference = inference
         self._config = config
+        self._db = db
 
     # ── VRAM ──────────────────────────────────────────────────────
 
@@ -167,6 +171,32 @@ class SettingsAPI:
             logger.error("Failed to delete cached model %s: %s", repo_id, e)
             return {"status": "error", "message": str(e)}
 
+    # ── Output Directory ────────────────────────────────────────
+
+    def _effective_output_dir(self) -> Path:
+        """Return the current output directory (DB override or default)."""
+        return self._inference._output_dir
+
+    def browse_output_directory(self, **kwargs) -> dict[str, Any]:
+        """Open a native folder picker to choose the output directory."""
+        try:
+            window = webview.windows[0]
+            result = window.create_file_dialog(webview.FileDialog.FOLDER)
+            if not result:
+                return {"status": "success", "changed": False}
+
+            chosen = str(result) if isinstance(result, str) else str(result[0])
+            chosen_path = Path(chosen)
+            chosen_path.mkdir(parents=True, exist_ok=True)
+
+            self._db.set_setting("OUTPUT_DIR", chosen)
+            self._inference.set_output_dir(chosen_path)
+            logger.info("Output directory changed to %s", chosen)
+            return {"status": "success", "changed": True, "output_dir": chosen}
+        except Exception as e:
+            logger.error("Failed to browse output directory: %s", e)
+            return {"status": "error", "message": str(e)}
+
     # ── Data Paths & Disk Usage ───────────────────────────────────
 
     def get_data_paths(self) -> dict[str, Any]:
@@ -182,7 +212,7 @@ class SettingsAPI:
             return {
                 "status": "success",
                 "data_dir": str(self._config.data_dir),
-                "output_dir": str(self._config.output_dir),
+                "output_dir": str(self._effective_output_dir()),
                 "hf_cache_dir": hf_cache_dir,
             }
         except Exception as e:
@@ -192,7 +222,7 @@ class SettingsAPI:
     def get_disk_usage(self) -> dict[str, Any]:
         """Return disk usage for output dir and HF cache."""
         try:
-            output_size = _dir_size_bytes(self._config.output_dir)
+            output_size = _dir_size_bytes(self._effective_output_dir())
 
             hf_cache_size = 0
             try:

@@ -53,7 +53,7 @@
               <span class="text-base text-slate-400">{{ model.revisions.length }} revision{{ model.revisions.length !== 1 ? 's' : '' }}</span>
             </div>
           </div>
-          <button class="p-1.5 text-slate-400 hover:text-red-500 transition-colors shrink-0" title="Delete cached model" @click="handleDelete(model.repo_id)">
+          <button class="p-1 text-slate-400 hover:text-red-500 transition-colors shrink-0" title="Delete cached model" @click="handleDelete(model.repo_id)">
             <Trash2 :size="14" />
           </button>
         </div>

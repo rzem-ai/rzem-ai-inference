@@ -43,7 +43,7 @@
             @click.stop="emit('openDetail')">
             <div class="px-5 pb-4 pt-12">
               <p class="text-white/90 text-sm leading-relaxed line-clamp-2">{{ image.prompt }}</p>
-              <div class="flex items-center gap-3 mt-1.5 text-white/50 text-xs">
+              <div class="flex items-center gap-3 mt-1 text-white/50 text-xs">
                 <span>{{ image.width }} x {{ image.height }}</span>
                 <span>{{ image.steps }} steps</span>
                 <span>seed {{ image.seed }}</span>

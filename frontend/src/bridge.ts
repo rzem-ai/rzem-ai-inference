@@ -42,6 +42,19 @@ export function getApi(): PywebviewAPI | null {
   return window.pywebview?.api ?? null;
 }
 
+// Singleton promise: first call triggers init, subsequent calls return the same (resolved) promise
+let _apiPromise: Promise<PywebviewAPI> | null = null;
+
+/** Lazily-initialized, cached promise that resolves to the PywebviewAPI once ready. */
+export function getApiAsync(): Promise<PywebviewAPI> {
+  if (!_apiPromise) {
+    _apiPromise = waitForPywebview()
+      .then(() => getApi() ?? mockApi)
+      .catch(() => mockApi);
+  }
+  return _apiPromise;
+}
+
 let _counter = 0;
 
 /** Mock API for browser-based development without pywebview. */
@@ -364,6 +377,9 @@ export const mockApi: PywebviewAPI = {
       output_size: 2_400_000_000,
       hf_cache_size: 37_000_000_000,
     };
+  },
+  async browse_output_directory() {
+    return { status: "success", changed: false };
   },
 
   // ── Styles ──

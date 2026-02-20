@@ -2,7 +2,7 @@
   <!-- History strip -->
   <Card class="min-h-30">
     <template #content>
-      <div class="flex gap-1.5 overflow-x-auto" v-if="store.generatedImages.length">
+      <div class="flex gap-1 overflow-x-auto" v-if="store.generatedImages.length">
         <div
           v-for="(img, index) in store.generatedImages"
           :key="img.jobId"

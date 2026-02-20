@@ -30,6 +30,8 @@ class GalleryAPI:
         tag_id: int | None = None,
         search: str | None = None,
         favorites_only: bool = False,
+        sort_by: str = "created_at",
+        sort_order: str = "desc",
         **kwargs,
     ) -> dict[str, Any]:
         try:
@@ -40,6 +42,8 @@ class GalleryAPI:
                 tag_id=tag_id,
                 search=search,
                 favorites_only=favorites_only,
+                sort_by=sort_by,
+                sort_order=sort_order,
             )
             return {"status": "success", **result}
         except Exception as e:

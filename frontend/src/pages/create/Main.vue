@@ -29,9 +29,6 @@
         </div>
       </div>
 
-      <!-- Progress overlay -->
-      <ProgressOverlay v-if="store.isGenerating" />
-
       <!-- Error overlay -->
       <ErrorOverlay v-if="store.error && !store.isGenerating" />
     </div>
@@ -49,7 +46,6 @@ import { useElementSize } from '@vueuse/core';
 
 import History from './History.vue';
 import ErrorOverlay from './ErrorOverlay.vue';
-import ProgressOverlay from './ProgressOverlay.vue';
 
 const imageWrapper = useTemplateRef('imageWrapper');
 const imageWrapperSize = useElementSize(imageWrapper);

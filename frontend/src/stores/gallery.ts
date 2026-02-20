@@ -1,9 +1,7 @@
 import { defineStore } from 'pinia';
-import type { PywebviewAPI } from '@/types/pywebview';
 import type { GalleryImage, Folder, Tag } from '@/types/inference';
-import { waitForPywebview, getApi, mockApi } from '@/bridge';
+import { getApiAsync } from '@/bridge';
 
-let _api: PywebviewAPI | null = null;
 let _initPromise: Promise<void> | null = null;
 
 export const useGalleryStore = defineStore('gallery', {
@@ -23,6 +21,10 @@ export const useGalleryStore = defineStore('gallery', {
     favoritesOnly: false,
     page: 0,
     pageSize: 50,
+
+    // Sort
+    sortBy: 'created_at' as string,
+    sortOrder: 'asc' as 'asc' | 'desc',
   }),
 
   getters: {
@@ -38,23 +40,12 @@ export const useGalleryStore = defineStore('gallery', {
      */
     async init() {
       if (_initPromise) return _initPromise;
-      _initPromise = this._doInit();
+      _initPromise = Promise.all([this.loadImages(), this.loadFolders(), this.loadTags()]).then(() => {});
       return _initPromise;
     },
 
-    async _doInit() {
-      try {
-        await waitForPywebview();
-        _api = getApi() ?? mockApi;
-      } catch {
-        // Running in browser mode -- use mock
-        _api = mockApi;
-      }
-      await Promise.all([this.loadImages(), this.loadFolders(), this.loadTags()]);
-    },
-
     async loadImages(reset = true) {
-      if (!_api) return;
+      const api = await getApiAsync();
       this.loading = true;
       if (reset) {
         this.page = 0;
@@ -62,13 +53,15 @@ export const useGalleryStore = defineStore('gallery', {
       }
 
       try {
-        const res = await _api.get_gallery_images({
+        const res = await api.get_gallery_images({
           limit: this.pageSize,
           offset: this.page * this.pageSize,
           folder_id: this.currentFolderId ?? undefined,
           tag_id: this.currentTagId ?? undefined,
           search: this.searchQuery || undefined,
           favorites_only: this.favoritesOnly,
+          sort_by: this.sortBy,
+          sort_order: this.sortOrder,
         });
 
         if (res.status === 'success') {
@@ -94,8 +87,8 @@ export const useGalleryStore = defineStore('gallery', {
     },
 
     async toggleFavorite(imageId: string) {
-      if (!_api) return;
-      const res = await _api.toggle_favorite({ image_id: imageId });
+      const api = await getApiAsync();
+      const res = await api.toggle_favorite({ image_id: imageId });
       if (res.status === 'success' && res.image) {
         const idx = this.images.findIndex(i => i.id === imageId);
         if (idx !== -1) {
@@ -105,13 +98,13 @@ export const useGalleryStore = defineStore('gallery', {
     },
 
     async batchSaveImages(imageIds: string[]) {
-      if (!_api) return;
-      return await _api.batch_save_images({ image_ids: imageIds });
+      const api = await getApiAsync();
+      return await api.batch_save_images({ image_ids: imageIds });
     },
 
     async deleteImage(imageId: string) {
-      if (!_api) return;
-      const res = await _api.delete_image({ image_id: imageId });
+      const api = await getApiAsync();
+      const res = await api.delete_image({ image_id: imageId });
       if (res.status === 'success') {
         this.images = this.images.filter(i => i.id !== imageId);
         this.total--;
@@ -121,16 +114,16 @@ export const useGalleryStore = defineStore('gallery', {
     // ── Folders ──
 
     async loadFolders() {
-      if (!_api) return;
-      const res = await _api.get_folders();
+      const api = await getApiAsync();
+      const res = await api.get_folders();
       if (res.status === 'success') {
         this.folders = res.folders ?? [];
       }
     },
 
     async createFolder(id: string, name: string, parentId?: string) {
-      if (!_api) return;
-      const res = await _api.create_folder({ id, name, parent_id: parentId });
+      const api = await getApiAsync();
+      const res = await api.create_folder({ id, name, parent_id: parentId });
       if (res.status === 'success') {
         await this.loadFolders();
       }
@@ -138,8 +131,8 @@ export const useGalleryStore = defineStore('gallery', {
     },
 
     async deleteFolder(folderId: string) {
-      if (!_api) return;
-      const res = await _api.delete_folder({ folder_id: folderId });
+      const api = await getApiAsync();
+      const res = await api.delete_folder({ folder_id: folderId });
       if (res.status === 'success') {
         this.folders = this.folders.filter(f => f.id !== folderId);
         if (this.currentFolderId === folderId) {
@@ -150,13 +143,13 @@ export const useGalleryStore = defineStore('gallery', {
     },
 
     async addImageToFolder(imageId: string, folderId: string) {
-      if (!_api) return;
-      await _api.add_image_to_folder({ image_id: imageId, folder_id: folderId });
+      const api = await getApiAsync();
+      await api.add_image_to_folder({ image_id: imageId, folder_id: folderId });
     },
 
     async removeImageFromFolder(imageId: string, folderId: string) {
-      if (!_api) return;
-      await _api.remove_image_from_folder({ image_id: imageId, folder_id: folderId });
+      const api = await getApiAsync();
+      await api.remove_image_from_folder({ image_id: imageId, folder_id: folderId });
       if (this.currentFolderId === folderId) {
         this.images = this.images.filter(i => i.id !== imageId);
         this.total--;
@@ -166,16 +159,16 @@ export const useGalleryStore = defineStore('gallery', {
     // ── Tags ──
 
     async loadTags() {
-      if (!_api) return;
-      const res = await _api.get_tags();
+      const api = await getApiAsync();
+      const res = await api.get_tags();
       if (res.status === 'success') {
         this.tags = res.tags ?? [];
       }
     },
 
     async createTag(name: string, color?: string, category?: string) {
-      if (!_api) return;
-      const res = await _api.create_tag({ name, color, category });
+      const api = await getApiAsync();
+      const res = await api.create_tag({ name, color, category });
       if (res.status === 'success') {
         await this.loadTags();
       }
@@ -183,8 +176,8 @@ export const useGalleryStore = defineStore('gallery', {
     },
 
     async deleteTag(tagId: number) {
-      if (!_api) return;
-      const res = await _api.delete_tag({ tag_id: tagId });
+      const api = await getApiAsync();
+      const res = await api.delete_tag({ tag_id: tagId });
       if (res.status === 'success') {
         this.tags = this.tags.filter(t => t.id !== tagId);
         if (this.currentTagId === tagId) {
@@ -195,13 +188,13 @@ export const useGalleryStore = defineStore('gallery', {
     },
 
     async addTagToImage(imageId: string, tagId: number) {
-      if (!_api) return;
-      await _api.add_tag_to_image({ image_id: imageId, tag_id: tagId });
+      const api = await getApiAsync();
+      await api.add_tag_to_image({ image_id: imageId, tag_id: tagId });
     },
 
     async removeTagFromImage(imageId: string, tagId: number) {
-      if (!_api) return;
-      await _api.remove_tag_from_image({ image_id: imageId, tag_id: tagId });
+      const api = await getApiAsync();
+      await api.remove_tag_from_image({ image_id: imageId, tag_id: tagId });
     },
 
     // ── State setters ──
@@ -232,6 +225,19 @@ export const useGalleryStore = defineStore('gallery', {
 
     async searchImages(query: string) {
       this.searchQuery = query;
+      await this.loadImages();
+    },
+
+    async setSort(sortBy: string, sortOrder?: 'asc' | 'desc') {
+      this.sortBy = sortBy;
+      if (sortOrder) {
+        this.sortOrder = sortOrder;
+      }
+      await this.loadImages();
+    },
+
+    async toggleSortOrder() {
+      this.sortOrder = this.sortOrder === 'asc' ? 'desc' : 'asc';
       await this.loadImages();
     },
 

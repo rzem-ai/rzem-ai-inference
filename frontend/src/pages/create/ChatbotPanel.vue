@@ -17,7 +17,7 @@
     <div v-if="!chatStore.isConfigured" class="flex-1 flex flex-col items-center justify-center px-6 gap-3">
       <KeyRound :size="24" class="text-slate-300" />
       <p class="text-xs text-slate-500 text-center">Enter your Claude API key to enable the AI assistant.</p>
-      <div class="flex gap-1.5 w-full">
+      <div class="flex gap-1 w-full">
         <input
           v-model="apiKeyInput"
           type="password"
@@ -36,21 +36,21 @@
     <!-- Configured state -->
     <template v-else>
       <!-- Scan buttons -->
-      <div class="flex gap-1.5 px-3 py-2 border-b border-slate-100">
+      <div class="flex gap-1 px-3 py-2 border-b border-slate-100">
         <button
-          class="flex-1 py-1.5 rounded border border-dashed border-purple-300 bg-purple-50 text-center hover:bg-purple-100 hover:border-purple-500 transition-colors"
+          class="flex-1 py-1 rounded border border-dashed border-purple-300 bg-purple-50 text-center hover:bg-purple-100 hover:border-purple-500 transition-colors"
           @click="openPicker('style')">
-          <span class="text-[10px] font-medium text-purple-600">Style</span>
+          <span class="text-xs font-medium text-purple-600">Style</span>
         </button>
         <button
-          class="flex-1 py-1.5 rounded border border-dashed border-blue-300 bg-blue-50 text-center hover:bg-blue-100 hover:border-blue-500 transition-colors"
+          class="flex-1 py-1 rounded border border-dashed border-blue-300 bg-blue-50 text-center hover:bg-blue-100 hover:border-blue-500 transition-colors"
           @click="openPicker('both')">
-          <span class="text-[10px] font-medium text-blue-600">Style+Subject</span>
+          <span class="text-xs font-medium text-blue-600">Style+Subject</span>
         </button>
         <button
-          class="flex-1 py-1.5 rounded border border-dashed border-green-300 bg-green-50 text-center hover:bg-green-100 hover:border-green-500 transition-colors"
+          class="flex-1 py-1 rounded border border-dashed border-green-300 bg-green-50 text-center hover:bg-green-100 hover:border-green-500 transition-colors"
           @click="openPicker('subject')">
-          <span class="text-[10px] font-medium text-green-600">Subject</span>
+          <span class="text-xs font-medium text-green-600">Subject</span>
         </button>
       </div>
 
@@ -60,11 +60,11 @@
         <div v-if="!chatStore.messages.length && !chatStore.isStreaming" class="flex-1 flex flex-col items-center justify-center gap-3">
           <Bot :size="24" class="text-slate-300" />
           <p class="text-xs text-slate-400 text-center">Ask me to help craft prompts, adjust settings, or analyze images.</p>
-          <div class="flex gap-1.5 flex-wrap justify-center">
+          <div class="flex gap-1 flex-wrap justify-center">
             <button
               v-for="chip in suggestionChips"
               :key="chip"
-              class="text-[10px] px-2 py-1 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+              class="text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
               @click="onSendChip(chip)">
               {{ chip }}
             </button>
@@ -88,7 +88,7 @@
 
           <!-- Assistant message -->
           <div v-else-if="msg.role === 'assistant'" class="flex gap-2">
-            <div class="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center shrink-0 mt-0.5">
+            <div class="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center shrink-0 mt-1">
               <Bot :size="14" class="text-white" />
             </div>
             <div class="flex-1 min-w-0">
@@ -105,7 +105,7 @@
 
           <!-- Error message -->
           <div v-else-if="msg.role === 'error'" class="flex gap-2">
-            <div class="w-6 h-6 rounded-full bg-red-500 flex items-center justify-center shrink-0 mt-0.5">
+            <div class="w-6 h-6 rounded-full bg-red-500 flex items-center justify-center shrink-0 mt-1">
               <TriangleAlert :size="14" class="text-white" />
             </div>
             <div class="flex-1 min-w-0">
@@ -118,26 +118,26 @@
 
         <!-- Streaming bubble -->
         <div v-if="chatStore.isStreaming" class="flex gap-2">
-          <div class="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center shrink-0 mt-0.5">
+          <div class="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center shrink-0 mt-1">
             <Bot :size="14" class="text-white" />
           </div>
           <div v-if="chatStore.streamingText" class="bg-slate-50 rounded-lg px-3 py-2 text-base text-slate-700 leading-relaxed prose-chat">
             <span v-html="renderMarkdown(chatStore.streamingText)" />
-            <span class="inline-block w-3 h-3 bg-blue-500 ml-0.5 animate-pulse rounded-sm"></span>
+            <span class="inline-block w-3 h-3 bg-blue-500 ml-1 animate-pulse rounded-sm"></span>
           </div>
           <div v-else class="bg-slate-50 rounded-lg px-3 py-2">
             <div class="flex gap-1 items-center">
-              <div class="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style="animation-delay: 0ms" />
-              <div class="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style="animation-delay: 150ms" />
-              <div class="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style="animation-delay: 300ms" />
+              <div class="w-1 h-1 bg-slate-400 rounded-full animate-bounce" style="animation-delay: 0ms" />
+              <div class="w-1 h-1 bg-slate-400 rounded-full animate-bounce" style="animation-delay: 150ms" />
+              <div class="w-1 h-1 bg-slate-400 rounded-full animate-bounce" style="animation-delay: 300ms" />
             </div>
           </div>
         </div>
       </div>
 
       <!-- Pending images strip -->
-      <div v-if="chatStore.pendingImagePaths.length" class="px-3 py-1.5 border-t border-slate-100">
-        <div class="flex gap-1.5">
+      <div v-if="chatStore.pendingImagePaths.length" class="px-3 py-1 border-t border-slate-100">
+        <div class="flex gap-1">
           <div
             v-for="(path, i) in chatStore.pendingImagePaths"
             :key="path"

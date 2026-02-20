@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash"
+      "Bash",
+      "mcp__plugin_playwright_playwright__browser_wait_for",
+      "mcp__plugin_github_github__search_repositories",
+      "mcp__plugin_github_github__get_me"
     ]
   },
   "outputStyle": "Explanatory",

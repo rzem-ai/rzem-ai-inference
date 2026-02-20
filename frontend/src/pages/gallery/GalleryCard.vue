@@ -18,13 +18,13 @@
       </div>
 
       <!-- Gradient overlay with prompt (always visible, matching Pencil design) -->
-      <div @click.stop="emit('openDetail')" class="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/80 via-black/40 to-transparent p-2.5 pt-8">
-        <p class="text-white text-[11px] leading-snug line-clamp-2">{{ image.prompt }}</p>
+      <div @click.stop="emit('openDetail')" class="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/80 via-black/40 to-transparent p-2 pt-8">
+        <p class="text-white text-sm leading-snug line-clamp-2">{{ image.raw_prompt || image.prompt }}</p>
       </div>
 
       <!-- Favorite button (top-right, visible on hover or when favorited) -->
       <Button
-        class="absolute top-1.5 right-1.5 p-1 rounded-full bg-black/30 backdrop-blur-sm
+        class="absolute top-1 right-1 p-1 rounded-full bg-black/30 backdrop-blur-sm
                opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/50"
         :class="{ 'opacity-100!': image.favorite }"
         @click.stop="emit('favorite', image.id)">
@@ -36,7 +36,7 @@
 
       <!-- Selection checkbox (top-left, visible on hover or when selected) -->
       <div
-        class="absolute top-1.5 left-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
+        class="absolute top-1 left-1 opacity-0 group-hover:opacity-100 transition-opacity"
         :class="{ 'opacity-100!': selected }">
         <Button
           class="w-5 h-5 rounded border-2 flex items-center justify-center transition-colors"

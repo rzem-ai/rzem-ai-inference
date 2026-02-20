@@ -5,17 +5,17 @@
     :draggable="false"
     :closable="true"
     header="Batch Generation"
-    class="w-[700px] max-w-[95vw]">
+    class="w-175 max-w-[95vw]">
     <Tabs :value="activeTab" @update:value="activeTab = $event">
       <TabList>
         <Tab value="prompts">
-          <div class="flex items-center gap-1.5">
+          <div class="flex items-center gap-1">
             <List :size="14" />
             Prompts
           </div>
         </Tab>
         <Tab value="data">
-          <div class="flex items-center gap-1.5">
+          <div class="flex items-center gap-1">
             <Table :size="14" />
             Data + Template
           </div>
@@ -66,11 +66,11 @@
             </div>
 
             <!-- Column chips -->
-            <div v-if="parsedColumns.length" class="flex flex-wrap gap-1.5">
+            <div v-if="parsedColumns.length" class="flex flex-wrap gap-1">
               <button
                 v-for="col in parsedColumns"
                 :key="col"
-                class="px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 text-xs hover:bg-blue-100 transition-colors cursor-pointer"
+                class="px-2 py-1 rounded-full bg-blue-50 text-blue-600 text-xs hover:bg-blue-100 transition-colors cursor-pointer"
                 @click="insertVariable(col)"
                 v-text="braces(col)">
               </button>
@@ -94,9 +94,9 @@
                 <div
                   v-for="(p, i) in renderedPrompts.slice(0, 5)"
                   :key="i"
-                  class="text-xs font-mono px-2 py-1.5 rounded bg-surface-50"
+                  class="text-xs font-mono px-2 py-1 rounded bg-surface-50"
                   :class="renderErrors[i] ? 'border border-red-200 text-red-500' : ''">
-                  <span class="text-surface-400 mr-1.5">{{ i + 1 }}.</span>
+                  <span class="text-surface-400 mr-1">{{ i + 1 }}.</span>
                   {{ renderErrors[i] || p }}
                 </div>
               </div>

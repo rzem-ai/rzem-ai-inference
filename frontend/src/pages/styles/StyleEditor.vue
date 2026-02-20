@@ -20,12 +20,12 @@
     </Toolbar>
 
     <!-- Toolbar -->
-    <div class="flex items-center gap-1.5 px-3 h-10 bg-white rounded-xl border border-surface-200 shrink-0">
+    <div class="flex items-center gap-1 px-3 h-10 bg-white rounded-xl border border-surface-200 shrink-0">
       <div class="flex-1" />
     </div>
 
     <!-- Editor content -->
-    <div class="flex-1 min-h-0 overflow-hidden mx-auto max-w-8xl ">
+    <div class="flex-1 min-h-0 overflow-hidden mx-auto max-w-8xl">
       <div class="grid grid-cols-2 gap-8 h-full">
         <!-- Center column: Core details -->
         <div class="flex flex-col gap-4 flex-1 max-w-160 overflow-y-auto min-h-0">
@@ -96,12 +96,12 @@
                   <li
                     v-for="tag in tagSuggestions"
                     :key="tag.id"
-                    class="px-3 py-1.5 text-sm text-surface-700 hover:bg-blue-50 cursor-pointer transition-colors"
+                    class="px-3 py-1 text-sm text-surface-700 hover:bg-blue-50 cursor-pointer transition-colors"
                     @mousedown.prevent="addExistingTag(tag)">
                     {{ tag.name }}
                   </li>
                 </ul>
-                <p v-if="tagInput.trim() && !tagSuggestions.length && showTagSuggestions" class="mt-1 text-[10px] text-surface-400">
+                <p v-if="tagInput.trim() && !tagSuggestions.length && showTagSuggestions" class="mt-1 text-xs text-surface-400">
                   Press Enter to create "{{ tagInput.trim() }}"
                 </p>
               </div>
@@ -126,43 +126,46 @@
             <TextEditor
               v-model="form.promptTemplate"
               placeholder="In style of Moebius {prompt}"
-              editor-class=" bg-white border border-surface-300 text-sm text-surface-900 min-h-[60px] max-h-[100px] focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-400 transition-colors cursor-text" />
+              editor-class=" bg-white border border-surface-300 text-sm text-surface-900 min-h-15 max-h-25 focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-400 transition-colors cursor-text" />
             <p class="text-xs text-blue-600">Use {prompt} as a placeholder for the user's prompt</p>
           </div>
 
           <!-- LoRAs -->
           <div class="flex flex-col gap-0">
             <label class="text-lg font-semibold text-surface-700">LoRA Models</label>
-            <div class="flex flex-col gap-2.5 p-3 rounded-lg bg-white border border-surface-200">
+            <div class="flex flex-col gap-2 p-3 rounded-lg bg-white border border-surface-200">
               <!-- Associated LoRAs -->
-              <div v-if="stylesStore.editorLoras.length" class="flex flex-col gap-2.5">
-                <div
-                  v-for="lora in stylesStore.editorLoras"
-                  :key="lora.id"
-                  class="flex items-center gap-2.5 p-3.5 rounded-lg bg-white border border-surface-200">
-                  <div class="flex items-center justify-center w-8 h-8 rounded-md bg-blue-50 shrink-0">
+              <div v-if="stylesStore.editorLoras.length" class="flex flex-col gap-2">
+                <div v-for="lora in stylesStore.editorLoras" :key="lora.id" class="flex items-center gap-2 p-3 rounded-lg bg-white border border-surface-200">
+                  <div class="w-8 h-8 flex items-center justify-center  rounded-md bg-blue-50 shrink-0">
                     <Layers :size="16" class="text-blue-600" />
                   </div>
                   <div class="flex-1 min-w-0">
-                    <p class="text-[13px] font-semibold text-surface-800 truncate">{{ lora.lora_name }}</p>
-                    <p class="text-[11px] text-surface-400 truncate">{{ lora.lora_path }}</p>
+                    <p class="text-base font-semibold text-surface-800 truncate">{{ lora.lora_name }}</p>
+                    <p class="text-sm text-surface-400 truncate">{{ lora.lora_path }}</p>
                   </div>
-                  <div class="flex items-center gap-2.5 shrink-0">
-                    <input type="range" :value="lora.strength" min="0" max="2" step="0.05" class="w-20 h-1.5 accent-blue-500" />
-                    <span class="text-xs font-medium text-surface-500 w-9 text-right">{{ lora.strength.toFixed(2) }}</span>
-                  </div>
+                  <InputNumber
+                    :model-value="lora.strength"
+                    @update:model-value="(val) => onLoraStrengthChange(lora, val ?? 1)"
+                    :min="0"
+                    :max="2"
+                    :step="0.05"
+                    :min-fraction-digits="2"
+                    :max-fraction-digits="2"
+                    class="w-5 shrink-0"
+                    input-class="text-xs text-right p-1" />
                 </div>
               </div>
 
               <!-- Pending LoRAs (not yet saved to style) -->
-              <div v-if="pendingLoras.length" class="flex flex-col gap-2.5">
-                <div v-for="lora in pendingLoras" :key="lora.id" class="flex items-center gap-2.5 p-3.5 rounded-lg bg-blue-50 border border-blue-200">
+              <div v-if="pendingLoras.length" class="flex flex-col gap-2">
+                <div v-for="lora in pendingLoras" :key="lora.id" class="flex items-center gap-2 p-3 rounded-lg bg-blue-50 border border-blue-200">
                   <div class="flex items-center justify-center w-8 h-8 rounded-md bg-blue-100 shrink-0">
                     <Layers :size="16" class="text-blue-600" />
                   </div>
                   <div class="flex-1 min-w-0">
-                    <p class="text-[13px] font-semibold text-surface-800 truncate">{{ lora.name }}</p>
-                    <p class="text-[11px] text-surface-400 truncate">{{ lora.path }}</p>
+                    <p class="text-base font-semibold text-surface-800 truncate">{{ lora.name }}</p>
+                    <p class="text-sm text-surface-400 truncate">{{ lora.path }}</p>
                   </div>
                   <button class="text-surface-400 hover:text-red-500 transition-colors shrink-0" @click="removePendingLora(lora.id)">
                     <X :size="14" />
@@ -205,7 +208,7 @@
             <template v-if="stylesStore.editorExamples.length">
               <div v-for="example in parsedExamples" :key="example.id" class="rounded-lg border border-surface-300 overflow-hidden bg-white">
                 <!-- Image -->
-                <div v-if="example.imageDataUrl" class="h-32.5 overflow-hidden">
+                <div v-if="example.imageDataUrl" class="h-32 overflow-hidden">
                   <img :src="example.imageDataUrl" class="w-full h-full object-cover" />
                 </div>
                 <!-- Body -->
@@ -213,25 +216,25 @@
                   <p class="text-base font-medium text-surface-800 line-clamp-2">{{ example.prompt }}</p>
                   <div class="flex flex-wrap gap-1">
                     <!-- -->
-                    <div v-if="example.seed != null" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-surface-100">
+                    <div v-if="example.seed != null" class="inline-flex items-center gap-1 px-1 py-1 rounded bg-surface-100">
                       <div class="font-medium text-sm text-surface-400">Seed</div>
                       <div class="font-medium text-base font-mono text-surface-600">{{ example.seed }}</div>
                     </div>
 
                     <!-- -->
-                    <div v-if="example.width && example.height" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-surface-100">
+                    <div v-if="example.width && example.height" class="inline-flex items-center gap-1 px-1 py-1 rounded bg-surface-100">
                       <div class="font-medium text-sm text-surface-400">Size</div>
                       <div class="font-medium text-base font-mono text-surface-600">{{ example.width }}×{{ example.height }}</div>
                     </div>
 
                     <!-- -->
-                    <div v-if="example.steps != null" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-surface-100">
+                    <div v-if="example.steps != null" class="inline-flex items-center gap-1 px-1 py-1 rounded bg-surface-100">
                       <div class="font-medium text-sm text-surface-400">Steps</div>
                       <div class="font-medium text-base font-mono text-surface-600">{{ example.steps }}</div>
                     </div>
 
                     <!-- -->
-                    <div v-if="example.cfg_scale != null" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-surface-100">
+                    <div v-if="example.cfg_scale != null" class="inline-flex items-center gap-1 px-1 py-1 rounded bg-surface-100">
                       <div class="font-medium text-sm text-surface-400">CFG</div>
                       <div class="font-medium text-base font-mono text-surface-600">{{ example.cfg_scale }}</div>
                     </div>
@@ -246,7 +249,7 @@
               </div>
             </template>
 
-            <p v-else class="text-[10px] text-surface-400 text-center py-3">
+            <p v-else class="text-xs text-surface-400 text-center py-3">
               {{ isNew ? 'Save the style first to add examples' : 'No examples yet' }}
             </p>
           </div>
@@ -333,9 +336,10 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ArrowLeft, Save, X, Layers, Plus, ImagePlus, Play } from 'lucide-vue-next';
 import { useStylesStore } from '@/stores/styles';
+import { useInferenceStore } from '@/stores/inference';
 import { usePywebview } from '@/composables/usePywebview';
 import type { LoRA, Tag } from '@/types/inference';
-import { Button, Chip, Toolbar, Dialog, InputText } from 'primevue';
+import { Button, Chip, Toolbar, Dialog, InputText, InputNumber } from 'primevue';
 import TextEditor from '@/components/TextEditor.vue';
 
 const LORA_EXTENSIONS = ['.safetensors', '.ckpt', '.pt'];
@@ -345,6 +349,7 @@ const { api } = usePywebview();
 const route = useRoute();
 const router = useRouter();
 const stylesStore = useStylesStore();
+const inferenceStore = useInferenceStore();
 
 const isNew = computed(() => route.name === 'styles-new');
 const styleId = computed(() => route.params.id as string | undefined);
@@ -507,6 +512,16 @@ async function onTagEnter() {
   if (tag) {
     await addTag(tag);
   }
+}
+
+async function onLoraStrengthChange(lora: { lora_id: string; strength: number; priority: number }, val: number) {
+  if (!styleId.value) return;
+  const all = stylesStore.editorLoras.map((l) => ({
+    lora_id: l.lora_id,
+    strength: l.lora_id === lora.lora_id ? val : l.strength,
+    priority: l.priority,
+  }));
+  await stylesStore.saveStyleLoras(styleId.value, all);
 }
 
 function removePendingLora(loraId: string) {
@@ -700,7 +715,19 @@ watch(
 );
 
 function useExample(example: ParsedExample) {
-  form.value.promptTemplate = example.prompt;
+  // Apply this style to the Create page
+  inferenceStore.applyStyle(styleId.value!, form.value.promptTemplate, form.value.negativePrompt || null, stylesStore.editorLoras);
+
+  // Apply the example's generation parameters
+  const params: Record<string, any> = { prompt: example.prompt };
+  if (example.seed != null) params.seed = example.seed;
+  if (example.width != null) params.width = example.width;
+  if (example.height != null) params.height = example.height;
+  if (example.steps != null) params.steps = example.steps;
+  if (example.cfg_scale != null) params.cfg_scale = example.cfg_scale;
+  inferenceStore.applyParams(params);
+
+  router.push({ name: 'create' });
 }
 
 async function onBrowseExampleImage() {

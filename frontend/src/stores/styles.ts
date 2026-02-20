@@ -1,8 +1,6 @@
 import { defineStore } from 'pinia';
-import type { PywebviewAPI } from '@/types/pywebview';
+import { getApiAsync } from '@/bridge';
 import type { Style, StyleLoRA, StyleExample, LoRA, Tag } from '@/types/inference';
-
-let _api: PywebviewAPI | null = null;
 
 export const useStylesStore = defineStore('styles', {
   state: () => ({
@@ -18,6 +16,10 @@ export const useStylesStore = defineStore('styles', {
     searchQuery: '',
     favoritesOnly: false,
 
+    // Sort
+    sortBy: 'updated_at' as string,
+    sortOrder: 'asc' as 'asc' | 'desc',
+
     // Editor state
     editorStyle: null as Style | null,
     editorLoras: [] as StyleLoRA[],
@@ -28,19 +30,17 @@ export const useStylesStore = defineStore('styles', {
   getters: {},
 
   actions: {
-    setApi(apiRef: PywebviewAPI) {
-      _api = apiRef;
-    },
-
     async loadStyles(reset = true) {
-      if (!_api) return;
+      const api = await getApiAsync();
       this.loading = true;
       try {
-        const res = await _api.get_styles({
+        const res = await api.get_styles({
           category: this.currentCategory ?? undefined,
           tag_id: this.currentTagId ?? undefined,
           search: this.searchQuery || undefined,
           favorites_only: this.favoritesOnly,
+          sort_by: this.sortBy,
+          sort_order: this.sortOrder,
         });
 
         if (res.status === 'success') {
@@ -52,32 +52,32 @@ export const useStylesStore = defineStore('styles', {
     },
 
     async loadCategories() {
-      if (!_api) return;
-      const res = await _api.get_style_categories();
+      const api = await getApiAsync();
+      const res = await api.get_style_categories();
       if (res.status === 'success') {
         this.categories = res.categories ?? [];
       }
     },
 
     async loadTags() {
-      if (!_api) return;
-      const res = await _api.get_tags();
+      const api = await getApiAsync();
+      const res = await api.get_tags();
       if (res.status === 'success') {
         this.tags = (res.tags ?? []).filter(t => t.category === 'style');
       }
     },
 
     async loadLoras() {
-      if (!_api) return;
-      const res = await _api.get_loras();
+      const api = await getApiAsync();
+      const res = await api.get_loras();
       if (res.status === 'success') {
         this.loras = res.loras ?? [];
       }
     },
 
     async browseLoras(): Promise<LoRA[]> {
-      if (!_api) return [];
-      const res = await _api.browse_lora_files();
+      const api = await getApiAsync();
+      const res = await api.browse_lora_files();
       if (res.status === 'success' && res.loras?.length) {
         this.loras = [...this.loras, ...res.loras];
         return res.loras;
@@ -86,11 +86,12 @@ export const useStylesStore = defineStore('styles', {
     },
 
     async registerLoraPaths(paths: string[]): Promise<LoRA[]> {
-      if (!_api || !paths.length) return [];
+      if (!paths.length) return [];
+      const api = await getApiAsync();
       const created: LoRA[] = [];
       for (const path of paths) {
         const name = path.split('/').pop()?.replace(/\.[^.]+$/, '') || 'Unknown';
-        const res = await _api.create_lora({ id: crypto.randomUUID(), name, path });
+        const res = await api.create_lora({ id: crypto.randomUUID(), name, path });
         if (res.status === 'success' && res.lora) {
           created.push(res.lora);
         }
@@ -112,8 +113,8 @@ export const useStylesStore = defineStore('styles', {
       category?: string;
       thumbnailPath?: string;
     }) {
-      if (!_api) return;
-      const res = await _api.create_style({
+      const api = await getApiAsync();
+      const res = await api.create_style({
         id: data.id,
         name: data.name,
         prompt_template: data.promptTemplate,
@@ -130,8 +131,8 @@ export const useStylesStore = defineStore('styles', {
     },
 
     async updateStyle(styleId: string, data: Record<string, any>) {
-      if (!_api) return;
-      const res = await _api.update_style({ style_id: styleId, ...data });
+      const api = await getApiAsync();
+      const res = await api.update_style({ style_id: styleId, ...data });
       if (res.status === 'success') {
         await this.loadStyles();
         await this.loadCategories();
@@ -140,8 +141,8 @@ export const useStylesStore = defineStore('styles', {
     },
 
     async deleteStyle(styleId: string) {
-      if (!_api) return;
-      const res = await _api.delete_style({ style_id: styleId });
+      const api = await getApiAsync();
+      const res = await api.delete_style({ style_id: styleId });
       if (res.status === 'success') {
         this.styles = this.styles.filter(s => s.id !== styleId);
       }
@@ -149,8 +150,8 @@ export const useStylesStore = defineStore('styles', {
     },
 
     async toggleFavorite(styleId: string) {
-      if (!_api) return;
-      const res = await _api.toggle_style_favorite({ style_id: styleId });
+      const api = await getApiAsync();
+      const res = await api.toggle_style_favorite({ style_id: styleId });
       if (res.status === 'success' && res.style) {
         const idx = this.styles.findIndex(s => s.id === styleId);
         if (idx !== -1) {
@@ -162,8 +163,8 @@ export const useStylesStore = defineStore('styles', {
     // ── Editor ──
 
     async loadStyleForEditor(styleId: string) {
-      if (!_api) return;
-      const res = await _api.get_style({ style_id: styleId });
+      const api = await getApiAsync();
+      const res = await api.get_style({ style_id: styleId });
       if (res.status === 'success') {
         this.editorStyle = res.style ?? null;
         this.editorLoras = res.loras ?? [];
@@ -181,8 +182,8 @@ export const useStylesStore = defineStore('styles', {
     },
 
     async saveStyleLoras(styleId: string, loras: Array<{ lora_id: string; strength: number; priority?: number }>) {
-      if (!_api) return;
-      const res = await _api.set_style_loras({ style_id: styleId, loras });
+      const api = await getApiAsync();
+      const res = await api.set_style_loras({ style_id: styleId, loras });
       if (res.status === 'success') {
         this.editorLoras = res.loras ?? [];
       }
@@ -190,8 +191,8 @@ export const useStylesStore = defineStore('styles', {
     },
 
     async createTag(name: string): Promise<Tag | null> {
-      if (!_api) return null;
-      const res = await _api.create_tag({ name, category: 'style' });
+      const api = await getApiAsync();
+      const res = await api.create_tag({ name, category: 'style' });
       if (res.status === 'success' && res.tag) {
         this.tags.push(res.tag);
         return res.tag;
@@ -200,8 +201,8 @@ export const useStylesStore = defineStore('styles', {
     },
 
     async saveStyleTags(styleId: string, tagIds: number[]) {
-      if (!_api) return;
-      const res = await _api.set_style_tags({ style_id: styleId, tag_ids: tagIds });
+      const api = await getApiAsync();
+      const res = await api.set_style_tags({ style_id: styleId, tag_ids: tagIds });
       if (res.status === 'success') {
         this.editorTags = res.tags ?? [];
       }
@@ -219,8 +220,8 @@ export const useStylesStore = defineStore('styles', {
       steps?: number;
       cfgScale?: number;
     }) {
-      if (!_api) return;
-      const res = await _api.create_style_example({
+      const api = await getApiAsync();
+      const res = await api.create_style_example({
         style_id: styleId,
         prompt: data.prompt,
         image_path: data.imagePath,
@@ -237,8 +238,8 @@ export const useStylesStore = defineStore('styles', {
     },
 
     async removeExample(exampleId: string) {
-      if (!_api) return;
-      const res = await _api.delete_style_example({ example_id: exampleId });
+      const api = await getApiAsync();
+      const res = await api.delete_style_example({ example_id: exampleId });
       if (res.status === 'success') {
         this.editorExamples = this.editorExamples.filter(e => e.id !== exampleId);
       }
@@ -248,8 +249,8 @@ export const useStylesStore = defineStore('styles', {
     // ── Import ──
 
     async importCivitaiMetadata() {
-      if (!_api) return null;
-      const res = await _api.browse_and_import_metadata();
+      const api = await getApiAsync();
+      const res = await api.browse_and_import_metadata();
       if (res.status === 'success' && res.styles?.length) {
         await this.loadStyles();
         await this.loadCategories();
@@ -297,6 +298,19 @@ export const useStylesStore = defineStore('styles', {
       this.favoritesOnly = !this.favoritesOnly;
       this.currentCategory = null;
       this.currentTagId = null;
+      await this.loadStyles();
+    },
+
+    async setSort(sortBy: string, sortOrder?: 'asc' | 'desc') {
+      this.sortBy = sortBy;
+      if (sortOrder) {
+        this.sortOrder = sortOrder;
+      }
+      await this.loadStyles();
+    },
+
+    async toggleSortOrder() {
+      this.sortOrder = this.sortOrder === 'asc' ? 'desc' : 'asc';
       await this.loadStyles();
     },
   },

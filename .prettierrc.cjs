@@ -1,4 +1,5 @@
 // prettier.config.js, .prettierrc.js, prettier.config.mjs, or .prettierrc.mjs
+const path = require('path');
 
 /**
  * @see https://prettier.io/docs/en/configuration.html
@@ -26,6 +27,7 @@ const config = {
   embeddedLanguageFormatting: 'auto',
   vueIndentScriptAndStyle: false,
   experimentalTernaries: false,
+  plugins: [path.resolve(__dirname, 'frontend/node_modules/prettier-plugin-tailwindcss/dist/index.mjs')],
   overrides: [
     {
       files: '*.test.js',

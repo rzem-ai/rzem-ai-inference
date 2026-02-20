@@ -41,8 +41,7 @@ class LocalInferenceService:
         self._engine: InferenceEngine | None = None
         self._events: deque[FrontendEvent] = deque(maxlen=500)
         self._lock = threading.Lock()
-        self._output_dir = output_dir
-        self._output_dir.mkdir(parents=True, exist_ok=True)
+        self.set_output_dir(output_dir)
         self._db = db
         self._job_params: dict[str, JobParams] = {}  # job_id → params used
         self._job_start_times: dict[str, float] = {}  # job_id → monotonic start
@@ -51,6 +50,11 @@ class LocalInferenceService:
         self._job_raw_prompts: dict[str, str] = {}  # job_id → raw user prompt
         self._start_time: float | None = None  # monotonic time engine started
         self._completed_count: int = 0  # total jobs completed this session
+
+    def set_output_dir(self, output_dir: Path) -> None:
+        """Update the output directory, creating it if needed."""
+        self._output_dir = output_dir
+        self._output_dir.mkdir(parents=True, exist_ok=True)
 
     @property
     def ready(self) -> bool:
@@ -219,10 +223,11 @@ class LocalInferenceService:
                 data["width"] = params.width
                 data["height"] = params.height
 
-        # Persist completed images to the database
+        # Persist completed images to the database and clean up previews
         if event_type == EventType.JOB_COMPLETED and data.get("image_path"):
             self._completed_count += 1
             self._persist_image(data)
+            self._cleanup_previews(data.get("job_id", "unknown"))
 
         return FrontendEvent(type=event_type.value, data=data)
 
@@ -293,3 +298,12 @@ class LocalInferenceService:
             logger.info("Persisted image for job %s to database", job_id)
         except Exception:
             logger.exception("Failed to persist image for job %s", job_id)
+
+    def _cleanup_previews(self, job_id: str) -> None:
+        """Delete preview images for a completed job."""
+        try:
+            for preview in self._output_dir.glob(f"{job_id}_preview_*.png"):
+                preview.unlink()
+                logger.debug("Cleaned up preview: %s", preview.name)
+        except Exception:
+            logger.exception("Failed to clean up previews for job %s", job_id)

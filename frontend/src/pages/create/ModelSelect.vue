@@ -15,7 +15,7 @@
       <template #option="{ option }">
         <div class="flex items-center justify-between w-full gap-2">
           <div>{{ option.label }}</div>
-          <div class="flex items-center gap-1.5">
+          <div class="flex items-center gap-1">
             <Tag :severity="tierClass(option.tier)" class="uppercase">{{ option.tier }}</Tag>
             <Tag v-if="option.source === 'cloud'" severity="info">Cloud</Tag>
             <Tag v-else :severity="vramClass(option.vram_estimate_gb)">~{{ option.vram_estimate_gb }} GB</Tag>

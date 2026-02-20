@@ -22,7 +22,7 @@
         </div>
 
         <!-- Generate button (pinned at bottom) -->
-        <div v-if="$slots.footer" class="px-4 py-3 border-t border-slate-200 bg-surface-100 min-h-16">
+        <div v-if="$slots.footer" class="px-4 py-3 border-t border-slate-200 bg-surface-100 min-h-16 flex flex-col gap-2">
           <slot name="footer" />
         </div>
       </div>

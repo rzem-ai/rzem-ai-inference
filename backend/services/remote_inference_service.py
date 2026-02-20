@@ -35,8 +35,7 @@ class RemoteInferenceService:
         self._port = port
         self._base_url = f"http://{host}:{port}"
         self._ws_url = f"ws://{host}:{port}/ws"
-        self._output_dir = output_dir
-        self._output_dir.mkdir(parents=True, exist_ok=True)
+        self.set_output_dir(output_dir)
         self._db = db
 
         self._events: deque[FrontendEvent] = deque(maxlen=500)
@@ -53,6 +52,11 @@ class RemoteInferenceService:
         self._job_bundle_ids: dict[str, str] = {}
         self._job_style_ids: dict[str, str] = {}
         self._job_raw_prompts: dict[str, str] = {}
+
+    def set_output_dir(self, output_dir: Path) -> None:
+        """Update the output directory, creating it if needed."""
+        self._output_dir = output_dir
+        self._output_dir.mkdir(parents=True, exist_ok=True)
 
     @property
     def ready(self) -> bool:
@@ -240,6 +244,7 @@ class RemoteInferenceService:
                 data["image_path"] = image_path
                 self._completed_count += 1
                 self._persist_image(data)
+                self._cleanup_previews(job_id)
 
         self._emit(FrontendEvent(type="job_completed", data=data))
 
@@ -339,6 +344,15 @@ class RemoteInferenceService:
             logger.info("Persisted remote image for job %s to database", job_id)
         except Exception:
             logger.exception("Failed to persist remote image for job %s", job_id)
+
+    def _cleanup_previews(self, job_id: str) -> None:
+        """Delete preview images for a completed job."""
+        try:
+            for preview in self._output_dir.glob(f"{job_id}_preview_*.*"):
+                preview.unlink()
+                logger.debug("Cleaned up preview: %s", preview.name)
+        except Exception:
+            logger.exception("Failed to clean up previews for job %s", job_id)
 
     def _emit(self, event: FrontendEvent) -> None:
         """Append an event to the thread-safe buffer."""

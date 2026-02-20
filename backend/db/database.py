@@ -118,6 +118,8 @@ class Database:
             row = cursor.fetchone()
         return row if row else None
 
+    _IMAGE_SORT_COLUMNS = {"created_at", "file_size", "steps", "seed", "raw_prompt"}
+
     def get_images(
         self,
         *,
@@ -128,6 +130,8 @@ class Database:
         search: str | None = None,
         favorites_only: bool = False,
         status: str | None = None,
+        sort_by: str = "created_at",
+        sort_order: str = "desc",
     ) -> dict[str, Any]:
         """Return paginated images with total count.
 
@@ -161,6 +165,10 @@ class Database:
         join_sql = " ".join(joins)
         where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
 
+        col = sort_by if sort_by in self._IMAGE_SORT_COLUMNS else "created_at"
+        direction = "ASC" if sort_order.lower() == "asc" else "DESC"
+        order_expr = f"LOWER(images.{col})" if col == "raw_prompt" else f"images.{col}"
+
         with self._lock:
             # Total count
             count_sql = f"SELECT COUNT(DISTINCT images.id) FROM images {join_sql} {where_sql}"
@@ -172,7 +180,7 @@ class Database:
             # Paginated results
             query_sql = (
                 f"SELECT DISTINCT images.* FROM images {join_sql} {where_sql} "
-                f"ORDER BY images.created_at DESC LIMIT ? OFFSET ?"
+                f"ORDER BY {order_expr} {direction} LIMIT ? OFFSET ?"
             )
             cursor = self.conn.execute(query_sql, [*params, limit, offset])
             rows = cursor.fetchall()
@@ -425,6 +433,8 @@ class Database:
             row = cursor.fetchone()
         return row if row else None
 
+    _STYLE_SORT_COLUMNS = {"updated_at", "created_at", "name", "usage_count"}
+
     def get_styles(
         self,
         *,
@@ -432,6 +442,8 @@ class Database:
         tag_id: int | None = None,
         search: str | None = None,
         favorites_only: bool = False,
+        sort_by: str = "updated_at",
+        sort_order: str = "desc",
     ) -> list[dict[str, Any]]:
         where_clauses: list[str] = []
         params: list[Any] = []
@@ -456,10 +468,13 @@ class Database:
         join_sql = " ".join(joins)
         where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
 
+        col = sort_by if sort_by in self._STYLE_SORT_COLUMNS else "updated_at"
+        direction = "ASC" if sort_order.lower() == "asc" else "DESC"
+
         with self._lock:
             query_sql = (
                 f"SELECT DISTINCT styles.* FROM styles {join_sql} {where_sql} "
-                f"ORDER BY styles.updated_at DESC"
+                f"ORDER BY styles.{col} {direction}"
             )
             cursor = self.conn.execute(query_sql, params)
             return cursor.fetchall()

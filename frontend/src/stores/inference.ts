@@ -1,9 +1,8 @@
 import { defineStore } from 'pinia';
-import type { PywebviewAPI } from '@/types/pywebview';
+import { getApiAsync } from '@/bridge';
 import type { ModelBundle, SubmitJobParams, LoraParam, InferenceEvent, GeneratedImage, StyleLoRA } from '@/types/inference';
 
 // Non-reactive module-level state (no reactivity tracking needed)
-let _api: PywebviewAPI | null = null;
 let _pollTimer: ReturnType<typeof setInterval> | null = null;
 let _debugImages: { output: string | null; previews: Record<string, string> } | null = null;
 
@@ -33,13 +32,13 @@ export interface AspectRatio {
 }
 
 export const ASPECT_RATIOS: AspectRatio[] = [
-  { label: '1:2', width: 512, height: 1024 },
-  { label: '9:16', width: 576, height: 1024 },
-  { label: '3:4', width: 768, height: 1024 },
+  { label: '9:21', width: 672, height: 1568 },
+  { label: '9:16', width: 768, height: 1376 },
+  { label: '3:4', width: 896, height: 1184 },
   { label: '1:1', width: 1024, height: 1024 },
-  { label: '4:3', width: 1024, height: 768 },
-  { label: '16:9', width: 1024, height: 576 },
-  { label: '2:1', width: 1024, height: 512 },
+  { label: '4:3', width: 1184, height: 896 },
+  { label: '16:9', width: 1376, height: 768 },
+  { label: '21:9', width: 1568, height: 672 },
 ];
 
 export const useInferenceStore = defineStore('inference', {
@@ -142,14 +141,10 @@ export const useInferenceStore = defineStore('inference', {
   },
 
   actions: {
-    setApi(apiRef: PywebviewAPI) {
-      _api = apiRef;
-    },
-
     async loadGpuInfo() {
-      if (!_api) return;
+      const api = await getApiAsync();
       try {
-        const res = await _api.get_gpu_info();
+        const res = await api.get_gpu_info();
         if (res.status === 'success') {
           this.gpuDeviceType = res.device_type ?? null;
           this.gpuDeviceName = res.device_name ?? null;
@@ -161,11 +156,12 @@ export const useInferenceStore = defineStore('inference', {
     },
 
     async startEngine() {
-      if (!_api || this.engineStarting) return;
+      if (this.engineStarting) return;
       this.engineStarting = true;
       this.error = null;
+      const api = await getApiAsync();
       try {
-        const res = await _api.start_engine();
+        const res = await api.start_engine();
         if (res.status === 'error') {
           this.error = res.message ?? 'Failed to start engine';
           return;
@@ -180,10 +176,10 @@ export const useInferenceStore = defineStore('inference', {
     },
 
     async stopEngine() {
-      if (!_api) return;
+      const api = await getApiAsync();
       this.stopPolling();
       try {
-        await _api.stop_engine();
+        await api.stop_engine();
       } finally {
         this.engineReady = false;
         this.modelStatus = null;
@@ -191,8 +187,8 @@ export const useInferenceStore = defineStore('inference', {
     },
 
     async loadBundles() {
-      if (!_api) return;
-      const res = await _api.get_bundles();
+      const api = await getApiAsync();
+      const res = await api.get_bundles();
       if (res.status === 'success' && res.bundles) {
         this.bundles = res.bundles;
       }
@@ -218,7 +214,7 @@ export const useInferenceStore = defineStore('inference', {
     },
 
     async submitJob() {
-      if (!_api || !this.engineReady || this.isGenerating) return;
+      if (!this.engineReady || this.isGenerating) return;
       if (!this.params.prompt.trim()) {
         this.error = 'Prompt is required';
         return;
@@ -227,6 +223,7 @@ export const useInferenceStore = defineStore('inference', {
       this.isGenerating = true;
       this.progress = null;
 
+      const api = await getApiAsync();
       const jobParams: Record<string, any> = { ...this.params };
       if (this.selectedBundleId) {
         jobParams.bundle_id = this.selectedBundleId;
@@ -249,7 +246,7 @@ export const useInferenceStore = defineStore('inference', {
         }
       }
 
-      const res = await _api.submit_job(jobParams);
+      const res = await api.submit_job(jobParams);
       if (res.status === 'error') {
         this.error = res.message ?? 'Failed to submit job';
         this.isGenerating = false;
@@ -267,11 +264,12 @@ export const useInferenceStore = defineStore('inference', {
     },
 
     async cancelJob() {
-      if (!_api || !this.currentJobId) return;
+      if (!this.currentJobId) return;
       if (this.batchActive) {
         return this.cancelBatch();
       }
-      await _api.cancel_job({ job_id: this.currentJobId });
+      const api = await getApiAsync();
+      await api.cancel_job({ job_id: this.currentJobId });
       this.isGenerating = false;
       this.currentJobId = null;
       this.progress = null;
@@ -280,7 +278,7 @@ export const useInferenceStore = defineStore('inference', {
     // ── Batch ──
 
     async submitBatch(prompts: string[]) {
-      if (!_api || !this.engineReady || this.isGenerating) return;
+      if (!this.engineReady || this.isGenerating) return;
       if (!prompts.length) return;
 
       this.error = null;
@@ -289,6 +287,7 @@ export const useInferenceStore = defineStore('inference', {
       this.batchCompleted = 0;
       this.batchJobIds = [];
       this.isGenerating = true;
+      const api = await getApiAsync();
 
       // Freeze seed: use current seed or generate a random one
       const frozenSeed = this.params.seed >= 0 ? this.params.seed : Math.floor(Math.random() * 2147483647);
@@ -315,7 +314,7 @@ export const useInferenceStore = defineStore('inference', {
           }
         }
 
-        const res = await _api.submit_job(jobParams);
+        const res = await api.submit_job(jobParams);
         if (res.status === 'success' && res.job_id) {
           this.batchJobIds.push(res.job_id);
         }
@@ -323,9 +322,9 @@ export const useInferenceStore = defineStore('inference', {
     },
 
     async cancelBatch() {
-      if (!_api) return;
+      const api = await getApiAsync();
       for (const jobId of this.batchJobIds) {
-        await _api.cancel_job({ job_id: jobId });
+        await api.cancel_job({ job_id: jobId });
       }
       this.batchActive = false;
       this.batchJobIds = [];
@@ -425,9 +424,9 @@ export const useInferenceStore = defineStore('inference', {
     },
 
     async pollEvents() {
-      if (!_api) return;
+      const api = await getApiAsync();
       try {
-        const res = await _api.poll_events();
+        const res = await api.poll_events();
         if (res.status === 'success' && res.events?.length) {
           await this.processEvents(res.events);
         }
@@ -560,8 +559,9 @@ export const useInferenceStore = defineStore('inference', {
     },
 
     async loadCompletedImage(img: GeneratedImage) {
-      if (!img.imagePath || !_api) return;
-      const res = await _api.get_image_base64({ image_path: img.imagePath });
+      if (!img.imagePath) return;
+      const api = await getApiAsync();
+      const res = await api.get_image_base64({ image_path: img.imagePath });
       if (res.status === 'success' && res.data_url) {
         img.dataUrl = res.data_url;
       }
@@ -579,8 +579,9 @@ export const useInferenceStore = defineStore('inference', {
       }
 
       // Lazily fetch debug image paths from the backend
-      if (!_debugImages && _api) {
-        const res = await _api.get_debug_images();
+      if (!_debugImages) {
+        const api = await getApiAsync();
+        const res = await api.get_debug_images();
         if (res.status === 'success') {
           _debugImages = {
             output: res.output ?? null,
@@ -657,8 +658,8 @@ export const useInferenceStore = defineStore('inference', {
     },
 
     async loadImageDataUrl(imagePath: string) {
-      if (!_api) return;
-      const res = await _api.get_image_base64({ image_path: imagePath });
+      const api = await getApiAsync();
+      const res = await api.get_image_base64({ image_path: imagePath });
       if (res.status === 'success' && res.data_url) {
         this.previewDataUrl = res.data_url;
       }

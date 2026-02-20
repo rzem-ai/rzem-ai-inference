@@ -67,6 +67,13 @@ class InferenceServiceManager:
         self._mode = "remote"
         logger.info("Switched to remote mode: %s:%d", host, port)
 
+    def set_output_dir(self, output_dir: Path) -> None:
+        """Update the output directory for all services."""
+        self._output_dir = output_dir
+        self._local.set_output_dir(output_dir)
+        if self._remote is not None:
+            self._remote.set_output_dir(output_dir)
+
     def disconnect_remote(self) -> None:
         """Shut down the remote service and revert to local."""
         if self._remote is not None:

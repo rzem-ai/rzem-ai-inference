@@ -1,8 +1,6 @@
 import { defineStore } from 'pinia';
-import type { PywebviewAPI } from '@/types/pywebview';
+import { getApiAsync } from '@/bridge';
 import type { VramUsage, EngineStatus, CachedModel, DataPaths, DiskUsage, GpuInfo, RemoteEngineInfo } from '@/types/inference';
-
-let _api: PywebviewAPI | null = null;
 
 export const useSettingsStore = defineStore('settings', {
   state: () => ({
@@ -70,15 +68,11 @@ export const useSettingsStore = defineStore('settings', {
   },
 
   actions: {
-    setApi(apiRef: PywebviewAPI) {
-      _api = apiRef;
-    },
-
     // ── Inference Engine ──
 
     async loadGpuInfo() {
-      if (!_api) return;
-      const res = await _api.get_gpu_info();
+      const api = await getApiAsync();
+      const res = await api.get_gpu_info();
       if (res.status === 'success') {
         this.gpuInfo = {
           device_type: res.device_type ?? 'cpu',
@@ -89,16 +83,16 @@ export const useSettingsStore = defineStore('settings', {
     },
 
     async loadCudaVersion() {
-      if (!_api) return;
-      const res = await _api.get_cuda_version();
+      const api = await getApiAsync();
+      const res = await api.get_cuda_version();
       if (res.status === 'success') {
         this.cudaVersion = res.cuda_version ?? null;
       }
     },
 
     async loadVramUsage() {
-      if (!_api) return;
-      const res = await _api.get_vram_usage();
+      const api = await getApiAsync();
+      const res = await api.get_vram_usage();
       if (res.status === 'success' && res.available) {
         this.vramUsage = {
           available: true,
@@ -111,8 +105,8 @@ export const useSettingsStore = defineStore('settings', {
     },
 
     async loadEngineStatus() {
-      if (!_api) return;
-      const res = await _api.get_engine_status();
+      const api = await getApiAsync();
+      const res = await api.get_engine_status();
       if (res.status === 'success') {
         this.engineStatus = {
           ready: res.ready ?? false,
@@ -132,22 +126,22 @@ export const useSettingsStore = defineStore('settings', {
     },
 
     async loadConnectionMode() {
-      if (!_api) return;
-      const res = await _api.get_connection_mode();
+      const api = await getApiAsync();
+      const res = await api.get_connection_mode();
       if (res.status === 'success') {
         this.connectionMode = res.mode ?? 'local';
       }
     },
 
     async clearVramCache() {
-      if (!_api) return;
-      await _api.clear_vram_cache();
+      const api = await getApiAsync();
+      await api.clear_vram_cache();
       await this.loadVramUsage();
     },
 
     async resetEngine() {
-      if (!_api) return;
-      await _api.reset_engine();
+      const api = await getApiAsync();
+      await api.reset_engine();
       await this.loadEngineStatus();
       await this.loadVramUsage();
     },
@@ -155,24 +149,24 @@ export const useSettingsStore = defineStore('settings', {
     // ── API Keys ──
 
     async loadApiKey(key: string) {
-      if (!_api) return;
-      const res = await _api.get_setting({ key });
+      const api = await getApiAsync();
+      const res = await api.get_setting({ key });
       if (res.status === 'success') {
         this.apiKeys[key] = res.value ?? null;
       }
     },
 
     async saveApiKey(key: string, value: string) {
-      if (!_api) return;
-      const res = await _api.set_setting({ key, value });
+      const api = await getApiAsync();
+      const res = await api.set_setting({ key, value });
       if (res.status === 'success') {
         this.apiKeys[key] = value;
       }
     },
 
     async deleteApiKey(key: string) {
-      if (!_api) return;
-      const res = await _api.set_setting({ key, value: '' });
+      const api = await getApiAsync();
+      const res = await api.set_setting({ key, value: '' });
       if (res.status === 'success') {
         this.apiKeys[key] = null;
       }
@@ -181,28 +175,28 @@ export const useSettingsStore = defineStore('settings', {
     // ── Generation / Preview ──
 
     async loadPreviewSettings() {
-      if (!_api) return;
-      const intervalRes = await _api.get_setting({ key: 'PREVIEW_INTERVAL' });
+      const api = await getApiAsync();
+      const intervalRes = await api.get_setting({ key: 'PREVIEW_INTERVAL' });
       if (intervalRes.status === 'success' && intervalRes.value) {
         this.previewInterval = parseInt(intervalRes.value, 10) || 5;
       }
-      const sizeRes = await _api.get_setting({ key: 'PREVIEW_MAX_SIZE' });
+      const sizeRes = await api.get_setting({ key: 'PREVIEW_MAX_SIZE' });
       if (sizeRes.status === 'success' && sizeRes.value) {
         this.previewMaxSize = parseInt(sizeRes.value, 10) || 256;
       }
     },
 
     async savePreviewInterval(value: number) {
-      if (!_api) return;
-      const res = await _api.set_setting({ key: 'PREVIEW_INTERVAL', value: String(value) });
+      const api = await getApiAsync();
+      const res = await api.set_setting({ key: 'PREVIEW_INTERVAL', value: String(value) });
       if (res.status === 'success') {
         this.previewInterval = value;
       }
     },
 
     async savePreviewMaxSize(value: number) {
-      if (!_api) return;
-      const res = await _api.set_setting({ key: 'PREVIEW_MAX_SIZE', value: String(value) });
+      const api = await getApiAsync();
+      const res = await api.set_setting({ key: 'PREVIEW_MAX_SIZE', value: String(value) });
       if (res.status === 'success') {
         this.previewMaxSize = value;
       }
@@ -211,14 +205,14 @@ export const useSettingsStore = defineStore('settings', {
     // ── AI Prompts ──
 
     async loadAiPrompts() {
-      if (!_api) return;
+      const api = await getApiAsync();
       const keys = ['style', 'both', 'subject'] as const;
       for (const key of keys) {
-        const promptRes = await _api.get_setting({ key: `AI_PROMPT_${key.toUpperCase()}` });
+        const promptRes = await api.get_setting({ key: `AI_PROMPT_${key.toUpperCase()}` });
         if (promptRes.status === 'success' && promptRes.value) {
           this.aiPrompts[key].prompt = promptRes.value;
         }
-        const displayRes = await _api.get_setting({ key: `AI_DISPLAY_${key.toUpperCase()}` });
+        const displayRes = await api.get_setting({ key: `AI_DISPLAY_${key.toUpperCase()}` });
         if (displayRes.status === 'success' && displayRes.value) {
           this.aiPrompts[key].displayText = displayRes.value;
         }
@@ -226,16 +220,16 @@ export const useSettingsStore = defineStore('settings', {
     },
 
     async saveAiPrompt(key: string, prompt: string) {
-      if (!_api) return;
-      const res = await _api.set_setting({ key: `AI_PROMPT_${key.toUpperCase()}`, value: prompt });
+      const api = await getApiAsync();
+      const res = await api.set_setting({ key: `AI_PROMPT_${key.toUpperCase()}`, value: prompt });
       if (res.status === 'success') {
         this.aiPrompts[key].prompt = prompt;
       }
     },
 
     async saveAiDisplayText(key: string, displayText: string) {
-      if (!_api) return;
-      const res = await _api.set_setting({ key: `AI_DISPLAY_${key.toUpperCase()}`, value: displayText });
+      const api = await getApiAsync();
+      const res = await api.set_setting({ key: `AI_DISPLAY_${key.toUpperCase()}`, value: displayText });
       if (res.status === 'success') {
         this.aiPrompts[key].displayText = displayText;
       }
@@ -244,8 +238,8 @@ export const useSettingsStore = defineStore('settings', {
     // ── Model Cache ──
 
     async loadDataPaths() {
-      if (!_api) return;
-      const res = await _api.get_data_paths();
+      const api = await getApiAsync();
+      const res = await api.get_data_paths();
       if (res.status === 'success') {
         this.dataPaths = {
           data_dir: res.data_dir ?? '',
@@ -255,9 +249,20 @@ export const useSettingsStore = defineStore('settings', {
       }
     },
 
+    async browseOutputDirectory() {
+      const api = await getApiAsync();
+      const res = await api.browse_output_directory();
+      if (res.status === 'success' && res.changed && res.output_dir) {
+        if (this.dataPaths) {
+          this.dataPaths.output_dir = res.output_dir;
+        }
+      }
+      return res;
+    },
+
     async loadCacheInfo() {
-      if (!_api) return;
-      const res = await _api.get_cache_info();
+      const api = await getApiAsync();
+      const res = await api.get_cache_info();
       if (res.status === 'success') {
         this.cachedModels = res.models ?? [];
         this.cacheTotalSize = res.total_size ?? 0;
@@ -265,8 +270,8 @@ export const useSettingsStore = defineStore('settings', {
     },
 
     async deleteCachedModel(repoId: string) {
-      if (!_api) return;
-      const res = await _api.delete_cached_model({ repo_id: repoId });
+      const api = await getApiAsync();
+      const res = await api.delete_cached_model({ repo_id: repoId });
       if (res.status === 'success') {
         this.cachedModels = this.cachedModels.filter(m => m.repo_id !== repoId);
         await this.loadCacheInfo();
@@ -274,8 +279,8 @@ export const useSettingsStore = defineStore('settings', {
     },
 
     async loadDiskUsage() {
-      if (!_api) return;
-      const res = await _api.get_disk_usage();
+      const api = await getApiAsync();
+      const res = await api.get_disk_usage();
       if (res.status === 'success') {
         this.diskUsage = {
           output_size: res.output_size ?? 0,
