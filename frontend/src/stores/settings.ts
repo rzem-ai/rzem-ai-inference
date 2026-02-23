@@ -27,6 +27,9 @@ export const useSettingsStore = defineStore('settings', {
     previewInterval: 5,
     previewMaxSize: 256,
 
+    // Claude Model
+    claudeModel: 'claude-sonnet-4-6' as string,
+
     // AI Prompts
     aiPrompts: {
       style: {
@@ -232,6 +235,24 @@ export const useSettingsStore = defineStore('settings', {
       const res = await api.set_setting({ key: `AI_DISPLAY_${key.toUpperCase()}`, value: displayText });
       if (res.status === 'success') {
         this.aiPrompts[key].displayText = displayText;
+      }
+    },
+
+    // ── Claude Model ──
+
+    async loadClaudeModel() {
+      const api = await getApiAsync();
+      const res = await api.get_setting({ key: 'CLAUDE_MODEL' });
+      if (res.status === 'success' && res.value) {
+        this.claudeModel = res.value;
+      }
+    },
+
+    async saveClaudeModel(model: string) {
+      const api = await getApiAsync();
+      const res = await api.set_setting({ key: 'CLAUDE_MODEL', value: model });
+      if (res.status === 'success') {
+        this.claudeModel = model;
       }
     },
 

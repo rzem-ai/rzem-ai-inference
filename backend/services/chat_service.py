@@ -17,7 +17,7 @@ from backend.db.database import Database
 
 logger = logging.getLogger(__name__)
 
-CLAUDE_MODEL = "claude-sonnet-4-20250514"
+DEFAULT_CLAUDE_MODEL = "claude-sonnet-4-6"
 
 TOOLS = [
     {
@@ -151,6 +151,11 @@ class ChatService:
         with self._lock:
             self._events.append(ChatEvent(type=event_type, data=data))
 
+    def _get_model(self) -> str:
+        """Read the configured Claude model from settings, falling back to default."""
+        model = self._db.get_setting("CLAUDE_MODEL")
+        return model if model else DEFAULT_CLAUDE_MODEL
+
     def _stream_response(
         self,
         conversation_id: str,
@@ -164,8 +169,9 @@ class ChatService:
         try:
             system_prompt = _build_system_prompt(generation_context)
             messages = self._build_messages(conversation_id)
+            model = self._get_model()
 
-            self._tool_use_loop(conversation_id, system_prompt, messages)
+            self._tool_use_loop(conversation_id, system_prompt, messages, model)
 
         except Exception as e:
             logger.exception("Chat stream error for conversation %s", conversation_id)
@@ -176,6 +182,7 @@ class ChatService:
         conversation_id: str,
         system_prompt: str,
         messages: list[dict[str, Any]],
+        model: str,
     ) -> None:
         """Stream Claude response, handle tool calls, repeat until text-only."""
         while True:
@@ -183,7 +190,7 @@ class ChatService:
             tool_uses: list[dict[str, Any]] = []
 
             with self._client.messages.stream(
-                model=CLAUDE_MODEL,
+                model=model,
                 max_tokens=1024,
                 system=system_prompt,
                 messages=messages,

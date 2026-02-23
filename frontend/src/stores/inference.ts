@@ -135,6 +135,7 @@ export const useInferenceStore = defineStore('inference', {
       }
       return Array.from(groups.entries()).map(([type, items]) => ({
         label: typeLabels[type] ?? type,
+        type: type,
         items,
       }));
     },

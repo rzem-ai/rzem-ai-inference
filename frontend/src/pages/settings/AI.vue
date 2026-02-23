@@ -7,6 +7,25 @@
       </div>
     </div>
 
+    <Card>
+      <template #title>
+        <div class="flex items-center gap-2">
+          <Cpu :size="16" class="text-blue-500" />
+          Claude Model
+        </div>
+      </template>
+      <template #content>
+        <p class="text-muted-color mb-3">Select the Claude model used by the AI assistant for chat, prompt enhancement, and image analysis.</p>
+        <Select
+          v-model="localModel"
+          :options="modelOptions"
+          option-label="label"
+          option-value="value"
+          class="w-full"
+          @change="saveModel" />
+      </template>
+    </Card>
+
     <Message severity="secondary" :closable="false">
       <template #messageicon><Info :size="16" /></template>
       <div class="text-sm leading-relaxed">
@@ -52,12 +71,24 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, onMounted } from 'vue';
-import { Paintbrush, Layers, Box, Info } from 'lucide-vue-next';
-import { Card, InputText, Message, Textarea } from 'primevue';
+import { ref, reactive, onMounted } from 'vue';
+import { Paintbrush, Layers, Box, Info, Cpu } from 'lucide-vue-next';
+import { Card, InputText, Message, Select, Textarea } from 'primevue';
 import { useSettingsStore } from '@/stores/settings';
 
 const settingsStore = useSettingsStore();
+
+const modelOptions = [
+  { label: 'Claude Haiku 4.6 — Fast, low cost', value: 'claude-haiku-4-5-20251001' },
+  { label: 'Claude Sonnet 4.6 — Balanced (default)', value: 'claude-sonnet-4-6' },
+  { label: 'Claude Opus 4.6 — Most capable', value: 'claude-opus-4-6' },
+];
+
+const localModel = ref('claude-sonnet-4-6');
+
+async function saveModel() {
+  await settingsStore.saveClaudeModel(localModel.value);
+}
 
 const promptEntries = [
   { key: 'style', label: 'Style', icon: Paintbrush, iconClass: 'text-purple-500' },
@@ -87,6 +118,8 @@ async function saveDisplayText(key: string) {
 }
 
 onMounted(async () => {
+  await settingsStore.loadClaudeModel();
+  localModel.value = settingsStore.claudeModel;
   await settingsStore.loadAiPrompts();
   syncFromStore();
 });

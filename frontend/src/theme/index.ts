@@ -147,11 +147,11 @@ export const semantic: GlassBaseTokenSections.Semantic = {
       padding: '0.5rem 1rem 0.25rem 1rem',
     },
     option: {
-      padding: '0.5rem 0.75rem',
+      padding: '0.25rem 1.0rem',
       borderRadius: '{border.radius.sm}',
     },
     optionGroup: {
-      padding: '0.5rem 0.75rem',
+      padding: '0.5rem 0.15rem',
       fontWeight: '600',
     },
   },

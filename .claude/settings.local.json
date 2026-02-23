@@ -4,7 +4,8 @@
       "Bash",
       "mcp__plugin_playwright_playwright__browser_wait_for",
       "mcp__plugin_github_github__search_repositories",
-      "mcp__plugin_github_github__get_me"
+      "mcp__plugin_github_github__get_me",
+      "mcp__primevue__get_component_import"
     ]
   },
   "outputStyle": "Explanatory",

@@ -66,7 +66,6 @@
         </div>
       </div>
     </template>
-    <template #footer></template>
   </MenuPanel>
 </template>
 

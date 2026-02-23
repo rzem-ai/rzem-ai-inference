@@ -12,9 +12,16 @@
       placeholder="Select model bundle"
       fluid
       @change="onBundleChange">
+      <template #optiongroup="slotProps">
+        <div class="flex items-center gap-2">
+          <Cloud v-if="slotProps.option.type === 'fal_cloud'" :size="14" stroke-width="2" class="text-primary" />
+          <Gpu v-else :size="14" stroke-width="2" class="text-primary" />
+          <div class="text-base font-semibold">{{ slotProps.option.label }}</div>
+        </div>
+      </template>
       <template #option="{ option }">
-        <div class="flex items-center justify-between w-full gap-2">
-          <div>{{ option.label }}</div>
+        <div class="flex w-full items-center justify-between gap-2">
+          <div class="text-base font-medium">{{ option.label }}</div>
           <div class="flex items-center gap-1">
             <Tag :severity="tierClass(option.tier)" class="uppercase">{{ option.tier }}</Tag>
             <Tag v-if="option.source === 'cloud'" severity="info">Cloud</Tag>
@@ -23,21 +30,21 @@
         </div>
       </template>
       <template #value="{ value, placeholder }">
-        <div v-if="store.selectedBundle" class="flex items-center gap-2 w-full">
-          <Cloud v-if="store.selectedBundle.source === 'cloud'" :size="14" class="text-cyan-500 shrink-0" />
-          <Brain v-else :size="14" class="text-blue-500 shrink-0" />
-          <div class="truncate grow">{{ store.selectedBundle.label }}</div>
+        <div v-if="store.selectedBundle" class="flex w-full items-center gap-2">
+          <Cloud v-if="store.selectedBundle.source === 'fal_cloud'" :size="14" stroke-width="2" class="text-primary" />
+          <Gpu v-else :size="14" stroke-width="2" class="text-primary" />
+          <div class="grow truncate text-base font-medium">{{ store.selectedBundle.label }}</div>
           <Tag v-if="store.selectedBundle.source === 'cloud'" severity="info">Cloud</Tag>
           <Tag v-else :severity="vramClass(store.selectedBundle.vram_estimate_gb)">~{{ store.selectedBundle.vram_estimate_gb }} GB</Tag>
         </div>
-        <div v-else class="text-slate-400 text-xs">{{ placeholder }}</div>
+        <div v-else class="text-base font-medium text-slate-400">{{ placeholder }}BB</div>
       </template>
     </Select>
   </div>
 </template>
 
 <script setup lang="ts">
-import { Brain, Cloud } from 'lucide-vue-next';
+import { Brain, Cloud, Gpu } from 'lucide-vue-next';
 import { Select, Tag } from 'primevue';
 import { useInferenceStore } from '@/stores/inference';
 

@@ -37,7 +37,7 @@ const editor = useEditor({
   content: model.value || '',
   editorProps: {
     attributes: {
-      class: 'focus:outline-none min-h-15 max-h-20 overflow-y-auto text-lg overscroll-contain',
+      class: 'focus:outline-none min-h-30 max-h-40 overflow-y-auto text-lg overscroll-contain',
     },
   },
   onUpdate: ({ editor: e }) => {
