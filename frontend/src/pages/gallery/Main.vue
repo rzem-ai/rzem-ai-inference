@@ -114,37 +114,13 @@
     </Toolbar>
 
     <!-- Image grid area -->
-    <div class="flex-1 min-h-0 overflow-y-auto rounded-xl" ref="scrollRef">
-      <!-- Empty state -->
-      <div v-if="!gallery.loading && gallery.images.length === 0" class="h-full flex items-center justify-center">
-        <div class="text-center">
-          <ImageIcon :size="48" class="text-slate-300 mx-auto mb-3" />
-          <p class="text-sm text-slate-400">No images yet</p>
-          <p class="text-xs text-slate-300 mt-1">Generate images on the Create page to see them here</p>
-        </div>
-      </div>
-
-      <!-- Grid view -->
-      <div v-else class="grid gap-3 p-1" :class="isGridMode ? 'grid-cols-6' : 'grid-cols-1'">
-        <GalleryCard
-          v-for="image in gallery.images"
-          :key="image.id"
-          :image="image"
-          :selected="selectedIds.has(image.id)"
-          @click="onCardClick"
-          @favorite="onToggleFavorite"
-          @open-detail="detailVisible = true"
-          @select="onToggleSelect" />
-      </div>
-
-      <!-- Infinite scroll trigger -->
-      <div ref="loadMoreRef" class="h-10" />
-
-      <!-- Loading spinner -->
-      <div v-if="gallery.loading" class="flex justify-center py-4">
-        <div class="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-      </div>
-    </div>
+    <GalleryList
+      :is-grid-mode="isGridMode"
+      :selected-ids="selectedIds"
+      @card-click="onCardClick"
+      @favorite="onToggleFavorite"
+      @open-detail="detailVisible = true"
+      @select="onToggleSelect" />
 
     <!-- Image overlay (full-screen lightbox) -->
     <ImageOverlay
@@ -165,7 +141,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, reactive, onMounted, onUnmounted, watch } from 'vue';
+import { computed, ref, reactive, onMounted, watch } from 'vue';
 import {
   Download,
   FolderInput,
@@ -180,13 +156,12 @@ import {
   Search,
   Plus,
   List as ListIcon,
-  Image as ImageIcon,
   ListTodo,
 } from 'lucide-vue-next';
 
 import { useGalleryStore } from '@/stores/gallery';
 import type { GalleryImage } from '@/types/inference';
-import GalleryCard from './GalleryCard.vue';
+import GalleryList from './GalleryList.vue';
 import ImageOverlay from './ImageOverlay.vue';
 import ImageDetailDialog from './ImageDetailDialog.vue';
 import FolderPopover from './FolderPopover.vue';
@@ -225,10 +200,6 @@ const currentSortLabel = computed(() =>
 const selectedImage = ref<GalleryImage | null>(null);
 const overlayVisible = ref(false);
 const detailVisible = ref(false);
-
-const scrollRef = ref<HTMLElement>();
-const loadMoreRef = ref<HTMLElement>();
-let loadMoreObserver: IntersectionObserver | null = null;
 
 const isGridMode = computed(() => viewMode.value.value === GRID_VIEW.value);
 
@@ -328,20 +299,7 @@ function onCreateFolder() {
 // Initialize gallery store (idempotent -- safe if Menu.vue already called it)
 onMounted(() => {
   gallery.init();
-
-  // Infinite scroll: load more when the sentinel enters viewport
-  loadMoreObserver = new IntersectionObserver(
-    ([entry]) => {
-      if (entry.isIntersecting && gallery.hasMore && !gallery.loading) {
-        gallery.loadMore();
-      }
-    },
-    { root: scrollRef.value, rootMargin: '200px' },
-  );
-  if (loadMoreRef.value) loadMoreObserver.observe(loadMoreRef.value);
 });
-
-onUnmounted(() => loadMoreObserver?.disconnect());
 </script>
 
 <style scoped>
