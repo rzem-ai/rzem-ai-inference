@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { getApiAsync } from '@/bridge';
 import type { ModelBundle, SubmitJobParams, LoraParam, InferenceEvent, GeneratedImage, StyleLoRA } from '@/types/inference';
+import { useGalleryStore } from '@/stores/gallery';
 
 // Non-reactive module-level state (no reactivity tracking needed)
 let _pollTimer: ReturnType<typeof setInterval> | null = null;
@@ -506,6 +507,8 @@ export const useInferenceStore = defineStore('inference', {
             await this.loadCompletedImage(img);
             this.generatedImages.unshift(img);
             this.selectedImageIndex = 0;
+
+            useGalleryStore().loadImages();
 
             if (this.batchActive) {
               this.batchCompleted++;

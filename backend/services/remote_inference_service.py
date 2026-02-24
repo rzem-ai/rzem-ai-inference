@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import io
 import json
 import logging
 import os
@@ -10,8 +11,11 @@ import threading
 import time
 import uuid
 from collections import deque
+from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+from PIL import Image
 
 import requests
 import websocket
@@ -239,30 +243,47 @@ class RemoteInferenceService:
         image_url = data.pop("image_url", None)
 
         if image_url:
-            image_path = self._download_image(job_id, image_url)
+            image_path, cover_path = self._download_image(job_id, image_url)
             if image_path:
                 data["image_path"] = image_path
+                if cover_path:
+                    data["cover_path"] = cover_path
                 self._completed_count += 1
                 self._persist_image(data)
                 self._cleanup_previews(job_id)
 
         self._emit(FrontendEvent(type="job_completed", data=data))
 
-    def _download_image(self, job_id: str, image_url: str) -> str | None:
+    def _download_image(self, job_id: str, image_url: str) -> tuple[str, str | None] | tuple[None, None]:
         """Download the completed image from the server."""
         try:
             url = f"{self._base_url}{image_url}"
             resp = requests.get(url, timeout=60)
             resp.raise_for_status()
-
-            filename = f"{job_id}_output.png"
-            path = self._output_dir / filename
-            path.write_bytes(resp.content)
-            logger.info("Downloaded image for job %s to %s", job_id, path)
-            return str(path)
+            return self._save_output_image(resp.content, job_id)
         except Exception:
             logger.exception("Failed to download image for job %s", job_id)
-            return None
+            return None, None
+
+    def _save_output_image(self, image_bytes: bytes, job_id: str) -> tuple[str, str | None]:
+        """Save image bytes as a timestamped PNG and a half-res WebP cover."""
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+        png_path = self._output_dir / f"{timestamp}_{job_id}.png"
+        png_path.write_bytes(image_bytes)
+
+        cover_path: str | None = None
+        try:
+            img = Image.open(io.BytesIO(image_bytes))
+            cover = img.resize((img.width // 2, img.height // 2), Image.LANCZOS)
+            webp_path = self._output_dir / f"{timestamp}_{job_id}_cover.webp"
+            cover.save(str(webp_path), format="WEBP", quality=85)
+            cover_path = str(webp_path)
+        except Exception:
+            logger.exception("Failed to create cover image for job %s", job_id)
+
+        logger.info("Saved image for job %s to %s", job_id, png_path)
+        return str(png_path), cover_path
 
     def _save_data_uri(self, data_uri: str, job_id: str, suffix: str) -> str | None:
         """Decode a base64 data URI and save to disk."""
@@ -328,6 +349,7 @@ class RemoteInferenceService:
             self._db.insert_image(
                 id=str(uuid.uuid4()),
                 file_path=file_path,
+                thumbnail_path=event_data.get("cover_path"),
                 prompt=params.prompt if params else "",
                 raw_prompt=raw_prompt,
                 width=params.width if params else 0,

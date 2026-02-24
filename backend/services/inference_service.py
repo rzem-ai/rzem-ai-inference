@@ -10,8 +10,11 @@ import time
 import uuid
 from collections import deque
 from dataclasses import asdict, dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+from PIL import Image
 
 from rzem_ai_inference_engine import (
     CompletedEvent,
@@ -182,12 +185,26 @@ class LocalInferenceService:
         return handler
 
     def _save_image(self, image, job_id: str, suffix: str) -> str:
-        """Save a PIL image to disk and return the file path."""
+        """Save a PIL image to disk and return the file path (used for previews)."""
         filename = f"{job_id}_{suffix}.png"
         path = self._output_dir / filename
         image.save(str(path), format="PNG")
         logger.info("Saved %s to %s", suffix, path)
         return str(path)
+
+    def _save_output_image(self, image, job_id: str) -> tuple[str, str]:
+        """Save the final output as a timestamped PNG and a half-res WebP cover."""
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+        png_path = self._output_dir / f"{timestamp}_{job_id}.png"
+        image.save(str(png_path), format="PNG")
+
+        cover = image.resize((image.width // 2, image.height // 2), Image.LANCZOS)
+        webp_path = self._output_dir / f"{timestamp}_{job_id}_cover.webp"
+        cover.save(str(webp_path), format="WEBP", quality=85)
+
+        logger.info("Saved output image to %s and cover to %s", png_path, webp_path)
+        return str(png_path), str(webp_path)
 
     def _serialize(self, event_type: EventType, event_data: Any) -> FrontendEvent:
         """Convert engine event dataclasses to JSON-safe dicts."""
@@ -199,10 +216,12 @@ class LocalInferenceService:
                 logger.info("job_progress step=%s preview_image=%s", raw.get("step"), has_preview)
             for key, val in raw.items():
                 if key == "image" and val is not None:
-                    # Save completed image to disk, store path
-                    data["image_path"] = self._save_image(
-                        event_data.image, raw.get("job_id", "unknown"), "output"
+                    # Save full-res PNG and half-res WebP cover; store both paths
+                    image_path, cover_path = self._save_output_image(
+                        event_data.image, raw.get("job_id", "unknown")
                     )
+                    data["image_path"] = image_path
+                    data["cover_path"] = cover_path
                 elif key == "preview_image" and val is not None:
                     # Save preview image to disk, store path
                     data["preview_path"] = self._save_image(
@@ -282,6 +301,7 @@ class LocalInferenceService:
             self._db.insert_image(
                 id=str(uuid.uuid4()),
                 file_path=file_path,
+                thumbnail_path=event_data.get("cover_path"),
                 prompt=params.prompt if params else "",
                 raw_prompt=raw_prompt,
                 width=params.width if params else 0,

@@ -135,9 +135,10 @@ class InferenceAPI:
             path = Path(image_path)
             if not path.is_file():
                 return {"status": "error", "message": f"File not found: {image_path}"}
+            mime = "image/webp" if path.suffix.lower() == ".webp" else "image/png"
             data = path.read_bytes()
             b64 = base64.b64encode(data).decode("ascii")
-            return {"status": "success", "data_url": f"data:image/png;base64,{b64}"}
+            return {"status": "success", "data_url": f"data:{mime};base64,{b64}"}
         except Exception as e:
             logger.error("Failed to read image %s: %s", image_path, e)
             return {"status": "error", "message": str(e)}
@@ -146,9 +147,9 @@ class InferenceAPI:
         """Find the most recent generation's preview + output images for debug UI."""
         try:
             output_dir = self._inference.local._output_dir
-            # Find the most recent output image by mtime
+            # Find the most recent output PNG (excludes previews and cover webps)
             outputs = sorted(
-                output_dir.glob("*_output.png"),
+                [p for p in output_dir.glob("*.png") if "_preview_" not in p.name],
                 key=lambda p: p.stat().st_mtime,
                 reverse=True,
             )
@@ -156,12 +157,17 @@ class InferenceAPI:
                 return {"status": "success", "output": None, "previews": {}}
 
             latest = outputs[0]
-            # Extract job prefix: everything before "_output.png"
-            prefix = latest.name.rsplit("_output.png", 1)[0]
+            # Extract job_id: new format is {YYYYMMDD_hhmmss}_{uuid}, old is {uuid}_output
+            stem = latest.stem
+            if stem.endswith("_output"):
+                job_id_prefix = stem[: -len("_output")]
+            else:
+                parts = stem.split("_", 2)
+                job_id_prefix = parts[2] if len(parts) == 3 else stem
 
             # Find all preview images for this job
             previews: dict[str, str] = {}
-            for p in output_dir.glob(f"{prefix}_preview_*.png"):
+            for p in output_dir.glob(f"{job_id_prefix}_preview_*.png"):
                 match = re.search(r"_preview_(\d+)\.png$", p.name)
                 if match:
                     previews[match.group(1)] = str(p)
