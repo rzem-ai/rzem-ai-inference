@@ -275,6 +275,11 @@ class GalleryAPI:
     def set_setting(self, key: str, value: str) -> dict[str, Any]:
         try:
             self._db.set_setting(key, value)
+            if key == "HF_API_KEY":
+                if value:
+                    os.environ["HF_TOKEN"] = value
+                else:
+                    os.environ.pop("HF_TOKEN", None)
             return {"status": "success"}
         except Exception as e:
             logger.error("Failed to set setting: %s", e)

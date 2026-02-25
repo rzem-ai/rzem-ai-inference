@@ -110,6 +110,10 @@ def main() -> None:
     if api_key:
         chat_service.set_api_key(api_key)
 
+    hf_api_key = db.get_setting("HF_API_KEY")
+    if hf_api_key:
+        os.environ["HF_TOKEN"] = hf_api_key
+
     api = CombinedAPI(service, manager, discovery, bundle_store, db, config, chat_service)
 
     # In dev mode, start Vite before opening the window
