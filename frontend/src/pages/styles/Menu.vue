@@ -68,7 +68,7 @@ const route = useRoute();
 const router = useRouter();
 const stylesStore = useStylesStore();
 
-const showSidebar = computed(() => route.name === 'styles');
+const showSidebar = computed(() => route.matched.some(r => r.path === '/styles'));
 
 function tagStyle(tag: Tag) {
   const color = tag.color || '#64748b';
