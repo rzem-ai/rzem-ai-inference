@@ -13,10 +13,10 @@ interface VirtualGridOptions {
 
 /** Breakpoint-based column count matching the styles grid layout */
 function getColumns(width: number): number {
-  if (width >= 1920) return 5;
-  if (width >= 1536) return 4;
-  if (width >= 1024) return 3;
-  return 2;
+  if (width >= 1920) return 10;
+  if (width >= 1536) return 8;
+  if (width >= 1024) return 6;
+  return 4;
 }
 
 /**
