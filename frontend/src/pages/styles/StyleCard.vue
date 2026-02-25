@@ -2,7 +2,8 @@
   <div
     class="group relative rounded-lg overflow-hidden cursor-pointer bg-white border border-slate-200 hover:border-slate-300 transition-colors"
     :class="{ 'ring-2 ring-blue-500 border-blue-500': selected }"
-    @click="emit('click', styleData.id)">
+    @click="emit('click', styleData.id)"
+    @contextmenu.prevent="emit('contextmenu', $event, styleData.id)">
     <div class="aspect-4/3 w-full relative bg-slate-50 flex items-center justify-center">
       <!-- Thumbnail image -->
       <img
@@ -32,6 +33,13 @@
           :class="{ 'fill-yellow-400 text-yellow-400': styleData.is_favorite }" />
       </button>
 
+      <!-- Base model badge -->
+      <div
+        v-if="bundleLabel"
+        class="absolute bottom-1 right-1 rounded-full bg-black/30 px-2 py-1 text-xs font-medium text-white backdrop-blur-sm">
+        {{ bundleLabel }}
+      </div>
+
       <!-- Selection checkbox -->
       <div
         class="absolute bottom-1 left-1 opacity-0 group-hover:opacity-100 transition-opacity"
@@ -56,9 +64,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { Star, Check, Palette } from 'lucide-vue-next';
 import { usePywebview } from '@/composables/usePywebview';
+import { useInferenceStore } from '@/stores/inference';
 import type { Style } from '@/types/inference';
 
 const props = defineProps<{
@@ -70,10 +79,27 @@ const emit = defineEmits<{
   click: [styleId: string];
   favorite: [styleId: string];
   select: [styleId: string];
+  contextmenu: [event: MouseEvent, styleId: string];
 }>();
 
+const inferenceStore = useInferenceStore();
 const { api, isReady } = usePywebview();
 const thumbnailUrl = ref<string | null>(null);
+
+const TYPE_LABELS: Record<string, string> = {
+  flux1_dev: 'FLUX.1',
+  flux2_dev: 'FLUX.2',
+  z_image: 'Z-Image',
+  qwen_image: 'Qwen',
+  fal_cloud: 'FAL.ai',
+};
+
+const bundleLabel = computed(() => {
+  if (!props.styleData.bundle_id) return null;
+  const bundle = inferenceStore.bundles.find(b => b.id === props.styleData.bundle_id);
+  if (!bundle) return null;
+  return TYPE_LABELS[bundle.transformer_type] ?? bundle.transformer_type;
+});
 
 watch([() => props.styleData.thumbnail_path, isReady], async ([path, ready]) => {
   if (!path) {

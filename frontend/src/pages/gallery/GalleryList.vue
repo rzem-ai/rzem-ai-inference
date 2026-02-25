@@ -25,7 +25,8 @@
             @click="emit('card-click', $event)"
             @favorite="emit('favorite', $event)"
             @open-detail="emit('open-detail')"
-            @select="emit('select', $event)" />
+            @select="emit('select', $event)"
+            @contextmenu="(e, id) => emit('contextmenu', e, id)" />
         </div>
       </template>
     </VirtualGrid>
@@ -55,6 +56,7 @@ const emit = defineEmits<{
   favorite: [imageId: string];
   'open-detail': [];
   select: [imageId: string];
+  contextmenu: [event: MouseEvent, imageId: string];
 }>();
 
 const gallery = useGalleryStore();

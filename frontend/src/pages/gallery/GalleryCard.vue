@@ -3,7 +3,8 @@
     ref="cardRef"
     class="group relative rounded-lg overflow-hidden cursor-pointer bg-slate-100 border border-slate-200 hover:border-slate-300 transition-colors"
     :class="{ 'ring-2 ring-blue-500 border-blue-500': selected }"
-    @click="emit('click', image.id)">
+    @click="emit('click', image.id)"
+    @contextmenu.prevent="emit('contextmenu', $event, image.id)">
     <div class="aspect-3/4 w-full relative">
       <!-- Loaded image -->
       <img
@@ -68,6 +69,7 @@ const emit = defineEmits<{
   favorite: [imageId: string];
   openDetail: [];
   select: [imageId: string];
+  contextmenu: [event: MouseEvent, imageId: string];
 }>();
 
 const cardRef = ref<HTMLElement>();

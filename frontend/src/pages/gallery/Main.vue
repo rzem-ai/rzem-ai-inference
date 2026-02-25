@@ -120,7 +120,11 @@
       @card-click="onCardClick"
       @favorite="onToggleFavorite"
       @open-detail="detailVisible = true"
-      @select="onToggleSelect" />
+      @select="onToggleSelect"
+      @contextmenu="onCardContextMenu" />
+
+    <!-- Card context menu -->
+    <ContextMenu ref="cardMenu" :model="cardMenuItems" />
 
     <!-- Image overlay (full-screen lightbox) -->
     <ImageOverlay
@@ -166,7 +170,7 @@ import ImageOverlay from './ImageOverlay.vue';
 import ImageDetailDialog from './ImageDetailDialog.vue';
 import FolderPopover from './FolderPopover.vue';
 import TagPopover from './TagPopover.vue';
-import { Button, Divider, Toolbar, SelectButton, Popover } from 'primevue';
+import { Button, ContextMenu, Divider, Toolbar, SelectButton, Popover } from 'primevue';
 import { InputText, InputGroup, InputGroupAddon } from 'primevue';
 
 const gallery = useGalleryStore();
@@ -183,6 +187,8 @@ const searchInput = ref('');
 const folderPopover = ref<InstanceType<typeof FolderPopover>>();
 const tagPopover = ref<InstanceType<typeof TagPopover>>();
 const sortPopover = ref();
+const cardMenu = ref();
+const contextImageId = ref<string | null>(null);
 
 const gallerySortOptions = [
   { value: 'created_at', label: 'Date' },
@@ -286,6 +292,38 @@ function onSortBy(value: string) {
 function onToggleSortOrder() {
   gallery.toggleSortOrder();
   sortPopover.value?.hide();
+}
+
+// ── Context menu ──
+
+const cardMenuItems = computed(() => [
+  {
+    label: 'Add to Folder',
+    icon: 'pi pi-folder',
+    items: gallery.folders.map(f => ({
+      label: f.name,
+      command: () => {
+        if (contextImageId.value) {
+          gallery.addImageToFolder(contextImageId.value, f.id);
+        }
+      },
+    })),
+  },
+  { separator: true },
+  {
+    label: 'Delete',
+    icon: 'pi pi-trash',
+    command: () => {
+      if (contextImageId.value) {
+        gallery.deleteImage(contextImageId.value);
+      }
+    },
+  },
+]);
+
+function onCardContextMenu(event: MouseEvent, imageId: string) {
+  contextImageId.value = imageId;
+  cardMenu.value.show(event);
 }
 
 function onCreateFolder() {

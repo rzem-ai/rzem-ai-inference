@@ -114,7 +114,8 @@
               :selected="selectedIds.has(style.id)"
               @click="onCardClick"
               @favorite="onToggleFavorite"
-              @select="onToggleSelect" />
+              @select="onToggleSelect"
+              @contextmenu="onCardContextMenu" />
           </div>
         </template>
       </VirtualGrid>
@@ -124,6 +125,9 @@
         <div class="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
       </div>
     </div>
+
+    <!-- Card context menu -->
+    <ContextMenu ref="cardMenu" :model="cardMenuItems" />
   </div>
 </template>
 
@@ -137,7 +141,7 @@ import { useStylesStore } from '@/stores/styles';
 import { useVirtualGrid } from '@/composables/useVirtualGrid';
 import StyleCard from './StyleCard.vue';
 import VirtualGrid from '@/components/VirtualGrid.vue';
-import { Button, Divider, Toolbar, SelectButton, Popover } from 'primevue';
+import { Button, ContextMenu, Divider, Toolbar, SelectButton, Popover } from 'primevue';
 import { InputText, InputGroup, InputGroupAddon } from 'primevue';
 
 const router = useRouter();
@@ -158,6 +162,8 @@ const viewMode = ref(GRID_VIEW);
 const viewModes = ref([GRID_VIEW, LIST_VIEW]);
 const selectionMode = ref(false);
 const selectedIds = reactive(new Set<string>());
+const cardMenu = ref();
+const contextStyleId = ref<string | null>(null);
 
 const searchInput = ref('');
 const sortPopover = ref();
@@ -235,6 +241,38 @@ function onSortBy(value: string) {
 function onToggleSortOrder() {
   stylesStore.toggleSortOrder();
   sortPopover.value?.hide();
+}
+
+// ── Context menu ──
+
+const cardMenuItems = computed(() => [
+  {
+    label: 'Add to Collection',
+    icon: 'pi pi-folder',
+    items: stylesStore.categories.map(cat => ({
+      label: cat,
+      command: () => {
+        if (contextStyleId.value) {
+          stylesStore.updateStyle(contextStyleId.value, { category: cat });
+        }
+      },
+    })),
+  },
+  { separator: true },
+  {
+    label: 'Delete',
+    icon: 'pi pi-trash',
+    command: () => {
+      if (contextStyleId.value) {
+        stylesStore.deleteStyle(contextStyleId.value);
+      }
+    },
+  },
+]);
+
+function onCardContextMenu(event: MouseEvent, styleId: string) {
+  contextStyleId.value = styleId;
+  cardMenu.value.show(event);
 }
 
 async function onImportMetadata() {
