@@ -10,15 +10,13 @@
     </div>
 
     <!-- Virtualised grid -->
-    <VirtualScroller
+    <VirtualGrid
       v-else
       :items="rows"
-      :itemSize="rowHeight"
-      class="w-full h-full"
-      :pt="{ content: { class: 'p-0' } }"
+      :item-size="rowHeight"
       @scroll="onScroll">
-      <template #item="{ item: row, options: slotOpts }">
-        <div :style="gridStyle" :class="{ 'pt-0!': slotOpts.first }">
+      <template #default="{ item: row, first }">
+        <div :style="gridStyle" :class="{ 'pt-0!': first }">
           <GalleryCard
             v-for="image in row"
             :key="image.id"
@@ -30,7 +28,7 @@
             @select="emit('select', $event)" />
         </div>
       </template>
-    </VirtualScroller>
+    </VirtualGrid>
 
     <!-- Loading spinner -->
     <div v-if="gallery.loading" class="flex justify-center py-4">
@@ -42,9 +40,9 @@
 <script setup lang="ts">
 import { ref, toRef } from 'vue';
 import { Image as ImageIcon } from 'lucide-vue-next';
-import { VirtualScroller } from 'primevue';
 import { useGalleryStore } from '@/stores/gallery';
 import { useVirtualGrid } from '@/composables/useVirtualGrid';
+import VirtualGrid from '@/components/VirtualGrid.vue';
 import GalleryCard from './GalleryCard.vue';
 
 defineProps<{

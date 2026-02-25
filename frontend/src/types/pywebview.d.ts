@@ -169,7 +169,9 @@ export interface PywebviewAPI {
     strength?: number;
   }): Promise<ApiResponse<{ lora?: LoRA }>>;
   browse_lora_files(): Promise<ApiResponse<{ loras?: LoRA[] }>>;
-  browse_image_file(): Promise<ApiResponse<{ path?: string | null }>>;
+  browse_image_file(args?: { style_id?: string }): Promise<ApiResponse<{ path?: string | null; thumbnail_path?: string | null }>>;
+  import_style_image(args: { source_path: string; style_id?: string }): Promise<ApiResponse<{ path?: string; thumbnail_path?: string }>>;
+  browse_metadata_files(): Promise<ApiResponse<{ paths?: string[] }>>;
   browse_and_import_metadata(): Promise<ApiResponse<{ styles?: Style[]; errors?: string[] }>>;
   import_civitai_metadata(args: { file_path?: string; json_content?: string }): Promise<ApiResponse<{ style?: Style }>>;
 

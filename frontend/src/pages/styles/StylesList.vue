@@ -4,7 +4,7 @@
     <Toolbar>
       <template #start>
         <Button severity="primary" @click="router.push({ name: 'styles-new' })"><Plus :size="14" />New Style</Button>
-        <Button severity="secondary" :loading="importing" @click="onImportMetadata"> <FolderInput :size="14" /> Import </Button>
+        <Button severity="secondary" :loading="stylesStore.importing" @click="onImportMetadata"> <FolderInput :size="14" /> Import </Button>
 
         <Divider layout="vertical" />
 
@@ -101,14 +101,12 @@
       </div>
 
       <!-- Virtualised grid view -->
-      <VirtualScroller
+      <VirtualGrid
         v-else
         :items="rows"
-        :itemSize="rowHeight"
-        class="w-full h-full"
-        :pt="{ content: { class: 'p-0' } }">
-        <template #item="{ item: row, options: slotOpts }">
-          <div :style="gridStyle" :class="{ 'pt-0!': slotOpts.first }">
+        :item-size="rowHeight">
+        <template #default="{ item: row, first }">
+          <div :style="gridStyle" :class="{ 'pt-0!': first }">
             <StyleCard
               v-for="style in row"
               :key="style.id"
@@ -119,7 +117,7 @@
               @select="onToggleSelect" />
           </div>
         </template>
-      </VirtualScroller>
+      </VirtualGrid>
 
       <!-- Loading spinner -->
       <div v-if="stylesStore.loading" class="flex justify-center py-4">
@@ -138,7 +136,8 @@ import { FolderInput, ArrowUpDown, ArrowUpAZ, ArrowDownAZ, ChevronDown, Check } 
 import { useStylesStore } from '@/stores/styles';
 import { useVirtualGrid } from '@/composables/useVirtualGrid';
 import StyleCard from './StyleCard.vue';
-import { Button, Divider, Toolbar, SelectButton, Popover, VirtualScroller } from 'primevue';
+import VirtualGrid from '@/components/VirtualGrid.vue';
+import { Button, Divider, Toolbar, SelectButton, Popover } from 'primevue';
 import { InputText, InputGroup, InputGroupAddon } from 'primevue';
 
 const router = useRouter();
@@ -161,7 +160,6 @@ const selectionMode = ref(false);
 const selectedIds = reactive(new Set<string>());
 
 const searchInput = ref('');
-const importing = ref(false);
 const sortPopover = ref();
 
 const styleSortOptions = [
@@ -240,9 +238,7 @@ function onToggleSortOrder() {
 }
 
 async function onImportMetadata() {
-  importing.value = true;
   await stylesStore.importCivitaiMetadata();
-  importing.value = false;
 }
 </script>
 

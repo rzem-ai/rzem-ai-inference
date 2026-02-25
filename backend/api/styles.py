@@ -7,11 +7,13 @@ import logging
 import os
 import re
 import uuid
+from pathlib import Path
 from typing import Any
 
 import webview
 
 from backend.db.database import Database
+from backend.services.image_utils import store_style_image
 
 logger = logging.getLogger(__name__)
 
@@ -22,8 +24,9 @@ _IMAGE_EXTENSIONS = ("png", "jpg", "jpeg", "webp", "bmp")
 class StylesAPI:
     """pywebview js_api mixin for style management."""
 
-    def __init__(self, db: Database) -> None:
+    def __init__(self, db: Database, styles_dir: Path | None = None) -> None:
         self._db = db
+        self._styles_dir = styles_dir or Path.home() / ".rzem-ai" / "styles"
 
     # ── Styles ────────────────────────────────────────────────
 
@@ -145,9 +148,18 @@ class StylesAPI:
         **kwargs,
     ) -> dict[str, Any]:
         try:
+            local_image_path = None
+            local_thumb_path = None
+            if image_path:
+                paths = store_style_image(image_path, self._styles_dir, style_id)
+                if paths:
+                    local_image_path = paths[0]  # Full resolution
+                    local_thumb_path = paths[1]  # Thumbnail
+
             content = json.dumps({
                 "prompt": prompt,
-                "image_path": image_path,
+                "image_path": local_image_path,
+                "thumbnail_path": local_thumb_path,
                 "seed": seed,
                 "width": width,
                 "height": height,
@@ -276,8 +288,20 @@ class StylesAPI:
             logger.error("Failed to browse lora files: %s", e)
             return {"status": "error", "message": str(e)}
 
-    def browse_image_file(self, **kwargs) -> dict[str, Any]:
-        """Open a native file dialog to select a single image file."""
+    def import_style_image(self, source_path: str, style_id: str = "", **kwargs) -> dict[str, Any]:
+        """Copy a local image into the styles directory, returning stored paths."""
+        try:
+            paths = store_style_image(source_path, self._styles_dir, style_id)
+            if not paths:
+                return {"status": "error", "message": "Failed to process image"}
+            full_path, thumb_path = paths
+            return {"status": "success", "path": full_path, "thumbnail_path": thumb_path}
+        except Exception as e:
+            logger.error("Failed to import style image: %s", e)
+            return {"status": "error", "message": str(e)}
+
+    def browse_image_file(self, style_id: str = "", **kwargs) -> dict[str, Any]:
+        """Open a native file dialog, copy the image to styles dir, return local paths."""
         try:
             window = webview.windows[0]
             file_filter = "Images (" + ";".join(f"*.{ext}" for ext in _IMAGE_EXTENSIONS) + ")"
@@ -287,17 +311,23 @@ class StylesAPI:
                 file_types=(file_filter,),
             )
             if not result:
-                return {"status": "success", "path": None}
-            path = str(result[0]) if isinstance(result, (list, tuple)) else str(result)
-            return {"status": "success", "path": path}
+                return {"status": "success", "path": None, "thumbnail_path": None}
+
+            source = str(result[0]) if isinstance(result, (list, tuple)) else str(result)
+            paths = store_style_image(source, self._styles_dir, style_id)
+            if not paths:
+                return {"status": "error", "message": "Failed to process image"}
+
+            full_path, thumb_path = paths
+            return {"status": "success", "path": full_path, "thumbnail_path": thumb_path}
         except Exception as e:
             logger.error("Failed to browse image file: %s", e)
             return {"status": "error", "message": str(e)}
 
     # ── CivitAI Import ─────────────────────────────────────────
 
-    def browse_and_import_metadata(self, **kwargs) -> dict[str, Any]:
-        """Open a native file dialog for .metadata.json files and import each as a style."""
+    def browse_metadata_files(self, **kwargs) -> dict[str, Any]:
+        """Open a native file dialog for .metadata.json files and return the selected paths."""
         try:
             window = webview.windows[0]
             result = window.create_file_dialog(
@@ -306,16 +336,28 @@ class StylesAPI:
                 file_types=("CivitAI metadata (*.metadata.json)",),
             )
             if not result:
+                return {"status": "success", "paths": []}
+            paths = [str(p) for p in result]
+            return {"status": "success", "paths": paths}
+        except Exception as e:
+            logger.error("Failed to browse metadata files: %s", e)
+            return {"status": "error", "message": str(e)}
+
+    def browse_and_import_metadata(self, **kwargs) -> dict[str, Any]:
+        """Open a native file dialog for .metadata.json files and import each as a style."""
+        try:
+            res = self.browse_metadata_files()
+            if res["status"] != "success" or not res.get("paths"):
                 return {"status": "success", "styles": []}
 
             styles = []
             errors = []
-            for filepath in result:
-                res = self.import_civitai_metadata(file_path=str(filepath))
-                if res["status"] == "success":
-                    styles.append(res["style"])
+            for filepath in res["paths"]:
+                r = self.import_civitai_metadata(file_path=filepath)
+                if r["status"] == "success":
+                    styles.append(r["style"])
                 else:
-                    errors.append(res["message"])
+                    errors.append(r["message"])
 
             if errors:
                 logger.warning("Some metadata imports failed: %s", errors)
@@ -362,7 +404,16 @@ class StylesAPI:
             raw_desc = civitai_model.get("description", "")
             description = re.sub(r"<[^>]+>", "", raw_desc).strip() if raw_desc else None
 
-            thumbnail_path = meta.get("preview_url")
+            style_id = str(uuid.uuid4())
+
+            # Download thumbnail to local styles dir
+            thumbnail_path = None
+            preview_url = meta.get("preview_url")
+            if preview_url:
+                paths = store_style_image(preview_url, self._styles_dir, style_id)
+                if paths:
+                    thumbnail_path = paths[1]  # Use thumbnail WebP for style card
+
             lora_path = meta.get("file_path")
             lora_name = meta.get("file_name", "Unknown LoRA")
             base_model = meta.get("base_model")
@@ -397,7 +448,6 @@ class StylesAPI:
                     tag_ids.append(new_tag["id"])
 
             # ── Style ──
-            style_id = str(uuid.uuid4())
             style = self._db.insert_style(
                 id=style_id,
                 name=style_name,
@@ -420,9 +470,20 @@ class StylesAPI:
                 if not img_meta.get("prompt"):
                     continue
 
+                # Download example image to local styles dir
+                local_example_path = None
+                local_example_thumb = None
+                example_url = img.get("url")
+                if example_url:
+                    ex_paths = store_style_image(example_url, self._styles_dir, style_id)
+                    if ex_paths:
+                        local_example_path = ex_paths[0]  # Full resolution
+                        local_example_thumb = ex_paths[1]  # Thumbnail
+
                 example_content = json.dumps({
                     "prompt": img_meta.get("prompt"),
-                    "image_path": img.get("url"),  # CivitAI URL
+                    "image_path": local_example_path,
+                    "thumbnail_path": local_example_thumb,
                     "seed": img_meta.get("seed"),
                     "width": img.get("width"),  # At image level, not meta
                     "height": img.get("height"),  # At image level, not meta

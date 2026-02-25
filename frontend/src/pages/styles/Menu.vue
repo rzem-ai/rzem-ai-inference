@@ -52,6 +52,21 @@
         </div>
       </div>
     </template>
+
+    <template #footer v-if="stylesStore.importing">
+      <div class="flex flex-col gap-1">
+        <div class="flex items-center gap-2">
+          <div class="w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin shrink-0" />
+          <span class="text-xs text-slate-600 truncate">{{ stylesStore.importMessage }}</span>
+        </div>
+        <div v-if="stylesStore.importTotal > 1" class="h-1 bg-slate-200 rounded-full overflow-hidden">
+          <div
+            class="h-full bg-blue-500 rounded-full transition-[width] duration-300 ease-out"
+            :style="{ width: (stylesStore.importCurrent / stylesStore.importTotal) * 100 + '%' }" />
+        </div>
+        <ProgressBar v-else mode="indeterminate" class="h-1!" />
+      </div>
+    </template>
   </MenuPanel>
 </template>
 
@@ -61,7 +76,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { Folder as FolderIcon, Palette, Plus, Star } from 'lucide-vue-next';
 import { useStylesStore } from '@/stores/styles';
 import type { Tag } from '@/types/inference';
-import { Button } from 'primevue';
+import { Button, ProgressBar } from 'primevue';
 import MenuPanel from '@/components/MenuPanel.vue';
 
 const route = useRoute();

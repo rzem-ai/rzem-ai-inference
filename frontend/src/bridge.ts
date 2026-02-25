@@ -487,7 +487,13 @@ export const mockApi: PywebviewAPI = {
     return { status: "success", loras: [] };
   },
   async browse_image_file() {
-    return { status: "success", path: null };
+    return { status: "success", path: null, thumbnail_path: null };
+  },
+  async import_style_image() {
+    return { status: "error", message: "Not available in mock mode" };
+  },
+  async browse_metadata_files() {
+    return { status: "success", paths: [] };
   },
   async browse_and_import_metadata() {
     return { status: "success", styles: [], errors: [] };

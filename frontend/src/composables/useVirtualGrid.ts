@@ -46,7 +46,7 @@ export function useVirtualGrid<T>(
 
   const rowHeight = computed(() => {
     const cardHeight = Math.ceil(columnWidth.value * options.aspectRatio);
-    return cardHeight + extraHeight + gap;
+    return Math.max(cardHeight + extraHeight + gap, 1);
   });
 
   const rows = computed(() => {

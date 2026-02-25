@@ -24,7 +24,7 @@ export const useGalleryStore = defineStore('gallery', {
 
     // Sort
     sortBy: 'created_at' as string,
-    sortOrder: 'asc' as 'asc' | 'desc',
+    sortOrder: 'desc' as 'asc' | 'desc',
   }),
 
   getters: {
@@ -41,7 +41,8 @@ export const useGalleryStore = defineStore('gallery', {
     async init() {
       if (_initPromise) return _initPromise;
       _initPromise = Promise.all([this.loadImages(), this.loadFolders(), this.loadTags()]).then(() => {});
-      return _initPromise;
+      await _initPromise;
+      _initPromise = null;
     },
 
     async loadImages(reset = true) {
@@ -230,9 +231,7 @@ export const useGalleryStore = defineStore('gallery', {
 
     async setSort(sortBy: string, sortOrder?: 'asc' | 'desc') {
       this.sortBy = sortBy;
-      if (sortOrder) {
-        this.sortOrder = sortOrder;
-      }
+      this.sortOrder = sortOrder ?? (sortBy.includes('_at') ? 'desc' : 'asc');
       await this.loadImages();
     },
 

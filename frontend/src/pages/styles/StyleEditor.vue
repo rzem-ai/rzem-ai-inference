@@ -19,13 +19,8 @@
       </template>
     </Toolbar>
 
-    <!-- Toolbar -->
-    <div class="flex items-center gap-1 px-3 h-10 bg-white rounded-xl border border-surface-200 shrink-0">
-      <div class="flex-1" />
-    </div>
-
     <!-- Editor content -->
-    <div class="flex-1 min-h-0 overflow-hidden mx-auto max-w-8xl">
+    <div class="flex-1 min-h-0 overflow-hidden mx-auto w-7xl max-w-8xl">
       <div class="grid grid-cols-2 gap-8 h-full">
         <!-- Center column: Core details -->
         <div class="flex flex-col gap-4 flex-1 max-w-160 overflow-y-auto min-h-0">
@@ -207,8 +202,8 @@
             <!-- Example cards -->
             <template v-if="stylesStore.editorExamples.length">
               <div v-for="example in parsedExamples" :key="example.id" class="rounded-lg border border-surface-300 overflow-hidden bg-white">
-                <!-- Image -->
-                <div v-if="example.imageDataUrl" class="h-32 overflow-hidden">
+                <!-- Image (click for full resolution) -->
+                <div v-if="example.imageDataUrl" class="h-32 overflow-hidden cursor-pointer" @click="onOpenExampleImage(example)">
                   <img :src="example.imageDataUrl" class="w-full h-full object-cover" />
                 </div>
                 <!-- Body -->
@@ -328,11 +323,38 @@
         </div>
       </div>
     </div>
+
+    <!-- Full-resolution image overlay -->
+    <Teleport to="body">
+      <Transition name="overlay-fade">
+        <div
+          v-if="overlayImageUrl || overlayLoading"
+          class="fixed inset-0 z-50 flex items-center justify-center"
+          @click="closeOverlay"
+          @keydown.escape="closeOverlay"
+          tabindex="0"
+          ref="overlayRef">
+          <div class="absolute inset-0 bg-black/90" />
+          <button
+            class="absolute top-4 right-4 z-10 p-2 rounded-full bg-white/10 backdrop-blur-sm text-white/70 hover:text-white hover:bg-white/20 transition-colors"
+            @click="closeOverlay">
+            <X :size="20" />
+          </button>
+          <img
+            v-if="overlayImageUrl"
+            :src="overlayImageUrl"
+            class="relative max-w-[90vw] max-h-[90vh] object-contain rounded-lg select-none z-1"
+            draggable="false"
+            @click.stop />
+          <div v-else class="relative z-1 w-8 h-8 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ArrowLeft, Save, X, Layers, Plus, ImagePlus, Play } from 'lucide-vue-next';
 import { useStylesStore } from '@/stores/styles';
@@ -615,9 +637,9 @@ async function setThumbnail(path: string) {
 }
 
 async function onBrowseThumbnail() {
-  const res = await api.value.browse_image_file();
+  const res = await api.value.browse_image_file({ style_id: styleId.value });
   if (res.status === 'success' && res.path) {
-    await setThumbnail(res.path);
+    await setThumbnail(res.thumbnail_path || res.path);
   }
 }
 
@@ -640,7 +662,10 @@ async function onThumbnailDrop(e: DragEvent) {
 
   const paths = extractPathsFromDrop(e, IMAGE_EXTENSIONS);
   if (paths.length) {
-    await setThumbnail(paths[0]);
+    const res = await api.value.import_style_image({ source_path: paths[0], style_id: styleId.value });
+    if (res.status === 'success' && res.thumbnail_path) {
+      await setThumbnail(res.thumbnail_path);
+    }
   }
 }
 
@@ -650,6 +675,7 @@ interface ParsedExample {
   id: string;
   prompt: string;
   image_path?: string | null;
+  thumbnail_path?: string | null;
   imageDataUrl?: string | null;
   seed?: number | null;
   width?: number | null;
@@ -659,6 +685,9 @@ interface ParsedExample {
 }
 
 const showAddExample = ref(false);
+const overlayRef = ref<HTMLElement>();
+const overlayImageUrl = ref<string | null>(null);
+const overlayLoading = ref(false);
 const exampleForm = ref({
   prompt: '',
   imagePath: '',
@@ -675,11 +704,13 @@ const parsedExamples = computed<ParsedExample[]>(() => {
   return stylesStore.editorExamples.map((ex) => {
     try {
       const content = JSON.parse(ex.content);
+      const thumbKey = content.thumbnail_path || content.image_path;
       return {
         id: ex.id,
         prompt: content.prompt ?? '',
         image_path: content.image_path,
-        imageDataUrl: content.image_path ? exampleImageCache.value[content.image_path] : null,
+        thumbnail_path: content.thumbnail_path,
+        imageDataUrl: thumbKey ? exampleImageCache.value[thumbKey] : null,
         seed: content.seed,
         width: content.width,
         height: content.height,
@@ -692,23 +723,22 @@ const parsedExamples = computed<ParsedExample[]>(() => {
   });
 });
 
-// Load images for examples that have image_path
+// Load thumbnail images for example cards
 watch(
   () => stylesStore.editorExamples,
   async (examples) => {
     for (const ex of examples) {
       try {
         const content = JSON.parse(ex.content);
-        if (content.image_path && !exampleImageCache.value[content.image_path]) {
-          // Check if it's a URL (CivitAI) or local path
-          if (content.image_path.startsWith('http://') || content.image_path.startsWith('https://')) {
-            // For URLs, use them directly
-            exampleImageCache.value[content.image_path] = content.image_path;
+        // Prefer thumbnail_path for cards; fall back to image_path
+        const path = content.thumbnail_path || content.image_path;
+        if (path && !exampleImageCache.value[path]) {
+          if (path.startsWith('http://') || path.startsWith('https://')) {
+            exampleImageCache.value[path] = path;
           } else {
-            // For local paths, load via backend
-            const res = await api.value.get_image_base64({ image_path: content.image_path });
+            const res = await api.value.get_image_base64({ image_path: path });
             if (res.status === 'success' && res.data_url) {
-              exampleImageCache.value[content.image_path] = res.data_url;
+              exampleImageCache.value[path] = res.data_url;
             }
           }
         }
@@ -736,8 +766,35 @@ function useExample(example: ParsedExample) {
   router.push({ name: 'create' });
 }
 
+async function onOpenExampleImage(example: ParsedExample) {
+  const fullPath = example.image_path;
+  if (!fullPath) return;
+
+  overlayLoading.value = true;
+  overlayImageUrl.value = null;
+  await nextTick();
+  overlayRef.value?.focus();
+
+  if (fullPath.startsWith('http://') || fullPath.startsWith('https://')) {
+    overlayImageUrl.value = fullPath;
+    overlayLoading.value = false;
+    return;
+  }
+
+  const res = await api.value.get_image_base64({ image_path: fullPath });
+  if (res.status === 'success' && res.data_url) {
+    overlayImageUrl.value = res.data_url;
+  }
+  overlayLoading.value = false;
+}
+
+function closeOverlay() {
+  overlayImageUrl.value = null;
+  overlayLoading.value = false;
+}
+
 async function onBrowseExampleImage() {
-  const res = await api.value.browse_image_file();
+  const res = await api.value.browse_image_file({ style_id: styleId.value });
   if (res.status === 'success' && res.path) {
     exampleForm.value.imagePath = res.path;
   }
@@ -769,3 +826,15 @@ async function onAddExample() {
   showAddExample.value = false;
 }
 </script>
+
+<style scoped>
+.overlay-fade-enter-active,
+.overlay-fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.overlay-fade-enter-from,
+.overlay-fade-leave-to {
+  opacity: 0;
+}
+</style>

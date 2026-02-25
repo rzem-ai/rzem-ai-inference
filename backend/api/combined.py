@@ -27,7 +27,7 @@ class CombinedAPI(SystemAPI, InferenceAPI, BundlesAPI, GalleryAPI, StylesAPI, Se
         InferenceAPI.__init__(self, manager, db)
         BundlesAPI.__init__(self, bundle_store, db)
         GalleryAPI.__init__(self, db)
-        StylesAPI.__init__(self, db)
+        StylesAPI.__init__(self, db, config.styles_dir)
         SettingsAPI.__init__(self, manager, config, db)
         ChatAPI.__init__(self, chat_service, db)
         DiscoveryAPI.__init__(self, manager, discovery)

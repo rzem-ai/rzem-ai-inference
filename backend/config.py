@@ -31,6 +31,9 @@ class AppConfig:
     output_dir: Path = field(
         default_factory=lambda: Path.home() / ".rzem-ai" / "output"
     )
+    styles_dir: Path = field(
+        default_factory=lambda: Path.home() / ".rzem-ai" / "styles"
+    )
 
     @property
     def entry_url(self) -> str:
