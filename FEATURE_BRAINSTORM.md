@@ -50,7 +50,7 @@ These features leverage existing schema/infrastructure and can be built with min
 
 ---
 
-### 1.4 Sampler/Scheduler Tooltips
+### ~~1.4 Sampler/Scheduler Tooltips~~ ✅
 
 **What**: Add brief explanations and model-specific recommendations to sampler and scheduler dropdowns.
 
@@ -60,7 +60,7 @@ These features leverage existing schema/infrastructure and can be built with min
 
 ---
 
-### 1.5 "Recommended Bundle" Field on Styles
+### ~~1.5 "Recommended Bundle" Field on Styles~~ ✅
 
 **What**: Add an optional `preferred_bundle_id` to styles, displayed as a hint during generation.
 

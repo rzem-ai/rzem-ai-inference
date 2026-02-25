@@ -119,7 +119,7 @@ const AXIS_PARAMS: AxisParamDef[] = [
   { value: 'cfg_scale', label: 'CFG Scale', type: 'numeric' },
   { value: 'seed', label: 'Seed', type: 'numeric' },
   { value: 'sampler', label: 'Sampler', type: 'categorical', options: ['euler', 'euler_a', 'dpm++_2m', 'dpm++_2s', 'dpm++_sde', 'heun', 'lms'] },
-  { value: 'scheduler', label: 'Scheduler', type: 'categorical', options: ['normal', 'karras', 'exponential', 'sgm_uniform', 'simple', 'ddim_uniform'] },
+  { value: 'scheduler', label: 'Scheduler', type: 'categorical', options: ['simple', 'normal', 'beta', 'karras', 'exponential', 'sgm_uniform', 'ddim_uniform'] },
 ];
 
 const xParam = ref<string | null>(null);
