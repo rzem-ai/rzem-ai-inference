@@ -1,5 +1,5 @@
 <template>
-  <div class="flex-1 min-h-0 overflow-y-auto rounded-xl" ref="scrollRef">
+  <div ref="containerRef" class="flex-1 min-h-0 overflow-hidden rounded-xl">
     <!-- Empty state -->
     <div v-if="!gallery.loading && gallery.images.length === 0" class="h-full flex items-center justify-center">
       <div class="text-center">
@@ -9,21 +9,28 @@
       </div>
     </div>
 
-    <!-- Grid view -->
-    <div v-else class="grid gap-3 p-1" :class="isGridMode ? 'grid-cols-6' : 'grid-cols-1'">
-      <GalleryCard
-        v-for="image in gallery.images"
-        :key="image.id"
-        :image="image"
-        :selected="selectedIds.has(image.id)"
-        @click="emit('card-click', $event)"
-        @favorite="emit('favorite', $event)"
-        @open-detail="emit('open-detail')"
-        @select="emit('select', $event)" />
-    </div>
-
-    <!-- Infinite scroll trigger -->
-    <div ref="loadMoreRef" class="h-10" />
+    <!-- Virtualised grid -->
+    <VirtualScroller
+      v-else
+      :items="rows"
+      :itemSize="rowHeight"
+      class="w-full h-full"
+      :pt="{ content: { class: 'p-0' } }"
+      @scroll="onScroll">
+      <template #item="{ item: row, options: slotOpts }">
+        <div :style="gridStyle" :class="{ 'pt-0!': slotOpts.first }">
+          <GalleryCard
+            v-for="image in row"
+            :key="image.id"
+            :image="image"
+            :selected="selectedIds.has(image.id)"
+            @click="emit('card-click', $event)"
+            @favorite="emit('favorite', $event)"
+            @open-detail="emit('open-detail')"
+            @select="emit('select', $event)" />
+        </div>
+      </template>
+    </VirtualScroller>
 
     <!-- Loading spinner -->
     <div v-if="gallery.loading" class="flex justify-center py-4">
@@ -33,9 +40,11 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue';
+import { ref, toRef } from 'vue';
 import { Image as ImageIcon } from 'lucide-vue-next';
+import { VirtualScroller } from 'primevue';
 import { useGalleryStore } from '@/stores/gallery';
+import { useVirtualGrid } from '@/composables/useVirtualGrid';
 import GalleryCard from './GalleryCard.vue';
 
 defineProps<{
@@ -51,22 +60,19 @@ const emit = defineEmits<{
 }>();
 
 const gallery = useGalleryStore();
+const containerRef = ref<HTMLElement>();
 
-const scrollRef = ref<HTMLElement>();
-const loadMoreRef = ref<HTMLElement>();
-let loadMoreObserver: IntersectionObserver | null = null;
+const { rows, rowHeight, gridStyle } = useVirtualGrid(
+  toRef(() => gallery.images),
+  containerRef,
+  { aspectRatio: 4 / 3 },
+);
 
-onMounted(() => {
-  loadMoreObserver = new IntersectionObserver(
-    ([entry]) => {
-      if (entry.isIntersecting && gallery.hasMore && !gallery.loading) {
-        gallery.loadMore();
-      }
-    },
-    { root: scrollRef.value, rootMargin: '200px' },
-  );
-  if (loadMoreRef.value) loadMoreObserver.observe(loadMoreRef.value);
-});
-
-onUnmounted(() => loadMoreObserver?.disconnect());
+function onScroll(event: Event) {
+  const el = event.target as HTMLElement;
+  const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 300;
+  if (nearBottom && gallery.hasMore && !gallery.loading) {
+    gallery.loadMore();
+  }
+}
 </script>

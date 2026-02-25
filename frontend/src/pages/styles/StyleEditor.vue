@@ -398,7 +398,7 @@ onMounted(async () => {
   }
 });
 
-// Populate form when editor style loads
+// Populate form when editor style loads, reset when cleared
 watch(
   () => stylesStore.editorStyle,
   async (style) => {
@@ -414,6 +414,12 @@ watch(
         thumbnailPath.value = style.thumbnail_path;
         await loadThumbnail(style.thumbnail_path);
       }
+    } else {
+      form.value = { name: '', description: '', promptTemplate: '', negativePrompt: '', category: '' };
+      thumbnailPath.value = null;
+      thumbnailDataUrl.value = null;
+      pendingLoras.value = [];
+      pendingTags.value = [];
     }
   },
   { immediate: true },

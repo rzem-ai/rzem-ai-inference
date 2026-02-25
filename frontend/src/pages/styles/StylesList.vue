@@ -84,7 +84,7 @@
     </Toolbar>
 
     <!-- Styles grid area -->
-    <div class="flex-1 min-h-0 overflow-y-auto rounded-xl">
+    <div ref="containerRef" class="flex-1 min-h-0 overflow-hidden rounded-xl">
       <!-- Empty state -->
       <div v-if="!stylesStore.loading && stylesStore.styles.length === 0" class="h-full flex items-center justify-center">
         <div class="text-center">
@@ -100,20 +100,26 @@
         </div>
       </div>
 
-      <!-- Grid view -->
-      <div
+      <!-- Virtualised grid view -->
+      <VirtualScroller
         v-else
-        class="grid gap-3 p-1"
-        :class="isGridMode ? ' sm:grid-cols-1 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 3xl:grid-cols-5 grid-cols-2' : 'grid-cols-1'">
-        <StyleCard
-          v-for="style in stylesStore.styles"
-          :key="style.id"
-          :style-data="style"
-          :selected="selectedIds.has(style.id)"
-          @click="onCardClick"
-          @favorite="onToggleFavorite"
-          @select="onToggleSelect" />
-      </div>
+        :items="rows"
+        :itemSize="rowHeight"
+        class="w-full h-full"
+        :pt="{ content: { class: 'p-0' } }">
+        <template #item="{ item: row, options: slotOpts }">
+          <div :style="gridStyle" :class="{ 'pt-0!': slotOpts.first }">
+            <StyleCard
+              v-for="style in row"
+              :key="style.id"
+              :style-data="style"
+              :selected="selectedIds.has(style.id)"
+              @click="onCardClick"
+              @favorite="onToggleFavorite"
+              @select="onToggleSelect" />
+          </div>
+        </template>
+      </VirtualScroller>
 
       <!-- Loading spinner -->
       <div v-if="stylesStore.loading" class="flex justify-center py-4">
@@ -124,18 +130,27 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, reactive, watch } from 'vue';
+import { computed, ref, reactive, watch, toRef } from 'vue';
 import { useRouter } from 'vue-router';
 import { Search, Plus, Trash2, LayoutGrid, List as ListIcon, Palette, ListTodo } from 'lucide-vue-next';
 import { FolderInput, ArrowUpDown, ArrowUpAZ, ArrowDownAZ, ChevronDown, Check } from 'lucide-vue-next';
 
 import { useStylesStore } from '@/stores/styles';
+import { useVirtualGrid } from '@/composables/useVirtualGrid';
 import StyleCard from './StyleCard.vue';
-import { Button, Divider, Toolbar, SelectButton, Popover } from 'primevue';
+import { Button, Divider, Toolbar, SelectButton, Popover, VirtualScroller } from 'primevue';
 import { InputText, InputGroup, InputGroupAddon } from 'primevue';
 
 const router = useRouter();
 const stylesStore = useStylesStore();
+const containerRef = ref<HTMLElement>();
+
+// StyleCard has aspect-4/3 image + ~60px info section below
+const { rows, rowHeight, gridStyle } = useVirtualGrid(
+  toRef(() => stylesStore.styles),
+  containerRef,
+  { aspectRatio: 3 / 4, extraHeight: 60 },
+);
 
 const GRID_VIEW = { value: 'grid', icon: LayoutGrid };
 const LIST_VIEW = { value: 'list', icon: ListIcon };
