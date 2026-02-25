@@ -1,5 +1,5 @@
 <template>
-  <div class="h-full flex flex-col gap-2">
+  <div class="flex h-full flex-col gap-2">
     <!-- Toolbar -->
     <Toolbar>
       <template #start>
@@ -20,29 +20,29 @@
     </Toolbar>
 
     <!-- Editor content -->
-    <div class="flex-1 min-h-0 overflow-hidden mx-auto w-7xl max-w-8xl">
-      <div class="grid grid-cols-2 gap-8 h-full">
+    <div class="max-w-8xl mx-auto min-h-0 w-7xl flex-1 overflow-hidden">
+      <div class="grid h-full grid-cols-2 gap-8">
         <!-- Center column: Core details -->
-        <div class="flex flex-col gap-4 flex-1 max-w-160 overflow-y-auto min-h-0">
+        <div class="flex min-h-0 max-w-160 flex-1 flex-col gap-4 overflow-y-auto">
           <!-- Thumbnail -->
           <div
-            class="relative w-full h-100 rounded-lg overflow-hidden border-2 transition-colors cursor-pointer"
+            class="relative h-100 w-full cursor-pointer overflow-hidden rounded-lg border-2 transition-colors"
             :class="
               isThumbnailDragging
                 ? 'border-blue-400 bg-blue-50'
                 : thumbnailDataUrl
                   ? 'border-surface-200 hover:border-blue-300'
-                  : 'border-dashed border-surface-200 bg-surface-100 hover:border-blue-300 hover:bg-blue-50/30'
+                  : 'border-surface-200 bg-surface-100 border-dashed hover:border-blue-300 hover:bg-blue-50/30'
             "
             @click="onBrowseThumbnail"
             @dragenter.prevent="onThumbnailDragEnter"
             @dragleave.prevent="onThumbnailDragLeave"
             @dragover.prevent
             @drop.prevent="onThumbnailDrop">
-            <img v-if="thumbnailDataUrl" :src="thumbnailDataUrl" class="absolute inset-0 w-full h-full object-cover" />
+            <img v-if="thumbnailDataUrl" :src="thumbnailDataUrl" class="absolute inset-0 h-full w-full object-cover" />
             <div
               v-if="!thumbnailDataUrl || isThumbnailDragging"
-              class="absolute inset-0 flex items-center justify-center pointer-events-none"
+              class="pointer-events-none absolute inset-0 flex items-center justify-center"
               :class="thumbnailDataUrl ? 'bg-black/40' : ''">
               <div class="text-center" :class="thumbnailDataUrl || isThumbnailDragging ? 'text-white' : 'text-surface-300'">
                 <ImagePlus :size="32" class="mx-auto mb-1" />
@@ -53,19 +53,19 @@
 
           <!-- Name -->
           <div class="flex flex-col gap-0">
-            <label class="text-lg font-semibold text-surface-700">Name</label>
+            <label class="text-surface-700 text-lg font-semibold">Name</label>
             <InputText v-model="form.name" placeholder="Style name" />
           </div>
 
           <!-- Collection (category) -->
           <div class="flex flex-col gap-0">
-            <label class="text-lg font-semibold text-surface-700">Collection</label>
+            <label class="text-surface-700 text-lg font-semibold">Collection</label>
             <InputText v-model="form.category" placeholder="e.g. Photography, Illustration, Painting" />
           </div>
 
           <!-- Description -->
           <div class="flex flex-col gap-0">
-            <label class="text-lg font-semibold text-surface-700">Description</label>
+            <label class="text-surface-700 text-lg font-semibold">Description</label>
             <TextEditor
               v-model="form.description"
               placeholder="Brief description of this style"
@@ -74,7 +74,7 @@
 
           <!-- Tags -->
           <div class="flex flex-col gap-0">
-            <label class="text-lg font-semibold text-surface-700">Tags</label>
+            <label class="text-surface-700 text-lg font-semibold">Tags</label>
             <div class="flex flex-col gap-2">
               <!-- Tag input with suggestions -->
               <div class="relative">
@@ -87,16 +87,16 @@
                   @keydown.escape="showTagSuggestions = false" />
                 <ul
                   v-if="showTagSuggestions && tagSuggestions.length"
-                  class="absolute z-10 w-full mt-1 bg-white border border-surface-200 rounded-lg shadow-lg max-h-32 overflow-y-auto">
+                  class="border-surface-200 absolute z-10 mt-1 max-h-32 w-full overflow-y-auto rounded-lg border bg-white shadow-lg">
                   <li
                     v-for="tag in tagSuggestions"
                     :key="tag.id"
-                    class="px-3 py-1 text-sm text-surface-700 hover:bg-blue-50 cursor-pointer transition-colors"
+                    class="text-surface-700 cursor-pointer px-3 py-1 text-sm transition-colors hover:bg-blue-50"
                     @mousedown.prevent="addExistingTag(tag)">
                     {{ tag.name }}
                   </li>
                 </ul>
-                <p v-if="tagInput.trim() && !tagSuggestions.length && showTagSuggestions" class="mt-1 text-xs text-surface-400">
+                <p v-if="tagInput.trim() && !tagSuggestions.length && showTagSuggestions" class="text-surface-400 mt-1 text-xs">
                   Press Enter to create "{{ tagInput.trim() }}"
                 </p>
               </div>
@@ -107,17 +107,17 @@
                   :label="tag.name"
                   @remove="removeTag(tag.id)"
                   removable
-                  class="border border-surface-300 rounded-xl py-0 px-2" />
+                  class="border-surface-300 rounded-xl border px-2 py-0" />
               </div>
             </div>
           </div>
         </div>
 
         <!-- Right column: Tags, LoRAs, and Examples -->
-        <div class="flex flex-col gap-6 flex-1 max-w-160 overflow-y-auto min-h-0">
+        <div class="flex min-h-0 max-w-160 flex-1 flex-col gap-6 overflow-y-auto">
           <!-- Positive prompt template -->
           <div class="flex flex-col gap-0">
-            <label class="text-lg font-semibold text-surface-700">Prompt Template</label>
+            <label class="text-surface-700 text-lg font-semibold">Prompt Template</label>
             <TextEditor
               v-model="form.promptTemplate"
               placeholder="In style of Moebius {prompt}"
@@ -127,42 +127,45 @@
 
           <!-- LoRAs -->
           <div class="flex flex-col gap-0">
-            <label class="text-lg font-semibold text-surface-700">LoRA Models</label>
-            <div class="flex flex-col gap-2 p-3 rounded-lg bg-white border border-surface-200">
+            <label class="text-surface-700 text-lg font-semibold">LoRA Models</label>
+            <div class="border-surface-200 flex flex-col gap-2 rounded-lg border bg-white p-3">
               <!-- Associated LoRAs -->
               <div v-if="stylesStore.editorLoras.length" class="flex flex-col gap-2">
-                <div v-for="lora in stylesStore.editorLoras" :key="lora.id" class="flex items-center gap-2 p-3 rounded-lg bg-white border border-surface-200">
-                  <div class="w-8 h-8 flex items-center justify-center  rounded-md bg-blue-50 shrink-0">
+                <div v-for="lora in stylesStore.editorLoras" :key="lora.id" class="border-surface-200 flex items-center gap-2 rounded-lg border bg-white p-3">
+                  <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-blue-50">
                     <Layers :size="16" class="text-blue-600" />
                   </div>
-                  <div class="flex-1 min-w-0">
-                    <p class="text-base font-semibold text-surface-800 truncate">{{ lora.lora_name }}</p>
-                    <p class="text-sm text-surface-400 truncate">{{ lora.lora_path }}</p>
+                  <div class="min-w-0 flex-1">
+                    <p class="text-surface-800 truncate text-base font-semibold">{{ lora.lora_name }}</p>
+                    <p class="text-surface-400 truncate text-sm">{{ lora.lora_path }}</p>
                   </div>
-                  <InputNumber
-                    :model-value="lora.strength"
-                    @update:model-value="(val) => onLoraStrengthChange(lora, val ?? 1)"
-                    :min="0"
-                    :max="2"
-                    :step="0.05"
-                    :min-fraction-digits="2"
-                    :max-fraction-digits="2"
-                    class="w-5 shrink-0"
-                    input-class="text-xs text-right p-1" />
+                  <div class="w-15">
+                    <InputNumber
+                      :model-value="lora.strength"
+                      @update:model-value="(val) => onLoraStrengthChange(lora, val ?? 1)"
+                      :min="0"
+                      :max="2"
+                      :step="0.05"
+                      :min-fraction-digits="2"
+                      :max-fraction-digits="2"
+                      size="small"
+                      input-class="text-right"
+                      fluid />
+                  </div>
                 </div>
               </div>
 
               <!-- Pending LoRAs (not yet saved to style) -->
               <div v-if="pendingLoras.length" class="flex flex-col gap-2">
-                <div v-for="lora in pendingLoras" :key="lora.id" class="flex items-center gap-2 p-3 rounded-lg bg-blue-50 border border-blue-200">
-                  <div class="flex items-center justify-center w-8 h-8 rounded-md bg-blue-100 shrink-0">
+                <div v-for="lora in pendingLoras" :key="lora.id" class="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3">
+                  <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-blue-100">
                     <Layers :size="16" class="text-blue-600" />
                   </div>
-                  <div class="flex-1 min-w-0">
-                    <p class="text-base font-semibold text-surface-800 truncate">{{ lora.name }}</p>
-                    <p class="text-sm text-surface-400 truncate">{{ lora.path }}</p>
+                  <div class="min-w-0 flex-1">
+                    <p class="text-surface-800 truncate text-base font-semibold">{{ lora.name }}</p>
+                    <p class="text-surface-400 truncate text-sm">{{ lora.path }}</p>
                   </div>
-                  <button class="text-surface-400 hover:text-red-500 transition-colors shrink-0" @click="removePendingLora(lora.id)">
+                  <button class="text-surface-400 shrink-0 transition-colors hover:text-red-500" @click="removePendingLora(lora.id)">
                     <X :size="14" />
                   </button>
                 </div>
@@ -170,18 +173,18 @@
 
               <!-- Drop zone / browse button -->
               <div
-                class="flex flex-col items-center justify-center w-full h-20 rounded-lg border-[1.5px] border-dashed transition-colors cursor-pointer"
+                class="flex h-20 w-full cursor-pointer flex-col items-center justify-center rounded-lg border-[1.5px] border-dashed transition-colors"
                 :class="
                   isDragging
                     ? 'border-blue-400 bg-blue-50 text-blue-500'
-                    : 'border-surface-300 bg-surface-50 text-surface-400 hover:border-blue-300 hover:text-blue-500 hover:bg-blue-50/50'
+                    : 'border-surface-300 bg-surface-50 text-surface-400 hover:border-blue-300 hover:bg-blue-50/50 hover:text-blue-500'
                 "
                 @click="onBrowseLoras"
                 @dragenter.prevent="onDragEnter"
                 @dragleave.prevent="onDragLeave"
                 @dragover.prevent
                 @drop.prevent="onDrop">
-                <div class="text-center pointer-events-none">
+                <div class="pointer-events-none text-center">
                   <Plus :size="20" class="mx-auto mb-1" />
                   <p class="text-xs font-normal">{{ isDragging ? 'Drop LoRA files here' : 'Drop or click to add LoRA files' }}</p>
                 </div>
@@ -192,7 +195,7 @@
           <!-- Example Prompts -->
           <div class="flex flex-col gap-2">
             <div class="flex items-center justify-between">
-              <label class="text-lg font-semibold text-surface-700">Example Prompts ( {{ stylesStore.editorExamples.length }} )</label>
+              <label class="text-surface-700 text-lg font-semibold">Example Prompts ( {{ stylesStore.editorExamples.length }} )</label>
               <Button severity="secondary" variant="outlined" v-if="!isNew" @click="showAddExample = true">
                 <Plus :size="13" />
                 Add Example
@@ -201,37 +204,37 @@
 
             <!-- Example cards -->
             <template v-if="stylesStore.editorExamples.length">
-              <div v-for="example in parsedExamples" :key="example.id" class="rounded-lg border border-surface-300 overflow-hidden bg-white">
+              <div v-for="example in parsedExamples" :key="example.id" class="border-surface-300 overflow-hidden rounded-lg border bg-white">
                 <!-- Image (click for full resolution) -->
-                <div v-if="example.imageDataUrl" class="h-32 overflow-hidden cursor-pointer" @click="onOpenExampleImage(example)">
-                  <img :src="example.imageDataUrl" class="w-full h-full object-cover" />
+                <div v-if="example.imageDataUrl" class="h-32 cursor-pointer overflow-hidden" @click="onOpenExampleImage(example)">
+                  <img :src="example.imageDataUrl" class="h-full w-full object-cover" />
                 </div>
                 <!-- Body -->
-                <div class="p-3 flex flex-col gap-2">
-                  <p class="text-base font-medium text-surface-800 line-clamp-2">{{ example.prompt }}</p>
+                <div class="flex flex-col gap-2 p-3">
+                  <p class="text-surface-800 line-clamp-2 text-base font-medium">{{ example.prompt }}</p>
                   <div class="flex flex-wrap gap-1">
                     <!-- -->
-                    <div v-if="example.seed != null" class="inline-flex items-center gap-1 px-1 py-1 rounded bg-surface-100">
-                      <div class="font-medium text-sm text-surface-400">Seed</div>
-                      <div class="font-medium text-base font-mono text-surface-600">{{ example.seed }}</div>
+                    <div v-if="example.seed != null" class="bg-surface-100 inline-flex items-center gap-1 rounded px-1 py-1">
+                      <div class="text-surface-400 text-sm font-medium">Seed</div>
+                      <div class="text-surface-600 font-mono text-base font-medium">{{ example.seed }}</div>
                     </div>
 
                     <!-- -->
-                    <div v-if="example.width && example.height" class="inline-flex items-center gap-1 px-1 py-1 rounded bg-surface-100">
-                      <div class="font-medium text-sm text-surface-400">Size</div>
-                      <div class="font-medium text-base font-mono text-surface-600">{{ example.width }}×{{ example.height }}</div>
+                    <div v-if="example.width && example.height" class="bg-surface-100 inline-flex items-center gap-1 rounded px-1 py-1">
+                      <div class="text-surface-400 text-sm font-medium">Size</div>
+                      <div class="text-surface-600 font-mono text-base font-medium">{{ example.width }}×{{ example.height }}</div>
                     </div>
 
                     <!-- -->
-                    <div v-if="example.steps != null" class="inline-flex items-center gap-1 px-1 py-1 rounded bg-surface-100">
-                      <div class="font-medium text-sm text-surface-400">Steps</div>
-                      <div class="font-medium text-base font-mono text-surface-600">{{ example.steps }}</div>
+                    <div v-if="example.steps != null" class="bg-surface-100 inline-flex items-center gap-1 rounded px-1 py-1">
+                      <div class="text-surface-400 text-sm font-medium">Steps</div>
+                      <div class="text-surface-600 font-mono text-base font-medium">{{ example.steps }}</div>
                     </div>
 
                     <!-- -->
-                    <div v-if="example.cfg_scale != null" class="inline-flex items-center gap-1 px-1 py-1 rounded bg-surface-100">
-                      <div class="font-medium text-sm text-surface-400">CFG</div>
-                      <div class="font-medium text-base font-mono text-surface-600">{{ example.cfg_scale }}</div>
+                    <div v-if="example.cfg_scale != null" class="bg-surface-100 inline-flex items-center gap-1 rounded px-1 py-1">
+                      <div class="text-surface-400 text-sm font-medium">CFG</div>
+                      <div class="text-surface-600 font-mono text-base font-medium">{{ example.cfg_scale }}</div>
                     </div>
                   </div>
 
@@ -244,7 +247,7 @@
               </div>
             </template>
 
-            <p v-else class="text-xs text-surface-400 text-center py-3">
+            <p v-else class="text-surface-400 py-3 text-center text-xs">
               {{ isNew ? 'Save the style first to add examples' : 'No examples yet' }}
             </p>
           </div>
@@ -253,17 +256,17 @@
           <Dialog v-model:visible="showAddExample" header="Add Example Prompt" modal :style="{ width: '28rem' }">
             <div class="flex flex-col gap-3 pt-2">
               <div class="flex flex-col gap-1">
-                <label class="text-xs font-medium text-surface-600">Prompt</label>
+                <label class="text-surface-600 text-xs font-medium">Prompt</label>
                 <textarea
                   v-model="exampleForm.prompt"
                   rows="3"
                   placeholder="Example prompt text"
-                  class="px-3 py-2 rounded-lg bg-surface-50 border border-surface-200 text-sm text-surface-700 placeholder-surface-400 outline-none focus:border-blue-400 transition-colors resize-none" />
+                  class="bg-surface-50 border-surface-200 text-surface-700 placeholder-surface-400 resize-none rounded-lg border px-3 py-2 text-sm transition-colors outline-none focus:border-blue-400" />
               </div>
               <div class="flex flex-col gap-1">
-                <label class="text-xs font-medium text-surface-600">Image (optional)</label>
+                <label class="text-surface-600 text-xs font-medium">Image (optional)</label>
                 <button
-                  class="flex items-center gap-2 px-3 h-9 rounded-lg bg-surface-50 border border-surface-200 text-xs text-surface-600 hover:border-blue-400 transition-colors"
+                  class="bg-surface-50 border-surface-200 text-surface-600 flex h-9 items-center gap-2 rounded-lg border px-3 text-xs transition-colors hover:border-blue-400"
                   @click="onBrowseExampleImage">
                   <ImagePlus :size="14" />
                   {{ exampleForm.imagePath ? exampleForm.imagePath.split('/').pop() : 'Browse image...' }}
@@ -271,46 +274,46 @@
               </div>
               <div class="grid grid-cols-2 gap-2">
                 <div class="flex flex-col gap-1">
-                  <label class="text-xs font-medium text-surface-600">Seed</label>
+                  <label class="text-surface-600 text-xs font-medium">Seed</label>
                   <input
                     v-model.number="exampleForm.seed"
                     type="number"
                     placeholder="Random"
-                    class="px-3 h-8 rounded-lg bg-surface-50 border border-surface-200 text-xs text-surface-700 placeholder-surface-400 outline-none focus:border-blue-400" />
+                    class="bg-surface-50 border-surface-200 text-surface-700 placeholder-surface-400 h-8 rounded-lg border px-3 text-xs outline-none focus:border-blue-400" />
                 </div>
                 <div class="flex flex-col gap-1">
-                  <label class="text-xs font-medium text-surface-600">Steps</label>
+                  <label class="text-surface-600 text-xs font-medium">Steps</label>
                   <input
                     v-model.number="exampleForm.steps"
                     type="number"
                     placeholder="—"
-                    class="px-3 h-8 rounded-lg bg-surface-50 border border-surface-200 text-xs text-surface-700 placeholder-surface-400 outline-none focus:border-blue-400" />
+                    class="bg-surface-50 border-surface-200 text-surface-700 placeholder-surface-400 h-8 rounded-lg border px-3 text-xs outline-none focus:border-blue-400" />
                 </div>
                 <div class="flex flex-col gap-1">
-                  <label class="text-xs font-medium text-surface-600">Width</label>
+                  <label class="text-surface-600 text-xs font-medium">Width</label>
                   <input
                     v-model.number="exampleForm.width"
                     type="number"
                     placeholder="—"
-                    class="px-3 h-8 rounded-lg bg-surface-50 border border-surface-200 text-xs text-surface-700 placeholder-surface-400 outline-none focus:border-blue-400" />
+                    class="bg-surface-50 border-surface-200 text-surface-700 placeholder-surface-400 h-8 rounded-lg border px-3 text-xs outline-none focus:border-blue-400" />
                 </div>
                 <div class="flex flex-col gap-1">
-                  <label class="text-xs font-medium text-surface-600">Height</label>
+                  <label class="text-surface-600 text-xs font-medium">Height</label>
                   <input
                     v-model.number="exampleForm.height"
                     type="number"
                     placeholder="—"
-                    class="px-3 h-8 rounded-lg bg-surface-50 border border-surface-200 text-xs text-surface-700 placeholder-surface-400 outline-none focus:border-blue-400" />
+                    class="bg-surface-50 border-surface-200 text-surface-700 placeholder-surface-400 h-8 rounded-lg border px-3 text-xs outline-none focus:border-blue-400" />
                 </div>
               </div>
               <div class="flex flex-col gap-1">
-                <label class="text-xs font-medium text-surface-600">CFG Scale</label>
+                <label class="text-surface-600 text-xs font-medium">CFG Scale</label>
                 <input
                   v-model.number="exampleForm.cfgScale"
                   type="number"
                   step="0.1"
                   placeholder="—"
-                  class="px-3 h-8 rounded-lg bg-surface-50 border border-surface-200 text-xs text-surface-700 placeholder-surface-400 outline-none focus:border-blue-400" />
+                  class="bg-surface-50 border-surface-200 text-surface-700 placeholder-surface-400 h-8 rounded-lg border px-3 text-xs outline-none focus:border-blue-400" />
               </div>
             </div>
             <template #footer>
@@ -336,17 +339,17 @@
           ref="overlayRef">
           <div class="absolute inset-0 bg-black/90" />
           <button
-            class="absolute top-4 right-4 z-10 p-2 rounded-full bg-white/10 backdrop-blur-sm text-white/70 hover:text-white hover:bg-white/20 transition-colors"
+            class="absolute top-4 right-4 z-10 rounded-full bg-white/10 p-2 text-white/70 backdrop-blur-sm transition-colors hover:bg-white/20 hover:text-white"
             @click="closeOverlay">
             <X :size="20" />
           </button>
           <img
             v-if="overlayImageUrl"
             :src="overlayImageUrl"
-            class="relative max-w-[90vw] max-h-[90vh] object-contain rounded-lg select-none z-1"
+            class="relative z-1 max-h-[90vh] max-w-[90vw] rounded-lg object-contain select-none"
             draggable="false"
             @click.stop />
-          <div v-else class="relative z-1 w-8 h-8 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+          <div v-else class="relative z-1 h-8 w-8 animate-spin rounded-full border-2 border-white/40 border-t-white" />
         </div>
       </Transition>
     </Teleport>
