@@ -17,8 +17,8 @@
         <PromptInput @submit="onSubmit" />
         <AspectRatioStrip />
         <ModelSelect />
-        <QualitySliders />
         <StyleSelect />
+        <QualitySliders />
         <AdvancedSection />
 
         <!-- Dev controls (Ctrl+Shift+D) -->
@@ -40,6 +40,9 @@
         <Button severity="secondary" variant="outlined" title="Batch Generation" :disabled="!store.engineReady" @click="showBatchDialog = true">
           <Layers :size="16" />
         </Button>
+        <Button severity="secondary" variant="outlined" title="X/Y Parameter Grid" :disabled="!store.engineReady" @click="showGridDialog = true">
+          <Grid3x3 :size="16" />
+        </Button>
       </div>
       <Button v-else class="transition-colors flex items-center justify-center gap-2" severity="danger" fluid raised @click="store.cancelJob()">
         <Square :size="14" />
@@ -52,11 +55,12 @@
   </MenuPanel>
 
   <BatchDialog v-model:visible="showBatchDialog" />
+  <GridDialog v-model:visible="showGridDialog" />
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { Image as ImageIcon, WandSparkles, Sparkles, Square, Layers } from 'lucide-vue-next';
+import { Image as ImageIcon, WandSparkles, Sparkles, Square, Layers, Grid3x3 } from 'lucide-vue-next';
 
 import { useInferenceStore } from '@/stores/inference';
 import { useStylesStore } from '@/stores/styles';
@@ -70,6 +74,7 @@ import AdvancedSection from './AdvancedSection.vue';
 import ChatbotPanel from './ChatbotPanel.vue';
 import DevMode from './DevMode.vue';
 import BatchDialog from './BatchDialog.vue';
+import GridDialog from './GridDialog.vue';
 import ProgressOverlay from './ProgressOverlay.vue';
 import { Button } from 'primevue';
 import MenuPanel from '@/components/MenuPanel.vue';
@@ -79,6 +84,7 @@ const stylesStore = useStylesStore();
 const chatStore = useChatStore();
 
 const showBatchDialog = ref(false);
+const showGridDialog = ref(false);
 
 const canGenerate = computed(() => store.engineReady && store.params.prompt.trim() && !store.isGenerating);
 

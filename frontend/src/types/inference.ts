@@ -184,6 +184,19 @@ export interface StyleExample {
   created_at: number;
 }
 
+// ── Grid types ──
+
+export interface GridAxisConfig {
+  param: string; // 'steps' | 'cfg_scale' | 'seed' | 'sampler' | 'scheduler'
+  values: (number | string)[];
+  label: string;
+}
+
+export interface GridConfig {
+  xAxis: GridAxisConfig;
+  yAxis: GridAxisConfig;
+}
+
 export interface LoRA {
   id: string;
   name: string;

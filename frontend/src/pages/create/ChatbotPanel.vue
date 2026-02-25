@@ -58,16 +58,10 @@
       <div ref="messagesContainer" class="flex-1 overflow-y-auto px-3 py-2 flex flex-col gap-3">
         <!-- Empty state with suggestions -->
         <div v-if="!chatStore.messages.length && !chatStore.isStreaming" class="flex-1 flex flex-col items-center justify-center gap-3">
-          <Bot :size="24" class="text-slate-300" />
-          <p class="text-xs text-slate-400 text-center">Ask me to help craft prompts, adjust settings, or analyze images.</p>
+          <Bot :size="44" class="text-slate-300" />
+          <p class="text-base text-slate-400 text-center">Ask me to help craft prompts, adjust settings, or analyze images.</p>
           <div class="flex gap-1 flex-wrap justify-center">
-            <button
-              v-for="chip in suggestionChips"
-              :key="chip"
-              class="text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
-              @click="onSendChip(chip)">
-              {{ chip }}
-            </button>
+            <Button v-for="chip in suggestionChips" :key="chip" @click="onSendChip(chip)" severity="info" size="small" class="text-sm"> {{ chip }} </Button>
           </div>
         </div>
 

@@ -1,7 +1,10 @@
 <template>
   <div class="flex flex-col h-full px-2 py-4 gap-2">
+    <!-- Grid view when active -->
+    <GridView v-if="store.gridConfig" class="flex-1" />
+
     <!-- Preview area — ref on the stable outer container whose size is determined by flex layout -->
-    <div ref="imageWrapper" class="relative place-items-center h-full w-full overflow-hidden">
+    <div v-else ref="imageWrapper" class="relative place-items-center h-full w-full overflow-hidden">
       <div v-if="store.isGenerating && store.previewDataUrl" class="rounded-2xl p-4 h-full flex justify-center w-full">
         <div class="w-full h-full flex justify-center">
           <div>
@@ -46,6 +49,7 @@ import { useElementSize } from '@vueuse/core';
 
 import History from './History.vue';
 import ErrorOverlay from './ErrorOverlay.vue';
+import GridView from './GridView.vue';
 
 const imageWrapper = useTemplateRef('imageWrapper');
 const imageWrapperSize = useElementSize(imageWrapper);

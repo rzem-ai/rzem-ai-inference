@@ -66,17 +66,17 @@ export const colorScheme: ButtonTokenSections.ColorScheme = {
                 }
             },
             info: {
-                background: '{sky.500}',
-                hoverBackground: '{sky.600}',
-                activeBackground: '{sky.700}',
-                borderColor: '{sky.500}',
-                hoverBorderColor: '{sky.600}',
-                activeBorderColor: '{sky.700}',
-                color: '#ffffff',
+                background: '{blue.200}',
+                hoverBackground: '{blue.500}',
+                activeBackground: '{blue.500}',
+                borderColor: '{blue.300}',
+                hoverBorderColor: '{blue.300}',
+                activeBorderColor: '{blue.300}',
+                color: '{surface.800}',
                 hoverColor: '#ffffff',
                 activeColor: '#ffffff',
                 focusRing: {
-                    color: '{sky.500}',
+                    color: '{blue.500}',
                     shadow: 'none'
                 }
             },

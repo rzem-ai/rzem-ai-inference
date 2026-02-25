@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { getApiAsync } from '@/bridge';
-import type { ModelBundle, SubmitJobParams, LoraParam, InferenceEvent, GeneratedImage, StyleLoRA } from '@/types/inference';
+import type { ModelBundle, SubmitJobParams, LoraParam, InferenceEvent, GeneratedImage, StyleLoRA, GridConfig } from '@/types/inference';
 import { useGalleryStore } from '@/stores/gallery';
 
 // Non-reactive module-level state (no reactivity tracking needed)
@@ -78,6 +78,7 @@ export const useInferenceStore = defineStore('inference', {
     // UI state
     chatbotOpen: false,
     activeAspectRatio: '1:1' as string | null,
+    qualityOpen: false,
     advancedOpen: false,
     devMode: false,
 
@@ -106,6 +107,14 @@ export const useInferenceStore = defineStore('inference', {
     batchTotal: 0,
     batchCompleted: 0,
     batchJobIds: [] as string[],
+
+    // Grid state
+    gridActive: false,
+    gridConfig: null as GridConfig | null,
+    gridResults: new Map<string, GeneratedImage>(),
+    gridJobMap: new Map<string, { x: number; y: number }>(),
+    gridTotal: 0,
+    gridCompleted: 0,
 
     // Event log (for debugging)
     events: [] as InferenceEvent[],
@@ -267,6 +276,9 @@ export const useInferenceStore = defineStore('inference', {
 
     async cancelJob() {
       if (!this.currentJobId) return;
+      if (this.gridActive) {
+        return this.cancelGrid();
+      }
       if (this.batchActive) {
         return this.cancelBatch();
       }
@@ -338,6 +350,76 @@ export const useInferenceStore = defineStore('inference', {
       this.previewDataUrl = null;
     },
 
+    // ── Grid ──
+
+    async submitGrid(config: GridConfig) {
+      if (!this.engineReady || this.isGenerating) return;
+
+      const xValues = config.xAxis.values;
+      const yValues = config.yAxis.values;
+      if (!xValues.length || !yValues.length) return;
+
+      this.error = null;
+      this.gridActive = true;
+      this.gridConfig = config;
+      this.gridResults = new Map();
+      this.gridJobMap = new Map();
+      this.gridTotal = xValues.length * yValues.length;
+      this.gridCompleted = 0;
+      this.isGenerating = true;
+
+      const api = await getApiAsync();
+      const frozenSeed = this.params.seed >= 0 ? this.params.seed : Math.floor(Math.random() * 2147483647);
+
+      for (let y = 0; y < yValues.length; y++) {
+        for (let x = 0; x < xValues.length; x++) {
+          if (!this.gridActive) return; // cancelled
+
+          const jobParams: Record<string, any> = { ...this.params, seed: frozenSeed };
+          jobParams[config.xAxis.param] = xValues[x];
+          jobParams[config.yAxis.param] = yValues[y];
+
+          if (this.selectedBundleId) jobParams.bundle_id = this.selectedBundleId;
+          if (this.selectedStyleId) jobParams.style_id = this.selectedStyleId;
+          if (this.stylePromptTemplate) {
+            jobParams.raw_prompt = this.params.prompt;
+            jobParams.prompt = this.stylePromptTemplate.replace('{prompt}', this.params.prompt);
+          }
+          if (this.styleNegativePrompt) jobParams.negative_prompt = this.styleNegativePrompt;
+
+          for (const key of Object.keys(jobParams)) {
+            if (jobParams[key] === undefined || jobParams[key] === '') delete jobParams[key];
+          }
+
+          const res = await api.submit_job(jobParams);
+          if (res.status === 'success' && res.job_id) {
+            this.gridJobMap.set(res.job_id, { x, y });
+          }
+        }
+      }
+    },
+
+    cancelGrid() {
+      this.gridActive = false;
+      this.gridConfig = null;
+      this.gridJobMap = new Map();
+      this.gridTotal = 0;
+      this.gridCompleted = 0;
+      this.isGenerating = false;
+      this.currentJobId = null;
+      this.progress = null;
+      this.previewDataUrl = null;
+    },
+
+    clearGrid() {
+      this.gridActive = false;
+      this.gridConfig = null;
+      this.gridResults = new Map();
+      this.gridJobMap = new Map();
+      this.gridTotal = 0;
+      this.gridCompleted = 0;
+    },
+
     applyStyle(styleId: string, promptTemplate: string, negativePrompt: string | null, loras: StyleLoRA[], bundleId?: string | null) {
       this.selectedStyleId = styleId;
       this.stylePromptTemplate = promptTemplate;
@@ -405,6 +487,10 @@ export const useInferenceStore = defineStore('inference', {
       this.activeAspectRatio = label;
       this.params.width = width;
       this.params.height = height;
+    },
+
+    toggleQuality() {
+      this.qualityOpen = !this.qualityOpen;
     },
 
     toggleAdvanced() {
@@ -512,9 +598,22 @@ export const useInferenceStore = defineStore('inference', {
             this.generatedImages.unshift(img);
             this.selectedImageIndex = 0;
 
+            // Track grid cell results
+            const gridCell = this.gridJobMap.get(event.data.job_id);
+            if (gridCell) {
+              this.gridResults.set(`${gridCell.x},${gridCell.y}`, img);
+            }
+
             useGalleryStore().loadImages();
 
-            if (this.batchActive) {
+            if (this.gridActive) {
+              this.gridCompleted++;
+              if (this.gridCompleted >= this.gridTotal) {
+                this.gridActive = false;
+                this.isGenerating = false;
+                this.currentJobId = null;
+              }
+            } else if (this.batchActive) {
               this.batchCompleted++;
               if (this.batchCompleted >= this.batchTotal) {
                 this.batchActive = false;
@@ -533,7 +632,14 @@ export const useInferenceStore = defineStore('inference', {
             this.previewDataUrl = null;
             this.error = event.data.error ?? 'Generation failed';
 
-            if (this.batchActive) {
+            if (this.gridActive) {
+              this.gridCompleted++;
+              if (this.gridCompleted >= this.gridTotal) {
+                this.gridActive = false;
+                this.isGenerating = false;
+                this.currentJobId = null;
+              }
+            } else if (this.batchActive) {
               this.batchCompleted++;
               if (this.batchCompleted >= this.batchTotal) {
                 this.batchActive = false;
@@ -550,7 +656,14 @@ export const useInferenceStore = defineStore('inference', {
             this.progress = null;
             this.previewDataUrl = null;
 
-            if (this.batchActive) {
+            if (this.gridActive) {
+              this.gridCompleted++;
+              if (this.gridCompleted >= this.gridTotal) {
+                this.gridActive = false;
+                this.isGenerating = false;
+                this.currentJobId = null;
+              }
+            } else if (this.batchActive) {
               this.batchCompleted++;
               if (this.batchCompleted >= this.batchTotal) {
                 this.batchActive = false;

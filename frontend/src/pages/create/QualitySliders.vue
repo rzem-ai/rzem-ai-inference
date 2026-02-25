@@ -1,8 +1,13 @@
 <template>
-  <div v-if="showQuality" class="flex flex-col gap-1 mb-2">
-    <div class="text-base font-medium text-slate-600">Quality</div>
+  <div v-if="showQuality" class="flex flex-col gap-0">
+    <!-- Toggle header -->
+    <button class="flex items-center justify-between w-full py-1" @click="store.toggleQuality()">
+      <div class="text-base font-medium text-slate-600 hover:text-slate-700 transition-colors">Quality</div>
+      <ChevronDown :size="14" class="transition-transform duration-200" :class="store.qualityOpen ? 'rotate-180' : ''" />
+    </button>
 
-    <div class="flex flex-col gap-3">
+    <!-- Collapsible content -->
+    <div v-show="store.qualityOpen" class="flex flex-col gap-3 pt-2">
       <!-- Steps (hidden when bundle declares steps=0 — not supported by endpoint) -->
       <div v-if="showSteps" class="flex flex-col gap-2">
         <div class="flex justify-between items-center">
@@ -26,6 +31,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import { ChevronDown } from 'lucide-vue-next';
 import Slider from 'primevue/slider';
 import { useInferenceStore } from '@/stores/inference';
 
