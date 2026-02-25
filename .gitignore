@@ -18,3 +18,5 @@ build/
 .env
 logs/
 uv.lock
+.claude/skills/primevue.md
+.claude/settings.local.json
