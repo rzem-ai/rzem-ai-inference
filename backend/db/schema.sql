@@ -97,6 +97,7 @@ CREATE TABLE IF NOT EXISTS styles (
     strength_max        REAL NOT NULL DEFAULT 1.5,
     category            TEXT,
     thumbnail_path      TEXT,
+    bundle_id           TEXT,
     is_favorite         INTEGER NOT NULL DEFAULT 0,
     usage_count         INTEGER NOT NULL DEFAULT 0,
     created_at          INTEGER NOT NULL,
@@ -105,6 +106,7 @@ CREATE TABLE IF NOT EXISTS styles (
 
 CREATE INDEX IF NOT EXISTS idx_styles_category ON styles(category);
 CREATE INDEX IF NOT EXISTS idx_styles_favorite ON styles(is_favorite) WHERE is_favorite = 1;
+CREATE INDEX IF NOT EXISTS idx_styles_bundle   ON styles(bundle_id);
 
 -- ── Style ↔ LoRA (many-to-many) ────────────────────────────────
 

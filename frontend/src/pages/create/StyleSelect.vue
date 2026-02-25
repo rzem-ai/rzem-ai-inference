@@ -89,6 +89,7 @@ async function onStyleChange(e: { value: string }) {
       res.style.prompt_template,
       res.style.negative_prompt,
       res.loras ?? [],
+      res.style.bundle_id,
     );
   }
 }

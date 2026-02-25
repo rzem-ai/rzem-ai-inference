@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import base64
 import logging
+import mimetypes
 import os
 import re
 import uuid
@@ -76,6 +78,7 @@ class StylesAPI:
         negative_prompt: str | None = None,
         category: str | None = None,
         thumbnail_path: str | None = None,
+        bundle_id: str | None = None,
         **kwargs,
     ) -> dict[str, Any]:
         try:
@@ -83,6 +86,7 @@ class StylesAPI:
                 id=id, name=name, prompt_template=prompt_template,
                 description=description, negative_prompt=negative_prompt,
                 category=category, thumbnail_path=thumbnail_path,
+                bundle_id=bundle_id,
             )
             return {"status": "success", "style": style}
         except Exception as e:
@@ -389,8 +393,8 @@ class StylesAPI:
             else:
                 return {"status": "error", "message": "Either file_path or json_content is required"}
 
-            civitai = meta.get("civitai", {})
-            civitai_model = civitai.get("model", {})
+            civitai = meta.get("civitai") or {}
+            civitai_model = civitai.get("model") or {}
 
             # ── Extract fields ──
             style_name = meta.get("model_name") or meta.get("file_name", "Imported Style")
@@ -408,11 +412,13 @@ class StylesAPI:
 
             # Download thumbnail to local styles dir
             thumbnail_path = None
+            full_image_path = None
             preview_url = meta.get("preview_url")
             if preview_url:
                 paths = store_style_image(preview_url, self._styles_dir, style_id)
                 if paths:
-                    thumbnail_path = paths[1]  # Use thumbnail WebP for style card
+                    full_image_path = paths[0]  # Full resolution for AI analysis
+                    thumbnail_path = paths[1]   # Thumbnail WebP for style card
 
             lora_path = meta.get("file_path")
             lora_name = meta.get("file_name", "Unknown LoRA")
@@ -466,7 +472,7 @@ class StylesAPI:
             images = civitai.get("images", [])
             example_count = 0
             for img in images[:5]:  # Limit to first 5 examples
-                img_meta = img.get("meta", {})
+                img_meta = img.get("meta") or {}
                 if not img_meta.get("prompt"):
                     continue
 
@@ -500,6 +506,16 @@ class StylesAPI:
                 )
                 example_count += 1
 
+            # If no examples had prompts, try AI-generated template
+            if example_count == 0 and full_image_path:
+                ai_template = self._generate_prompt_template_with_ai(
+                    image_path=full_image_path,
+                    trained_words=trained_words,
+                    style_name=style_name,
+                )
+                if ai_template:
+                    style = self._db.update_style(style_id, prompt_template=ai_template)
+
             logger.info(
                 "Imported CivitAI metadata as style '%s' (id=%s) with %d examples",
                 style_name, style_id, example_count
@@ -512,3 +528,77 @@ class StylesAPI:
         except Exception as e:
             logger.error("Failed to import CivitAI metadata: %s", e)
             return {"status": "error", "message": str(e)}
+
+    # ── AI Prompt Template Generation ──────────────────────────
+
+    def _generate_prompt_template_with_ai(
+        self,
+        image_path: str,
+        trained_words: list[str],
+        style_name: str,
+    ) -> str | None:
+        """Use Claude vision to generate a prompt template from a preview image.
+
+        Returns the template string or None if unavailable/failed.
+        """
+        api_key = self._db.get_setting("CLAUDE_API_KEY")
+        if not api_key:
+            return None
+
+        path = Path(image_path)
+        if not path.is_file():
+            return None
+
+        try:
+            import anthropic
+
+            mime = mimetypes.guess_type(str(path))[0] or "image/png"
+            image_data = base64.standard_b64encode(path.read_bytes()).decode("ascii")
+
+            model = self._db.get_setting("CLAUDE_MODEL") or "claude-sonnet-4-6"
+            client = anthropic.Anthropic(api_key=api_key)
+
+            words_str = ", ".join(trained_words) if trained_words else "(none)"
+
+            response = client.messages.create(
+                model=model,
+                max_tokens=256,
+                messages=[{
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": mime,
+                                "data": image_data,
+                            },
+                        },
+                        {
+                            "type": "text",
+                            "text": (
+                                f"You are analyzing a preview image from an AI LoRA model called \"{style_name}\".\n"
+                                f"Trigger/trained words: {words_str}\n\n"
+                                "Create a prompt template that captures this visual style. Rules:\n"
+                                "- MUST include {prompt} exactly once as a placeholder for the user's subject\n"
+                                "- MUST include the trigger words\n"
+                                "- Describe key visual characteristics (art style, lighting, color palette, mood)\n"
+                                "- Single line, under 60 words\n"
+                                "- Written as a generation prompt, not a description\n\n"
+                                "Output ONLY the template text, nothing else."
+                            ),
+                        },
+                    ],
+                }],
+            )
+
+            template = response.content[0].text.strip()
+            if "{prompt}" not in template:
+                template += " {prompt}"
+
+            logger.info("AI-generated prompt template for '%s': %s", style_name, template[:80])
+            return template
+
+        except Exception as e:
+            logger.warning("AI prompt template generation failed for '%s': %s", style_name, e)
+            return None

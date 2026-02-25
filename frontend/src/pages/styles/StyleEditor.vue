@@ -63,6 +63,21 @@
             <InputText v-model="form.category" placeholder="e.g. Photography, Illustration, Painting" />
           </div>
 
+          <!-- Base Model -->
+          <div class="flex flex-col gap-0">
+            <label class="text-surface-700 text-lg font-semibold">Base Model</label>
+            <Select
+              v-model="selectedBundleId"
+              :options="inferenceStore.bundlesByType"
+              option-group-label="label"
+              option-group-children="items"
+              option-label="label"
+              option-value="id"
+              placeholder="Select base model"
+              show-clear
+              fluid />
+          </div>
+
           <!-- Description -->
           <div class="flex flex-col gap-0">
             <label class="text-surface-700 text-lg font-semibold">Description</label>
@@ -364,7 +379,7 @@ import { useStylesStore } from '@/stores/styles';
 import { useInferenceStore } from '@/stores/inference';
 import { usePywebview } from '@/composables/usePywebview';
 import type { LoRA, Tag } from '@/types/inference';
-import { Button, Chip, Toolbar, Dialog, InputText, InputNumber } from 'primevue';
+import { Button, Chip, Toolbar, Dialog, InputText, InputNumber, Select } from 'primevue';
 import TextEditor from '@/components/TextEditor.vue';
 
 const LORA_EXTENSIONS = ['.safetensors', '.ckpt', '.pt'];
@@ -387,6 +402,7 @@ const form = ref({
   category: '',
 });
 
+const selectedBundleId = ref<string | null>(null);
 const pendingLoras = ref<LoRA[]>([]);
 const pendingTags = ref<Tag[]>([]);
 const isDragging = ref(false);
@@ -416,6 +432,7 @@ const canSave = computed(() => form.value.name.trim() && form.value.promptTempla
 // Load existing style when editing
 onMounted(async () => {
   stylesStore.loadTags();
+  if (!inferenceStore.bundles.length) inferenceStore.loadBundles();
   if (!isNew.value && styleId.value) {
     await stylesStore.loadStyleForEditor(styleId.value);
   } else {
@@ -435,12 +452,14 @@ watch(
         negativePrompt: style.negative_prompt ?? '',
         category: style.category ?? '',
       };
+      selectedBundleId.value = style.bundle_id ?? null;
       if (style.thumbnail_path) {
         thumbnailPath.value = style.thumbnail_path;
         await loadThumbnail(style.thumbnail_path);
       }
     } else {
       form.value = { name: '', description: '', promptTemplate: '', negativePrompt: '', category: '' };
+      selectedBundleId.value = null;
       thumbnailPath.value = null;
       thumbnailDataUrl.value = null;
       pendingLoras.value = [];
@@ -467,6 +486,7 @@ async function onSave() {
       negativePrompt: form.value.negativePrompt.trim() || undefined,
       category: form.value.category.trim() || undefined,
       thumbnailPath: thumbnailPath.value || undefined,
+      bundleId: selectedBundleId.value || undefined,
     });
     if (res?.status === 'success') {
       if (pendingLoras.value.length) {
@@ -493,6 +513,7 @@ async function onSave() {
       negative_prompt: form.value.negativePrompt.trim() || null,
       category: form.value.category.trim() || null,
       thumbnail_path: thumbnailPath.value || null,
+      bundle_id: selectedBundleId.value || null,
     });
     router.push({ name: 'styles' });
   }
@@ -755,7 +776,7 @@ watch(
 
 function useExample(example: ParsedExample) {
   // Apply this style to the Create page
-  inferenceStore.applyStyle(styleId.value!, form.value.promptTemplate, form.value.negativePrompt || null, stylesStore.editorLoras);
+  inferenceStore.applyStyle(styleId.value!, form.value.promptTemplate, form.value.negativePrompt || null, stylesStore.editorLoras, selectedBundleId.value);
 
   // Apply the example's generation parameters
   const params: Record<string, any> = { prompt: example.prompt };

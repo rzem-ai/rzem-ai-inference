@@ -129,8 +129,9 @@ export interface PywebviewAPI {
     negative_prompt?: string;
     category?: string;
     thumbnail_path?: string;
+    bundle_id?: string;
   }): Promise<ApiResponse<{ style?: Style }>>;
-  update_style(args: { style_id: string; name?: string; description?: string; prompt_template?: string; negative_prompt?: string; category?: string; thumbnail_path?: string }): Promise<ApiResponse<{ style?: Style }>>;
+  update_style(args: { style_id: string; name?: string; description?: string; prompt_template?: string; negative_prompt?: string; category?: string; thumbnail_path?: string; bundle_id?: string | null }): Promise<ApiResponse<{ style?: Style }>>;
   delete_style(args: { style_id: string }): Promise<ApiResponse>;
   toggle_style_favorite(args: { style_id: string }): Promise<ApiResponse<{ style?: Style }>>;
   get_style_categories(): Promise<ApiResponse<{ categories?: string[] }>>;

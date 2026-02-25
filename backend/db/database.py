@@ -411,16 +411,17 @@ class Database:
         negative_prompt: str | None = None,
         category: str | None = None,
         thumbnail_path: str | None = None,
+        bundle_id: str | None = None,
     ) -> dict[str, Any] | None:
         now = int(time.time())
         with self._lock:
             self.conn.execute(
                 """INSERT INTO styles
                    (id, name, description, prompt_template, negative_prompt,
-                    category, thumbnail_path, created_at, updated_at)
-                   VALUES (?,?,?,?,?,?,?,?,?)""",
+                    category, thumbnail_path, bundle_id, created_at, updated_at)
+                   VALUES (?,?,?,?,?,?,?,?,?,?)""",
                 (id, name, description, prompt_template, negative_prompt,
-                 category, thumbnail_path, now, now),
+                 category, thumbnail_path, bundle_id, now, now),
             )
             self.conn.commit()
         return self.get_style(id)
@@ -482,7 +483,7 @@ class Database:
     def update_style(self, style_id: str, **updates: Any) -> dict[str, Any] | None:
         allowed = {
             "name", "description", "prompt_template", "negative_prompt",
-            "category", "thumbnail_path",
+            "category", "thumbnail_path", "bundle_id",
         }
         filtered = {k: v for k, v in updates.items() if k in allowed}
         if not filtered:

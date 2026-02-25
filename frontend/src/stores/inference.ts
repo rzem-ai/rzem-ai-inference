@@ -338,7 +338,7 @@ export const useInferenceStore = defineStore('inference', {
       this.previewDataUrl = null;
     },
 
-    applyStyle(styleId: string, promptTemplate: string, negativePrompt: string | null, loras: StyleLoRA[]) {
+    applyStyle(styleId: string, promptTemplate: string, negativePrompt: string | null, loras: StyleLoRA[], bundleId?: string | null) {
       this.selectedStyleId = styleId;
       this.stylePromptTemplate = promptTemplate;
       this.styleNegativePrompt = negativePrompt;
@@ -347,6 +347,10 @@ export const useInferenceStore = defineStore('inference', {
         model_file: l.lora_path,
         strength: l.strength,
       }));
+      if (bundleId) {
+        const bundle = this.bundles.find((b) => b.id === bundleId);
+        if (bundle) this.applyBundle(bundle);
+      }
     },
 
     clearStyle() {

@@ -134,6 +134,7 @@ export const useStylesStore = defineStore('styles', {
       negativePrompt?: string;
       category?: string;
       thumbnailPath?: string;
+      bundleId?: string;
     }) {
       const api = await getApiAsync();
       const res = await api.create_style({
@@ -144,6 +145,7 @@ export const useStylesStore = defineStore('styles', {
         negative_prompt: data.negativePrompt,
         category: data.category,
         thumbnail_path: data.thumbnailPath,
+        bundle_id: data.bundleId,
       });
       if (res.status === 'success') {
         await this.loadStyles();

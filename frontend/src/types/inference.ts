@@ -158,6 +158,7 @@ export interface Style {
   strength_max: number;
   category: string | null;
   thumbnail_path: string | null;
+  bundle_id: string | null;
   is_favorite: number;
   usage_count: number;
   created_at: number;
