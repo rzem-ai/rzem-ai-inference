@@ -98,8 +98,6 @@
 
 <script setup lang="ts">
 import { ref, computed, reactive } from 'vue';
-import { Grid3x3 } from 'lucide-vue-next';
-import { Dialog, Button, Select, InputText } from 'primevue';
 import { useInferenceStore } from '@/stores/inference';
 import type { GridConfig } from '@/types/inference';
 

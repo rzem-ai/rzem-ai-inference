@@ -91,7 +91,7 @@
               <button
                 class="flex items-center gap-2 px-3 py-1 rounded-lg text-left w-full transition-colors hover:bg-slate-50 text-slate-700"
                 @click="onToggleSortOrder">
-                <component :is="gallery.sortOrder === 'asc' ? ArrowUpAZ : ArrowDownAZ" :size="14" />
+                <component :is="gallery.sortOrder === 'asc' ? 'ArrowUpAZ' : 'ArrowDownAZ'" :size="14" />
                 <span class="font-medium">{{ gallery.sortOrder === 'asc' ? 'Ascending' : 'Descending' }}</span>
               </button>
             </div>
@@ -146,23 +146,6 @@
 
 <script setup lang="ts">
 import { computed, ref, reactive, onMounted, watch } from 'vue';
-import {
-  Download,
-  FolderInput,
-  Tag as TagIcon,
-  Trash2,
-  ArrowUpDown,
-  ArrowUpAZ,
-  ArrowDownAZ,
-  ChevronDown,
-  Check,
-  LayoutGrid,
-  Search,
-  Plus,
-  List as ListIcon,
-  ListTodo,
-} from 'lucide-vue-next';
-
 import { useGalleryStore } from '@/stores/gallery';
 import type { GalleryImage } from '@/types/inference';
 import GalleryList from './GalleryList.vue';
@@ -170,13 +153,11 @@ import ImageOverlay from './ImageOverlay.vue';
 import ImageDetailDialog from './ImageDetailDialog.vue';
 import FolderPopover from './FolderPopover.vue';
 import TagPopover from './TagPopover.vue';
-import { Button, ContextMenu, Divider, Toolbar, SelectButton, Popover } from 'primevue';
-import { InputText, InputGroup, InputGroupAddon } from 'primevue';
 
 const gallery = useGalleryStore();
 
-const GRID_VIEW = { value: 'grid', icon: LayoutGrid };
-const LIST_VIEW = { value: 'list', icon: ListIcon };
+const GRID_VIEW = { value: 'grid', icon: 'LayoutGrid' };
+const LIST_VIEW = { value: 'list', icon: 'ListIcon' };
 
 const viewMode = ref(GRID_VIEW);
 const viewModes = ref([GRID_VIEW, LIST_VIEW]);
@@ -300,14 +281,30 @@ const cardMenuItems = computed(() => [
   {
     label: 'Add to Folder',
     icon: 'pi pi-folder',
-    items: gallery.folders.map(f => ({
-      label: f.name,
-      command: () => {
-        if (contextImageId.value) {
-          gallery.addImageToFolder(contextImageId.value, f.id);
-        }
+    items: [
+      ...gallery.folders.map(f => ({
+        label: f.name,
+        command: () => {
+          if (contextImageId.value) {
+            gallery.addImageToFolder(contextImageId.value, f.id);
+          }
+        },
+      })),
+      { separator: true },
+      {
+        label: 'New Folder',
+        icon: 'pi pi-plus',
+        command: () => {
+          const name = prompt('Folder name:');
+          if (name?.trim() && contextImageId.value) {
+            const id = crypto.randomUUID();
+            gallery.createFolder(id, name.trim()).then(() => {
+              gallery.addImageToFolder(contextImageId.value!, id);
+            });
+          }
+        },
       },
-    })),
+    ],
   },
   { separator: true },
   {

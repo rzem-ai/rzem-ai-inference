@@ -61,9 +61,6 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
-import { Terminal } from 'lucide-vue-next';
-import Select from 'primevue/select';
-
 import { useInferenceStore } from '@/stores/inference';
 
 const store = useInferenceStore();

@@ -4,6 +4,8 @@ import PrimeVue from 'primevue/config';
 import Glass from './theme';
 import App from './App.vue';
 import router from './router';
+import { LucidePlugin } from './plugins/lucide';
+import { PrimeVueComponents } from './plugins/primevue-components';
 import './theme/fonts/fonts.css';
 import './style.css';
 import 'primeicons/primeicons.css';
@@ -18,6 +20,8 @@ const app = createApp(App);
 
 app.use(createPinia());
 app.use(router);
+app.use(LucidePlugin);
+app.use(PrimeVueComponents);
 app.use(PrimeVue, {
   theme: {
     preset: Glass,

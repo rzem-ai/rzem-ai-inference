@@ -61,7 +61,7 @@
               <button
                 class="flex items-center gap-2 px-3 py-1 rounded-lg text-left w-full transition-colors hover:bg-slate-50 text-slate-700"
                 @click="onToggleSortOrder">
-                <component :is="stylesStore.sortOrder === 'asc' ? ArrowUpAZ : ArrowDownAZ" :size="14" />
+                <component :is="stylesStore.sortOrder === 'asc' ? 'ArrowUpAZ' : 'ArrowDownAZ'" :size="14" />
                 <span class="font-medium">{{ stylesStore.sortOrder === 'asc' ? 'Ascending' : 'Descending' }}</span>
               </button>
             </div>
@@ -134,15 +134,10 @@
 <script setup lang="ts">
 import { computed, ref, reactive, watch, toRef } from 'vue';
 import { useRouter } from 'vue-router';
-import { Search, Plus, Trash2, LayoutGrid, List as ListIcon, Palette, ListTodo } from 'lucide-vue-next';
-import { FolderInput, ArrowUpDown, ArrowUpAZ, ArrowDownAZ, ChevronDown, Check } from 'lucide-vue-next';
-
 import { useStylesStore } from '@/stores/styles';
 import { useVirtualGrid } from '@/composables/useVirtualGrid';
 import StyleCard from './StyleCard.vue';
 import VirtualGrid from '@/components/VirtualGrid.vue';
-import { Button, ContextMenu, Divider, Toolbar, SelectButton, Popover } from 'primevue';
-import { InputText, InputGroup, InputGroupAddon } from 'primevue';
 
 const router = useRouter();
 const stylesStore = useStylesStore();
@@ -155,8 +150,8 @@ const { rows, rowHeight, gridStyle } = useVirtualGrid(
   { aspectRatio: 3 / 4, extraHeight: 60 },
 );
 
-const GRID_VIEW = { value: 'grid', icon: LayoutGrid };
-const LIST_VIEW = { value: 'list', icon: ListIcon };
+const GRID_VIEW = { value: 'grid', icon: 'LayoutGrid' };
+const LIST_VIEW = { value: 'list', icon: 'ListIcon' };
 
 const viewMode = ref(GRID_VIEW);
 const viewModes = ref([GRID_VIEW, LIST_VIEW]);
@@ -249,14 +244,28 @@ const cardMenuItems = computed(() => [
   {
     label: 'Add to Collection',
     icon: 'pi pi-folder',
-    items: stylesStore.categories.map(cat => ({
-      label: cat,
-      command: () => {
-        if (contextStyleId.value) {
-          stylesStore.updateStyle(contextStyleId.value, { category: cat });
-        }
+    items: [
+      ...stylesStore.categories.map(cat => ({
+        label: cat,
+        command: () => {
+          if (contextStyleId.value) {
+            stylesStore.updateStyle(contextStyleId.value, { category: cat });
+          }
+        },
+      })),
+      { separator: true },
+      {
+        label: 'New Collection',
+        icon: 'pi pi-plus',
+        command: () => {
+          const name = prompt('Collection name:');
+          if (name?.trim() && contextStyleId.value) {
+            stylesStore.updateStyle(contextStyleId.value, { category: name.trim() });
+            stylesStore.loadCategories();
+          }
+        },
       },
-    })),
+    ],
   },
   { separator: true },
   {

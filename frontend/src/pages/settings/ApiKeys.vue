@@ -56,8 +56,6 @@
 
 <script setup lang="ts">
 import { reactive, onMounted } from 'vue';
-import { Info, Eye, EyeOff, Copy, Check, Trash2, KeySquare } from 'lucide-vue-next';
-import { Message, Card, InputGroup, InputGroupAddon, InputText, Tag, Button } from 'primevue';
 import { useInferenceStore } from '@/stores/inference';
 import { useSettingsStore } from '@/stores/settings';
 

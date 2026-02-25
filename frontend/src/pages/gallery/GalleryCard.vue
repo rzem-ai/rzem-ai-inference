@@ -54,10 +54,8 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
-import { Star, Check, Image as ImageIcon } from 'lucide-vue-next';
 import { getApi, mockApi } from '@/bridge';
 import type { GalleryImage } from '@/types/inference';
-import { Button } from 'primevue';
 
 const props = defineProps<{
   image: GalleryImage;

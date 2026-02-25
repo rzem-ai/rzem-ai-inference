@@ -41,6 +41,5 @@
 </template>
 
 <script setup lang="ts">
-import { Cog, Images, Palette, ImagePlus } from 'lucide-vue-next';
 import PixelCard from '../components/PixelCard.vue';
 </script>

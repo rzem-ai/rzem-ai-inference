@@ -31,9 +31,8 @@
 </template>
 
 <script setup lang="ts">
-import { X } from 'lucide-vue-next';
 import { useInferenceStore, ASPECT_RATIOS } from '@/stores/inference';
-import { InputGroup, InputGroupAddon, InputNumber, InputNumberInputEvent } from 'primevue';
+import type { InputNumberInputEvent } from 'primevue';
 
 const store = useInferenceStore();
 

@@ -30,8 +30,6 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
-import { Folder as FolderIcon, Plus } from 'lucide-vue-next';
-import { Popover, Divider } from 'primevue';
 import { useGalleryStore } from '@/stores/gallery';
 
 const props = defineProps<{

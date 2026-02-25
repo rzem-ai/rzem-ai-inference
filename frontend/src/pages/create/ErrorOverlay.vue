@@ -8,7 +8,6 @@
 </template>
 
 <script setup lang="ts">
-import { AlertCircle } from 'lucide-vue-next';
 import { useInferenceStore } from '@/stores/inference';
 
 const store = useInferenceStore();

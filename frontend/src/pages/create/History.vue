@@ -22,9 +22,7 @@
 </template>
 
 <script setup lang="ts">
-import { Image as ImageIcon } from 'lucide-vue-next';
 import { useInferenceStore } from '@/stores/inference';
-import { Card } from 'primevue';
 
 const store = useInferenceStore();
 </script>

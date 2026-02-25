@@ -46,9 +46,7 @@
 </template>
 
 <script setup lang="ts">
-import { ChevronDown, Shuffle, Lock } from 'lucide-vue-next';
 import { useInferenceStore } from '@/stores/inference';
-import { InputGroup, InputGroupAddon, InputNumber, Select } from 'primevue';
 
 const store = useInferenceStore();
 

@@ -7,7 +7,6 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { Image as ImageIcon } from 'lucide-vue-next';
 import { getApi, mockApi } from '@/bridge';
 
 const props = defineProps<{ path: string }>();

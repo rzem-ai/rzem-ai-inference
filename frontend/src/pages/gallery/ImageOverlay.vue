@@ -62,7 +62,6 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue';
-import { X, Star, Info, Download } from 'lucide-vue-next';
 import { getApi, mockApi } from '@/bridge';
 import type { GalleryImage } from '@/types/inference';
 

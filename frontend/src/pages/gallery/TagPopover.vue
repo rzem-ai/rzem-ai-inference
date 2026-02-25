@@ -32,8 +32,6 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
-import { Plus } from 'lucide-vue-next';
-import { Popover, Divider } from 'primevue';
 import { useGalleryStore } from '@/stores/gallery';
 import type { Tag } from '@/types/inference';
 

@@ -82,9 +82,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { ClipboardCheck } from 'lucide-vue-next';
 import { useRouter } from 'vue-router';
-import { Dialog, Button, Tag } from 'primevue';
 import { useInferenceStore, ASPECT_RATIOS } from '@/stores/inference';
 import { usePywebview } from '@/composables/usePywebview';
 import type { GalleryImage, LoraParam } from '@/types/inference';

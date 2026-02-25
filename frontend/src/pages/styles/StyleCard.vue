@@ -65,7 +65,6 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import { Star, Check, Palette } from 'lucide-vue-next';
 import { usePywebview } from '@/composables/usePywebview';
 import { useInferenceStore } from '@/stores/inference';
 import type { Style } from '@/types/inference';

@@ -187,15 +187,12 @@
 
 <script setup lang="ts">
 import { computed, ref, watch, nextTick } from 'vue';
-import { Bot, SendHorizontal, KeyRound, X, Image as ImageIcon, MessageCirclePlus, FolderOpen, TriangleAlert } from 'lucide-vue-next';
 import { marked } from 'marked';
 import { useChatStore } from '@/stores/chat';
 import { useInferenceStore } from '@/stores/inference';
 import { useSettingsStore } from '@/stores/settings';
 import { usePywebview } from '@/composables/usePywebview';
 import ChatImageThumb from './ChatImageThumb.vue';
-import { Button, Dialog, Tag } from 'primevue';
-import { InputGroup, InputGroupAddon, InputText } from 'primevue';
 
 const chatStore = useChatStore();
 const inferenceStore = useInferenceStore();

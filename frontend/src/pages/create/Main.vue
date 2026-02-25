@@ -43,7 +43,6 @@
 
 <script setup lang="ts">
 import { computed, useTemplateRef } from 'vue';
-import { Image as ImageIcon } from 'lucide-vue-next';
 import { useInferenceStore } from '@/stores/inference';
 import { useElementSize } from '@vueuse/core';
 

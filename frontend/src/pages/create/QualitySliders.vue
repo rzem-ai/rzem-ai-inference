@@ -31,8 +31,6 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { ChevronDown } from 'lucide-vue-next';
-import Slider from 'primevue/slider';
 import { useInferenceStore } from '@/stores/inference';
 
 const store = useInferenceStore();

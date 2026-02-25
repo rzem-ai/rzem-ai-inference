@@ -135,8 +135,6 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted } from 'vue';
-import { Button } from 'primevue';
-import { FolderOpen, Wifi } from 'lucide-vue-next';
 import { useSettingsStore } from '@/stores/settings';
 
 const settingsStore = useSettingsStore();

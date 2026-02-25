@@ -56,9 +56,6 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Paintbrush } from 'lucide-vue-next';
-import { Card, Select } from 'primevue';
-import Slider from 'primevue/slider';
 import { useInferenceStore } from '@/stores/inference';
 import { useStylesStore } from '@/stores/styles';
 import { usePywebview } from '@/composables/usePywebview';

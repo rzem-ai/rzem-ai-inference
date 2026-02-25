@@ -72,9 +72,8 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
-import { Paintbrush, Layers, Box, Info, Cpu } from 'lucide-vue-next';
-import { Card, InputText, Message, Select, Textarea } from 'primevue';
 import { useSettingsStore } from '@/stores/settings';
+import { Box, Layers, Paintbrush } from 'lucide-vue-next';
 
 const settingsStore = useSettingsStore();
 

@@ -1,5 +1,5 @@
 <template>
-  <MenuPanel title="Gallery" :icon="Images">
+  <MenuPanel title="Gallery" icon="Images">
     <template #title-button>
       <Button class="transition-colors" severity="primary" title="AI Prompt Assistant" disabled>
         <Plus :size="16" />
@@ -71,10 +71,8 @@
 
 <script setup lang="ts">
 import { computed, onMounted } from 'vue';
-import { Plus, Images, Star, Folder as FolderIcon } from 'lucide-vue-next';
 import { useGalleryStore } from '@/stores/gallery';
 import type { Tag } from '@/types/inference';
-import { Button } from 'primevue';
 import MenuPanel from '@/components/MenuPanel.vue';
 
 const gallery = useGalleryStore();

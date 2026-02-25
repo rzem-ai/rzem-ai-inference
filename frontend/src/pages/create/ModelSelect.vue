@@ -44,8 +44,6 @@
 </template>
 
 <script setup lang="ts">
-import { Brain, Cloud, Gpu } from 'lucide-vue-next';
-import { Select, Tag } from 'primevue';
 import { useInferenceStore } from '@/stores/inference';
 
 const store = useInferenceStore();

@@ -68,8 +68,6 @@
 
 <script setup lang="ts">
 import { onMounted, onUnmounted } from 'vue';
-import { Message, Card, Tag, Button } from 'primevue';
-import { Wifi } from 'lucide-vue-next';
 import { useDiscoveryStore } from '@/stores/discovery';
 import { useInferenceStore } from '@/stores/inference';
 import { useSettingsStore } from '@/stores/settings';

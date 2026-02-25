@@ -1,5 +1,5 @@
 <template>
-  <MenuPanel v-if="showSidebar" title="Styles" :icon="Palette">
+  <MenuPanel v-if="showSidebar" title="Styles" icon="Palette">
     <template #title-button>
       <Button class="transition-colors" severity="primary" title="AI Prompt Assistant" @click="router.push({ name: 'styles-new' })">
         <Plus :size="16" />
@@ -11,6 +11,15 @@
         <div class="flex h-8 items-center justify-between px-2">
           <div class="font-medium text-slate-900">Collections</div>
         </div>
+
+        <!-- All Styles -->
+        <button
+          class="flex h-8 w-full items-center gap-2 rounded-lg px-3 text-left transition-colors"
+          :class="isAllActive ? 'bg-blue-50 text-blue-600' : 'text-slate-700 hover:bg-slate-50'"
+          @click="onFilterAll">
+          <Palette :size="14" />
+          <span class="flex-1 truncate font-medium">All Styles</span>
+        </button>
 
         <!-- Favorites -->
         <button
@@ -73,10 +82,8 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Folder as FolderIcon, Palette, Plus, Star } from 'lucide-vue-next';
 import { useStylesStore } from '@/stores/styles';
 import type { Tag } from '@/types/inference';
-import { Button, ProgressBar } from 'primevue';
 import MenuPanel from '@/components/MenuPanel.vue';
 
 const route = useRoute();
@@ -84,6 +91,7 @@ const router = useRouter();
 const stylesStore = useStylesStore();
 
 const showSidebar = computed(() => route.matched.some(r => r.path === '/styles'));
+const isAllActive = computed(() => !stylesStore.currentCategory && !stylesStore.favoritesOnly && !stylesStore.currentTagId);
 
 function tagStyle(tag: Tag) {
   const color = tag.color || '#64748b';

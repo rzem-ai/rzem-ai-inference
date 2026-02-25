@@ -1,5 +1,5 @@
 <template>
-  <MenuPanel title="Create" :icon="ImageIcon" :expand="store.chatbotOpen">
+  <MenuPanel title="Create" icon="ImageIcon" :expand="store.chatbotOpen">
     <template #title-button>
       <Button
         class="transition-colors"
@@ -60,8 +60,6 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { Image as ImageIcon, WandSparkles, Sparkles, Square, Layers, Grid3x3 } from 'lucide-vue-next';
-
 import { useInferenceStore } from '@/stores/inference';
 import { useStylesStore } from '@/stores/styles';
 import { useChatStore } from '@/stores/chat';
@@ -76,7 +74,6 @@ import DevMode from './DevMode.vue';
 import BatchDialog from './BatchDialog.vue';
 import GridDialog from './GridDialog.vue';
 import ProgressOverlay from './ProgressOverlay.vue';
-import { Button } from 'primevue';
 import MenuPanel from '@/components/MenuPanel.vue';
 
 const store = useInferenceStore();

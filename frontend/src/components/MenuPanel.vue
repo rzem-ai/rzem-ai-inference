@@ -38,20 +38,18 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, type Component } from 'vue';
-import { Search, Plus, Images, Star, Folder as FolderIcon, ImageOff, WandSparkles } from 'lucide-vue-next';
 
 const props = defineProps<{
   title: string;
-  icon?: Component;
+  icon?: Component | string;
   expand?: boolean;
 }>();
 
-const resolvedIcon = computed(() => props.icon ?? ImageOff);
+const resolvedIcon = computed(() => props.icon ?? 'ImageOff');
 
 const expanded = computed(() => props.expand ?? false);
 
 import { usePywebview } from '@/composables/usePywebview';
 import { useGalleryStore } from '@/stores/gallery';
 import type { Tag } from '@/types/inference';
-import { InputText, InputGroup, InputGroupAddon, Button } from 'primevue';
 </script>

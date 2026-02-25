@@ -125,8 +125,6 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import { List, Table, Database, Sparkles } from 'lucide-vue-next';
-import { Dialog, Button, Textarea, Tabs, TabList, Tab, TabPanels, TabPanel } from 'primevue';
 import { usePywebview } from '@/composables/usePywebview';
 import { useInferenceStore } from '@/stores/inference';
 

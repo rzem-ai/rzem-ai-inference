@@ -374,12 +374,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { ArrowLeft, Save, X, Layers, Plus, ImagePlus, Play } from 'lucide-vue-next';
 import { useStylesStore } from '@/stores/styles';
 import { useInferenceStore } from '@/stores/inference';
 import { usePywebview } from '@/composables/usePywebview';
 import type { LoRA, Tag } from '@/types/inference';
-import { Button, Chip, Toolbar, Dialog, InputText, InputNumber, Select } from 'primevue';
 import TextEditor from '@/components/TextEditor.vue';
 
 const LORA_EXTENSIONS = ['.safetensors', '.ckpt', '.pt'];

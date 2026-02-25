@@ -75,8 +75,6 @@
 
 <script setup lang="ts">
 import { computed, onMounted } from 'vue';
-import { Trash2 } from 'lucide-vue-next';
-import { Button, Card } from 'primevue';
 import { useSettingsStore } from '@/stores/settings';
 
 const settingsStore = useSettingsStore();

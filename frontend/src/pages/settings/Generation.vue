@@ -62,7 +62,6 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { Card } from 'primevue';
 import { useSettingsStore } from '@/stores/settings';
 
 const settingsStore = useSettingsStore();

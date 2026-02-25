@@ -40,7 +40,6 @@
 
 <script setup lang="ts">
 import { ref, toRef } from 'vue';
-import { Image as ImageIcon } from 'lucide-vue-next';
 import { useGalleryStore } from '@/stores/gallery';
 import { useVirtualGrid } from '@/composables/useVirtualGrid';
 import VirtualGrid from '@/components/VirtualGrid.vue';

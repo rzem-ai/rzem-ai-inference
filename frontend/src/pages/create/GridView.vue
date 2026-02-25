@@ -84,8 +84,6 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Grid3x3, X } from 'lucide-vue-next';
-import { Button } from 'primevue';
 import { useInferenceStore } from '@/stores/inference';
 import type { GeneratedImage } from '@/types/inference';
 
