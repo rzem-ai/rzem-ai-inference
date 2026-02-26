@@ -169,18 +169,34 @@ class InferenceAPI:
         """Save a base64 data URL image to a temp file. Returns the absolute path."""
         try:
             import base64 as b64mod
-            import tempfile
+
+            if not data_url.startswith("data:image/"):
+                return {"status": "error", "message": "Invalid data URL: must be an image"}
+
+            # Cap at ~50MB base64 (~37MB decoded) to prevent resource exhaustion
+            if len(data_url) > 50_000_000:
+                return {"status": "error", "message": "Image too large (max ~37MB)"}
+
             header, b64data = data_url.split(",", 1)
             ext = ".png"
             if "jpeg" in header or "jpg" in header:
                 ext = ".jpg"
             elif "webp" in header:
                 ext = ".webp"
+
+            # Use a dedicated tmp dir under app data, cleaned on each save
+            tmp_dir = self._inference.local._output_dir.parent / "tmp"
+            tmp_dir.mkdir(exist_ok=True)
+            for old in tmp_dir.glob("kontext_input_*"):
+                try:
+                    old.unlink()
+                except OSError:
+                    pass
+
             raw = b64mod.b64decode(b64data)
-            tmp = tempfile.NamedTemporaryFile(suffix=ext, delete=False, prefix="kontext_input_")
-            tmp.write(raw)
-            tmp.close()
-            return {"status": "success", "path": tmp.name}
+            path = tmp_dir / f"kontext_input_{id(raw):x}{ext}"
+            path.write_bytes(raw)
+            return {"status": "success", "path": str(path)}
         except Exception as e:
             logger.error("save_clipboard_image failed: %s", e)
             return {"status": "error", "message": str(e)}
