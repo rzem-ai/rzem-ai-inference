@@ -531,6 +531,12 @@ export const mockApi: PywebviewAPI = {
   async browse_image_file() {
     return { status: "success", path: null, thumbnail_path: null };
   },
+  async browse_input_image() {
+    return { status: 'success' as const, path: null };
+  },
+  async save_clipboard_image() {
+    return { status: 'success' as const, path: '/tmp/mock_clipboard.png' };
+  },
   async import_style_image() {
     return { status: "error", message: "Not available in mock mode" };
   },

@@ -309,6 +309,7 @@ class LocalInferenceService:
                 "qwen3_encoder": params.qwen3_encoder,
                 "sampler": params.sampler,
                 "scheduler": params.scheduler,
+                "input_image_path": params.input_image_path,
             }
             if params.fal_endpoint:
                 config_dict["source"] = "cloud"

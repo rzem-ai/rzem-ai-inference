@@ -148,6 +148,13 @@ export const useInferenceStore = defineStore('inference', {
   },
 
   actions: {
+    _ownsJob(jobId: string): boolean {
+      if (jobId === this.currentJobId) return true;
+      if (this.batchJobIds.includes(jobId)) return true;
+      if (this.gridJobMap.has(jobId)) return true;
+      return false;
+    },
+
     async loadGpuInfo() {
       const api = await getApiAsync();
       try {
@@ -558,8 +565,10 @@ export const useInferenceStore = defineStore('inference', {
           case 'job_queued':
             break;
 
-          case 'job_started':
-            this.currentJobId = event.data.job_id ?? this.currentJobId;
+          case 'job_started': {
+            const jobId = event.data.job_id;
+            if (jobId && !this._ownsJob(jobId)) break;
+            this.currentJobId = jobId ?? this.currentJobId;
             this.isGenerating = true;
             this.progress = {
               step: 0,
@@ -569,8 +578,11 @@ export const useInferenceStore = defineStore('inference', {
               height: event.data.height,
             };
             break;
+          }
 
-          case 'job_progress':
+          case 'job_progress': {
+            const jobId = event.data.job_id;
+            if (jobId && !this._ownsJob(jobId)) break;
             this.progress = {
               step: event.data.step ?? 0,
               totalSteps: event.data.total_steps ?? this.params.steps,
@@ -582,8 +594,11 @@ export const useInferenceStore = defineStore('inference', {
               this.loadImageDataUrl(event.data.preview_path);
             }
             break;
+          }
 
           case 'job_completed': {
+            const jobId = event.data.job_id;
+            if (jobId && !this._ownsJob(jobId)) break;
             this.progress = null;
             this.previewDataUrl = null;
             const img: GeneratedImage = {
@@ -629,7 +644,9 @@ export const useInferenceStore = defineStore('inference', {
             break;
           }
 
-          case 'job_failed':
+          case 'job_failed': {
+            const jobId = event.data.job_id;
+            if (jobId && !this._ownsJob(jobId)) break;
             this.progress = null;
             this.previewDataUrl = null;
             this.error = event.data.error ?? 'Generation failed';
@@ -653,8 +670,11 @@ export const useInferenceStore = defineStore('inference', {
               this.currentJobId = null;
             }
             break;
+          }
 
-          case 'job_cancelled':
+          case 'job_cancelled': {
+            const jobId = event.data.job_id;
+            if (jobId && !this._ownsJob(jobId)) break;
             this.progress = null;
             this.previewDataUrl = null;
 
@@ -677,6 +697,7 @@ export const useInferenceStore = defineStore('inference', {
               this.currentJobId = null;
             }
             break;
+          }
         }
       }
     },

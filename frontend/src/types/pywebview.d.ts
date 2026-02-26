@@ -179,6 +179,8 @@ export interface PywebviewAPI {
   }): Promise<ApiResponse<{ lora?: LoRA }>>;
   browse_lora_files(): Promise<ApiResponse<{ loras?: LoRA[] }>>;
   browse_image_file(args?: { style_id?: string }): Promise<ApiResponse<{ path?: string | null; thumbnail_path?: string | null }>>;
+  browse_input_image(): Promise<ApiResponse<{ path?: string | null }>>;
+  save_clipboard_image(args: { data_url: string }): Promise<ApiResponse<{ path?: string }>>;
   import_style_image(args: { source_path: string; style_id?: string }): Promise<ApiResponse<{ path?: string; thumbnail_path?: string }>>;
   browse_metadata_files(): Promise<ApiResponse<{ paths?: string[] }>>;
   browse_and_import_metadata(): Promise<ApiResponse<{ styles?: Style[]; errors?: string[] }>>;

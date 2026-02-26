@@ -2,7 +2,7 @@
 
 export type ApiResponse<T = {}> = { status: "success" | "error"; message?: string } & T;
 
-export type TransformerType = "flux1_dev" | "flux2_dev" | "z_image" | "qwen_image" | "fal_cloud";
+export type TransformerType = "flux1_dev" | "flux1_kontext" | "flux2_dev" | "z_image" | "qwen_image" | "fal_cloud";
 
 export type EventType =
   | "job_queued"
@@ -88,6 +88,7 @@ export interface SubmitJobParams {
   sampler: string;
   scheduler: string;
   loras: LoraParam[];
+  input_image_path?: string;
   bundle_id?: string;
   output_dir?: string;
   output_filename?: string;

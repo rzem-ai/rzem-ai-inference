@@ -17,6 +17,14 @@ const router = createRouter({
       }
     },
     {
+      path: '/edit',
+      name: 'edit',
+      components: {
+        default: () => import('@/pages/edit/Main.vue'),
+        menu: () => import('@/pages/edit/Menu.vue'),
+      },
+    },
+    {
       path: '/gallery',
       name: 'gallery',
       components: {

@@ -146,6 +146,45 @@ class InferenceAPI:
             logger.error("Failed to read image %s: %s", image_path, e)
             return {"status": "error", "message": str(e)}
 
+    def browse_input_image(self, **kwargs) -> dict[str, Any]:
+        """Open a native file dialog to select an input image. Returns the absolute path."""
+        try:
+            import webview
+            window = webview.windows[0]
+            file_filter = "Images (*.png;*.jpg;*.jpeg;*.webp;*.bmp;*.tiff)"
+            result = window.create_file_dialog(
+                webview.FileDialog.OPEN,
+                allow_multiple=False,
+                file_types=(file_filter,),
+            )
+            if not result:
+                return {"status": "success", "path": None}
+            path = str(result[0]) if isinstance(result, (list, tuple)) else str(result)
+            return {"status": "success", "path": path}
+        except Exception as e:
+            logger.error("browse_input_image failed: %s", e)
+            return {"status": "error", "message": str(e)}
+
+    def save_clipboard_image(self, data_url: str, **kwargs) -> dict[str, Any]:
+        """Save a base64 data URL image to a temp file. Returns the absolute path."""
+        try:
+            import base64 as b64mod
+            import tempfile
+            header, b64data = data_url.split(",", 1)
+            ext = ".png"
+            if "jpeg" in header or "jpg" in header:
+                ext = ".jpg"
+            elif "webp" in header:
+                ext = ".webp"
+            raw = b64mod.b64decode(b64data)
+            tmp = tempfile.NamedTemporaryFile(suffix=ext, delete=False, prefix="kontext_input_")
+            tmp.write(raw)
+            tmp.close()
+            return {"status": "success", "path": tmp.name}
+        except Exception as e:
+            logger.error("save_clipboard_image failed: %s", e)
+            return {"status": "error", "message": str(e)}
+
     def get_debug_images(self) -> dict[str, Any]:
         """Find the most recent generation's preview + output images for debug UI."""
         try:

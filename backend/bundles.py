@@ -97,6 +97,25 @@ DEFAULT_BUNDLES: list[ModelBundle] = [
         cfg_scale=4.0,
         vram_estimate_gb=33.7,
     ),
+    # ── FLUX.1 Kontext ──
+    ModelBundle(
+        id="flux1_kontext_dev_quality",
+        label="FLUX.1 Kontext [dev] BF16",
+        description="Full precision Kontext model for image editing",
+        transformer_type="flux1_kontext",
+        tier="quality",
+        transformer_model="black-forest-labs/FLUX.1-Kontext-dev",
+        vae_model="black-forest-labs/FLUX.1-dev",
+        clip_tokenizer=_CLIP,
+        clip_encoder=_CLIP,
+        t5_tokenizer=_T5,
+        t5_encoder=_T5,
+        steps=28,
+        cfg_scale=2.5,
+        sampler="euler",
+        scheduler="simple",
+        vram_estimate_gb=24.0,
+    ),
     # ── FLUX.2 Dev ──
     ModelBundle(
         id="flux2_dev_quality",
@@ -272,10 +291,17 @@ Quantized variants (GGUF) trade ~5–10% quality for 30–40% less VRAM. Q8 is n
 """,
     },
     {
+        "id": "flux1_kontext",
+        "label": "FLUX.1 Kontext",
+        "icon": "gpu",
+        "sort_order": 1,
+        "guide": "## FLUX.1 Kontext [dev]\n\nImage-to-image editing model from Black Forest Labs. Provide an input image and a text prompt describing the desired edit.\n\n**Requirements:** ~24GB VRAM (BF16)\n\n**Best for:** Editing existing images — changing styles, adding/removing elements, modifying attributes.",
+    },
+    {
         "id": "flux2_dev",
         "label": "FLUX.2 Dev",
         "icon": "gpu",
-        "sort_order": 1,
+        "sort_order": 2,
         "guide": """\
 ## Prompting
 
@@ -296,7 +322,7 @@ FLUX.2 Dev uses a **Qwen3 text encoder** instead of CLIP+T5, which means it unde
         "id": "z_image",
         "label": "Z-Image",
         "icon": "gpu",
-        "sort_order": 2,
+        "sort_order": 3,
         "guide": """\
 ## Prompting
 
@@ -321,7 +347,7 @@ Z-Image uses a bundled **Qwen3-4B text encoder** — no separate encoder downloa
         "id": "qwen_image",
         "label": "Qwen-Image",
         "icon": "gpu",
-        "sort_order": 3,
+        "sort_order": 4,
         "guide": """\
 ## Prompting
 
