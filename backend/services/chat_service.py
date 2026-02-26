@@ -17,6 +17,7 @@ from backend.db.database import Database
 from backend.services.providers import StreamEvent
 from backend.services.providers.claude import ClaudeProvider
 from backend.services.providers.perplexity import PerplexityProvider
+from backend.tracing import trace_class, trace_method
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +56,7 @@ TOOLS = [
 ]
 
 
+@trace_method
 def _build_system_prompt(generation_context: dict[str, Any] | None) -> str:
     """Build a system prompt that includes current generation settings (for tool-capable providers)."""
     base = (
@@ -79,6 +81,7 @@ def _build_system_prompt(generation_context: dict[str, Any] | None) -> str:
     return base
 
 
+@trace_method
 def _build_system_prompt_no_tools(generation_context: dict[str, Any] | None) -> str:
     """Build a system prompt for providers without native tool support.
 
@@ -121,6 +124,7 @@ def _build_system_prompt_no_tools(generation_context: dict[str, Any] | None) -> 
     return base
 
 
+@trace_method
 def _load_image_base64(file_path: str) -> tuple[str, str] | None:
     """Load an image file as base64 data with its media type."""
     path = Path(file_path)
@@ -138,6 +142,7 @@ class ChatEvent:
     data: dict[str, Any]
 
 
+@trace_class
 class ChatService:
     """Multi-provider chat with streaming, tool use, and event buffering."""
 

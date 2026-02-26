@@ -9,10 +9,12 @@ from typing import Any
 from backend.db.database import Database
 from backend.services.inference_protocol import InferenceServiceProtocol
 from backend.services.remote_inference_service import RemoteInferenceService
+from backend.tracing import trace_class
 
 logger = logging.getLogger(__name__)
 
 
+@trace_class
 class InferenceServiceManager:
     """Holds a reference to the active inference service (local or remote).
 

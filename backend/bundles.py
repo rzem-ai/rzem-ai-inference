@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 from dataclasses import asdict, dataclass
 
+from backend.tracing import trace_method
+
 logger = logging.getLogger(__name__)
 
 
@@ -361,11 +363,13 @@ FAL.ai Cloud models run on remote servers — **no local GPU needed**. Generatio
 ]
 
 
+@trace_method
 def get_default_bundle_types_as_dicts() -> list[dict]:
     """Return DEFAULT_BUNDLE_TYPES for database seeding."""
     return DEFAULT_BUNDLE_TYPES
 
 
+@trace_method
 def get_default_bundles_as_dicts() -> list[dict]:
     """Return DEFAULT_BUNDLES as plain dicts (for database seeding)."""
     return [asdict(b) for b in DEFAULT_BUNDLES]

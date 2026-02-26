@@ -7,6 +7,7 @@ import logging
 from typing import Any, Iterator
 
 from backend.services.providers import ProviderModel, StreamEvent
+from backend.tracing import trace_class
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +18,7 @@ CLAUDE_MODELS = [
 ]
 
 
+@trace_class
 class ClaudeProvider:
     """Anthropic Messages API provider with streaming and native tool use."""
 

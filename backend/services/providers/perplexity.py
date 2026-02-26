@@ -8,6 +8,7 @@ import re
 from typing import Any, Iterator
 
 from backend.services.providers import ProviderModel, StreamEvent
+from backend.tracing import trace_class
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,7 @@ _TOOL_BLOCK_RE = re.compile(
 )
 
 
+@trace_class
 class PerplexityProvider:
     """Perplexity responses API provider — no native tool use, uses text-based JSON blocks."""
 

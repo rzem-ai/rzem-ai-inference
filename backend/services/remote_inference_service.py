@@ -22,10 +22,12 @@ import websocket
 
 from backend.db.database import Database
 from backend.services.inference_protocol import FrontendEvent
+from backend.tracing import trace_class
 
 logger = logging.getLogger(__name__)
 
 
+@trace_class
 class RemoteInferenceService:
     """Connects to a remote inference engine server over HTTP + WebSocket.
 

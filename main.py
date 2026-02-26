@@ -33,13 +33,19 @@ from backend.services.chat_service import ChatService
 from backend.services.discovery_service import DiscoveryService
 from backend.services.inference_manager import InferenceServiceManager
 from backend.services.inference_service import LocalInferenceService
+from backend.tracing import trace_method
 
+logging.basicConfig(
+    level=getattr(logging, os.environ.get("LOG_LEVEL", "INFO").upper(), logging.INFO),
+    format="%(asctime)s %(name)s %(levelname)s %(message)s",
+)
 logger = logging.getLogger(__name__)
 
 # PGID captured at start time — survives even after the shell shim exec's
 _vite_pgid: int | None = None
 
 
+@trace_method
 def _start_vite(frontend_dir: Path, url: str, timeout: float = 15) -> subprocess.Popen:
     """Start the Vite dev server and wait until it's accepting connections."""
     global _vite_pgid
@@ -69,6 +75,7 @@ def _start_vite(frontend_dir: Path, url: str, timeout: float = 15) -> subprocess
     raise RuntimeError(f"Vite dev server failed to start within {timeout}s")
 
 
+@trace_method
 def _stop_vite() -> None:
     """Kill the entire Vite process group using the PGID captured at start."""
     if _vite_pgid is None:
@@ -79,6 +86,7 @@ def _stop_vite() -> None:
         pass
 
 
+@trace_method
 def main() -> None:
     config = AppConfig()
     service = AppService()

@@ -7,6 +7,8 @@ import threading
 from dataclasses import dataclass, field
 from typing import Any
 
+from backend.tracing import trace_class
+
 logger = logging.getLogger(__name__)
 
 SERVICE_TYPE = "_rzem-ai._tcp.local."
@@ -22,6 +24,7 @@ class DiscoveredServer:
     version: str = "unknown"
 
 
+@trace_class
 class DiscoveryService:
     """Watches for ``_rzem-ai._tcp.local.`` services on the LAN.
 

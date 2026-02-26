@@ -18,6 +18,9 @@ logger = logging.getLogger(__name__)
 # camelCase → snake_case
 _CAMEL_RE = re.compile(r"(?<=[a-z0-9])([A-Z])")
 
+# High-frequency methods that would flood DEBUG logs
+_TRACE_SKIP = frozenset({"poll_events", "health_check"})
+
 
 def _camel_to_snake(name: str) -> str:
     return _CAMEL_RE.sub(r"_\1", name).lower()
@@ -36,19 +39,42 @@ def _unpack_js_args(func: Callable) -> Callable:
         if p.name != "self"
     ]
 
+    _skip_trace = func.__name__ in _TRACE_SKIP
+
     @functools.wraps(func)
     def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
-        # Only unpack when pywebview sends a single positional dict
-        if len(args) == 1 and isinstance(args[0], dict) and not kwargs:
-            raw: dict[str, Any] = args[0]
-            converted = {_camel_to_snake(k): v for k, v in raw.items()}
+        if not _skip_trace:
+            # Trace entry — truncate arg representations to avoid huge payloads
+            _tr_args = args
+            if _tr_args and isinstance(_tr_args[0], dict):
+                _tr_repr = repr(_tr_args[0])
+                if len(_tr_repr) > 120:
+                    _tr_repr = _tr_repr[:117] + "..."
+                logger.debug("→ %s(%s)", func.__qualname__, _tr_repr)
+            else:
+                _tr_parts = [repr(a)[:120] for a in _tr_args] + [f"{k}={repr(v)[:120]}" for k, v in kwargs.items()]
+                logger.debug("→ %s(%s)", func.__qualname__, ", ".join(_tr_parts))
 
-            # If the method actually expects a single dict param, pass as-is
-            if len(param_names) == 1 and param_names[0] not in converted:
-                return func(self, raw)
+        try:
+            # Only unpack when pywebview sends a single positional dict
+            if len(args) == 1 and isinstance(args[0], dict) and not kwargs:
+                raw: dict[str, Any] = args[0]
+                converted = {_camel_to_snake(k): v for k, v in raw.items()}
 
-            return func(self, **converted)
-        return func(self, *args, **kwargs)
+                # If the method actually expects a single dict param, pass as-is
+                if len(param_names) == 1 and param_names[0] not in converted:
+                    result = func(self, raw)
+                else:
+                    result = func(self, **converted)
+            else:
+                result = func(self, *args, **kwargs)
+
+            if not _skip_trace:
+                logger.debug("← %s ⟶ %s", func.__qualname__, type(result).__name__)
+            return result
+        except Exception as exc:
+            logger.debug("✗ %s raised %s: %s", func.__qualname__, type(exc).__name__, exc)
+            raise
 
     return wrapper
 

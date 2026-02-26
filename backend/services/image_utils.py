@@ -9,12 +9,15 @@ from pathlib import Path
 import requests
 from PIL import Image
 
+from backend.tracing import trace_method
+
 logger = logging.getLogger(__name__)
 
 _THUMBNAIL_QUALITY = 85
 _THUMBNAIL_MAX_SIDE = 512
 
 
+@trace_method
 def store_style_image(
     source: str,
     styles_dir: Path,
@@ -59,6 +62,7 @@ def store_style_image(
     return str(full_path), str(thumb_path)
 
 
+@trace_method
 def _download_image(url: str) -> Image.Image:
     """Download an image from a URL and return a PIL Image."""
     resp = requests.get(url, timeout=30, stream=True)

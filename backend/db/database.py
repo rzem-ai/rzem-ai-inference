@@ -15,6 +15,8 @@ import time
 from pathlib import Path
 from typing import Any
 
+from backend.tracing import trace_class
+
 logger = logging.getLogger(__name__)
 
 _SCHEMA_PATH = Path(__file__).parent / "schema.sql"
@@ -72,6 +74,7 @@ _MIGRATIONS: list[callable] = [
 ]
 
 
+@trace_class
 class Database:
     """Thread-safe SQLite database at ``db_path``.
 

@@ -1,7 +1,13 @@
+import logging
 import platform
 import threading
 
+from backend.tracing import trace_class
 
+logger = logging.getLogger(__name__)
+
+
+@trace_class
 class AppService:
     def __init__(self) -> None:
         self._counter = 0
