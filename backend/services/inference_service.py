@@ -208,8 +208,10 @@ class LocalInferenceService:
         logger.info("Saved %s to %s", suffix, path)
         return str(path)
 
-    def _save_output_image(self, image, job_id: str) -> tuple[str, str]:
-        """Save the final output as a timestamped PNG and a half-res WebP cover."""
+    def _save_output_image(
+        self, image, job_id: str, seed: int | None = None,
+    ) -> tuple[str, str]:
+        """Save the final output as a timestamped PNG (with metadata) and a half-res WebP cover."""
         out_dir = self._get_output_dir(job_id)
         custom_stem = self._job_output_filenames.get(job_id)
 
@@ -221,13 +223,71 @@ class LocalInferenceService:
             png_path = out_dir / f"{timestamp}_{job_id}.png"
             webp_path = out_dir / f"{timestamp}_{job_id}_cover.webp"
 
-        image.save(str(png_path), format="PNG")
+        png_info = self._build_png_metadata(job_id, seed)
+        image.save(str(png_path), format="PNG", pnginfo=png_info)
 
         cover = image.resize((image.width // 2, image.height // 2), Image.LANCZOS)
         cover.save(str(webp_path), format="WEBP", quality=85)
 
         logger.info("Saved output image to %s and cover to %s", png_path, webp_path)
         return str(png_path), str(webp_path)
+
+    def _build_png_metadata(self, job_id: str, seed: int | None = None):
+        """Build PNG tEXt metadata with generation parameters."""
+        from PIL.PngImagePlugin import PngInfo
+
+        info = PngInfo()
+        params = self._job_params.get(job_id)
+        if params is None:
+            return info
+
+        metadata: dict[str, Any] = {
+            "prompt": params.prompt,
+            "width": params.width,
+            "height": params.height,
+            "seed": seed,
+            "steps": params.steps,
+            "cfg_scale": params.cfg_scale,
+            "sampler": params.sampler,
+            "scheduler": params.scheduler,
+            "transformer_model": params.transformer_model,
+            "transformer_type": (
+                params.transformer_type.value
+                if hasattr(params.transformer_type, "value")
+                else str(params.transformer_type)
+            ),
+            "vae_model": params.vae_model,
+        }
+
+        bundle_id = self._job_bundle_ids.get(job_id)
+        if bundle_id:
+            metadata["bundle_id"] = bundle_id
+
+        style_id = self._job_style_ids.get(job_id)
+        if style_id:
+            metadata["style_id"] = style_id
+
+        raw_prompt = self._job_raw_prompts.get(job_id)
+        if raw_prompt and raw_prompt != params.prompt:
+            metadata["raw_prompt"] = raw_prompt
+
+        if params.input_image_path:
+            metadata["input_image_path"] = params.input_image_path
+
+        if params.loras:
+            metadata["loras"] = [
+                {"model_file": l.model_file, "strength": l.strength}
+                for l in params.loras
+            ]
+
+        start_time = self._job_start_times.get(job_id)
+        if start_time is not None:
+            metadata["generation_time_ms"] = int(
+                (time.monotonic() - start_time) * 1000
+            )
+
+        info.add_text("rzem_metadata", json.dumps(metadata))
+        return info
 
     def _serialize(self, event_type: EventType, event_data: Any) -> FrontendEvent:
         """Convert engine event dataclasses to JSON-safe dicts."""
@@ -241,7 +301,8 @@ class LocalInferenceService:
                 if key == "image" and val is not None:
                     # Save full-res PNG and half-res WebP cover; store both paths
                     image_path, cover_path = self._save_output_image(
-                        event_data.image, raw.get("job_id", "unknown")
+                        event_data.image, raw.get("job_id", "unknown"),
+                        seed=raw.get("seed"),
                     )
                     data["image_path"] = image_path
                     data["cover_path"] = cover_path

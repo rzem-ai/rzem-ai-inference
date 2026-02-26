@@ -36,7 +36,7 @@ export const useEditStore = defineStore('edit', {
       t5_tokenizer: 'google/t5-v1_1-xxl',
       t5_encoder: 'google/t5-v1_1-xxl',
       steps: 28,
-      cfg_scale: 3.5,
+      cfg_scale: 2.5,
       width: 1024,
       height: 1024,
       seed: -1,

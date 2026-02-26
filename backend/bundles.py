@@ -112,7 +112,7 @@ DEFAULT_BUNDLES: list[ModelBundle] = [
         t5_encoder=_T5,
         t5_encoder_config=_T5_NF4,
         steps=28,
-        cfg_scale=3.5,
+        cfg_scale=2.5,
         vram_estimate_gb=11.0,
     ),
     ModelBundle(
@@ -128,7 +128,7 @@ DEFAULT_BUNDLES: list[ModelBundle] = [
         t5_tokenizer=_T5,
         t5_encoder=_T5,
         steps=40,
-        cfg_scale=4.0,
+        cfg_scale=2.5,
         vram_estimate_gb=33.7,
     ),
     # ── FLUX.2 Dev ──
