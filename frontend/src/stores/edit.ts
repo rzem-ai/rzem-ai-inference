@@ -183,6 +183,8 @@ export const useEditStore = defineStore('edit', {
         this.params.steps = img.params.steps ?? this.params.steps;
         this.params.cfg_scale = img.params.cfg_scale ?? this.params.cfg_scale;
         this.params.seed = img.params.seed ?? this.params.seed;
+        this.params.sampler = img.params.sampler ?? this.params.sampler;
+        this.params.scheduler = img.params.scheduler ?? this.params.scheduler;
       }
     },
 
@@ -192,6 +194,11 @@ export const useEditStore = defineStore('edit', {
     processNewEvents() {
       const inferenceStore = useInferenceStore();
       const events = inferenceStore.events;
+
+      // Reset if events were cleared (e.g. engine restart)
+      if (this._lastEventIndex > events.length) {
+        this._lastEventIndex = 0;
+      }
 
       while (this._lastEventIndex < events.length) {
         const event: InferenceEvent = events[this._lastEventIndex++];
