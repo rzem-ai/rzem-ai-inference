@@ -44,6 +44,16 @@ class ChatProvider(Protocol):
         model: str,
     ) -> Iterator[StreamEvent]: ...
 
+    def complete(
+        self,
+        messages: list[dict[str, Any]],
+        system_prompt: str,
+        model: str,
+        max_tokens: int = 1024,
+    ) -> str: ...
+
     def get_models(self) -> list[ProviderModel]: ...
 
     def supports_tools(self, model: str) -> bool: ...
+
+    def supports_vision(self) -> bool: ...

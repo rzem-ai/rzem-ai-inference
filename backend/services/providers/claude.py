@@ -41,6 +41,28 @@ class ClaudeProvider:
     def supports_tools(self, model: str) -> bool:
         return True
 
+    def supports_vision(self) -> bool:
+        return True
+
+    def complete(
+        self,
+        messages: list[dict[str, Any]],
+        system_prompt: str,
+        model: str,
+        max_tokens: int = 1024,
+    ) -> str:
+        """One-shot completion (non-streaming). Returns the full text response."""
+        if not self._client:
+            raise RuntimeError("Claude provider not configured")
+
+        response = self._client.messages.create(
+            model=model,
+            max_tokens=max_tokens,
+            system=system_prompt,
+            messages=messages,
+        )
+        return response.content[0].text
+
     def stream(
         self,
         messages: list[dict[str, Any]],

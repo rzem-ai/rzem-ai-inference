@@ -10,12 +10,15 @@ import os
 import re
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import webview
 
 from backend.db.database import Database
 from backend.services.image_utils import store_style_image
+
+if TYPE_CHECKING:
+    from backend.services.chat_service import ChatService
 
 logger = logging.getLogger(__name__)
 
@@ -26,9 +29,10 @@ _IMAGE_EXTENSIONS = ("png", "jpg", "jpeg", "webp", "bmp")
 class StylesAPI:
     """pywebview js_api mixin for style management."""
 
-    def __init__(self, db: Database, styles_dir: Path | None = None) -> None:
+    def __init__(self, db: Database, styles_dir: Path | None = None, chat_service: ChatService | None = None) -> None:
         self._db = db
         self._styles_dir = styles_dir or Path.home() / ".rzem-ai" / "styles"
+        self._chat = chat_service
 
     def get_styles_dir(self, **kwargs) -> dict[str, Any]:
         """Return the styles directory path."""
@@ -589,12 +593,16 @@ class StylesAPI:
         trained_words: list[str],
         style_name: str,
     ) -> str | None:
-        """Use Claude vision to generate a prompt template from a preview image.
+        """Use the active AI provider to generate a prompt template from a preview image.
 
-        Returns the template string or None if unavailable/failed.
+        Requires a provider that supports vision (image inputs). Falls back to
+        None if the provider doesn't support vision or isn't configured.
         """
-        api_key = self._db.get_setting("CLAUDE_API_KEY")
-        if not api_key:
+        if not self._chat or not self._chat.is_configured:
+            return None
+
+        if not self._chat.active_provider.supports_vision():
+            logger.debug("Active provider '%s' doesn't support vision, skipping AI template", self._chat.active_provider_name)
             return None
 
         path = Path(image_path)
@@ -602,49 +610,39 @@ class StylesAPI:
             return None
 
         try:
-            import anthropic
-
             mime = mimetypes.guess_type(str(path))[0] or "image/png"
             image_data = base64.standard_b64encode(path.read_bytes()).decode("ascii")
-
-            model = self._db.get_setting("CLAUDE_MODEL") or "claude-sonnet-4-6"
-            client = anthropic.Anthropic(api_key=api_key)
-
             words_str = ", ".join(trained_words) if trained_words else "(none)"
 
-            response = client.messages.create(
-                model=model,
-                max_tokens=256,
-                messages=[{
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "image",
-                            "source": {
-                                "type": "base64",
-                                "media_type": mime,
-                                "data": image_data,
-                            },
+            messages = [{
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": mime,
+                            "data": image_data,
                         },
-                        {
-                            "type": "text",
-                            "text": (
-                                f"You are analyzing a preview image from an AI LoRA model called \"{style_name}\".\n"
-                                f"Trigger/trained words: {words_str}\n\n"
-                                "Create a prompt template that captures this visual style. Rules:\n"
-                                "- MUST include {prompt} exactly once as a placeholder for the user's subject\n"
-                                "- MUST include the trigger words\n"
-                                "- Describe key visual characteristics (art style, lighting, color palette, mood)\n"
-                                "- Single line, under 60 words\n"
-                                "- Written as a generation prompt, not a description\n\n"
-                                "Output ONLY the template text, nothing else."
-                            ),
-                        },
-                    ],
-                }],
-            )
+                    },
+                    {
+                        "type": "text",
+                        "text": (
+                            f"You are analyzing a preview image from an AI LoRA model called \"{style_name}\".\n"
+                            f"Trigger/trained words: {words_str}\n\n"
+                            "Create a prompt template that captures this visual style. Rules:\n"
+                            "- MUST include {prompt} exactly once as a placeholder for the user's subject\n"
+                            "- MUST include the trigger words\n"
+                            "- Describe key visual characteristics (art style, lighting, color palette, mood)\n"
+                            "- Single line, under 60 words\n"
+                            "- Written as a generation prompt, not a description\n\n"
+                            "Output ONLY the template text, nothing else."
+                        ),
+                    },
+                ],
+            }]
 
-            template = response.content[0].text.strip()
+            template = self._chat.complete(messages, max_tokens=256).strip()
             if "{prompt}" not in template:
                 template += " {prompt}"
 
@@ -658,46 +656,38 @@ class StylesAPI:
     # ── Style Builder ─────────────────────────────────────────
 
     def generate_style_from_filters(self, filters: list[str], **kwargs) -> dict[str, Any]:
-        """Use Claude to generate a complete style from selected filter prompts."""
+        """Use the active AI provider to generate a complete style from selected filter prompts."""
         try:
-            api_key = self._db.get_setting("CLAUDE_API_KEY")
-            if not api_key:
-                return {"status": "error", "message": "Claude API key not configured. Set it in Settings → API Keys."}
+            if not self._chat or not self._chat.is_configured:
+                provider = self._chat.active_provider_name if self._chat else "AI"
+                return {"status": "error", "message": f"{provider.capitalize()} API key not configured. Set it in Settings > AI."}
 
             if not filters:
                 return {"status": "error", "message": "No filters selected"}
 
-            import anthropic
-
-            model = self._db.get_setting("CLAUDE_MODEL") or "claude-sonnet-4-6"
-            client = anthropic.Anthropic(api_key=api_key)
-
             filters_str = ", ".join(filters)
 
-            response = client.messages.create(
-                model=model,
-                max_tokens=1024,
-                messages=[{
-                    "role": "user",
-                    "content": (
-                        "You are an AI image generation style designer. Given a set of visual style filters, "
-                        "create a cohesive generation style that combines them.\n\n"
-                        f"Selected filters: {filters_str}\n\n"
-                        "Return a JSON object with exactly these fields:\n"
-                        '- "name": A short, creative name for this style (2-4 words)\n'
-                        '- "description": A 1-2 sentence description of the visual style\n'
-                        '- "prompt_template": A generation prompt template that captures the combined style. '
-                        "MUST include {prompt} exactly once as a placeholder for the user's subject. "
-                        "Should be descriptive, under 80 words, written as a generation prompt.\n"
-                        '- "negative_prompt": Comma-separated terms to avoid (things that would clash with this style)\n'
-                        '- "category": The best fitting category from: Photography, Illustration, Painting, Digital Art, '
-                        "Architecture, Fashion, Character Design, Mixed Media\n\n"
-                        "Output ONLY valid JSON, no markdown fences, no extra text."
-                    ),
-                }],
-            )
+            messages = [{
+                "role": "user",
+                "content": (
+                    "You are an AI image generation style designer. Given a set of visual style filters, "
+                    "create a cohesive generation style that combines them.\n\n"
+                    f"Selected filters: {filters_str}\n\n"
+                    "Return a JSON object with exactly these fields:\n"
+                    '- "name": A short, creative name for this style (2-4 words)\n'
+                    '- "description": A 1-2 sentence description of the visual style\n'
+                    '- "prompt_template": A generation prompt template that captures the combined style. '
+                    "MUST include {prompt} exactly once as a placeholder for the user's subject. "
+                    "Should be descriptive, under 80 words, written as a generation prompt.\n"
+                    '- "negative_prompt": Comma-separated terms to avoid (things that would clash with this style)\n'
+                    '- "category": The best fitting category from: Photography, Illustration, Painting, Digital Art, '
+                    "Architecture, Fashion, Character Design, Mixed Media\n\n"
+                    "Output ONLY valid JSON, no markdown fences, no extra text."
+                ),
+            }]
 
-            raw = response.content[0].text.strip()
+            raw = self._chat.complete(messages).strip()
+
             # Strip markdown fences if present
             if raw.startswith("```"):
                 raw = raw.split("\n", 1)[1] if "\n" in raw else raw[3:]
@@ -711,7 +701,7 @@ class StylesAPI:
             required = ["name", "description", "prompt_template", "negative_prompt", "category"]
             for field in required:
                 if field not in style_data:
-                    return {"status": "error", "message": f"Claude response missing '{field}' field"}
+                    return {"status": "error", "message": f"AI response missing '{field}' field"}
 
             # Ensure {prompt} placeholder exists
             if "{prompt}" not in style_data["prompt_template"]:
@@ -721,8 +711,8 @@ class StylesAPI:
             return {"status": "success", "style_data": style_data}
 
         except json.JSONDecodeError as e:
-            logger.error("Failed to parse Claude response as JSON: %s", e)
-            return {"status": "error", "message": "Claude returned invalid JSON. Please try again."}
+            logger.error("Failed to parse AI response as JSON: %s", e)
+            return {"status": "error", "message": "AI returned invalid JSON. Please try again."}
         except Exception as e:
             logger.error("Style generation from filters failed: %s", e)
             return {"status": "error", "message": str(e)}

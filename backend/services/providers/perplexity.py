@@ -55,6 +55,28 @@ class PerplexityProvider:
         # not custom function calling. We use text-based JSON blocks instead.
         return False
 
+    def supports_vision(self) -> bool:
+        return False
+
+    def complete(
+        self,
+        messages: list[dict[str, Any]],
+        system_prompt: str,
+        model: str,
+        max_tokens: int = 1024,
+    ) -> str:
+        """One-shot completion (non-streaming). Returns the full text response."""
+        if not self._client:
+            raise RuntimeError("Perplexity provider not configured")
+
+        input_text = self._flatten_messages(messages)
+        response = self._client.responses.create(
+            model=model,
+            input=input_text,
+            instructions=system_prompt,
+        )
+        return response.output_text or ""
+
     def stream(
         self,
         messages: list[dict[str, Any]],

@@ -126,7 +126,7 @@
 					:loading="stylesStore.builderGenerating"
 					@click="stylesStore.generateStyleFromFilters()">
 					<Sparkles :size="14" />
-					<span>{{ stylesStore.builderGenerating ? 'Generating...' : 'Generate Style with Claude' }}</span>
+					<span>{{ stylesStore.builderGenerating ? 'Generating...' : `Generate Style with ${providerLabel}` }}</span>
 				</Button>
 
 				<!-- Error -->
@@ -221,11 +221,18 @@
 import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useStylesStore } from '@/stores/styles';
+import { useSettingsStore } from '@/stores/settings';
 import type { Filter } from '@/types/inference';
 import thumbnailPrompts from '@/stores/thumbnail_prompts.json';
 
 const router = useRouter();
 const stylesStore = useStylesStore();
+const settingsStore = useSettingsStore();
+
+const providerLabel = computed(() => {
+	const name = settingsStore.aiProvider;
+	return name.charAt(0).toUpperCase() + name.slice(1);
+});
 
 const searchQuery = ref('');
 const activeCategory = ref('Basic Elements');
@@ -341,6 +348,7 @@ function onCreateStyle() {
 }
 
 onMounted(async () => {
+	settingsStore.loadAiProvider();
 	await stylesStore.loadFilters();
 	updateThumbnailCounts();
 	await stylesStore.loadFilterThumbnailList();

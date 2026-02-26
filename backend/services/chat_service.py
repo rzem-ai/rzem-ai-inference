@@ -162,9 +162,9 @@ class ChatService:
     def active_provider_name(self) -> str:
         """Read AI_PROVIDER setting from DB, default to 'claude'."""
         name = self._db.get_setting("AI_PROVIDER")
-        if name and name in self._providers:
-            return name
-        return "claude"
+        resolved = name if (name and name in self._providers) else "claude"
+        logger.debug("AI_PROVIDER setting='%s' → resolved='%s'", name, resolved)
+        return resolved
 
     @property
     def is_configured(self) -> bool:
@@ -181,6 +181,22 @@ class ChatService:
     def set_api_key(self, key: str) -> None:
         """Legacy method — delegates to set_provider_api_key('claude', ...)."""
         self.set_provider_api_key("claude", key)
+
+    def complete(
+        self,
+        messages: list[dict[str, Any]],
+        system_prompt: str = "",
+        max_tokens: int = 1024,
+    ) -> str:
+        """One-shot completion using the active provider and model.
+
+        Used by non-chat features (Style Builder, AI prompt template generation)
+        that need a simple text response without streaming or tool use.
+        """
+        provider = self.active_provider
+        model = self._get_model()
+        logger.info("One-shot completion via '%s' model='%s'", self.active_provider_name, model)
+        return provider.complete(messages, system_prompt, model, max_tokens)
 
     def drain_events(self) -> list[dict[str, Any]]:
         """Return and clear all buffered chat events."""
@@ -236,17 +252,21 @@ class ChatService:
     ) -> None:
         """Call the active provider's API with streaming and handle tool use loop."""
         provider = self.active_provider
+        provider_name = self.active_provider_name
+        logger.info("Chat request using provider '%s' (configured: %s)", provider_name, provider.is_configured)
+
         if not provider.is_configured:
             self._push_event(
                 "chat_error",
                 conversation_id=conversation_id,
-                error="API key not configured",
+                error=f"{provider_name} API key not configured",
             )
             return
 
         try:
             model = self._get_model()
             use_tools = provider.supports_tools(model)
+            logger.info("Using model '%s' via %s (tools: %s)", model, provider_name, use_tools)
 
             if use_tools:
                 system_prompt = _build_system_prompt(generation_context)
