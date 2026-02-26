@@ -606,6 +606,17 @@ export const mockApi: PywebviewAPI = {
   async chat_set_api_key(_args) {
     return { status: "success" };
   },
+  async chat_get_provider_info() {
+    return {
+      status: "success",
+      provider: "claude",
+      models: [
+        { id: "claude-haiku-4-5-20251001", label: "Claude Haiku 4.6 — Fast, low cost" },
+        { id: "claude-sonnet-4-6", label: "Claude Sonnet 4.6 — Balanced (default)" },
+        { id: "claude-opus-4-6", label: "Claude Opus 4.6 — Most capable" },
+      ],
+    };
+  },
   async chat_create_conversation(_args?) {
     return { status: "success", conversation: { id: "mock-conv-1", title: "New Chat", created_at: Date.now() / 1000, updated_at: Date.now() / 1000 } };
   },

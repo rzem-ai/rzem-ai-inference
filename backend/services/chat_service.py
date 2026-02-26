@@ -1,4 +1,4 @@
-"""Chat service — Claude API integration with streaming, tool use, and vision."""
+"""Chat service — multi-provider chat with streaming, tool use, and vision."""
 
 from __future__ import annotations
 
@@ -14,10 +14,14 @@ from pathlib import Path
 from typing import Any
 
 from backend.db.database import Database
+from backend.services.providers import StreamEvent
+from backend.services.providers.claude import ClaudeProvider
+from backend.services.providers.perplexity import PerplexityProvider
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_CLAUDE_MODEL = "claude-sonnet-4-6"
+DEFAULT_PERPLEXITY_MODEL = "anthropic/claude-sonnet-4-6"
 
 TOOLS = [
     {
@@ -52,7 +56,7 @@ TOOLS = [
 
 
 def _build_system_prompt(generation_context: dict[str, Any] | None) -> str:
-    """Build a system prompt that includes current generation settings."""
+    """Build a system prompt that includes current generation settings (for tool-capable providers)."""
     base = (
         "You are an AI image generation assistant embedded in a sidebar panel. "
         "You help users craft better prompts and adjust generation settings.\n\n"
@@ -63,6 +67,48 @@ def _build_system_prompt(generation_context: dict[str, Any] | None) -> str:
         "- Always explain your reasoning briefly when making changes.\n"
         "- When analyzing images, describe what you see and suggest improvements.\n"
         "- Use markdown for formatting (bold, lists, etc.) but keep it concise.\n"
+    )
+
+    if generation_context:
+        ctx_lines = ["\nCurrent generation settings:"]
+        for key, val in generation_context.items():
+            if val is not None:
+                ctx_lines.append(f"- {key}: {val}")
+        base += "\n".join(ctx_lines)
+
+    return base
+
+
+def _build_system_prompt_no_tools(generation_context: dict[str, Any] | None) -> str:
+    """Build a system prompt for providers without native tool support.
+
+    Embeds tool instructions as text, telling the model to output JSON blocks
+    when it wants to change settings.
+    """
+    base = (
+        "You are an AI image generation assistant embedded in a sidebar panel. "
+        "You help users craft better prompts and adjust generation settings.\n\n"
+        "Guidelines:\n"
+        "- Be concise — you're in a narrow sidebar, keep responses short.\n"
+        "- Always explain your reasoning briefly when making changes.\n"
+        "- When analyzing images, describe what you see and suggest improvements.\n"
+        "- Use markdown for formatting (bold, lists, etc.) but keep it concise.\n\n"
+        "## Changing Settings\n\n"
+        "You can change the user's generation settings by outputting a JSON block. "
+        "When the user asks you to change the prompt or generation settings, include "
+        "a fenced JSON block in your response.\n\n"
+        "To update the prompt, output:\n"
+        "```json\n"
+        '{"tool": "update_prompt", "prompt": "the new prompt text here"}\n'
+        "```\n\n"
+        "To update generation settings (width, height, steps, cfg_scale, seed), output:\n"
+        "```json\n"
+        '{"tool": "update_generation_settings", "width": 1024, "height": 768}\n'
+        "```\n"
+        "Only include the fields you want to change. Available fields: "
+        "width (int), height (int), steps (int), cfg_scale (float), seed (int, -1 for random).\n\n"
+        "You may include multiple JSON blocks in a single response if needed. "
+        "Always add a brief explanation alongside the JSON block.\n"
     )
 
     if generation_context:
@@ -93,23 +139,48 @@ class ChatEvent:
 
 
 class ChatService:
-    """Claude API chat with streaming, tool use, and event buffering."""
+    """Multi-provider chat with streaming, tool use, and event buffering."""
 
     def __init__(self, db: Database) -> None:
         self._db = db
-        self._client = None  # anthropic.Anthropic instance
         self._events: deque[ChatEvent] = deque(maxlen=500)
         self._lock = threading.Lock()
 
+        # Provider registry
+        self._providers: dict[str, ClaudeProvider | PerplexityProvider] = {
+            "claude": ClaudeProvider(),
+            "perplexity": PerplexityProvider(),
+        }
+
+    @property
+    def active_provider(self) -> ClaudeProvider | PerplexityProvider:
+        """Return the currently active provider based on AI_PROVIDER setting."""
+        name = self.active_provider_name
+        return self._providers[name]
+
+    @property
+    def active_provider_name(self) -> str:
+        """Read AI_PROVIDER setting from DB, default to 'claude'."""
+        name = self._db.get_setting("AI_PROVIDER")
+        if name and name in self._providers:
+            return name
+        return "claude"
+
     @property
     def is_configured(self) -> bool:
-        return self._client is not None
+        return self.active_provider.is_configured
+
+    def set_provider_api_key(self, provider_name: str, api_key: str) -> None:
+        """Configure an API key for a specific provider."""
+        provider = self._providers.get(provider_name)
+        if not provider:
+            raise ValueError(f"Unknown provider: {provider_name}")
+        provider.configure(api_key)
+        logger.info("API key configured for provider: %s", provider_name)
 
     def set_api_key(self, key: str) -> None:
-        """Initialize or replace the Anthropic client."""
-        import anthropic
-        self._client = anthropic.Anthropic(api_key=key)
-        logger.info("Claude API client initialized")
+        """Legacy method — delegates to set_provider_api_key('claude', ...)."""
+        self.set_provider_api_key("claude", key)
 
     def drain_events(self) -> list[dict[str, Any]]:
         """Return and clear all buffered chat events."""
@@ -127,7 +198,6 @@ class ChatService:
         display_text: str | None = None,
     ) -> None:
         """Persist user message and spawn streaming response thread."""
-        # Persist user message
         self._db.insert_conversation_message(
             id=str(uuid.uuid4()),
             conversation_id=conversation_id,
@@ -136,10 +206,8 @@ class ChatService:
             display_text=display_text,
             image_paths=json.dumps(image_paths) if image_paths else None,
         )
-        # Touch conversation updated_at
         self._db.update_conversation(conversation_id)
 
-        # Stream response in background
         thread = threading.Thread(
             target=self._stream_response,
             args=(conversation_id, generation_context),
@@ -152,26 +220,41 @@ class ChatService:
             self._events.append(ChatEvent(type=event_type, data=data))
 
     def _get_model(self) -> str:
-        """Read the configured Claude model from settings, falling back to default."""
-        model = self._db.get_setting("CLAUDE_MODEL")
-        return model if model else DEFAULT_CLAUDE_MODEL
+        """Read the configured model for the active provider."""
+        provider_name = self.active_provider_name
+        if provider_name == "perplexity":
+            model = self._db.get_setting("PERPLEXITY_MODEL")
+            return model if model else DEFAULT_PERPLEXITY_MODEL
+        else:
+            model = self._db.get_setting("CLAUDE_MODEL")
+            return model if model else DEFAULT_CLAUDE_MODEL
 
     def _stream_response(
         self,
         conversation_id: str,
         generation_context: dict[str, Any] | None,
     ) -> None:
-        """Call Claude API with streaming and handle tool use loop."""
-        if not self._client:
-            self._push_event("chat_error", conversation_id=conversation_id, error="API key not configured")
+        """Call the active provider's API with streaming and handle tool use loop."""
+        provider = self.active_provider
+        if not provider.is_configured:
+            self._push_event(
+                "chat_error",
+                conversation_id=conversation_id,
+                error="API key not configured",
+            )
             return
 
         try:
-            system_prompt = _build_system_prompt(generation_context)
-            messages = self._build_messages(conversation_id)
             model = self._get_model()
+            use_tools = provider.supports_tools(model)
 
-            self._tool_use_loop(conversation_id, system_prompt, messages, model)
+            if use_tools:
+                system_prompt = _build_system_prompt(generation_context)
+            else:
+                system_prompt = _build_system_prompt_no_tools(generation_context)
+
+            messages = self._build_messages(conversation_id)
+            self._tool_use_loop(conversation_id, system_prompt, messages, model, provider)
 
         except Exception as e:
             logger.exception("Chat stream error for conversation %s", conversation_id)
@@ -183,40 +266,32 @@ class ChatService:
         system_prompt: str,
         messages: list[dict[str, Any]],
         model: str,
+        provider: ClaudeProvider | PerplexityProvider,
     ) -> None:
-        """Stream Claude response, handle tool calls, repeat until text-only."""
+        """Stream provider response, handle tool calls, repeat until text-only."""
+        has_build_tool_messages = hasattr(provider, "build_tool_result_messages")
+
         while True:
             full_text = ""
-            tool_uses: list[dict[str, Any]] = []
+            tool_calls: list[dict[str, Any]] = []
 
-            with self._client.messages.stream(
-                model=model,
-                max_tokens=1024,
-                system=system_prompt,
-                messages=messages,
-                tools=TOOLS,
-            ) as stream:
-                for event in stream:
-                    if event.type == "content_block_start":
-                        if event.content_block.type == "tool_use":
-                            tool_uses.append({
-                                "id": event.content_block.id,
-                                "name": event.content_block.name,
-                                "input_json": "",
-                            })
-                    elif event.type == "content_block_delta":
-                        if event.delta.type == "text_delta":
-                            full_text += event.delta.text
-                            self._push_event(
-                                "chat_chunk",
-                                conversation_id=conversation_id,
-                                text=event.delta.text,
-                            )
-                        elif event.delta.type == "input_json_delta":
-                            if tool_uses:
-                                tool_uses[-1]["input_json"] += event.delta.partial_json
+            for event in provider.stream(messages, system_prompt, TOOLS, model):
+                if event.type == "text_delta":
+                    full_text += event.text or ""
+                    self._push_event(
+                        "chat_chunk",
+                        conversation_id=conversation_id,
+                        text=event.text or "",
+                    )
+                elif event.type == "tool_call":
+                    tool_calls.append({
+                        "id": event.tool_id,
+                        "name": event.tool_name,
+                        "tool_input": event.tool_input or {},
+                    })
+                # "done" is just a sentinel, no action needed
 
-            # If there was text, persist it
+            # Persist assistant text if any
             if full_text:
                 self._db.insert_conversation_message(
                     id=str(uuid.uuid4()),
@@ -225,8 +300,8 @@ class ChatService:
                     content=full_text,
                 )
 
-            # If no tool calls, we're done
-            if not tool_uses:
+            # No tool calls -> we're done
+            if not tool_calls:
                 self._push_event("chat_complete", conversation_id=conversation_id)
                 self._db.update_conversation(conversation_id)
                 return
@@ -234,9 +309,9 @@ class ChatService:
             # Process tool calls
             tool_results = []
             tool_call_records = []
-            for tool in tool_uses:
-                tool_input = json.loads(tool["input_json"]) if tool["input_json"] else {}
+            for tool in tool_calls:
                 tool_name = tool["name"]
+                tool_input = tool["tool_input"]
 
                 self._push_event(
                     "chat_tool_use",
@@ -247,7 +322,6 @@ class ChatService:
 
                 result = self._execute_tool(tool_name, tool_input)
                 tool_results.append({
-                    "type": "tool_result",
                     "tool_use_id": tool["id"],
                     "content": json.dumps(result),
                 })
@@ -266,21 +340,18 @@ class ChatService:
                 tool_calls=json.dumps(tool_call_records),
             )
 
-            # Build the assistant content blocks for the next turn
-            assistant_content: list[dict[str, Any]] = []
-            if full_text:
-                assistant_content.append({"type": "text", "text": full_text})
-            for tool in tool_uses:
-                tool_input = json.loads(tool["input_json"]) if tool["input_json"] else {}
-                assistant_content.append({
-                    "type": "tool_use",
-                    "id": tool["id"],
-                    "name": tool["name"],
-                    "input": tool_input,
-                })
-
-            messages.append({"role": "assistant", "content": assistant_content})
-            messages.append({"role": "user", "content": tool_results})
+            # If provider supports tool result messages, build them and loop
+            if has_build_tool_messages:
+                new_messages = provider.build_tool_result_messages(
+                    full_text, tool_calls, tool_results
+                )
+                messages.extend(new_messages)
+                # Continue the loop for the next round
+            else:
+                # Provider doesn't support tool result loop — complete after first tool call
+                self._push_event("chat_complete", conversation_id=conversation_id)
+                self._db.update_conversation(conversation_id)
+                return
 
     def _execute_tool(self, name: str, tool_input: dict[str, Any]) -> dict[str, str]:
         """Execute a tool and return a result dict. Actual param changes are
@@ -293,7 +364,7 @@ class ChatService:
         return {"status": "error", "message": f"Unknown tool: {name}"}
 
     def _build_messages(self, conversation_id: str) -> list[dict[str, Any]]:
-        """Load conversation history and format for the Anthropic API."""
+        """Load conversation history and format for the API."""
         db_messages = self._db.get_conversation_messages(conversation_id)
         api_messages: list[dict[str, Any]] = []
 

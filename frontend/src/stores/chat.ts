@@ -31,9 +31,9 @@ export const useChatStore = defineStore('chat', {
       }
     },
 
-    async setApiKey(apiKey: string) {
+    async setApiKey(apiKey: string, provider: string = 'claude') {
       const api = await getApiAsync();
-      const res = await api.chat_set_api_key({ api_key: apiKey });
+      const res = await api.chat_set_api_key({ api_key: apiKey, provider });
       if (res.status === 'success') {
         this.isConfigured = true;
       }

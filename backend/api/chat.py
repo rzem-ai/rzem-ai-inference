@@ -26,13 +26,29 @@ class ChatAPI:
             logger.error("Failed to check chat config: %s", e)
             return {"status": "error", "message": str(e)}
 
-    def chat_set_api_key(self, api_key: str, **kwargs) -> dict[str, Any]:
+    def chat_set_api_key(self, api_key: str, provider: str = "claude", **kwargs) -> dict[str, Any]:
         try:
-            self._chat.set_api_key(api_key)
-            self._chat_db.set_setting("CLAUDE_API_KEY", api_key)
+            self._chat.set_provider_api_key(provider, api_key)
+            # Store with provider-specific key
+            key_name = "CLAUDE_API_KEY" if provider == "claude" else "PERPLEXITY_API_KEY"
+            self._chat_db.set_setting(key_name, api_key)
             return {"status": "success"}
         except Exception as e:
             logger.error("Failed to set API key: %s", e)
+            return {"status": "error", "message": str(e)}
+
+    def chat_get_provider_info(self, **kwargs) -> dict[str, Any]:
+        """Return active provider name and its available models."""
+        try:
+            provider = self._chat.active_provider
+            models = [{"id": m.id, "label": m.label} for m in provider.get_models()]
+            return {
+                "status": "success",
+                "provider": provider.name,
+                "models": models,
+            }
+        except Exception as e:
+            logger.error("Failed to get provider info: %s", e)
             return {"status": "error", "message": str(e)}
 
     def chat_create_conversation(self, title: str = "New Chat", **kwargs) -> dict[str, Any]:

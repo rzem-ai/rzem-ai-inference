@@ -219,11 +219,15 @@ export interface PywebviewAPI {
 
   // ── Chat ──
   chat_is_configured(): Promise<ApiResponse<{ configured?: boolean }>>;
-  chat_set_api_key(args: { api_key: string }): Promise<ApiResponse>;
+  chat_set_api_key(args: { api_key: string; provider?: string }): Promise<ApiResponse>;
   chat_create_conversation(args?: { title?: string }): Promise<ApiResponse<{ conversation?: Conversation }>>;
   chat_get_conversations(): Promise<ApiResponse<{ conversations?: Conversation[] }>>;
   chat_get_messages(args: { conversation_id: string }): Promise<ApiResponse<{ messages?: ConversationMessage[] }>>;
   chat_delete_conversation(args: { conversation_id: string }): Promise<ApiResponse>;
+  chat_get_provider_info(): Promise<ApiResponse<{
+    provider?: string;
+    models?: Array<{ id: string; label: string }>;
+  }>>;
   chat_send_message(args: {
     conversation_id: string;
     content: string;

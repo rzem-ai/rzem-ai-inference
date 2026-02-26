@@ -3,26 +3,98 @@
     <div>
       <div class="text-xl font-semibold text-slate-900 mb-1">AI</div>
       <div class="text-base text-slate-500">
-        Customize the prompts used by the AI Assistant's scan buttons. Each prompt has a display label shown in the chat window and the full prompt text sent to the AI.
+        Configure the AI provider, model, and scan button prompts used by the AI Assistant.
       </div>
     </div>
 
+    <!-- Provider selector -->
     <Card>
       <template #title>
         <div class="flex items-center gap-2">
-          <Cpu :size="16" class="text-blue-500" />
-          Claude Model
+          <Zap :size="16" class="text-amber-500" />
+          AI Provider
         </div>
       </template>
       <template #content>
-        <p class="text-muted-color mb-3">Select the Claude model used by the AI assistant for chat, prompt enhancement, and image analysis.</p>
-        <Select
-          v-model="localModel"
-          :options="modelOptions"
+        <p class="text-muted-color mb-3">Choose which AI service powers the assistant.</p>
+        <SelectButton
+          v-model="localProvider"
+          :options="providerOptions"
           option-label="label"
           option-value="value"
-          class="w-full"
-          @change="saveModel" />
+          @change="onProviderChange" />
+      </template>
+    </Card>
+
+    <!-- Claude config -->
+    <Card v-if="localProvider === 'claude'">
+      <template #title>
+        <div class="flex items-center gap-2">
+          <Cpu :size="16" class="text-blue-500" />
+          Claude Configuration
+        </div>
+      </template>
+      <template #content>
+        <div class="flex flex-col gap-4">
+          <div>
+            <label class="text-sm font-medium text-slate-700 mb-1 block">API Key</label>
+            <div class="flex gap-2">
+              <InputText
+                v-model="claudeApiKey"
+                type="password"
+                class="flex-1"
+                placeholder="sk-ant-..." />
+              <Button label="Save" severity="primary" @click="saveClaudeKey" :disabled="!claudeApiKey.trim()" />
+            </div>
+            <p class="text-xs text-slate-400 mt-1">Your Anthropic API key. Stored locally.</p>
+          </div>
+          <div>
+            <label class="text-sm font-medium text-slate-700 mb-1 block">Model</label>
+            <Select
+              v-model="localClaudeModel"
+              :options="claudeModelOptions"
+              option-label="label"
+              option-value="value"
+              class="w-full"
+              @change="onClaudeModelChange" />
+          </div>
+        </div>
+      </template>
+    </Card>
+
+    <!-- Perplexity config -->
+    <Card v-if="localProvider === 'perplexity'">
+      <template #title>
+        <div class="flex items-center gap-2">
+          <Globe :size="16" class="text-violet-500" />
+          Perplexity Configuration
+        </div>
+      </template>
+      <template #content>
+        <div class="flex flex-col gap-4">
+          <div>
+            <label class="text-sm font-medium text-slate-700 mb-1 block">API Key</label>
+            <div class="flex gap-2">
+              <InputText
+                v-model="perplexityApiKey"
+                type="password"
+                class="flex-1"
+                placeholder="pplx-..." />
+              <Button label="Save" severity="primary" @click="savePerplexityKey" :disabled="!perplexityApiKey.trim()" />
+            </div>
+            <p class="text-xs text-slate-400 mt-1">Your Perplexity API key. Stored locally.</p>
+          </div>
+          <div>
+            <label class="text-sm font-medium text-slate-700 mb-1 block">Model</label>
+            <Select
+              v-model="localPerplexityModel"
+              :options="perplexityModelOptions"
+              option-label="label"
+              option-value="value"
+              class="w-full"
+              @change="onPerplexityModelChange" />
+          </div>
+        </div>
       </template>
     </Card>
 
@@ -73,20 +145,65 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
 import { useSettingsStore } from '@/stores/settings';
-import { Box, Layers, Paintbrush } from 'lucide-vue-next';
+import { useChatStore } from '@/stores/chat';
+import { Box, Cpu, Globe, Info, Layers, Paintbrush, Zap } from 'lucide-vue-next';
 
 const settingsStore = useSettingsStore();
+const chatStore = useChatStore();
 
-const modelOptions = [
+const providerOptions = [
+  { label: 'Claude', value: 'claude' },
+  { label: 'Perplexity', value: 'perplexity' },
+];
+
+const claudeModelOptions = [
   { label: 'Claude Haiku 4.6 — Fast, low cost', value: 'claude-haiku-4-5-20251001' },
   { label: 'Claude Sonnet 4.6 — Balanced (default)', value: 'claude-sonnet-4-6' },
   { label: 'Claude Opus 4.6 — Most capable', value: 'claude-opus-4-6' },
 ];
 
-const localModel = ref('claude-sonnet-4-6');
+const perplexityModelOptions = [
+  { label: 'Sonar — Fast, web search', value: 'perplexity/sonar' },
+  { label: 'GPT-5.2 — Frontier', value: 'openai/gpt-5.2' },
+  { label: 'GPT-5.1 — Mid-tier', value: 'openai/gpt-5.1' },
+  { label: 'GPT-5 Mini — Budget', value: 'openai/gpt-5-mini' },
+  { label: 'Claude Sonnet 4.6 — Balanced (default)', value: 'anthropic/claude-sonnet-4-6' },
+  { label: 'Claude Haiku 4.5 — Fast', value: 'anthropic/claude-haiku-4-5' },
+  { label: 'Gemini 2.5 Pro', value: 'google/gemini-2.5-pro' },
+  { label: 'Gemini 2.5 Flash — Budget', value: 'google/gemini-2.5-flash' },
+];
 
-async function saveModel() {
-  await settingsStore.saveClaudeModel(localModel.value);
+const localProvider = ref('claude');
+const claudeApiKey = ref('');
+const perplexityApiKey = ref('');
+const localClaudeModel = ref('claude-sonnet-4-6');
+const localPerplexityModel = ref('anthropic/claude-sonnet-4-6');
+
+async function onProviderChange() {
+  await settingsStore.saveAiProvider(localProvider.value);
+  await chatStore.checkConfigured();
+}
+
+async function saveClaudeKey() {
+  if (!claudeApiKey.value.trim()) return;
+  await chatStore.setApiKey(claudeApiKey.value.trim(), 'claude');
+  claudeApiKey.value = '';
+  await chatStore.checkConfigured();
+}
+
+async function savePerplexityKey() {
+  if (!perplexityApiKey.value.trim()) return;
+  await chatStore.setApiKey(perplexityApiKey.value.trim(), 'perplexity');
+  perplexityApiKey.value = '';
+  await chatStore.checkConfigured();
+}
+
+async function onClaudeModelChange() {
+  await settingsStore.saveClaudeModel(localClaudeModel.value);
+}
+
+async function onPerplexityModelChange() {
+  await settingsStore.savePerplexityModel(localPerplexityModel.value);
 }
 
 const promptEntries = [
@@ -117,8 +234,12 @@ async function saveDisplayText(key: string) {
 }
 
 onMounted(async () => {
+  await settingsStore.loadAiProvider();
+  localProvider.value = settingsStore.aiProvider;
   await settingsStore.loadClaudeModel();
-  localModel.value = settingsStore.claudeModel;
+  localClaudeModel.value = settingsStore.claudeModel;
+  await settingsStore.loadPerplexityModel();
+  localPerplexityModel.value = settingsStore.perplexityModel;
   await settingsStore.loadAiPrompts();
   syncFromStore();
 });

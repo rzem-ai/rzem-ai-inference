@@ -16,12 +16,12 @@
     <!-- Not configured state -->
     <div v-if="!chatStore.isConfigured" class="flex-1 flex flex-col items-center justify-center px-6 gap-3">
       <KeyRound :size="24" class="text-slate-300" />
-      <p class="text-xs text-slate-500 text-center">Enter your Claude API key to enable the AI assistant.</p>
+      <p class="text-xs text-slate-500 text-center">Enter your {{ providerLabel }} API key to enable the AI assistant.</p>
       <div class="flex gap-1 w-full">
         <input
           v-model="apiKeyInput"
           type="password"
-          placeholder="sk-ant-..."
+          :placeholder="providerPlaceholder"
           class="flex-1 text-xs bg-slate-100 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-300"
           @keydown.enter="onSetApiKey" />
         <button
@@ -202,6 +202,14 @@ const chatInput = ref('');
 const apiKeyInput = ref('');
 const messagesContainer = ref<HTMLElement | null>(null);
 
+const providerLabel = computed(() => {
+  return settingsStore.aiProvider === 'perplexity' ? 'Perplexity' : 'Claude';
+});
+
+const providerPlaceholder = computed(() => {
+  return settingsStore.aiProvider === 'perplexity' ? 'pplx-...' : 'sk-ant-...';
+});
+
 // Image picker state
 const pickerVisible = ref(false);
 const pickerMode = ref<'style' | 'subject' | 'both'>('both');
@@ -259,7 +267,7 @@ async function onNewChat() {
 
 async function onSetApiKey() {
   if (!apiKeyInput.value.trim()) return;
-  await chatStore.setApiKey(apiKeyInput.value.trim());
+  await chatStore.setApiKey(apiKeyInput.value.trim(), settingsStore.aiProvider);
   apiKeyInput.value = '';
 }
 

@@ -109,9 +109,12 @@ def main() -> None:
         db.seed_bundles(get_default_bundles_as_dicts())
 
     chat_service = ChatService(db=db)
-    api_key = db.get_setting("CLAUDE_API_KEY")
-    if api_key:
-        chat_service.set_api_key(api_key)
+    claude_key = db.get_setting("CLAUDE_API_KEY")
+    if claude_key:
+        chat_service.set_provider_api_key("claude", claude_key)
+    perplexity_key = db.get_setting("PERPLEXITY_API_KEY")
+    if perplexity_key:
+        chat_service.set_provider_api_key("perplexity", perplexity_key)
 
     hf_api_key = db.get_setting("HF_API_KEY")
     if hf_api_key:

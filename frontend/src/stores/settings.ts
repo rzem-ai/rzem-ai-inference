@@ -30,6 +30,12 @@ export const useSettingsStore = defineStore('settings', {
     // Claude Model
     claudeModel: 'claude-sonnet-4-6' as string,
 
+    // AI Provider
+    aiProvider: 'claude' as string,
+
+    // Perplexity Model
+    perplexityModel: 'anthropic/claude-sonnet-4-6' as string,
+
     // AI Prompts
     aiPrompts: {
       style: {
@@ -253,6 +259,42 @@ export const useSettingsStore = defineStore('settings', {
       const res = await api.set_setting({ key: 'CLAUDE_MODEL', value: model });
       if (res.status === 'success') {
         this.claudeModel = model;
+      }
+    },
+
+    // ── AI Provider ──
+
+    async loadAiProvider() {
+      const api = await getApiAsync();
+      const res = await api.get_setting({ key: 'AI_PROVIDER' });
+      if (res.status === 'success' && res.value) {
+        this.aiProvider = res.value;
+      }
+    },
+
+    async saveAiProvider(provider: string) {
+      const api = await getApiAsync();
+      const res = await api.set_setting({ key: 'AI_PROVIDER', value: provider });
+      if (res.status === 'success') {
+        this.aiProvider = provider;
+      }
+    },
+
+    // ── Perplexity Model ──
+
+    async loadPerplexityModel() {
+      const api = await getApiAsync();
+      const res = await api.get_setting({ key: 'PERPLEXITY_MODEL' });
+      if (res.status === 'success' && res.value) {
+        this.perplexityModel = res.value;
+      }
+    },
+
+    async savePerplexityModel(model: string) {
+      const api = await getApiAsync();
+      const res = await api.set_setting({ key: 'PERPLEXITY_MODEL', value: model });
+      if (res.status === 'success') {
+        this.perplexityModel = model;
       }
     },
 
