@@ -54,7 +54,7 @@ export const colorScheme: ButtonTokenSections.ColorScheme = {
                 background: '{surface.100}',
                 hoverBackground: '{surface.200}',
                 activeBackground: '{surface.300}',
-                borderColor: '{surface.100}',
+                borderColor: '{surface.200}',
                 hoverBorderColor: '{surface.200}',
                 activeBorderColor: '{surface.300}',
                 color: '{surface.600}',
@@ -141,17 +141,17 @@ export const colorScheme: ButtonTokenSections.ColorScheme = {
                 }
             },
             contrast: {
-                background: '{surface.950}',
-                hoverBackground: '{surface.900}',
-                activeBackground: '{surface.800}',
-                borderColor: '{surface.950}',
-                hoverBorderColor: '{surface.900}',
-                activeBorderColor: '{surface.800}',
-                color: '{surface.0}',
-                hoverColor: '{surface.0}',
-                activeColor: '{surface.0}',
+                background: '{emerald.700}',
+                hoverBackground: '{emerald.800}',
+                activeBackground: '{emerald.600}',
+                borderColor: '{emerald.600}',
+                hoverBorderColor: '{emerald.600}',
+                activeBorderColor: '{emerald.600}',
+                color: '{surface.50}',
+                hoverColor: '{surface.50}',
+                activeColor: '{surface.50}',
                 focusRing: {
-                    color: '{surface.950}',
+                    color: '{emerald.950}',
                     shadow: 'none'
                 }
             }

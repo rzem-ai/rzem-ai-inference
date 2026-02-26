@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { getApiAsync } from '@/bridge';
-import type { Style, StyleLoRA, StyleExample, LoRA, Tag } from '@/types/inference';
+import type { Style, StyleLoRA, StyleExample, LoRA, Tag, Filter, GeneratedStyleData } from '@/types/inference';
 
 export const useStylesStore = defineStore('styles', {
   state: () => ({
@@ -31,6 +31,17 @@ export const useStylesStore = defineStore('styles', {
     editorLoras: [] as StyleLoRA[],
     editorTags: [] as Tag[],
     editorExamples: [] as StyleExample[],
+
+    // Builder state
+    builderFilters: [] as Filter[],
+    builderSelected: [] as Filter[],
+    generatedStyle: null as GeneratedStyleData | null,
+    builderGenerating: false,
+    builderError: '',
+
+    // Filter thumbnails
+    availableThumbnails: [] as string[],
+    thumbnailCache: {} as Record<string, string>,
   }),
 
   getters: {},
@@ -362,6 +373,131 @@ export const useStylesStore = defineStore('styles', {
     async toggleSortOrder() {
       this.sortOrder = this.sortOrder === 'asc' ? 'desc' : 'asc';
       await this.loadStyles();
+    },
+
+    // ── Builder ──
+
+    async loadFilters() {
+      if (this.builderFilters.length) return;
+      const mod = await import('@/stores/filters.json');
+      this.builderFilters = mod.default?.filters ?? mod.filters ?? [];
+    },
+
+    async loadFilterThumbnailList() {
+      const api = await getApiAsync();
+      const res = await api.list_filter_thumbnails();
+      if (res.status === 'success') {
+        this.availableThumbnails = res.thumbnails ?? [];
+      }
+    },
+
+    async loadFilterThumbnail(imageName: string): Promise<string | null> {
+      if (this.thumbnailCache[imageName]) return this.thumbnailCache[imageName];
+      if (!this.availableThumbnails.includes(imageName)) return null;
+
+      const api = await getApiAsync();
+      const res = await api.get_filter_thumbnail({ image_name: imageName });
+      if (res.status === 'success' && res.data_url) {
+        this.thumbnailCache[imageName] = res.data_url;
+        return res.data_url;
+      }
+      return null;
+    },
+
+    toggleFilter(filter: Filter) {
+      const idx = this.builderSelected.findIndex((f) => f.prompt === filter.prompt);
+      if (idx === -1) {
+        this.builderSelected.push(filter);
+      } else {
+        this.builderSelected.splice(idx, 1);
+      }
+    },
+
+    removeFilter(filter: Filter) {
+      this.builderSelected = this.builderSelected.filter((f) => f.prompt !== filter.prompt);
+    },
+
+    clearGeneratedStyle() {
+      this.generatedStyle = null;
+    },
+
+    clearBuilder() {
+      this.builderSelected = [];
+      this.generatedStyle = null;
+      this.builderError = '';
+    },
+
+    async submitThumbnailBatch(selectedGroups: string[]) {
+      if (!selectedGroups.length) return;
+      const api = await getApiAsync();
+
+      // Get styles dir from backend
+      const dirRes = await api.get_styles_dir();
+      const stylesPath = dirRes.status === 'success' && dirRes.path ? dirRes.path : '~/.rzem-ai/styles';
+      const outputDir = `${stylesPath}/thumbnails`;
+
+      // Load thumbnail prompts
+      const promptsMod = await import('@/stores/thumbnail_prompts.json');
+      const prompts: Record<string, string> = promptsMod.default ?? promptsMod;
+
+      // Get current inference params for model config
+      const { useInferenceStore } = await import('@/stores/inference');
+      const inferenceStore = useInferenceStore();
+
+      // Build all prompts from selected groups
+      for (const groupKey of selectedGroups) {
+        const template = prompts[groupKey];
+        if (!template) continue;
+
+        const filters = this.builderFilters.filter((f) => `${f.category} / ${f.subcategory}` === groupKey);
+
+        for (const filter of filters) {
+          const prompt = template.replace('{label}', filter.label);
+          const jobParams: Record<string, any> = {
+            ...inferenceStore.params,
+            prompt,
+            width: 1184,
+            height: 896,
+            seed: -1,
+            output_dir: outputDir,
+            output_filename: filter.image,
+          };
+          if (inferenceStore.selectedBundleId) {
+            jobParams.bundle_id = inferenceStore.selectedBundleId;
+          }
+          // Clean undefined keys
+          for (const key of Object.keys(jobParams)) {
+            if (jobParams[key] === undefined || jobParams[key] === '') {
+              delete jobParams[key];
+            }
+          }
+          await api.submit_job(jobParams);
+        }
+      }
+    },
+
+    async generateStyleFromFilters() {
+      if (!this.builderSelected.length) return;
+      this.builderGenerating = true;
+      this.builderError = '';
+      this.generatedStyle = null;
+
+      try {
+        const api = await getApiAsync();
+        const res = await api.generate_style_from_filters({
+          filters: this.builderSelected.map((f) => f.prompt),
+        });
+
+        if (res.status === 'success' && res.style_data) {
+          this.generatedStyle = res.style_data;
+        } else {
+          this.builderError = res.message ?? 'Generation failed';
+        }
+      } catch (e: any) {
+        this.builderError = e.message ?? 'Generation failed';
+      } finally {
+        this.builderGenerating = false;
+      }
     },
   },
 });

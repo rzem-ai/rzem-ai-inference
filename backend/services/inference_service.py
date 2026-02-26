@@ -51,6 +51,8 @@ class LocalInferenceService:
         self._job_bundle_ids: dict[str, str] = {}  # job_id → bundle_id
         self._job_style_ids: dict[str, str] = {}  # job_id → style_id
         self._job_raw_prompts: dict[str, str] = {}  # job_id → raw user prompt
+        self._job_output_dirs: dict[str, Path] = {}  # job_id → custom output dir
+        self._job_output_filenames: dict[str, str] = {}  # job_id → custom output filename stem
         self._start_time: float | None = None  # monotonic time engine started
         self._completed_count: int = 0  # total jobs completed this session
 
@@ -144,6 +146,8 @@ class LocalInferenceService:
         bundle_id: str | None = None,
         style_id: str | None = None,
         raw_prompt: str | None = None,
+        output_dir: str | None = None,
+        output_filename: str | None = None,
     ) -> str:
         """Submit a generation job. Returns the job ID."""
         if not self._engine:
@@ -157,6 +161,12 @@ class LocalInferenceService:
             self._job_style_ids[job_id] = style_id
         if raw_prompt is not None:
             self._job_raw_prompts[job_id] = raw_prompt
+        if output_dir:
+            out = Path(output_dir)
+            out.mkdir(parents=True, exist_ok=True)
+            self._job_output_dirs[job_id] = out
+        if output_filename:
+            self._job_output_filenames[job_id] = Path(output_filename).stem
         return job_id
 
     def cancel(self, job_id: str) -> None:
@@ -184,23 +194,34 @@ class LocalInferenceService:
                 logger.exception("Failed to serialize %s event", event_type.value)
         return handler
 
+    def _get_output_dir(self, job_id: str) -> Path:
+        """Return per-job output dir if set, otherwise the default."""
+        return self._job_output_dirs.get(job_id, self._output_dir)
+
     def _save_image(self, image, job_id: str, suffix: str) -> str:
         """Save a PIL image to disk and return the file path (used for previews)."""
         filename = f"{job_id}_{suffix}.png"
-        path = self._output_dir / filename
+        path = self._get_output_dir(job_id) / filename
         image.save(str(path), format="PNG")
         logger.info("Saved %s to %s", suffix, path)
         return str(path)
 
     def _save_output_image(self, image, job_id: str) -> tuple[str, str]:
         """Save the final output as a timestamped PNG and a half-res WebP cover."""
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        out_dir = self._get_output_dir(job_id)
+        custom_stem = self._job_output_filenames.get(job_id)
 
-        png_path = self._output_dir / f"{timestamp}_{job_id}.png"
+        if custom_stem:
+            png_path = out_dir / f"{custom_stem}.png"
+            webp_path = out_dir / f"{custom_stem}_cover.webp"
+        else:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            png_path = out_dir / f"{timestamp}_{job_id}.png"
+            webp_path = out_dir / f"{timestamp}_{job_id}_cover.webp"
+
         image.save(str(png_path), format="PNG")
 
         cover = image.resize((image.width // 2, image.height // 2), Image.LANCZOS)
-        webp_path = self._output_dir / f"{timestamp}_{job_id}_cover.webp"
         cover.save(str(webp_path), format="WEBP", quality=85)
 
         logger.info("Saved output image to %s and cover to %s", png_path, webp_path)
@@ -253,6 +274,8 @@ class LocalInferenceService:
     def _persist_image(self, event_data: dict[str, Any]) -> None:
         """Insert a completed image record into the database."""
         job_id = event_data.get("job_id", "unknown")
+        self._job_output_dirs.pop(job_id, None)
+        self._job_output_filenames.pop(job_id, None)
         params = self._job_params.pop(job_id, None)
         start_time = self._job_start_times.pop(job_id, None)
 

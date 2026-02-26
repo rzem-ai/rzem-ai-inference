@@ -618,33 +618,33 @@ Track model speed, VRAM usage per configuration, and cost comparisons for cloud 
 ### Phase 2: Core Iteration (3-4 weeks)
 
 7. A/B image comparison view
-2. Quick variations UI
-3. Prompt snippets library
-4. Capture examples during generation
-5. LoRA strength presets
+8. Quick variations UI
+9. Prompt snippets library
+10. Capture examples during generation
+11. LoRA strength presets
 
 ### Phase 3: Organization (2-3 weeks)
 
 12. Smart collections (saved searches)
-2. Generation series / auto-grouping
-3. Visual style browser
-4. Batch style matrix
+13. Generation series / auto-grouping
+14. Visual style browser
+15. Batch style matrix
 
 ### Phase 4: Advanced Creative & Cloud (4-6 weeks)
 
 16. Persistent job queue
-2. Style composition & blending
-3. LoRA discovery & organization
-4. Workflow snapshots & sessions
-5. Cloud GPU deployment (RunPod) — leverages existing remote infrastructure
+17. Style composition & blending
+18. LoRA discovery & organization
+19. Workflow snapshots & sessions
+20. Cloud GPU deployment (RunPod) — leverages existing remote infrastructure
 
 ### Phase 5: Analytics & Polish (3-4 weeks)
 
-20. Generation analytics dashboard
-2. Post-processing pipeline
-3. Style versioning
-4. User preference defaults
-5. Export/sharing features (including Bluesky posting)
+21. Generation analytics dashboard
+22. Post-processing pipeline
+23. Style versioning
+24. User preference defaults
+25. Export/sharing features (including Bluesky posting)
 
 ---
 
@@ -668,4 +668,4 @@ The app already captures excellent metadata (model_config snapshots, LoRA arrays
 
 ### Accessibility Beyond Hardware
 
-Not every user has an RTX 4090. Cloud GPU deployment democratizes access — users with integrated graphics or older laptops can still use the full app by renting cloud GPUs on demand. The existing `RemoteInferenceService` already handles the protocol; cloud deployment adds lifecycle management around it. The safety guardrails (auto-shutdown, cost tracking, orphan detection) are essential to prevent bill shock.
+Not every user has an RTX 5090. Cloud GPU deployment democratizes access — users with integrated graphics or older laptops can still use the full app by renting cloud GPUs on demand. The existing `RemoteInferenceService` already handles the protocol; cloud deployment adds lifecycle management around it. The safety guardrails (auto-shutdown, cost tracking, orphan detection) are essential to prevent bill shock.

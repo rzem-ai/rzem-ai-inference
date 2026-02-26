@@ -73,6 +73,8 @@ class InferenceAPI:
         style_id: str | None = None,
         raw_prompt: str | None = None,
         fal_endpoint: str | None = None,
+        output_dir: str | None = None,
+        output_filename: str | None = None,
         **kwargs,
     ) -> dict[str, Any]:
         """Submit a generation job. Returns ``{status, job_id}``."""
@@ -113,6 +115,7 @@ class InferenceAPI:
 
             job_id = self._inference.active.submit(
                 params, bundle_id=bundle_id, style_id=style_id, raw_prompt=raw_prompt,
+                output_dir=output_dir, output_filename=output_filename,
             )
             return {"status": "success", "job_id": job_id}
         except Exception as e:

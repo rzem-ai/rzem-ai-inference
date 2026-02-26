@@ -34,6 +34,14 @@ export interface InferenceEvent {
 
 export type BundleTier = "performance" | "balanced" | "quality";
 
+export interface BundleType {
+  id: string;
+  label: string;
+  icon: string | null;
+  guide: string | null;
+  sort_order: number;
+}
+
 export interface ModelBundle {
   id: string;
   label: string;
@@ -46,6 +54,7 @@ export interface ModelBundle {
   clip_encoder?: string;
   t5_tokenizer?: string;
   t5_encoder?: string;
+  t5_encoder_config?: string | Record<string, any> | null;
   qwen3_tokenizer?: string;
   qwen3_encoder?: string;
   steps: number;
@@ -53,10 +62,12 @@ export interface ModelBundle {
   sampler: string;
   scheduler: string;
   vram_estimate_gb: number;
-  is_default: boolean;
+  is_default: number;
   source?: string;
   fal_endpoint?: string;
   fal_aspectratio?: string[];
+  favorite: number;
+  hidden: number;
 }
 
 export interface LoraParam {
@@ -78,6 +89,8 @@ export interface SubmitJobParams {
   scheduler: string;
   loras: LoraParam[];
   bundle_id?: string;
+  output_dir?: string;
+  output_filename?: string;
   fal_endpoint?: string;
   fal_aspectratio?: string[];
   // Optional text encoder overrides
@@ -85,6 +98,7 @@ export interface SubmitJobParams {
   clip_encoder?: string;
   t5_tokenizer?: string;
   t5_encoder?: string;
+  t5_encoder_config?: string | Record<string, any>;
   qwen3_tokenizer?: string;
   qwen3_encoder?: string;
 }
@@ -298,4 +312,23 @@ export interface ChatEvent {
     tool_input?: Record<string, any>;
     error?: string;
   };
+}
+
+// ── Style Builder types ──
+
+export interface Filter {
+  image: string;
+  label: string;
+  prompt: string;
+  category: string;
+  subcategory: string;
+  colours: [string, string];
+}
+
+export interface GeneratedStyleData {
+  name: string;
+  description: string;
+  prompt_template: string;
+  negative_prompt: string;
+  category: string;
 }

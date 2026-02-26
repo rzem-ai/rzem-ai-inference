@@ -67,6 +67,7 @@
 import { ref, computed, watch } from 'vue';
 import { usePywebview } from '@/composables/usePywebview';
 import { useInferenceStore } from '@/stores/inference';
+import { useModelsStore } from '@/stores/models';
 import type { Style } from '@/types/inference';
 
 const props = defineProps<{
@@ -82,22 +83,15 @@ const emit = defineEmits<{
 }>();
 
 const inferenceStore = useInferenceStore();
+const modelsStore = useModelsStore();
 const { api, isReady } = usePywebview();
 const thumbnailUrl = ref<string | null>(null);
-
-const TYPE_LABELS: Record<string, string> = {
-  flux1_dev: 'FLUX.1',
-  flux2_dev: 'FLUX.2',
-  z_image: 'Z-Image',
-  qwen_image: 'Qwen',
-  fal_cloud: 'FAL.ai',
-};
 
 const bundleLabel = computed(() => {
   if (!props.styleData.bundle_id) return null;
   const bundle = inferenceStore.bundles.find(b => b.id === props.styleData.bundle_id);
   if (!bundle) return null;
-  return TYPE_LABELS[bundle.transformer_type] ?? bundle.transformer_type;
+  return modelsStore.getTypeLabel(bundle.transformer_type);
 });
 
 watch([() => props.styleData.thumbnail_path, isReady], async ([path, ready]) => {

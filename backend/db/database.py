@@ -7,6 +7,7 @@ Synchronous access is simpler and avoids event-loop lifetime issues.
 
 from __future__ import annotations
 
+import json
 import logging
 import sqlite3
 import threading
@@ -18,10 +19,57 @@ logger = logging.getLogger(__name__)
 
 _SCHEMA_PATH = Path(__file__).parent / "schema.sql"
 
+# Current schema version — bump this when adding a new migration.
+SCHEMA_VERSION = 2
+
 
 def _dict_row(cursor: sqlite3.Cursor, row: tuple) -> dict[str, Any]:
     """Row factory that returns dicts keyed by column name."""
     return {col[0]: row[idx] for idx, col in enumerate(cursor.description)}
+
+
+# ── Migrations ────────────────────────────────────────────────
+#
+# Each migration is a function(conn) that runs the SQL needed to
+# move from version N-1 → N.  Migrations run inside a transaction.
+# The list index + 1 equals the target version:
+#   _MIGRATIONS[0] → upgrades 0 → 1
+#   _MIGRATIONS[1] → upgrades 1 → 2  (etc.)
+#
+# schema.sql is the source of truth for *fresh* databases.
+# Migrations handle *existing* databases that need updating.
+
+def _migration_1(conn: sqlite3.Connection) -> None:
+    """v0 → v1: Add bundle_types table."""
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS bundle_types (
+            id          TEXT PRIMARY KEY,
+            label       TEXT NOT NULL,
+            icon        TEXT,
+            guide       TEXT,
+            sort_order  INTEGER NOT NULL DEFAULT 0
+        );
+    """)
+
+
+def _migration_2(conn: sqlite3.Connection) -> None:
+    """v1 → v2: Add t5_encoder_config column to bundles."""
+    try:
+        conn.execute("ALTER TABLE bundles ADD COLUMN t5_encoder_config TEXT")
+    except sqlite3.OperationalError:
+        pass  # Column already exists (table was recreated from updated schema.sql)
+    # Set NF4 quantization on FLUX.1 performance and balanced bundles
+    nf4_json = json.dumps({"load_in_4bit": True, "bnb_4bit_quant_type": "nf4"})
+    conn.execute(
+        "UPDATE bundles SET t5_encoder_config = ? WHERE id IN (?, ?)",
+        (nf4_json, "flux1_dev_performance", "flux1_dev_balanced"),
+    )
+
+
+_MIGRATIONS: list[callable] = [
+    _migration_1,
+    _migration_2,
+]
 
 
 class Database:
@@ -40,7 +88,7 @@ class Database:
     # ── Lifecycle ────────────────────────────────────────────────
 
     def connect(self) -> None:
-        """Open the database, enable WAL + foreign keys, and create tables."""
+        """Open the database, enable WAL + foreign keys, create tables, and run migrations."""
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(
             str(self._db_path), check_same_thread=False
@@ -51,9 +99,31 @@ class Database:
         self._conn.execute("PRAGMA journal_mode = WAL")
         self._conn.execute("PRAGMA foreign_keys = ON")
 
+        # Create tables (IF NOT EXISTS ensures this is safe on existing DBs)
         schema_sql = _SCHEMA_PATH.read_text()
         self._conn.executescript(schema_sql)
-        logger.info("Database connected: %s", self._db_path)
+
+        # Run pending migrations
+        self._migrate()
+        logger.info("Database connected: %s (schema v%d)", self._db_path, SCHEMA_VERSION)
+
+    def _migrate(self) -> None:
+        """Run any pending migrations to bring the schema up to date."""
+        current = self.conn.execute("PRAGMA user_version").fetchone()
+        current_version = list(current.values())[0] if current else 0
+
+        if current_version >= SCHEMA_VERSION:
+            return
+
+        for i in range(current_version, SCHEMA_VERSION):
+            migration = _MIGRATIONS[i]
+            logger.info("Running migration %d → %d (%s)", i, i + 1, migration.__doc__ or migration.__name__)
+            migration(self.conn)
+            self.conn.commit()
+
+        self.conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+        self.conn.commit()
+        logger.info("Schema upgraded: v%d → v%d", current_version, SCHEMA_VERSION)
 
     def close(self) -> None:
         if self._conn:
@@ -711,6 +781,230 @@ class Database:
                 (key, value, value),
             )
             self.conn.commit()
+
+    # ── Bundle Types ─────────────────────────────────────────────
+
+    def get_bundle_types(self) -> list[dict[str, Any]]:
+        with self._lock:
+            cursor = self.conn.execute(
+                "SELECT * FROM bundle_types ORDER BY sort_order, label"
+            )
+            return cursor.fetchall()
+
+    def get_bundle_type(self, type_id: str) -> dict[str, Any] | None:
+        with self._lock:
+            cursor = self.conn.execute(
+                "SELECT * FROM bundle_types WHERE id = ?", (type_id,)
+            )
+            return cursor.fetchone()
+
+    def seed_bundle_types(self, types: list[dict[str, Any]]) -> None:
+        """Bulk insert default bundle types."""
+        for t in types:
+            with self._lock:
+                self.conn.execute(
+                    """INSERT OR IGNORE INTO bundle_types
+                       (id, label, icon, guide, sort_order)
+                       VALUES (?,?,?,?,?)""",
+                    (
+                        t["id"], t["label"], t.get("icon"),
+                        t.get("guide"), t.get("sort_order", 0),
+                    ),
+                )
+            self.conn.commit()
+        logger.info("Seeded %d bundle types into database", len(types))
+
+    def count_bundle_types(self) -> int:
+        with self._lock:
+            cursor = self.conn.execute("SELECT COUNT(*) FROM bundle_types")
+            row = cursor.fetchone()
+        return list(row.values())[0] if row else 0
+
+    # ── Bundles ────────────────────────────────────────────────────
+
+    def _deserialize_bundle(self, row: dict[str, Any]) -> dict[str, Any]:
+        """Parse JSON fields on a bundle row."""
+        if row and row.get("fal_aspectratio"):
+            try:
+                row["fal_aspectratio"] = json.loads(row["fal_aspectratio"])
+            except (json.JSONDecodeError, TypeError):
+                row["fal_aspectratio"] = None
+        if row and row.get("t5_encoder_config"):
+            try:
+                row["t5_encoder_config"] = json.loads(row["t5_encoder_config"])
+            except (json.JSONDecodeError, TypeError):
+                row["t5_encoder_config"] = None
+        return row
+
+    def get_bundles(self, *, include_hidden: bool = True) -> list[dict[str, Any]]:
+        where = "" if include_hidden else "WHERE hidden = 0"
+        with self._lock:
+            cursor = self.conn.execute(
+                f"SELECT * FROM bundles {where} ORDER BY transformer_type, label"
+            )
+            rows = cursor.fetchall()
+        return [self._deserialize_bundle(r) for r in rows]
+
+    def get_bundle(self, bundle_id: str) -> dict[str, Any] | None:
+        with self._lock:
+            cursor = self.conn.execute(
+                "SELECT * FROM bundles WHERE id = ?", (bundle_id,)
+            )
+            row = cursor.fetchone()
+        return self._deserialize_bundle(row) if row else None
+
+    def insert_bundle(
+        self,
+        *,
+        id: str,
+        label: str,
+        description: str = "",
+        transformer_type: str,
+        tier: str = "balanced",
+        transformer_model: str,
+        vae_model: str,
+        clip_tokenizer: str | None = None,
+        clip_encoder: str | None = None,
+        t5_tokenizer: str | None = None,
+        t5_encoder: str | None = None,
+        t5_encoder_config: dict | str | None = None,
+        qwen3_tokenizer: str | None = None,
+        qwen3_encoder: str | None = None,
+        steps: int = 20,
+        cfg_scale: float = 1.0,
+        sampler: str = "euler",
+        scheduler: str = "normal",
+        vram_estimate_gb: float = 0.0,
+        is_default: int = 1,
+        source: str = "local",
+        fal_endpoint: str | None = None,
+        fal_aspectratio: list[str] | None = None,
+        favorite: int = 0,
+        hidden: int = 0,
+    ) -> dict[str, Any] | None:
+        ar_json = json.dumps(fal_aspectratio) if fal_aspectratio else None
+        t5_config_json = json.dumps(t5_encoder_config) if isinstance(t5_encoder_config, dict) else t5_encoder_config
+        with self._lock:
+            self.conn.execute(
+                """INSERT INTO bundles
+                   (id, label, description, transformer_type, tier,
+                    transformer_model, vae_model,
+                    clip_tokenizer, clip_encoder, t5_tokenizer, t5_encoder,
+                    t5_encoder_config, qwen3_tokenizer, qwen3_encoder,
+                    steps, cfg_scale, sampler, scheduler,
+                    vram_estimate_gb, is_default, source,
+                    fal_endpoint, fal_aspectratio, favorite, hidden)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (
+                    id, label, description, transformer_type, tier,
+                    transformer_model, vae_model,
+                    clip_tokenizer, clip_encoder, t5_tokenizer, t5_encoder,
+                    t5_config_json, qwen3_tokenizer, qwen3_encoder,
+                    steps, cfg_scale, sampler, scheduler,
+                    vram_estimate_gb, is_default, source,
+                    fal_endpoint, ar_json, favorite, hidden,
+                ),
+            )
+            self.conn.commit()
+        return self.get_bundle(id)
+
+    def update_bundle(self, bundle_id: str, **updates: Any) -> dict[str, Any] | None:
+        allowed = {
+            "label", "description", "transformer_type", "tier",
+            "transformer_model", "vae_model",
+            "clip_tokenizer", "clip_encoder", "t5_tokenizer", "t5_encoder",
+            "t5_encoder_config", "qwen3_tokenizer", "qwen3_encoder",
+            "steps", "cfg_scale", "sampler", "scheduler",
+            "vram_estimate_gb", "is_default", "source",
+            "fal_endpoint", "fal_aspectratio", "favorite", "hidden",
+        }
+        filtered = {k: v for k, v in updates.items() if k in allowed}
+        if not filtered:
+            return self.get_bundle(bundle_id)
+
+        if "fal_aspectratio" in filtered and isinstance(filtered["fal_aspectratio"], list):
+            filtered["fal_aspectratio"] = json.dumps(filtered["fal_aspectratio"])
+        if "t5_encoder_config" in filtered and isinstance(filtered["t5_encoder_config"], dict):
+            filtered["t5_encoder_config"] = json.dumps(filtered["t5_encoder_config"])
+
+        set_clause = ", ".join(f"{k} = ?" for k in filtered)
+        values = list(filtered.values()) + [bundle_id]
+
+        with self._lock:
+            self.conn.execute(
+                f"UPDATE bundles SET {set_clause} WHERE id = ?", values
+            )
+            self.conn.commit()
+        return self.get_bundle(bundle_id)
+
+    def delete_bundle(self, bundle_id: str) -> bool:
+        with self._lock:
+            cursor = self.conn.execute(
+                "DELETE FROM bundles WHERE id = ?", (bundle_id,)
+            )
+            self.conn.commit()
+        return cursor.rowcount > 0
+
+    def toggle_bundle_favorite(self, bundle_id: str) -> dict[str, Any] | None:
+        with self._lock:
+            self.conn.execute(
+                "UPDATE bundles SET favorite = 1 - favorite WHERE id = ?",
+                (bundle_id,),
+            )
+            self.conn.commit()
+        return self.get_bundle(bundle_id)
+
+    def toggle_bundle_hidden(self, bundle_id: str) -> dict[str, Any] | None:
+        with self._lock:
+            self.conn.execute(
+                "UPDATE bundles SET hidden = 1 - hidden WHERE id = ?",
+                (bundle_id,),
+            )
+            self.conn.commit()
+        return self.get_bundle(bundle_id)
+
+    def count_bundles(self) -> int:
+        with self._lock:
+            cursor = self.conn.execute("SELECT COUNT(*) FROM bundles")
+            row = cursor.fetchone()
+        return list(row.values())[0] if row else 0
+
+    def seed_bundles(self, bundles: list[dict[str, Any]]) -> None:
+        """Bulk insert default bundles."""
+        for b in bundles:
+            ar = b.get("fal_aspectratio")
+            ar_json = json.dumps(ar) if ar else None
+            t5_cfg = b.get("t5_encoder_config")
+            t5_cfg_json = json.dumps(t5_cfg) if isinstance(t5_cfg, dict) else t5_cfg
+            with self._lock:
+                self.conn.execute(
+                    """INSERT OR IGNORE INTO bundles
+                       (id, label, description, transformer_type, tier,
+                        transformer_model, vae_model,
+                        clip_tokenizer, clip_encoder, t5_tokenizer, t5_encoder,
+                        t5_encoder_config, qwen3_tokenizer, qwen3_encoder,
+                        steps, cfg_scale, sampler, scheduler,
+                        vram_estimate_gb, is_default, source,
+                        fal_endpoint, fal_aspectratio, favorite, hidden)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (
+                        b["id"], b["label"], b.get("description", ""),
+                        b["transformer_type"], b.get("tier", "balanced"),
+                        b["transformer_model"], b["vae_model"],
+                        b.get("clip_tokenizer"), b.get("clip_encoder"),
+                        b.get("t5_tokenizer"), b.get("t5_encoder"),
+                        t5_cfg_json,
+                        b.get("qwen3_tokenizer"), b.get("qwen3_encoder"),
+                        b.get("steps", 20), b.get("cfg_scale", 1.0),
+                        b.get("sampler", "euler"), b.get("scheduler", "normal"),
+                        b.get("vram_estimate_gb", 0.0),
+                        1 if b.get("is_default", True) else 0,
+                        b.get("source", "local"),
+                        b.get("fal_endpoint"), ar_json, 0, 0,
+                    ),
+                )
+            self.conn.commit()
+        logger.info("Seeded %d bundles into database", len(bundles))
 
     # ── Conversations ─────────────────────────────────────────────
 

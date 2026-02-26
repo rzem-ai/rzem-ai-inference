@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { getApiAsync } from '@/bridge';
 import type { ModelBundle, SubmitJobParams, LoraParam, InferenceEvent, GeneratedImage, StyleLoRA, GridConfig } from '@/types/inference';
 import { useGalleryStore } from '@/stores/gallery';
+import { useModelsStore } from '@/stores/models';
 
 // Non-reactive module-level state (no reactivity tracking needed)
 let _pollTimer: ReturnType<typeof setInterval> | null = null;
@@ -129,24 +130,19 @@ export const useInferenceStore = defineStore('inference', {
       return state.bundles.find((b) => b.id === state.selectedBundleId) ?? null;
     },
 
-    bundlesByType(state): { label: string; items: ModelBundle[] }[] {
-      const typeLabels: Record<string, string> = {
-        flux1_dev: 'FLUX.1 Dev',
-        flux2_dev: 'FLUX.2 Dev',
-        z_image: 'Z-Image',
-        qwen_image: 'Qwen-Image',
-        fal_cloud: 'FAL.ai Cloud',
-      };
+    bundlesByType(state): { label: string; type: string; items: ModelBundle[] }[] {
+      const modelsStore = useModelsStore();
       const groups = new Map<string, ModelBundle[]>();
       for (const b of state.bundles) {
+        if (b.hidden) continue;
         const list = groups.get(b.transformer_type) ?? [];
         list.push(b);
         groups.set(b.transformer_type, list);
       }
       return Array.from(groups.entries()).map(([type, items]) => ({
-        label: typeLabels[type] ?? type,
+        label: modelsStore.getTypeLabel(type),
         type: type,
-        items,
+        items: items.sort((a, b) => (b.favorite ?? 0) - (a.favorite ?? 0)),
       }));
     },
   },
@@ -198,6 +194,11 @@ export const useInferenceStore = defineStore('inference', {
     },
 
     async loadBundles() {
+      // Ensure bundle types are loaded (needed for type labels in getters)
+      const modelsStore = useModelsStore();
+      if (!modelsStore.bundleTypes.length) {
+        await modelsStore.loadBundleTypes();
+      }
       const api = await getApiAsync();
       const res = await api.get_bundles();
       if (res.status === 'success' && res.bundles) {
@@ -214,6 +215,7 @@ export const useInferenceStore = defineStore('inference', {
       this.params.clip_encoder = bundle.clip_encoder;
       this.params.t5_tokenizer = bundle.t5_tokenizer;
       this.params.t5_encoder = bundle.t5_encoder;
+      this.params.t5_encoder_config = bundle.t5_encoder_config ?? undefined;
       this.params.qwen3_tokenizer = bundle.qwen3_tokenizer;
       this.params.qwen3_encoder = bundle.qwen3_encoder;
       this.params.steps = bundle.steps;

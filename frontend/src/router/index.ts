@@ -25,6 +25,14 @@ const router = createRouter({
       }
     },
     {
+      path: '/models',
+      name: 'models',
+      components: {
+        default: () => import('@/pages/models/Main.vue'),
+        menu: () => import('@/pages/models/Menu.vue'),
+      },
+    },
+    {
       path: '/styles',
       components: {
         default: () => import('@/pages/styles/Main.vue'),
@@ -35,6 +43,11 @@ const router = createRouter({
           path: '',
           name: 'styles',
           component: () => import('@/pages/styles/StylesList.vue'),
+        },
+        {
+          path: 'builder',
+          name: 'styles-builder',
+          component: () => import('@/pages/styles/StyleBuilder.vue'),
         },
         {
           path: 'new',

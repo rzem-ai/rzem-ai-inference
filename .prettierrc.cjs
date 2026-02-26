@@ -42,6 +42,14 @@ const config = {
         tabWidth: 2,
       },
     },
+    {
+      files: ['**/*.json'],
+      options: {
+        printWidth: 400,
+        tabWidth: 2,
+        useTabs: false,
+      },
+    },
   ],
 };
 

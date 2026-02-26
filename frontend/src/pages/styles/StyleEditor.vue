@@ -435,6 +435,17 @@ onMounted(async () => {
     await stylesStore.loadStyleForEditor(styleId.value);
   } else {
     stylesStore.clearEditor();
+    // Pre-fill from Style Builder if available
+    if (stylesStore.generatedStyle) {
+      form.value = {
+        name: stylesStore.generatedStyle.name,
+        description: stylesStore.generatedStyle.description,
+        promptTemplate: stylesStore.generatedStyle.prompt_template,
+        negativePrompt: stylesStore.generatedStyle.negative_prompt,
+        category: stylesStore.generatedStyle.category,
+      };
+      stylesStore.clearGeneratedStyle();
+    }
   }
 });
 

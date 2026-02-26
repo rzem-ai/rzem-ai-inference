@@ -2,6 +2,7 @@ import type { Plugin } from 'vue';
 import {
   Button,
   Card,
+  Checkbox,
   Chip,
   ContextMenu,
   Dialog,
@@ -29,6 +30,7 @@ import {
 const components: Record<string, any> = {
   Button,
   Card,
+  Checkbox,
   Chip,
   ContextMenu,
   Dialog,

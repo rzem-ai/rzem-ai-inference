@@ -1,4 +1,4 @@
-import type { ApiResponse, InferenceEvent, ModelBundle, SubmitJobParams, GalleryImage, Folder, Tag, Style, StyleLoRA, StyleExample, LoRA, VramUsage, EngineStatus, CachedModel, DataPaths, DiskUsage, Conversation, ConversationMessage, ChatEvent, DiscoveredServer } from "./inference";
+import type { ApiResponse, InferenceEvent, BundleType, ModelBundle, SubmitJobParams, GalleryImage, Folder, Tag, Style, StyleLoRA, StyleExample, LoRA, VramUsage, EngineStatus, CachedModel, DataPaths, DiskUsage, Conversation, ConversationMessage, ChatEvent, DiscoveredServer } from "./inference";
 
 export interface PywebviewAPI {
   // ── System ──
@@ -28,7 +28,7 @@ export interface PywebviewAPI {
   engine_ready(): Promise<ApiResponse<{ ready: boolean }>>;
 
   // ── Jobs ──
-  submit_job(args: SubmitJobParams): Promise<ApiResponse<{ job_id?: string }>>;
+  submit_job(args: SubmitJobParams & { output_filename?: string }): Promise<ApiResponse<{ job_id?: string }>>;
   cancel_job(args: { job_id: string }): Promise<ApiResponse>;
   poll_events(): Promise<ApiResponse<{ events?: InferenceEvent[] }>>;
 
@@ -41,13 +41,18 @@ export interface PywebviewAPI {
     previews?: Record<string, string>;
   }>>;
 
+  // ── Bundle Types ──
+  get_bundle_types(): Promise<ApiResponse<{ bundle_types?: BundleType[] }>>;
+
   // ── Bundles ──
-  get_bundles(): Promise<ApiResponse<{ bundles?: ModelBundle[] }>>;
+  get_bundles(args?: { include_hidden?: boolean }): Promise<ApiResponse<{ bundles?: ModelBundle[] }>>;
   get_bundle(args: { bundle_id: string }): Promise<ApiResponse<{ bundle?: ModelBundle }>>;
   get_bundles_for_type(args: { transformer_type: string }): Promise<ApiResponse<{ bundles?: ModelBundle[] }>>;
   create_bundle(args: Partial<ModelBundle> & { id: string; label: string; transformer_type: string }): Promise<ApiResponse<{ bundle?: ModelBundle }>>;
   update_bundle(args: { bundle_id: string } & Partial<ModelBundle>): Promise<ApiResponse<{ bundle?: ModelBundle }>>;
   delete_bundle(args: { bundle_id: string }): Promise<ApiResponse>;
+  toggle_bundle_favorite(args: { bundle_id: string }): Promise<ApiResponse<{ bundle?: ModelBundle }>>;
+  toggle_bundle_hidden(args: { bundle_id: string }): Promise<ApiResponse<{ bundle?: ModelBundle }>>;
   reset_default_bundles(): Promise<ApiResponse<{ bundles?: ModelBundle[] }>>;
 
   // ── Gallery images ──
@@ -135,6 +140,9 @@ export interface PywebviewAPI {
   delete_style(args: { style_id: string }): Promise<ApiResponse>;
   toggle_style_favorite(args: { style_id: string }): Promise<ApiResponse<{ style?: Style }>>;
   get_style_categories(): Promise<ApiResponse<{ categories?: string[] }>>;
+  get_styles_dir(): Promise<ApiResponse<{ path?: string }>>;
+  list_filter_thumbnails(): Promise<ApiResponse<{ thumbnails?: string[] }>>;
+  get_filter_thumbnail(args: { image_name: string }): Promise<ApiResponse<{ data_url?: string }>>;
 
   // ── Style examples ──
   get_style_examples(args: { style_id: string }): Promise<ApiResponse<{ examples?: StyleExample[] }>>;
@@ -175,6 +183,17 @@ export interface PywebviewAPI {
   browse_metadata_files(): Promise<ApiResponse<{ paths?: string[] }>>;
   browse_and_import_metadata(): Promise<ApiResponse<{ styles?: Style[]; errors?: string[] }>>;
   import_civitai_metadata(args: { file_path?: string; json_content?: string }): Promise<ApiResponse<{ style?: Style }>>;
+
+  // ── Style Builder ──
+  generate_style_from_filters(args: { filters: string[] }): Promise<ApiResponse<{
+    style_data?: {
+      name: string;
+      description: string;
+      prompt_template: string;
+      negative_prompt: string;
+      category: string;
+    };
+  }>>;
 
   // ── Batch ──
   batch_parse_data(args: { content: string }): Promise<ApiResponse<{

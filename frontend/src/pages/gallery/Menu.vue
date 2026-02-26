@@ -1,7 +1,7 @@
 <template>
   <MenuPanel title="Gallery" icon="Images">
     <template #title-button>
-      <Button class="transition-colors" severity="primary" title="AI Prompt Assistant" disabled>
+      <Button class="transition-colors" severity="secondary" title="" disabled>
         <Plus :size="16" />
       </Button>
     </template>

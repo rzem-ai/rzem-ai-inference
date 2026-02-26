@@ -21,7 +21,10 @@
       </template>
       <template #option="{ option }">
         <div class="flex w-full items-center justify-between gap-2">
-          <div class="text-base font-medium">{{ option.label }}</div>
+          <div class="flex items-center gap-1">
+            <Star v-if="option.favorite" :size="12" class="text-amber-400 fill-amber-400 shrink-0" />
+            <div class="text-base font-medium">{{ option.label }}</div>
+          </div>
           <div class="flex items-center gap-1">
             <Tag :severity="tierClass(option.tier)" class="uppercase">{{ option.tier }}</Tag>
             <Tag v-if="option.source === 'cloud'" severity="info">Cloud</Tag>

@@ -1,6 +1,7 @@
 -- rzem-ai-inference database schema
--- 11 tables: images, folders, image_folders, tags, image_tags,
---            styles, style_loras, style_tags, loras, examples, settings
+-- 13 tables: images, folders, image_folders, tags, image_tags,
+--            styles, style_loras, style_tags, loras, examples, settings,
+--            bundle_types, bundles
 --
 -- PRAGMAs (WAL, foreign_keys) are set in Database.connect() before this runs.
 
@@ -171,6 +172,51 @@ CREATE TABLE IF NOT EXISTS settings (
     key     TEXT PRIMARY KEY,
     value   TEXT NOT NULL
 );
+
+-- ── Bundle Types (model families) ─────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS bundle_types (
+    id          TEXT PRIMARY KEY,
+    label       TEXT NOT NULL,
+    icon        TEXT,
+    guide       TEXT,
+    sort_order  INTEGER NOT NULL DEFAULT 0
+);
+
+-- ── Bundles (model configurations) ────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS bundles (
+    id                  TEXT PRIMARY KEY,
+    label               TEXT NOT NULL,
+    description         TEXT NOT NULL DEFAULT '',
+    transformer_type    TEXT NOT NULL,
+    tier                TEXT NOT NULL DEFAULT 'balanced',
+    transformer_model   TEXT NOT NULL,
+    vae_model           TEXT NOT NULL,
+    clip_tokenizer      TEXT,
+    clip_encoder        TEXT,
+    t5_tokenizer        TEXT,
+    t5_encoder          TEXT,
+    t5_encoder_config   TEXT,
+    qwen3_tokenizer     TEXT,
+    qwen3_encoder       TEXT,
+    steps               INTEGER NOT NULL DEFAULT 20,
+    cfg_scale           REAL NOT NULL DEFAULT 1.0,
+    sampler             TEXT NOT NULL DEFAULT 'euler',
+    scheduler           TEXT NOT NULL DEFAULT 'normal',
+    vram_estimate_gb    REAL NOT NULL DEFAULT 0.0,
+    is_default          INTEGER NOT NULL DEFAULT 1,
+    source              TEXT NOT NULL DEFAULT 'local',
+    fal_endpoint        TEXT,
+    fal_aspectratio     TEXT,
+    favorite            INTEGER NOT NULL DEFAULT 0,
+    hidden              INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY (transformer_type) REFERENCES bundle_types(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_bundles_transformer_type ON bundles(transformer_type);
+CREATE INDEX IF NOT EXISTS idx_bundles_favorite ON bundles(favorite) WHERE favorite = 1;
+CREATE INDEX IF NOT EXISTS idx_bundles_hidden ON bundles(hidden);
 
 -- ── Conversations (AI Chat) ───────────────────────────────────────
 

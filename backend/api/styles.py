@@ -30,6 +30,58 @@ class StylesAPI:
         self._db = db
         self._styles_dir = styles_dir or Path.home() / ".rzem-ai" / "styles"
 
+    def get_styles_dir(self, **kwargs) -> dict[str, Any]:
+        """Return the styles directory path."""
+        return {"status": "success", "path": str(self._styles_dir)}
+
+    def list_filter_thumbnails(self, **kwargs) -> dict[str, Any]:
+        """Scan the thumbnails directory and return filter image names that have thumbnails."""
+        try:
+            thumbnails_dir = self._styles_dir / "thumbnails"
+            if not thumbnails_dir.is_dir():
+                return {"status": "success", "thumbnails": []}
+
+            stems: set[str] = set()
+            for f in thumbnails_dir.iterdir():
+                if not f.is_file():
+                    continue
+                stem = f.stem
+                if stem.endswith("_cover"):
+                    stems.add(stem[:-6])
+                elif f.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp"):
+                    stems.add(stem)
+
+            thumbnails = sorted(f"{s}.png" for s in stems)
+            return {"status": "success", "thumbnails": thumbnails}
+        except Exception as e:
+            logger.error("Failed to list filter thumbnails: %s", e)
+            return {"status": "error", "message": str(e)}
+
+    def get_filter_thumbnail(self, image_name: str, **kwargs) -> dict[str, Any]:
+        """Load a filter thumbnail as a base64 data URL (prefers cover WebP)."""
+        try:
+            thumbnails_dir = self._styles_dir / "thumbnails"
+            stem = Path(image_name).stem
+
+            # Prefer the half-res cover (smaller transfer)
+            cover = thumbnails_dir / f"{stem}_cover.webp"
+            if cover.is_file():
+                data = cover.read_bytes()
+                b64 = base64.b64encode(data).decode("ascii")
+                return {"status": "success", "data_url": f"data:image/webp;base64,{b64}"}
+
+            # Fall back to full PNG
+            png = thumbnails_dir / f"{stem}.png"
+            if png.is_file():
+                data = png.read_bytes()
+                b64 = base64.b64encode(data).decode("ascii")
+                return {"status": "success", "data_url": f"data:image/png;base64,{b64}"}
+
+            return {"status": "error", "message": f"Thumbnail not found: {image_name}"}
+        except Exception as e:
+            logger.error("Failed to get filter thumbnail: %s", e)
+            return {"status": "error", "message": str(e)}
+
     # ── Styles ────────────────────────────────────────────────
 
     def get_styles(
@@ -602,3 +654,75 @@ class StylesAPI:
         except Exception as e:
             logger.warning("AI prompt template generation failed for '%s': %s", style_name, e)
             return None
+
+    # ── Style Builder ─────────────────────────────────────────
+
+    def generate_style_from_filters(self, filters: list[str], **kwargs) -> dict[str, Any]:
+        """Use Claude to generate a complete style from selected filter prompts."""
+        try:
+            api_key = self._db.get_setting("CLAUDE_API_KEY")
+            if not api_key:
+                return {"status": "error", "message": "Claude API key not configured. Set it in Settings → API Keys."}
+
+            if not filters:
+                return {"status": "error", "message": "No filters selected"}
+
+            import anthropic
+
+            model = self._db.get_setting("CLAUDE_MODEL") or "claude-sonnet-4-6"
+            client = anthropic.Anthropic(api_key=api_key)
+
+            filters_str = ", ".join(filters)
+
+            response = client.messages.create(
+                model=model,
+                max_tokens=1024,
+                messages=[{
+                    "role": "user",
+                    "content": (
+                        "You are an AI image generation style designer. Given a set of visual style filters, "
+                        "create a cohesive generation style that combines them.\n\n"
+                        f"Selected filters: {filters_str}\n\n"
+                        "Return a JSON object with exactly these fields:\n"
+                        '- "name": A short, creative name for this style (2-4 words)\n'
+                        '- "description": A 1-2 sentence description of the visual style\n'
+                        '- "prompt_template": A generation prompt template that captures the combined style. '
+                        "MUST include {prompt} exactly once as a placeholder for the user's subject. "
+                        "Should be descriptive, under 80 words, written as a generation prompt.\n"
+                        '- "negative_prompt": Comma-separated terms to avoid (things that would clash with this style)\n'
+                        '- "category": The best fitting category from: Photography, Illustration, Painting, Digital Art, '
+                        "Architecture, Fashion, Character Design, Mixed Media\n\n"
+                        "Output ONLY valid JSON, no markdown fences, no extra text."
+                    ),
+                }],
+            )
+
+            raw = response.content[0].text.strip()
+            # Strip markdown fences if present
+            if raw.startswith("```"):
+                raw = raw.split("\n", 1)[1] if "\n" in raw else raw[3:]
+                if raw.endswith("```"):
+                    raw = raw[:-3]
+                raw = raw.strip()
+
+            style_data = json.loads(raw)
+
+            # Validate required fields
+            required = ["name", "description", "prompt_template", "negative_prompt", "category"]
+            for field in required:
+                if field not in style_data:
+                    return {"status": "error", "message": f"Claude response missing '{field}' field"}
+
+            # Ensure {prompt} placeholder exists
+            if "{prompt}" not in style_data["prompt_template"]:
+                style_data["prompt_template"] += " {prompt}"
+
+            logger.info("AI-generated style from %d filters: %s", len(filters), style_data.get("name", "?"))
+            return {"status": "success", "style_data": style_data}
+
+        except json.JSONDecodeError as e:
+            logger.error("Failed to parse Claude response as JSON: %s", e)
+            return {"status": "error", "message": "Claude returned invalid JSON. Please try again."}
+        except Exception as e:
+            logger.error("Style generation from filters failed: %s", e)
+            return {"status": "error", "message": str(e)}

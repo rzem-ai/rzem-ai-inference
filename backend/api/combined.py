@@ -22,10 +22,10 @@ class CombinedAPI(SystemAPI, InferenceAPI, BundlesAPI, GalleryAPI, StylesAPI, Se
     called explicitly in ``__init__`` below.
     """
 
-    def __init__(self, service, manager, discovery, bundle_store, db, config, chat_service) -> None:
+    def __init__(self, service, manager, discovery, db, config, chat_service) -> None:
         SystemAPI.__init__(self, service)
         InferenceAPI.__init__(self, manager, db)
-        BundlesAPI.__init__(self, bundle_store, db)
+        BundlesAPI.__init__(self, db)
         GalleryAPI.__init__(self, db)
         StylesAPI.__init__(self, db, config.styles_dir)
         SettingsAPI.__init__(self, manager, config, db)

@@ -1,11 +1,9 @@
-"""Model bundle data model, default definitions, and JSON-file persistence."""
+"""Model bundle data model and default definitions."""
 
 from __future__ import annotations
 
-import json
 import logging
-from dataclasses import asdict, dataclass, field, fields
-from pathlib import Path
+from dataclasses import asdict, dataclass
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +21,7 @@ class ModelBundle:
     clip_encoder: str | None = None
     t5_tokenizer: str | None = None
     t5_encoder: str | None = None
+    t5_encoder_config: dict | str | None = None
     qwen3_tokenizer: str | None = None
     qwen3_encoder: str | None = None
     steps: int = 20
@@ -40,6 +39,7 @@ class ModelBundle:
 
 _CLIP = "openai/clip-vit-large-patch14"
 _T5 = "google/t5-v1_1-xxl"
+_T5_NF4 = {"load_in_4bit": True, "bnb_4bit_quant_type": "nf4"}
 _QWEN3 = "Qwen/Qwen3-0.6B"
 
 DEFAULT_BUNDLES: list[ModelBundle] = [
@@ -56,9 +56,10 @@ DEFAULT_BUNDLES: list[ModelBundle] = [
         clip_encoder=_CLIP,
         t5_tokenizer=_T5,
         t5_encoder=_T5,
+        t5_encoder_config=_T5_NF4,
         steps=28,
         cfg_scale=3.5,
-        vram_estimate_gb=17.7,
+        vram_estimate_gb=11.0,
     ),
     ModelBundle(
         id="flux1_dev_balanced",
@@ -72,9 +73,10 @@ DEFAULT_BUNDLES: list[ModelBundle] = [
         clip_encoder=_CLIP,
         t5_tokenizer=_T5,
         t5_encoder=_T5,
+        t5_encoder_config=_T5_NF4,
         steps=30,
         cfg_scale=3.5,
-        vram_estimate_gb=22.7,
+        vram_estimate_gb=16.0,
     ),
     # Quality last - safest default (no GGUF dependency)
     ModelBundle(
@@ -241,81 +243,129 @@ DEFAULT_BUNDLES: list[ModelBundle] = [
 ]
 
 
-class BundleStore:
-    """JSON-file backed store for model bundles."""
+DEFAULT_BUNDLE_TYPES: list[dict] = [
+    {
+        "id": "flux1_dev",
+        "label": "FLUX.1 Dev",
+        "icon": "gpu",
+        "sort_order": 0,
+        "guide": """\
+## Prompting
 
-    def __init__(self, data_dir: Path) -> None:
-        self._path = data_dir / "bundles.json"
-        self._bundles: dict[str, ModelBundle] = {}
+FLUX.1 Dev responds best to **descriptive, natural language prompts**. Write as if you're describing a photograph or painting to someone who can't see it.
 
-    def load(self) -> None:
-        if self._path.is_file():
-            try:
-                raw = json.loads(self._path.read_text())
-                self._bundles = {b["id"]: ModelBundle(**b) for b in raw}
-                logger.info("Loaded %d bundles from %s", len(self._bundles), self._path)
-                return
-            except Exception as e:
-                logger.warning("Failed to read bundles file, resetting defaults: %s", e)
+- **Be specific and descriptive** — "a woman with red hair standing in a sunlit wheat field at golden hour" works better than "woman in field"
+- **Negative prompts have minimal effect** — focus on describing what you *want* rather than what to avoid
+- **Quality modifiers help** — phrases like "highly detailed", "professional photograph", "8k" can nudge quality up
 
-        self._seed_defaults()
+## Parameters
 
-    def _seed_defaults(self) -> None:
-        self._bundles = {b.id: b for b in DEFAULT_BUNDLES}
-        self._save()
-        logger.info("Seeded %d default bundles to %s", len(self._bundles), self._path)
+- **CFG Scale**: 3.0–4.5 gives the best coherence vs. creativity balance. Higher values increase prompt adherence but can reduce naturalness.
+- **Steps**: 28–40 is the sweet spot. Below 20 you'll see artifacts; above 50 gives diminishing returns.
+- **Sampler**: `euler` is the default and works well. `dpmpp_2m` with `karras` scheduler can produce slightly sharper results.
 
-    def _save(self) -> None:
-        self._path.parent.mkdir(parents=True, exist_ok=True)
-        data = [asdict(b) for b in self._bundles.values()]
-        self._path.write_text(json.dumps(data, indent=2))
+## Quantization
 
-    def get_all(self) -> list[dict]:
-        return [asdict(b) for b in self._bundles.values()]
+Quantized variants (GGUF) trade ~5–10% quality for 30–40% less VRAM. Q8 is nearly indistinguishable from BF16 in blind tests. Q4 shows mild softening on fine details like text and fingers.\
+""",
+    },
+    {
+        "id": "flux2_dev",
+        "label": "FLUX.2 Dev",
+        "icon": "gpu",
+        "sort_order": 1,
+        "guide": """\
+## Prompting
 
-    def get_by_id(self, bundle_id: str) -> dict | None:
-        b = self._bundles.get(bundle_id)
-        return asdict(b) if b else None
+FLUX.2 Dev uses a **Qwen3 text encoder** instead of CLIP+T5, which means it understands more complex compositional prompts and supports **multilingual input**.
 
-    def get_by_type(self, transformer_type: str) -> list[dict]:
-        return [asdict(b) for b in self._bundles.values() if b.transformer_type == transformer_type]
+- **Complex scenes work well** — FLUX.2 handles multi-subject compositions and spatial relationships better than FLUX.1
+- **Multilingual** — prompts in English, Chinese, Japanese, Korean, and other languages produce good results
+- **Natural language over tags** — sentence-form prompts outperform comma-separated tag lists
 
-    def add(self, data: dict) -> dict:
-        bundle_id = data.get("id")
-        if not bundle_id:
-            raise ValueError("Bundle must have an 'id'")
-        if bundle_id in self._bundles:
-            raise ValueError(f"Bundle '{bundle_id}' already exists")
+## Parameters
 
-        valid_fields = {f.name for f in fields(ModelBundle)}
-        filtered = {k: v for k, v in data.items() if k in valid_fields}
-        filtered["is_default"] = False
-        bundle = ModelBundle(**filtered)
-        self._bundles[bundle.id] = bundle
-        self._save()
-        return asdict(bundle)
+- **CFG Scale**: 1.0 is recommended. Higher values tend to over-saturate colors and reduce naturalness.
+- **Steps**: 28 is a good default. The model converges faster than FLUX.1.
+- **Sampler**: `euler` works best. Avoid ancestral samplers (`euler_a`) as they add unnecessary noise.\
+""",
+    },
+    {
+        "id": "z_image",
+        "label": "Z-Image",
+        "icon": "gpu",
+        "sort_order": 2,
+        "guide": """\
+## Prompting
 
-    def update(self, bundle_id: str, updates: dict) -> dict:
-        bundle = self._bundles.get(bundle_id)
-        if not bundle:
-            raise ValueError(f"Bundle '{bundle_id}' not found")
+Z-Image uses a bundled **Qwen3-4B text encoder** — no separate encoder download is needed. It handles both English and Chinese prompts natively.
 
-        valid_fields = {f.name for f in fields(ModelBundle)}
-        current = asdict(bundle)
-        for k, v in updates.items():
-            if k in valid_fields and k != "id":
-                current[k] = v
+- **Descriptive prompts** work best, similar to FLUX models
+- **Chinese and English** are both first-class — mix languages if useful
+- **Style keywords** like "photorealistic", "anime", "oil painting" are effective
 
-        self._bundles[bundle_id] = ModelBundle(**current)
-        self._save()
-        return asdict(self._bundles[bundle_id])
+## Variants
 
-    def delete(self, bundle_id: str) -> None:
-        if bundle_id not in self._bundles:
-            raise ValueError(f"Bundle '{bundle_id}' not found")
-        del self._bundles[bundle_id]
-        self._save()
+- **Z-Image Turbo** (9 steps) is optimized for speed — great for rapid iteration and previews
+- **Z-Image Standard** (28 steps) favors quality with more detailed outputs
 
-    def reset_defaults(self) -> list[dict]:
-        self._seed_defaults()
-        return self.get_all()
+## Parameters
+
+- **CFG Scale**: 1.0 recommended for both variants
+- **Sampler**: `euler` default works well across both variants\
+""",
+    },
+    {
+        "id": "qwen_image",
+        "label": "Qwen-Image",
+        "icon": "gpu",
+        "sort_order": 3,
+        "guide": """\
+## Prompting
+
+Qwen-Image excels at **text rendering in images** and complex multi-subject compositions. Uses a Qwen3 encoder with multilingual support.
+
+- **Text rendering** — this model can accurately render text within generated images, useful for signs, labels, and typographic art
+- **Complex compositions** — handles detailed scenes with multiple subjects and spatial relationships
+- **Multilingual** — strong support for Chinese, English, and other languages via the Qwen3 encoder
+
+## Parameters
+
+- **CFG Scale**: 1.0 recommended
+- **Steps**: 28 is a good default
+- **VRAM**: High requirements (~48 GB for BF16). Quantized variants significantly reduce this.\
+""",
+    },
+    {
+        "id": "fal_cloud",
+        "label": "FAL.ai Cloud",
+        "icon": "cloud",
+        "sort_order": 10,
+        "guide": """\
+## Overview
+
+FAL.ai Cloud models run on remote servers — **no local GPU needed**. Generation quality matches local models since the same architectures are used server-side.
+
+## Setup
+
+- Requires a **FAL API key** — configure it in Settings → API Keys
+- Aspect ratio is set via **preset strings** (e.g., "square_hd", "portrait_16_9") instead of pixel dimensions
+
+## Usage Tips
+
+- **Latency varies** — typical generation takes 3–15 seconds depending on queue depth and model
+- **No VRAM constraints** — you can use full-precision models regardless of your local hardware
+- **Steps/CFG may be ignored** — some cloud endpoints use fixed parameters; the values in your bundle are hints only\
+""",
+    },
+]
+
+
+def get_default_bundle_types_as_dicts() -> list[dict]:
+    """Return DEFAULT_BUNDLE_TYPES for database seeding."""
+    return DEFAULT_BUNDLE_TYPES
+
+
+def get_default_bundles_as_dicts() -> list[dict]:
+    """Return DEFAULT_BUNDLES as plain dicts (for database seeding)."""
+    return [asdict(b) for b in DEFAULT_BUNDLES]

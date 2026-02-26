@@ -115,8 +115,22 @@ export const mockApi: PywebviewAPI = {
     return { status: "success", output: null, previews: {} };
   },
 
+  // ── Bundle Types ──
+  async get_bundle_types() {
+    return {
+      status: "success",
+      bundle_types: [
+        { id: "flux1_dev", label: "FLUX.1 Dev", icon: "gpu", guide: "## Prompting\n\nFLUX.1 Dev responds best to **descriptive, natural language prompts**.", sort_order: 0 },
+        { id: "flux2_dev", label: "FLUX.2 Dev", icon: "gpu", guide: "## Prompting\n\nFLUX.2 Dev uses a **Qwen3 text encoder**.", sort_order: 1 },
+        { id: "z_image", label: "Z-Image", icon: "gpu", guide: "## Prompting\n\nZ-Image uses a bundled **Qwen3-4B text encoder**.", sort_order: 2 },
+        { id: "qwen_image", label: "Qwen-Image", icon: "gpu", guide: "## Prompting\n\nQwen-Image excels at **text rendering in images**.", sort_order: 3 },
+        { id: "fal_cloud", label: "FAL.ai Cloud", icon: "cloud", guide: "## Overview\n\nFAL.ai Cloud models run on remote servers.", sort_order: 10 },
+      ],
+    };
+  },
+
   // ── Bundles ──
-  async get_bundles() {
+  async get_bundles(_args?) {
     return {
       status: "success",
       bundles: [
@@ -137,7 +151,9 @@ export const mockApi: PywebviewAPI = {
           sampler: "euler",
           scheduler: "normal",
           vram_estimate_gb: 17.7,
-          is_default: true,
+          is_default: 1,
+          favorite: 1,
+          hidden: 0,
         },
         {
           id: "flux1_dev_quality",
@@ -156,7 +172,9 @@ export const mockApi: PywebviewAPI = {
           sampler: "euler",
           scheduler: "normal",
           vram_estimate_gb: 33.7,
-          is_default: true,
+          is_default: 1,
+          favorite: 0,
+          hidden: 0,
         },
         {
           id: "flux2_dev_quality",
@@ -173,7 +191,9 @@ export const mockApi: PywebviewAPI = {
           sampler: "euler",
           scheduler: "normal",
           vram_estimate_gb: 23.2,
-          is_default: true,
+          is_default: 1,
+          favorite: 0,
+          hidden: 0,
         },
         {
           id: "fal_flux_schnell",
@@ -188,9 +208,11 @@ export const mockApi: PywebviewAPI = {
           sampler: "euler",
           scheduler: "normal",
           vram_estimate_gb: 0,
-          is_default: true,
+          is_default: 1,
           source: "cloud",
           fal_endpoint: "fal-ai/flux/schnell",
+          favorite: 0,
+          hidden: 0,
         },
         {
           id: "fal_flux_dev",
@@ -205,9 +227,11 @@ export const mockApi: PywebviewAPI = {
           sampler: "euler",
           scheduler: "normal",
           vram_estimate_gb: 0,
-          is_default: true,
+          is_default: 1,
           source: "cloud",
           fal_endpoint: "fal-ai/flux/dev",
+          favorite: 0,
+          hidden: 0,
         },
       ],
     };
@@ -226,6 +250,12 @@ export const mockApi: PywebviewAPI = {
   },
   async delete_bundle(_args) {
     return { status: "success" };
+  },
+  async toggle_bundle_favorite(_args) {
+    return { status: "success", bundle: undefined };
+  },
+  async toggle_bundle_hidden(_args) {
+    return { status: "success", bundle: undefined };
   },
   async reset_default_bundles() {
     return { status: "success", bundles: [] };
@@ -459,6 +489,15 @@ export const mockApi: PywebviewAPI = {
   async get_style_categories() {
     return { status: "success", categories: ["Photography", "Illustration", "Painting"] };
   },
+  async get_styles_dir() {
+    return { status: "success" as const, path: "/mock/styles" };
+  },
+  async list_filter_thumbnails() {
+    return { status: "success" as const, thumbnails: [] };
+  },
+  async get_filter_thumbnail(_args: { image_name: string }) {
+    return { status: "error" as const, message: "Mock mode — no thumbnails" };
+  },
   async get_style_examples(_args) {
     return { status: "success", examples: [] };
   },
@@ -519,6 +558,21 @@ export const mockApi: PywebviewAPI = {
         usage_count: 0,
         created_at: Date.now() / 1000,
         updated_at: Date.now() / 1000,
+      },
+    };
+  },
+
+  // ── Style Builder ──
+  async generate_style_from_filters(_args) {
+    await new Promise((r) => setTimeout(r, 1500));
+    return {
+      status: "success" as const,
+      style_data: {
+        name: "Mock Generated Style",
+        description: "A rich visual style combining selected filters into a cohesive aesthetic.",
+        prompt_template: "artistic composition, {prompt}, detailed, high quality",
+        negative_prompt: "low quality, blurry, deformed",
+        category: "Mixed Media",
       },
     };
   },

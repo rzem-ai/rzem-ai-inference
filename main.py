@@ -25,7 +25,7 @@ from urllib.error import URLError
 import webview
 
 from backend.api.combined import CombinedAPI
-from backend.bundles import BundleStore
+from backend.bundles import get_default_bundle_types_as_dicts, get_default_bundles_as_dicts
 from backend.config import AppConfig
 from backend.db.database import Database
 from backend.services.app_service import AppService
@@ -102,8 +102,11 @@ def main() -> None:
     discovery = DiscoveryService()
     discovery.start()
 
-    bundle_store = BundleStore(data_dir=config.data_dir)
-    bundle_store.load()
+    # Seed default bundle types and bundles if tables are empty
+    if db.count_bundle_types() == 0:
+        db.seed_bundle_types(get_default_bundle_types_as_dicts())
+    if db.count_bundles() == 0:
+        db.seed_bundles(get_default_bundles_as_dicts())
 
     chat_service = ChatService(db=db)
     api_key = db.get_setting("CLAUDE_API_KEY")
@@ -114,7 +117,7 @@ def main() -> None:
     if hf_api_key:
         os.environ["HF_TOKEN"] = hf_api_key
 
-    api = CombinedAPI(service, manager, discovery, bundle_store, db, config, chat_service)
+    api = CombinedAPI(service, manager, discovery, db, config, chat_service)
 
     # In dev mode, start Vite before opening the window
     if config.dev_mode:
