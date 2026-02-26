@@ -134,7 +134,7 @@ Features that require meaningful work but deliver substantial value.
 
 ---
 
-### 2.6 Visual Style Browser
+### ~~2.6 Visual Style Browser~~ ✅
 
 **What**: Replace the text-heavy style list with a visual carousel/grid showing style preview thumbnails and example outputs.
 
@@ -144,7 +144,7 @@ Features that require meaningful work but deliver substantial value.
 
 ---
 
-### 2.7 LoRA Strength Presets
+### ~~2.7 LoRA Strength Presets~~ ✅
 
 **What**: Named strength presets for LoRAs — "Subtle" (0.3), "Balanced" (0.7), "Strong" (1.0), "Maximum" (1.5) — plus per-LoRA recommended ranges.
 
