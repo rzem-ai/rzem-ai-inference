@@ -665,16 +665,21 @@ class StylesAPI:
 
     # ── AI Style Review ─────────────────────────────────────────
 
-    def review_styles(self, **kwargs) -> dict[str, Any]:
-        """Send all styles to the AI provider for name and tag improvement suggestions."""
+    def review_styles(self, style_ids: list | None = None, **kwargs) -> dict[str, Any]:
+        """Send selected styles to the AI provider for name and tag improvement suggestions."""
         try:
             if not self._chat or not self._chat.is_configured:
                 provider = self._chat.active_provider_name if self._chat else "AI"
                 return {"status": "error", "message": f"{provider.capitalize()} API key not configured. Set it in Settings > AI."}
 
-            styles = self._db.get_styles()
+            if not style_ids:
+                return {"status": "error", "message": "No styles selected for review."}
+
+            all_styles = self._db.get_styles()
+            id_set = set(style_ids)
+            styles = [s for s in all_styles if s["id"] in id_set]
             if not styles:
-                return {"status": "error", "message": "No styles to review."}
+                return {"status": "error", "message": "No matching styles found."}
 
             # Build compact style data with current tags (minimal keys to save tokens)
             style_entries = []

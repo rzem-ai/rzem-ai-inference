@@ -616,7 +616,7 @@ export const mockApi: PywebviewAPI = {
   },
 
   // ── Style AI Review ──
-  async review_styles() {
+  async review_styles(_args) {
     await new Promise((r) => setTimeout(r, 2000));
     return {
       status: "success" as const,

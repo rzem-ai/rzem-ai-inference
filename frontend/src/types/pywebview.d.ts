@@ -189,7 +189,7 @@ export interface PywebviewAPI {
   import_civitai_metadata(args: { file_path?: string; json_content?: string }): Promise<ApiResponse<{ style?: Style }>>;
 
   // ── Style AI Review ──
-  review_styles(): Promise<ApiResponse<{ suggestions?: StyleReviewSuggestion[] }>>;
+  review_styles(args: { style_ids: string[] }): Promise<ApiResponse<{ suggestions?: StyleReviewSuggestion[] }>>;
   apply_style_review(args: { changes: Array<{ style_id: string; name?: string; tags?: string[] }> }): Promise<ApiResponse<{ applied?: number }>>;
 
   // ── Style Builder ──

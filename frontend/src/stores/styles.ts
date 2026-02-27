@@ -409,14 +409,14 @@ export const useStylesStore = defineStore('styles', {
 
     // ── AI Review ──
 
-    async fetchReview() {
+    async fetchReview(styleIds: string[]) {
       this.reviewLoading = true;
       this.reviewError = '';
       this.reviewSuggestions = [];
 
       try {
         const api = await getApiAsync();
-        const res = await api.review_styles();
+        const res = await api.review_styles({ style_ids: styleIds });
 
         if (res.status === 'success' && res.suggestions) {
           this.reviewSuggestions = res.suggestions;
