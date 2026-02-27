@@ -1,4 +1,4 @@
-import type { ApiResponse, InferenceEvent, BundleType, ModelBundle, SubmitJobParams, GalleryImage, Folder, Tag, Style, StyleLoRA, StyleExample, LoRA, VramUsage, EngineStatus, CachedModel, DataPaths, DiskUsage, Conversation, ConversationMessage, ChatEvent, DiscoveredServer } from "./inference";
+import type { ApiResponse, InferenceEvent, BundleType, ModelBundle, SubmitJobParams, GalleryImage, Folder, Tag, Style, StyleLoRA, StyleExample, StyleReviewSuggestion, LoRA, VramUsage, EngineStatus, CachedModel, DataPaths, DiskUsage, Conversation, ConversationMessage, ChatEvent, DiscoveredServer } from "./inference";
 
 export interface PywebviewAPI {
   // ── System ──
@@ -122,6 +122,7 @@ export interface PywebviewAPI {
     tag_id?: number;
     search?: string;
     favorites_only?: boolean;
+    bundle_type?: string;
     sort_by?: string;
     sort_order?: string;
   }): Promise<ApiResponse<{ styles?: Style[] }>>;
@@ -140,6 +141,7 @@ export interface PywebviewAPI {
   delete_style(args: { style_id: string }): Promise<ApiResponse>;
   toggle_style_favorite(args: { style_id: string }): Promise<ApiResponse<{ style?: Style }>>;
   get_style_categories(): Promise<ApiResponse<{ categories?: string[] }>>;
+  get_style_bundle_type_counts(): Promise<ApiResponse<{ counts?: Array<{ type_id: string; count: number }> }>>;
   get_styles_dir(): Promise<ApiResponse<{ path?: string }>>;
   list_filter_thumbnails(): Promise<ApiResponse<{ thumbnails?: string[] }>>;
   get_filter_thumbnail(args: { image_name: string }): Promise<ApiResponse<{ data_url?: string }>>;
@@ -185,6 +187,10 @@ export interface PywebviewAPI {
   browse_metadata_files(): Promise<ApiResponse<{ paths?: string[] }>>;
   browse_and_import_metadata(): Promise<ApiResponse<{ styles?: Style[]; errors?: string[] }>>;
   import_civitai_metadata(args: { file_path?: string; json_content?: string }): Promise<ApiResponse<{ style?: Style }>>;
+
+  // ── Style AI Review ──
+  review_styles(): Promise<ApiResponse<{ suggestions?: StyleReviewSuggestion[] }>>;
+  apply_style_review(args: { changes: Array<{ style_id: string; name?: string; tags?: string[] }> }): Promise<ApiResponse<{ applied?: number }>>;
 
   // ── Style Builder ──
   generate_style_from_filters(args: { filters: string[] }): Promise<ApiResponse<{

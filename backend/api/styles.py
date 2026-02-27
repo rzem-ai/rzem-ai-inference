@@ -94,6 +94,7 @@ class StylesAPI:
         tag_id: int | None = None,
         search: str | None = None,
         favorites_only: bool = False,
+        bundle_type: str | None = None,
         sort_by: str = "updated_at",
         sort_order: str = "desc",
         **kwargs,
@@ -104,12 +105,21 @@ class StylesAPI:
                 tag_id=tag_id,
                 search=search,
                 favorites_only=favorites_only,
+                bundle_type=bundle_type,
                 sort_by=sort_by,
                 sort_order=sort_order,
             )
             return {"status": "success", "styles": styles}
         except Exception as e:
             logger.error("Failed to get styles: %s", e)
+            return {"status": "error", "message": str(e)}
+
+    def get_style_bundle_type_counts(self, **kwargs) -> dict[str, Any]:
+        try:
+            counts = self._db.get_style_bundle_type_counts()
+            return {"status": "success", "counts": counts}
+        except Exception as e:
+            logger.error("Failed to get style bundle type counts: %s", e)
             return {"status": "error", "message": str(e)}
 
     def get_style(self, style_id: str, **kwargs) -> dict[str, Any]:
@@ -652,6 +662,136 @@ class StylesAPI:
         except Exception as e:
             logger.warning("AI prompt template generation failed for '%s': %s", style_name, e)
             return None
+
+    # ── AI Style Review ─────────────────────────────────────────
+
+    def review_styles(self, **kwargs) -> dict[str, Any]:
+        """Send all styles to the AI provider for name and tag improvement suggestions."""
+        try:
+            if not self._chat or not self._chat.is_configured:
+                provider = self._chat.active_provider_name if self._chat else "AI"
+                return {"status": "error", "message": f"{provider.capitalize()} API key not configured. Set it in Settings > AI."}
+
+            styles = self._db.get_styles()
+            if not styles:
+                return {"status": "error", "message": "No styles to review."}
+
+            # Build compact style data with current tags (minimal keys to save tokens)
+            style_entries = []
+            for s in styles:
+                tags = self._db.get_style_tags(s["id"])
+                entry: dict[str, Any] = {
+                    "id": s["id"],
+                    "name": s["name"],
+                    "prompt": s["prompt_template"],
+                }
+                if tags:
+                    entry["tags"] = [t["name"] for t in tags]
+                style_entries.append(entry)
+
+            # Gather existing style tags for reuse
+            all_tags = self._db.get_tags()
+            existing_tag_names = [t["name"] for t in all_tags if t.get("category") == "style"]
+
+            styles_json = json.dumps(style_entries, separators=(",", ":"))
+            tags_json = json.dumps(existing_tag_names)
+
+            messages = [{
+                "role": "user",
+                "content": (
+                    "Review these AI image generation styles. For each, suggest a clean name "
+                    "(2-5 words, no file extensions, title case) and 2-5 descriptive tags.\n\n"
+                    f"Existing tags (reuse when fitting): {tags_json}\n\n"
+                    f"Styles:\n{styles_json}\n\n"
+                    "Return a JSON array. Each element:\n"
+                    '{"id":"...","suggested_name":"...","name_changed":bool,"suggested_tags":["..."],"reason":"short"}\n\n'
+                    "Keep reasons under 10 words. Output ONLY valid JSON array, no markdown fences."
+                ),
+            }]
+
+            raw = self._chat.complete(messages, max_tokens=16384).strip()
+
+            # Strip markdown fences if present
+            if raw.startswith("```"):
+                raw = raw.split("\n", 1)[1] if "\n" in raw else raw[3:]
+                if raw.endswith("```"):
+                    raw = raw[:-3]
+                raw = raw.strip()
+
+            suggestions = json.loads(raw)
+
+            if not isinstance(suggestions, list):
+                return {"status": "error", "message": "AI returned unexpected format. Please try again."}
+
+            # Validate and filter to known style IDs
+            known_ids = {s["id"] for s in styles}
+            valid = []
+            for s in suggestions:
+                if not isinstance(s, dict):
+                    continue
+                if s.get("id") not in known_ids:
+                    continue
+                if not all(k in s for k in ("id", "suggested_name", "name_changed", "suggested_tags", "reason")):
+                    continue
+                valid.append({
+                    "id": s["id"],
+                    "suggested_name": str(s["suggested_name"]),
+                    "name_changed": bool(s["name_changed"]),
+                    "suggested_tags": [str(t) for t in s.get("suggested_tags", [])],
+                    "reason": str(s["reason"]),
+                })
+
+            logger.info("AI style review: %d styles reviewed, %d suggestions", len(styles), len(valid))
+            return {"status": "success", "suggestions": valid}
+
+        except json.JSONDecodeError as e:
+            logger.error("Failed to parse AI review response as JSON: %s", e)
+            return {"status": "error", "message": "AI returned invalid JSON. Please try again."}
+        except Exception as e:
+            logger.error("Style review failed: %s", e)
+            return {"status": "error", "message": str(e)}
+
+    def apply_style_review(self, changes: list | None = None, **kwargs) -> dict[str, Any]:
+        """Apply user-accepted style review changes (name and/or tag updates)."""
+        try:
+            if not changes:
+                return {"status": "error", "message": "No changes to apply."}
+
+            applied = 0
+            for change in changes:
+                style_id = change.get("style_id")
+                if not style_id:
+                    continue
+
+                # Apply name change
+                name = change.get("name")
+                if name:
+                    self._db.update_style(style_id, name=name)
+
+                # Apply tag changes
+                tags = change.get("tags")
+                if tags and isinstance(tags, list):
+                    tag_ids: list[int] = []
+                    for tag_name in tags:
+                        tag_name = str(tag_name).strip()
+                        if not tag_name:
+                            continue
+                        existing = self._db.get_tag_by_name(tag_name)
+                        if existing:
+                            tag_ids.append(existing["id"])
+                        else:
+                            new_tag = self._db.create_tag(name=tag_name, category="style")
+                            tag_ids.append(new_tag["id"])
+                    self._db.set_style_tags(style_id, tag_ids)
+
+                applied += 1
+
+            logger.info("Applied %d style review changes", applied)
+            return {"status": "success", "applied": applied}
+
+        except Exception as e:
+            logger.error("Failed to apply style review: %s", e)
+            return {"status": "error", "message": str(e)}
 
     # ── Style Builder ─────────────────────────────────────────
 

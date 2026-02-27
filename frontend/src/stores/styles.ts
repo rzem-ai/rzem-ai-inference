@@ -1,17 +1,19 @@
 import { defineStore } from 'pinia';
 import { getApiAsync } from '@/bridge';
-import type { Style, StyleLoRA, StyleExample, LoRA, Tag, Filter, GeneratedStyleData } from '@/types/inference';
+import type { Style, StyleLoRA, StyleExample, StyleReviewSuggestion, LoRA, Tag, Filter, GeneratedStyleData } from '@/types/inference';
 
 export const useStylesStore = defineStore('styles', {
   state: () => ({
     styles: [] as Style[],
     categories: [] as string[],
+    bundleTypeCounts: [] as Array<{ type_id: string; count: number }>,
     tags: [] as Tag[],
     loras: [] as LoRA[],
     loading: false,
 
     // Filters
     currentCategory: null as string | null,
+    currentBundleType: null as string | null,
     currentTagId: null as number | null,
     searchQuery: '',
     favoritesOnly: false,
@@ -39,6 +41,11 @@ export const useStylesStore = defineStore('styles', {
     builderGenerating: false,
     builderError: '',
 
+    // AI Review state
+    reviewLoading: false,
+    reviewSuggestions: [] as StyleReviewSuggestion[],
+    reviewError: '',
+
     // Filter thumbnails
     availableThumbnails: [] as string[],
     thumbnailCache: {} as Record<string, string>,
@@ -52,7 +59,7 @@ export const useStylesStore = defineStore('styles', {
      * Safe to call from multiple components -- only runs once.
      */
     async init() {
-      Promise.all([this.loadStyles(), this.loadCategories(), this.loadLoras(), this.loadTags()]).then(() => {});
+      Promise.all([this.loadStyles(), this.loadCategories(), this.loadBundleTypeCounts(), this.loadLoras(), this.loadTags()]).then(() => {});
     },
 
     async loadStyles(reset = true) {
@@ -65,6 +72,7 @@ export const useStylesStore = defineStore('styles', {
           tag_id: this.currentTagId ?? undefined,
           search: this.searchQuery || undefined,
           favorites_only: this.favoritesOnly,
+          bundle_type: this.currentBundleType ?? undefined,
           sort_by: this.sortBy,
           sort_order: this.sortOrder,
         });
@@ -85,6 +93,14 @@ export const useStylesStore = defineStore('styles', {
       const res = await api.get_style_categories();
       if (res.status === 'success') {
         this.categories = res.categories ?? [];
+      }
+    },
+
+    async loadBundleTypeCounts() {
+      const api = await getApiAsync();
+      const res = await api.get_style_bundle_type_counts();
+      if (res.status === 'success') {
+        this.bundleTypeCounts = res.counts ?? [];
       }
     },
 
@@ -160,7 +176,7 @@ export const useStylesStore = defineStore('styles', {
       });
       if (res.status === 'success') {
         await this.loadStyles();
-        await this.loadCategories();
+        await Promise.all([this.loadCategories(), this.loadBundleTypeCounts()]);
       }
       return res;
     },
@@ -170,7 +186,7 @@ export const useStylesStore = defineStore('styles', {
       const res = await api.update_style({ style_id: styleId, ...data });
       if (res.status === 'success') {
         await this.loadStyles();
-        await this.loadCategories();
+        await Promise.all([this.loadCategories(), this.loadBundleTypeCounts()]);
       }
       return res;
     },
@@ -180,6 +196,7 @@ export const useStylesStore = defineStore('styles', {
       const res = await api.delete_style({ style_id: styleId });
       if (res.status === 'success') {
         this.styles = this.styles.filter((s) => s.id !== styleId);
+        await this.loadBundleTypeCounts();
       }
       return res;
     },
@@ -336,10 +353,23 @@ export const useStylesStore = defineStore('styles', {
       this.currentCategory = category;
     },
 
+    setCurrentBundleType(typeId: string | null) {
+      this.currentBundleType = typeId;
+    },
+
     // ── Filters ──
 
     async filterByCategory(category: string | null) {
       this.currentCategory = category;
+      this.currentBundleType = null;
+      this.favoritesOnly = false;
+      this.currentTagId = null;
+      await this.loadStyles();
+    },
+
+    async filterByBundleType(typeId: string | null) {
+      this.currentBundleType = typeId;
+      this.currentCategory = null;
       this.favoritesOnly = false;
       this.currentTagId = null;
       await this.loadStyles();
@@ -347,6 +377,7 @@ export const useStylesStore = defineStore('styles', {
 
     async filterByTag(tagId: number | null) {
       this.currentTagId = tagId;
+      this.currentBundleType = null;
       this.favoritesOnly = false;
       this.currentCategory = null;
       await this.loadStyles();
@@ -359,6 +390,7 @@ export const useStylesStore = defineStore('styles', {
 
     async toggleFavoritesFilter() {
       this.favoritesOnly = !this.favoritesOnly;
+      this.currentBundleType = null;
       this.currentCategory = null;
       this.currentTagId = null;
       await this.loadStyles();
@@ -373,6 +405,45 @@ export const useStylesStore = defineStore('styles', {
     async toggleSortOrder() {
       this.sortOrder = this.sortOrder === 'asc' ? 'desc' : 'asc';
       await this.loadStyles();
+    },
+
+    // ── AI Review ──
+
+    async fetchReview() {
+      this.reviewLoading = true;
+      this.reviewError = '';
+      this.reviewSuggestions = [];
+
+      try {
+        const api = await getApiAsync();
+        const res = await api.review_styles();
+
+        if (res.status === 'success' && res.suggestions) {
+          this.reviewSuggestions = res.suggestions;
+        } else {
+          this.reviewError = res.message ?? 'Review failed';
+        }
+      } catch (e: any) {
+        this.reviewError = e.message ?? 'Review failed';
+      } finally {
+        this.reviewLoading = false;
+      }
+    },
+
+    async applyReview(changes: Array<{ style_id: string; name?: string; tags?: string[] }>) {
+      const api = await getApiAsync();
+      const res = await api.apply_style_review({ changes });
+      if (res.status === 'success') {
+        await this.loadStyles();
+        await this.loadTags();
+      }
+      return res;
+    },
+
+    clearReview() {
+      this.reviewLoading = false;
+      this.reviewSuggestions = [];
+      this.reviewError = '';
     },
 
     // ── Builder ──

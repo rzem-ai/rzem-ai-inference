@@ -326,6 +326,14 @@ export interface Filter {
   colours: [string, string];
 }
 
+export interface StyleReviewSuggestion {
+  id: string;
+  suggested_name: string;
+  name_changed: boolean;
+  suggested_tags: string[];
+  reason: string;
+}
+
 export interface GeneratedStyleData {
   name: string;
   description: string;

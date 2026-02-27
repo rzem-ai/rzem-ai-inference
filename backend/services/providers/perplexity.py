@@ -76,6 +76,7 @@ class PerplexityProvider:
             model=model,
             input=input_text,
             instructions=system_prompt,
+            max_output_tokens=max_tokens,
         )
         return response.output_text or ""
 

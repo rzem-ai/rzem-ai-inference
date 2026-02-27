@@ -11,6 +11,6 @@ import { useStylesStore } from '@/stores/styles';
 const stylesStore = useStylesStore();
 
 onMounted(() => {
-  Promise.all([stylesStore.loadStyles(), stylesStore.loadCategories(), stylesStore.loadTags(), stylesStore.loadLoras()]);
+  Promise.all([stylesStore.loadStyles(), stylesStore.loadCategories(), stylesStore.loadBundleTypeCounts(), stylesStore.loadTags(), stylesStore.loadLoras()]);
 });
 </script>

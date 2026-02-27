@@ -7,6 +7,7 @@
 					<Button severity="primary" @click="router.push({ name: 'styles-new' })"><Plus :size="14" />New Style</Button>
 					<Button severity="help" @click="router.push({ name: 'styles-builder' })"><Sparkles :size="14" />Builder</Button>
 					<Button severity="secondary" :loading="stylesStore.importing" @click="onImportMetadata"> <FolderInput :size="14" /> Import </Button>
+					<Button severity="warn" :disabled="!stylesStore.styles.length" @click="onAiReview"><Sparkles :size="14" />AI Review</Button>
 				</div>
 
 				<Divider layout="vertical" />
@@ -128,6 +129,9 @@
 
 		<!-- Card context menu -->
 		<ContextMenu ref="cardMenu" :model="cardMenuItems" />
+
+		<!-- AI Review dialog -->
+		<StyleReviewDialog v-model:visible="showReviewDialog" />
 	</div>
 </template>
 
@@ -137,6 +141,7 @@ import { useRouter } from 'vue-router';
 import { useStylesStore } from '@/stores/styles';
 import { useVirtualGrid } from '@/composables/useVirtualGrid';
 import StyleCard from './StyleCard.vue';
+import StyleReviewDialog from './StyleReviewDialog.vue';
 import VirtualGrid from '@/components/VirtualGrid.vue';
 
 const router = useRouter();
@@ -162,6 +167,7 @@ const contextStyleId = ref<string | null>(null);
 
 const searchInput = ref('');
 const sortPopover = ref();
+const showReviewDialog = ref(false);
 
 const styleSortOptions = [
 	{ value: 'updated_at', label: 'Last Modified' },
@@ -284,6 +290,11 @@ function onCardContextMenu(event: MouseEvent, styleId: string) {
 
 async function onImportMetadata() {
 	await stylesStore.importCivitaiMetadata();
+}
+
+function onAiReview() {
+	showReviewDialog.value = true;
+	stylesStore.fetchReview();
 }
 </script>
 

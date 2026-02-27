@@ -533,6 +533,9 @@ export const mockApi: PywebviewAPI = {
   async get_style_categories() {
     return { status: "success", categories: ["Photography", "Illustration", "Painting"] };
   },
+  async get_style_bundle_type_counts() {
+    return { status: "success", counts: [{ type_id: "flux1_dev", count: 3 }, { type_id: "flux1_kontext", count: 1 }] };
+  },
   async get_styles_dir() {
     return { status: "success" as const, path: "/mock/styles" };
   },
@@ -610,6 +613,41 @@ export const mockApi: PywebviewAPI = {
         updated_at: Date.now() / 1000,
       },
     };
+  },
+
+  // ── Style AI Review ──
+  async review_styles() {
+    await new Promise((r) => setTimeout(r, 2000));
+    return {
+      status: "success" as const,
+      suggestions: [
+        {
+          id: "mock-style-1",
+          suggested_name: "Cinematic Film Still",
+          name_changed: true,
+          suggested_tags: ["cinematic", "photography", "dramatic lighting", "film grain"],
+          reason: "Added 'Still' for clarity and suggested tags matching prompt template keywords.",
+        },
+        {
+          id: "mock-style-2",
+          suggested_name: "Anime Illustration",
+          name_changed: true,
+          suggested_tags: ["anime", "illustration", "vibrant", "studio ghibli"],
+          reason: "Simplified name and added tags reflecting the style's visual characteristics.",
+        },
+        {
+          id: "mock-style-3",
+          suggested_name: "Watercolor Dream",
+          name_changed: false,
+          suggested_tags: ["watercolor", "painting", "soft", "artistic"],
+          reason: "Name is already good; added descriptive tags for better discoverability.",
+        },
+      ],
+    };
+  },
+  async apply_style_review(_args) {
+    await new Promise((r) => setTimeout(r, 500));
+    return { status: "success" as const, applied: 3 };
   },
 
   // ── Style Builder ──
