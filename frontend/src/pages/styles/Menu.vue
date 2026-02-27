@@ -6,12 +6,8 @@
       </Button>
     </template>
     <template #content>
-      <!-- Collections section -->
+      <!-- Top-level filters -->
       <div class="flex flex-col gap-1">
-        <div class="flex h-8 items-center justify-between px-2">
-          <div class="font-medium text-slate-900">Collections</div>
-        </div>
-
         <!-- All Styles -->
         <button
           class="flex h-8 w-full items-center gap-2 rounded-lg px-3 text-left transition-colors"
@@ -29,8 +25,31 @@
           <Star :size="14" :class="stylesStore.favoritesOnly ? 'text-blue-500' : 'text-slate-400'" />
           <span class="flex-1 truncate font-medium">Favorites</span>
         </button>
+      </div>
 
-        <!-- Dynamic categories -->
+      <!-- Models section -->
+      <div v-if="stylesStore.bundleTypeCounts.length" class="flex flex-col gap-1">
+        <div class="flex h-8 items-center px-2">
+          <span class="font-medium text-slate-900">Models</span>
+        </div>
+        <button
+          v-for="bt in stylesStore.bundleTypeCounts"
+          :key="bt.type_id"
+          class="flex h-8 w-full items-center gap-2 rounded-lg px-3 text-left transition-colors"
+          :class="stylesStore.currentBundleType === bt.type_id ? 'bg-blue-50 text-blue-600' : 'text-slate-700 hover:bg-slate-50'"
+          @click="onFilterBundleType(bt.type_id)">
+          <Cloud v-if="modelsStore.typeMap[bt.type_id]?.icon === 'cloud'" :size="14" class="text-slate-400" />
+          <Gpu v-else :size="14" class="text-slate-400" />
+          <span class="flex-1 truncate font-medium">{{ modelsStore.getTypeLabel(bt.type_id) }}</span>
+          <span class="text-xs text-slate-400">{{ bt.count }}</span>
+        </button>
+      </div>
+
+      <!-- Collections section -->
+      <div v-if="stylesStore.categories.length" class="flex flex-col gap-1">
+        <div class="flex h-8 items-center px-2">
+          <span class="font-medium text-slate-900">Collections</span>
+        </div>
         <button
           v-for="cat in stylesStore.categories"
           :key="cat"
@@ -83,15 +102,19 @@
 import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useStylesStore } from '@/stores/styles';
+import { useModelsStore } from '@/stores/models';
 import type { Tag } from '@/types/inference';
 import MenuPanel from '@/components/MenuPanel.vue';
 
 const route = useRoute();
 const router = useRouter();
 const stylesStore = useStylesStore();
+const modelsStore = useModelsStore();
 
 const showSidebar = computed(() => route.matched.some(r => r.path === '/styles'));
-const isAllActive = computed(() => !stylesStore.currentCategory && !stylesStore.favoritesOnly && !stylesStore.currentTagId);
+const isAllActive = computed(() =>
+  !stylesStore.currentCategory && !stylesStore.currentBundleType && !stylesStore.favoritesOnly && !stylesStore.currentTagId
+);
 
 function tagStyle(tag: Tag) {
   const color = tag.color || '#64748b';
@@ -104,18 +127,25 @@ function tagStyle(tag: Tag) {
 function onFilterAll() {
   stylesStore.setFavoritesOnly(false);
   stylesStore.setCurrentTagId(null);
+  stylesStore.setCurrentBundleType(null);
   stylesStore.filterByCategory(null);
 }
 
 function onFilterFavorites() {
   stylesStore.setCurrentCategory(null);
   stylesStore.setCurrentTagId(null);
+  stylesStore.setCurrentBundleType(null);
   stylesStore.toggleFavoritesFilter();
+}
+
+function onFilterBundleType(typeId: string) {
+  stylesStore.filterByBundleType(stylesStore.currentBundleType === typeId ? null : typeId);
 }
 
 function onToggleTag(tagId: number) {
   stylesStore.setFavoritesOnly(false);
   stylesStore.setCurrentCategory(null);
+  stylesStore.setCurrentBundleType(null);
   stylesStore.filterByTag(stylesStore.currentTagId === tagId ? null : tagId);
 }
 </script>

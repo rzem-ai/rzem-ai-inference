@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 _SCHEMA_PATH = Path(__file__).parent / "schema.sql"
 
 # Current schema version — bump this when adding a new migration.
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 def _dict_row(cursor: sqlite3.Cursor, row: tuple) -> dict[str, Any]:
@@ -68,9 +68,22 @@ def _migration_2(conn: sqlite3.Connection) -> None:
     )
 
 
+def _migration_3(conn: sqlite3.Connection) -> None:
+    """v2 → v3: Add bundle_id column to loras, migrate base_model values."""
+    try:
+        conn.execute("ALTER TABLE loras ADD COLUMN bundle_id TEXT")
+    except sqlite3.OperationalError:
+        pass  # Column already exists (table was recreated from updated schema.sql)
+    # Migrate known base_model values to bundle IDs
+    conn.execute("UPDATE loras SET bundle_id = 'flux1_dev_performance' WHERE base_model = 'Flux.1 D'")
+    conn.execute("UPDATE loras SET bundle_id = 'z_image_turbo' WHERE base_model = 'ZImageTurbo'")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_loras_bundle ON loras(bundle_id)")
+
+
 _MIGRATIONS: list[callable] = [
     _migration_1,
     _migration_2,
+    _migration_3,
 ]
 
 
@@ -516,6 +529,7 @@ class Database:
         tag_id: int | None = None,
         search: str | None = None,
         favorites_only: bool = False,
+        bundle_type: str | None = None,
         sort_by: str = "updated_at",
         sort_order: str = "desc",
     ) -> list[dict[str, Any]]:
@@ -531,6 +545,11 @@ class Database:
             joins.append("JOIN style_tags st ON st.style_id = styles.id")
             where_clauses.append("st.tag_id = ?")
             params.append(tag_id)
+
+        if bundle_type is not None:
+            joins.append("JOIN bundles b ON b.id = styles.bundle_id")
+            where_clauses.append("b.transformer_type = ?")
+            params.append(bundle_type)
 
         if search:
             where_clauses.append("(styles.name LIKE ? OR styles.prompt_template LIKE ?)")
@@ -551,6 +570,19 @@ class Database:
                 f"ORDER BY styles.{col} {direction}"
             )
             cursor = self.conn.execute(query_sql, params)
+            return cursor.fetchall()
+
+    def get_style_bundle_type_counts(self) -> list[dict[str, Any]]:
+        """Return bundle types that have at least one style, with counts."""
+        with self._lock:
+            cursor = self.conn.execute(
+                "SELECT b.transformer_type AS type_id, COUNT(*) AS count "
+                "FROM styles s "
+                "JOIN bundles b ON b.id = s.bundle_id "
+                "WHERE s.bundle_id IS NOT NULL "
+                "GROUP BY b.transformer_type "
+                "ORDER BY count DESC"
+            )
             return cursor.fetchall()
 
     def update_style(self, style_id: str, **updates: Any) -> dict[str, Any] | None:
@@ -710,6 +742,7 @@ class Database:
         path: str,
         trigger_words: str | None = None,
         base_model: str | None = None,
+        bundle_id: str | None = None,
         size_bytes: int | None = None,
         strength: float = 1.0,
     ) -> dict[str, Any] | None:
@@ -717,10 +750,10 @@ class Database:
         with self._lock:
             self.conn.execute(
                 """INSERT INTO loras (id, name, path, trigger_words, base_model,
-                   size_bytes, strength, created_at)
-                   VALUES (?,?,?,?,?,?,?,?)""",
-                (id, name, path, trigger_words, base_model, size_bytes,
-                 strength, now),
+                   bundle_id, size_bytes, strength, created_at)
+                   VALUES (?,?,?,?,?,?,?,?,?)""",
+                (id, name, path, trigger_words, base_model, bundle_id,
+                 size_bytes, strength, now),
             )
             self.conn.commit()
         return self.get_lora(id)

@@ -61,7 +61,7 @@ DEFAULT_BUNDLES: list[ModelBundle] = [
         t5_encoder_config=_T5_NF4,
         steps=28,
         cfg_scale=3.5,
-        vram_estimate_gb=11.0,
+        vram_estimate_gb=10.0,
     ),
     ModelBundle(
         id="flux1_dev_balanced",
@@ -78,7 +78,7 @@ DEFAULT_BUNDLES: list[ModelBundle] = [
         t5_encoder_config=_T5_NF4,
         steps=30,
         cfg_scale=3.5,
-        vram_estimate_gb=16.0,
+        vram_estimate_gb=15.5,
     ),
     # Quality last - safest default (no GGUF dependency)
     ModelBundle(
@@ -113,7 +113,7 @@ DEFAULT_BUNDLES: list[ModelBundle] = [
         t5_encoder_config=_T5_NF4,
         steps=28,
         cfg_scale=2.5,
-        vram_estimate_gb=11.0,
+        vram_estimate_gb=10.0,
     ),
     ModelBundle(
         id="flux1_kontext_quality",
@@ -189,7 +189,7 @@ DEFAULT_BUNDLES: list[ModelBundle] = [
         qwen3_encoder="Qwen/Qwen-Image-2512",
         steps=28,
         cfg_scale=1.0,
-        vram_estimate_gb=48.2,
+        vram_estimate_gb=20.0,
     ),
     # ── FAL.ai Cloud ──
     ModelBundle(

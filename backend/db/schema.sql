@@ -146,12 +146,14 @@ CREATE TABLE IF NOT EXISTS loras (
     path            TEXT NOT NULL,
     trigger_words   TEXT,
     base_model      TEXT,
+    bundle_id       TEXT,
     size_bytes      INTEGER,
     strength        REAL NOT NULL DEFAULT 1.0,
     is_active       INTEGER NOT NULL DEFAULT 0,
     created_at      INTEGER NOT NULL,
     metadata        TEXT
 );
+-- idx_loras_bundle created by migration_3
 
 -- ── Examples (generic, polymorphic) ─────────────────────────────
 
