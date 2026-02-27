@@ -66,16 +66,13 @@
           <!-- Base Model -->
           <div class="flex flex-col gap-0">
             <label class="text-surface-700 text-lg font-semibold">Base Model</label>
-            <Select
+            <ModelSelector
               v-model="selectedBundleId"
-              :options="inferenceStore.bundlesByType"
-              option-group-label="label"
-              option-group-children="items"
-              option-label="label"
-              option-value="id"
+              :bundles="inferenceStore.bundles"
+              :gpu-vram-gb="inferenceStore.gpuTotalVramGb"
+              types="all"
               placeholder="Select base model"
-              show-clear
-              fluid />
+              show-clear />
           </div>
 
           <!-- Description -->
@@ -378,6 +375,7 @@ import { useStylesStore } from '@/stores/styles';
 import { useInferenceStore } from '@/stores/inference';
 import { usePywebview } from '@/composables/usePywebview';
 import type { LoRA, Tag } from '@/types/inference';
+import ModelSelector from '@/components/ModelSelector.vue';
 import TextEditor from '@/components/TextEditor.vue';
 
 const LORA_EXTENSIONS = ['.safetensors', '.ckpt', '.pt'];
