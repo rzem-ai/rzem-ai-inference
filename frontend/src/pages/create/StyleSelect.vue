@@ -29,7 +29,7 @@
     </Select>
 
     <!-- Active style info -->
-    <div v-if="selectedStyle?.description" class="text-lg text-slate-400 px-1 line-clamp-2">
+    <div v-if="selectedStyle?.description" class="text-base text-slate-400 px-1 line-clamp-2">
       {{ selectedStyle.description }}
     </div>
 
@@ -37,10 +37,10 @@
     <div v-if="inferenceStore.styleLoras.length" class="flex flex-col gap-2 mt-1">
       <Card v-for="(lora, index) in inferenceStore.styleLoras" :key="lora.id" class="lora-card">
         <template #content>
-          <div class="flex flex-col gap-1">
+          <div class="flex flex-col gap-3 p-4">
             <div class="flex justify-between items-center">
-              <span class="text-sm text-slate-500 truncate">{{ lora.lora_name }}</span>
-              <span class="text-base font-semibold text-slate-500 tabular-nums">{{ lora.strength.toFixed(2) }}</span>
+              <div class="text-base text-slate-500 truncate">{{ lora.lora_name }}</div>
+              <div class="text-base font-semibold text-slate-500 tabular-nums">{{ lora.strength.toFixed(2) }}</div>
             </div>
             <Slider
               :model-value="strengthToInt(lora.strength)"
@@ -104,6 +104,6 @@ function onStrengthChange(index: number, val: number | number[]) {
 
 <style scoped>
 .lora-card :deep(.p-card-body) {
-  padding: 0.625rem 0.75rem;
+  padding: 0;
 }
 </style>
