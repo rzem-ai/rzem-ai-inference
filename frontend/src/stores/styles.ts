@@ -65,7 +65,6 @@ export const useStylesStore = defineStore('styles', {
     async loadStyles(reset = true) {
       const api = await getApiAsync();
       this.loading = true;
-      console.log('loadStyles: ', reset);
       try {
         const res = await api.get_styles({
           category: this.currentCategory ?? undefined,
@@ -83,7 +82,6 @@ export const useStylesStore = defineStore('styles', {
       } catch (e: any) {
         console.error('[gallery] Failed to load images:', e);
       } finally {
-        console.log('loadImages: ', reset);
         this.loading = false;
       }
     },

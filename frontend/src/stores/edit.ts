@@ -65,6 +65,43 @@ export const useEditStore = defineStore('edit', {
     modelStatus(): string | null {
       return useInferenceStore().modelStatus;
     },
+
+    selectedBundle(state): ModelBundle | null {
+      return state.bundles.find((b) => b.id === state.selectedBundleId) ?? null;
+    },
+
+    bundlesByType(state): { label: string; type: string; items: ModelBundle[] }[] {
+      const modelsStore = useModelsStore();
+      const result: { label: string; type: string; items: ModelBundle[] }[] = [];
+
+      const favorites = state.bundles.filter((b) => b.favorite);
+      if (favorites.length) {
+        result.push({ label: 'Favorites', type: '_favorites', items: favorites });
+      }
+
+      const groups = new Map<string, ModelBundle[]>();
+      for (const b of state.bundles) {
+        const list = groups.get(b.transformer_type) ?? [];
+        list.push(b);
+        groups.set(b.transformer_type, list);
+      }
+
+      const typeGroups = Array.from(groups.entries())
+        .map(([type, items]) => ({
+          label: modelsStore.getTypeLabel(type),
+          type,
+          icon: modelsStore.typeMap[type]?.icon ?? null,
+          sortOrder: modelsStore.typeMap[type]?.sort_order ?? 0,
+          items,
+        }))
+        .sort((a, b) => a.sortOrder - b.sortOrder);
+
+      const local = typeGroups.filter((g) => g.icon !== 'cloud');
+      const cloud = typeGroups.filter((g) => g.icon === 'cloud');
+      result.push(...local, ...cloud);
+
+      return result;
+    },
   },
 
   actions: {

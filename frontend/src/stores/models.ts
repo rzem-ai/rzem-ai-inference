@@ -48,12 +48,20 @@ export const useModelsStore = defineStore('models', {
         list.push(b);
         groups.set(b.transformer_type, list);
       }
-      return Array.from(groups.entries()).map(([type, items]) => ({
-        label: this.typeMap[type]?.label ?? type,
-        type,
-        icon: this.typeMap[type]?.icon ?? null,
-        items: items.sort((a, b) => (b.favorite ?? 0) - (a.favorite ?? 0)),
-      }));
+
+      const typeGroups = Array.from(groups.entries())
+        .map(([type, items]) => ({
+          label: this.typeMap[type]?.label ?? type,
+          type,
+          icon: this.typeMap[type]?.icon ?? null,
+          sortOrder: this.typeMap[type]?.sort_order ?? 0,
+          items: items.sort((a, b) => (b.favorite ?? 0) - (a.favorite ?? 0)),
+        }))
+        .sort((a, b) => a.sortOrder - b.sortOrder);
+
+      const local = typeGroups.filter((g) => g.icon !== 'cloud');
+      const cloud = typeGroups.filter((g) => g.icon === 'cloud');
+      return [...local, ...cloud];
     },
 
     /** Rendered HTML from the selected bundle's type guide markdown. */

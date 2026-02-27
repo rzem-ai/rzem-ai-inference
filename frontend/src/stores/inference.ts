@@ -132,6 +132,15 @@ export const useInferenceStore = defineStore('inference', {
 
     bundlesByType(state): { label: string; type: string; items: ModelBundle[] }[] {
       const modelsStore = useModelsStore();
+      const result: { label: string; type: string; items: ModelBundle[] }[] = [];
+
+      // Favorites group
+      const favorites = state.bundles.filter((b) => !b.hidden && b.favorite);
+      if (favorites.length) {
+        result.push({ label: 'Favorites', type: '_favorites', items: favorites });
+      }
+
+      // Type groups sorted by sort_order, local before cloud
       const groups = new Map<string, ModelBundle[]>();
       for (const b of state.bundles) {
         if (b.hidden) continue;
@@ -139,11 +148,22 @@ export const useInferenceStore = defineStore('inference', {
         list.push(b);
         groups.set(b.transformer_type, list);
       }
-      return Array.from(groups.entries()).map(([type, items]) => ({
-        label: modelsStore.getTypeLabel(type),
-        type: type,
-        items: items.sort((a, b) => (b.favorite ?? 0) - (a.favorite ?? 0)),
-      }));
+
+      const typeGroups = Array.from(groups.entries())
+        .map(([type, items]) => ({
+          label: modelsStore.getTypeLabel(type),
+          type,
+          icon: modelsStore.typeMap[type]?.icon ?? null,
+          sortOrder: modelsStore.typeMap[type]?.sort_order ?? 0,
+          items,
+        }))
+        .sort((a, b) => a.sortOrder - b.sortOrder);
+
+      const local = typeGroups.filter((g) => g.icon !== 'cloud');
+      const cloud = typeGroups.filter((g) => g.icon === 'cloud');
+      result.push(...local, ...cloud);
+
+      return result;
     },
   },
 
