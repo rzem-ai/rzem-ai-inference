@@ -534,7 +534,7 @@ export const mockApi: PywebviewAPI = {
     return { status: "success", categories: ["Photography", "Illustration", "Painting"] };
   },
   async get_style_bundle_type_counts() {
-    return { status: "success", counts: [{ type_id: "flux1_dev", count: 3 }, { type_id: "flux1_kontext", count: 1 }] };
+    return { status: "success", counts: [{ type_id: "flux1_dev", count: 3 }, { type_id: "flux1_kontext", count: 1 }, { type_id: "__unbound__", count: 2 }] };
   },
   async get_styles_dir() {
     return { status: "success" as const, path: "/mock/styles" };

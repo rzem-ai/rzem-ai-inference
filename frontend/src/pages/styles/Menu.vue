@@ -32,17 +32,29 @@
         <div class="flex h-8 items-center px-2">
           <span class="font-medium text-slate-900">Models</span>
         </div>
-        <button
-          v-for="bt in stylesStore.bundleTypeCounts"
-          :key="bt.type_id"
-          class="flex h-8 w-full items-center gap-2 rounded-lg px-3 text-left transition-colors"
-          :class="stylesStore.currentBundleType === bt.type_id ? 'bg-blue-50 text-blue-600' : 'text-slate-700 hover:bg-slate-50'"
-          @click="onFilterBundleType(bt.type_id)">
-          <Cloud v-if="modelsStore.typeMap[bt.type_id]?.icon === 'cloud'" :size="14" class="text-slate-400" />
-          <Gpu v-else :size="14" class="text-slate-400" />
-          <span class="flex-1 truncate font-medium">{{ modelsStore.getTypeLabel(bt.type_id) }}</span>
-          <span class="text-xs text-slate-400">{{ bt.count }}</span>
-        </button>
+        <template v-for="bt in stylesStore.bundleTypeCounts" :key="bt.type_id">
+          <!-- Unbound styles -->
+          <button
+            v-if="bt.type_id === '__unbound__'"
+            class="flex h-8 w-full items-center gap-2 rounded-lg px-3 text-left transition-colors"
+            :class="stylesStore.currentBundleType === '__unbound__' ? 'bg-blue-50 text-blue-600' : 'text-slate-700 hover:bg-slate-50'"
+            @click="onFilterBundleType('__unbound__')">
+            <Unlink :size="14" class="text-slate-400" />
+            <span class="flex-1 truncate font-medium">Unbound</span>
+            <span class="text-xs text-slate-400">{{ bt.count }}</span>
+          </button>
+          <!-- Regular bundle type -->
+          <button
+            v-else
+            class="flex h-8 w-full items-center gap-2 rounded-lg px-3 text-left transition-colors"
+            :class="stylesStore.currentBundleType === bt.type_id ? 'bg-blue-50 text-blue-600' : 'text-slate-700 hover:bg-slate-50'"
+            @click="onFilterBundleType(bt.type_id)">
+            <Cloud v-if="modelsStore.typeMap[bt.type_id]?.icon === 'cloud'" :size="14" class="text-slate-400" />
+            <Gpu v-else :size="14" class="text-slate-400" />
+            <span class="flex-1 truncate font-medium">{{ modelsStore.getTypeLabel(bt.type_id) }}</span>
+            <span class="text-xs text-slate-400">{{ bt.count }}</span>
+          </button>
+        </template>
       </div>
 
       <!-- Collections section -->

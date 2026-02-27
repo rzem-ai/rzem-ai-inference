@@ -547,9 +547,12 @@ class Database:
             params.append(tag_id)
 
         if bundle_type is not None:
-            joins.append("JOIN bundles b ON b.id = styles.bundle_id")
-            where_clauses.append("b.transformer_type = ?")
-            params.append(bundle_type)
+            if bundle_type == "__unbound__":
+                where_clauses.append("styles.bundle_id IS NULL")
+            else:
+                joins.append("JOIN bundles b ON b.id = styles.bundle_id")
+                where_clauses.append("b.transformer_type = ?")
+                params.append(bundle_type)
 
         if search:
             where_clauses.append("(styles.name LIKE ? OR styles.prompt_template LIKE ?)")
@@ -573,7 +576,10 @@ class Database:
             return cursor.fetchall()
 
     def get_style_bundle_type_counts(self) -> list[dict[str, Any]]:
-        """Return bundle types that have at least one style, with counts."""
+        """Return bundle types that have at least one style, with counts.
+
+        Includes an '__unbound__' entry for styles with no bundle association.
+        """
         with self._lock:
             cursor = self.conn.execute(
                 "SELECT b.transformer_type AS type_id, COUNT(*) AS count "
@@ -583,7 +589,15 @@ class Database:
                 "GROUP BY b.transformer_type "
                 "ORDER BY count DESC"
             )
-            return cursor.fetchall()
+            rows = cursor.fetchall()
+
+            unbound = self.conn.execute(
+                "SELECT COUNT(*) AS count FROM styles WHERE bundle_id IS NULL"
+            ).fetchone()
+            if unbound and unbound["count"] > 0:
+                rows.append({"type_id": "__unbound__", "count": unbound["count"]})
+
+            return rows
 
     def update_style(self, style_id: str, **updates: Any) -> dict[str, Any] | None:
         allowed = {
