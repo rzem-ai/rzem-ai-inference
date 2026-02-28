@@ -14,5 +14,18 @@
 </template>
 
 <script setup lang="ts">
+import { onMounted, onUnmounted } from 'vue';
 import NavBar from '@/components/NavBar.vue';
+import { useDiscoveryStore } from '@/stores/discovery';
+
+const discoveryStore = useDiscoveryStore();
+
+onMounted(() => {
+  discoveryStore.loadConnectionMode();
+  discoveryStore.startDiscoveryPolling();
+});
+
+onUnmounted(() => {
+  discoveryStore.stopDiscoveryPolling();
+});
 </script>

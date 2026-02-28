@@ -67,14 +67,11 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue';
 import { useDiscoveryStore } from '@/stores/discovery';
-import { useInferenceStore } from '@/stores/inference';
-import { useSettingsStore } from '@/stores/settings';
+import { useServerConnection } from '@/composables/useServerConnection';
 
 const discoveryStore = useDiscoveryStore();
-const inferenceStore = useInferenceStore();
-const settingsStore = useSettingsStore();
+const { connect, disconnect } = useServerConnection();
 
 function isConnectedTo(server: { host: string; port: number }): boolean {
   const conn = discoveryStore.connectedServer;
@@ -82,32 +79,10 @@ function isConnectedTo(server: { host: string; port: number }): boolean {
 }
 
 async function handleConnect(host: string, port: number) {
-  await discoveryStore.connectToServer(host, port);
-  if (discoveryStore.isRemote) {
-    settingsStore.setConnectionMode('remote');
-    inferenceStore.engineReady = true;
-    inferenceStore.startPolling();
-    await settingsStore.loadGpuInfo();
-    await settingsStore.loadEngineStatus();
-  }
+  await connect(host, port);
 }
 
 async function handleDisconnect() {
-  await discoveryStore.disconnectFromServer();
-  settingsStore.setConnectionMode('local');
-  settingsStore.setRemoteEngineInfo(null);
-  inferenceStore.engineReady = false;
-  inferenceStore.stopPolling();
-  await settingsStore.loadGpuInfo();
-  await settingsStore.loadEngineStatus();
+  await disconnect();
 }
-
-onMounted(() => {
-  discoveryStore.loadConnectionMode();
-  discoveryStore.startDiscoveryPolling();
-});
-
-onUnmounted(() => {
-  discoveryStore.stopDiscoveryPolling();
-});
 </script>

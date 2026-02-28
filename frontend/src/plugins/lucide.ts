@@ -64,6 +64,8 @@ import {
   WandSparkles,
   Wifi,
   X,
+  Server,
+  ServerOff,
 } from 'lucide-vue-next';
 
 // Tag is only registered as 'TagIcon' alias to avoid collision with PrimeVue's Tag component
@@ -132,6 +134,8 @@ const icons = {
   WandSparkles,
   Wifi,
   X,
+  Server,
+  ServerOff,
 } as Record<string, any>;
 
 // Aliases used by components that imported with renames
