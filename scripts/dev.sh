@@ -2,8 +2,8 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-export LOG_LEVEL=INFO
+export LOG_LEVEL=DEBUG
 export DEV_MODE=1
 
 cd "$ROOT_DIR"
-exec env | grep DEBUG & uv run python main.py
+uv run python main.py
