@@ -42,7 +42,7 @@
         </RouterLink>
       </div>
     </div>
-    <div class="flex flex-col items-center justify-center h-20 shrink gap-1">
+    <div class="flex flex-col items-center justify-center h-20 shrink gap-1 pb-8">
       <button
         v-if="discoveryStore.servers.length > 0 || discoveryStore.isRemote"
         class="p-3 transition-all duration-300 ease-in-out disabled:opacity-50"
