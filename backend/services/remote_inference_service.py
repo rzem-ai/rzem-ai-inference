@@ -93,6 +93,8 @@ class RemoteInferenceService:
         bundle_id: str | None = None,
         style_id: str | None = None,
         raw_prompt: str | None = None,
+        output_dir: str | None = None,
+        output_filename: str | None = None,
     ) -> str:
         """Submit a generation job to the remote server via POST /jobs."""
         payload = params.model_dump() if hasattr(params, "model_dump") else dict(params)
