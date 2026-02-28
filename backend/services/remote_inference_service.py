@@ -104,10 +104,23 @@ class RemoteInferenceService:
             if hasattr(val, "value"):
                 payload[key] = val.value
 
+        logger.info(
+            "Remote job submitted | server=%s | prompt=%.120s | model=%s | size=%sx%s | steps=%s | seed=%s",
+            self._base_url,
+            payload.get("prompt", ""),
+            payload.get("transformer_model", ""),
+            payload.get("width", ""),
+            payload.get("height", ""),
+            payload.get("steps", ""),
+            payload.get("seed", ""),
+        )
+
         resp = requests.post(f"{self._base_url}/jobs", json=payload, timeout=30)
         resp.raise_for_status()
         data = resp.json()
         job_id = data["job_id"]
+
+        logger.info("Remote job accepted | job_id=%s", job_id)
 
         # Track for DB persistence on completion
         self._job_params[job_id] = params

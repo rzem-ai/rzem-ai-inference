@@ -313,9 +313,9 @@ export const useInferenceStore = defineStore('inference', {
       }
       const api = await getApiAsync();
       await api.cancel_job({ job_id: this.currentJobId });
-      this.isGenerating = false;
-      this.currentJobId = null;
-      this.progress = null;
+      // State is cleared when the job_cancelled event arrives via polling.
+      // For queued jobs this is near-instant; for running jobs it fires after
+      // the current denoising step completes (up to ~1 step duration).
     },
 
     // ── Batch ──

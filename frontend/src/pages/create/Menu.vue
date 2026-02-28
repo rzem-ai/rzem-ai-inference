@@ -33,10 +33,15 @@
     <template #footer>
       <ProgressOverlay />
       <div v-if="!store.isGenerating" class="flex gap-2">
-        <Button class="flex-1 transition-colors flex items-center justify-center gap-2" severity="primary" raised :disabled="!canGenerate" @click="onSubmit">
-          <Sparkles :size="16" />
-          Generate
-        </Button>
+        <div class="flex flex-1">
+          <Button class="flex-1 transition-colors flex items-center justify-center gap-2 rounded-r-none!" severity="primary" raised :disabled="!canGenerate" @click="onSubmit">
+            <Sparkles :size="16" />
+            {{ imageCount > 1 ? `Generate ×${imageCount}` : 'Generate' }}
+          </Button>
+          <Button class="transition-colors rounded-l-none! border-l border-white/20! px-3!" severity="primary" raised :disabled="!canGenerate" @click="toggleCountPopover">
+            <ChevronDown :size="14" />
+          </Button>
+        </div>
         <Button severity="secondary" variant="outlined" title="Batch Generation" :disabled="!store.engineReady" @click="showBatchDialog = true">
           <Layers :size="16" />
         </Button>
@@ -44,6 +49,7 @@
           <Grid3x3 :size="16" />
         </Button>
       </div>
+
       <Button v-else class="transition-colors flex items-center justify-center gap-2" severity="danger" fluid raised @click="store.cancelJob()">
         <Square :size="14" />
         Cancel
@@ -56,10 +62,23 @@
 
   <BatchDialog v-model:visible="showBatchDialog" />
   <GridDialog v-model:visible="showGridDialog" />
+
+  <Popover ref="countPopover">
+    <div class="flex flex-col py-1">
+      <button
+        v-for="n in [1, 2, 3, 4]"
+        :key="n"
+        class="px-4 py-2 text-sm text-left hover:bg-surface-100 transition-colors"
+        :class="imageCount === n ? 'font-semibold text-primary-600' : 'text-surface-700'"
+        @click="selectCount(n)">
+        {{ n }} {{ n === 1 ? 'image' : 'images' }}
+      </button>
+    </div>
+  </Popover>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useInferenceStore } from '@/stores/inference';
 import { useStylesStore } from '@/stores/styles';
 import { useChatStore } from '@/stores/chat';
@@ -82,11 +101,29 @@ const chatStore = useChatStore();
 
 const showBatchDialog = ref(false);
 const showGridDialog = ref(false);
+const imageCount = ref(parseInt(localStorage.getItem('imageCount') ?? '1', 10) || 1);
+const countPopover = ref();
+
+watch(imageCount, (n) => localStorage.setItem('imageCount', String(n)));
 
 const canGenerate = computed(() => store.engineReady && store.params.prompt.trim() && !store.isGenerating);
 
+function toggleCountPopover(event: Event) {
+  countPopover.value?.toggle(event);
+}
+
+function selectCount(n: number) {
+  imageCount.value = n;
+  countPopover.value?.hide();
+}
+
 function onSubmit() {
-  store.submitJob();
+  if (imageCount.value > 1) {
+    const prompts = Array(imageCount.value).fill(store.params.prompt);
+    store.submitBatch(prompts);
+  } else {
+    store.submitJob();
+  }
 }
 
 function onKeydown(e: KeyboardEvent) {
