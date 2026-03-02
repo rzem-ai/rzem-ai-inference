@@ -101,10 +101,13 @@ const chatStore = useChatStore();
 
 const showBatchDialog = ref(false);
 const showGridDialog = ref(false);
-const imageCount = ref(parseInt(localStorage.getItem('imageCount') ?? '1', 10) || 1);
+const imageCount = ref((() => {
+  try { return parseInt(localStorage.getItem('imageCount') ?? '1', 10) || 1; }
+  catch { return 1; }
+})());
 const countPopover = ref();
 
-watch(imageCount, (n) => localStorage.setItem('imageCount', String(n)));
+watch(imageCount, (n) => { try { localStorage.setItem('imageCount', String(n)); } catch {} });
 
 const canGenerate = computed(() => store.engineReady && store.params.prompt.trim() && !store.isGenerating);
 
