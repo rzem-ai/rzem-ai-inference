@@ -37,8 +37,13 @@
             </div>
           </div>
 
+          <div v-if="showRestartNotice" class="mt-3 flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg text-blue-700">
+            <RotateCcw :size="14" />
+            <span class="text-sm">Restart the application for this change to fully take effect on existing connections.</span>
+          </div>
+
           <div class="mt-3 text-sm text-slate-400">
-            Changes take effect immediately. The setting is persisted and applied automatically on startup.
+            The setting is persisted and applied automatically on startup.
           </div>
         </template>
       </Card>
@@ -52,13 +57,17 @@ import { useSettingsStore } from '@/stores/settings';
 
 const settingsStore = useSettingsStore();
 const localDisabled = ref(false);
+const initialValue = ref(false);
+const showRestartNotice = ref(false);
 
 async function handleToggle() {
   await settingsStore.saveSslVerificationDisabled(localDisabled.value);
+  showRestartNotice.value = localDisabled.value !== initialValue.value;
 }
 
 onMounted(async () => {
   await settingsStore.loadSslVerificationDisabled();
   localDisabled.value = settingsStore.sslVerificationDisabled;
+  initialValue.value = settingsStore.sslVerificationDisabled;
 });
 </script>
