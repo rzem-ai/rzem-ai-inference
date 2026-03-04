@@ -30,7 +30,16 @@ class ClaudeProvider:
     def configure(self, api_key: str) -> None:
         import anthropic
 
-        self._client = anthropic.Anthropic(api_key=api_key)
+        from backend.ssl_utils import is_ssl_verification_disabled
+
+        kwargs: dict[str, Any] = {"api_key": api_key}
+        if is_ssl_verification_disabled():
+            import httpx
+
+            kwargs["http_client"] = httpx.Client(verify=False)
+            logger.info("Claude provider using SSL-disabled httpx client")
+
+        self._client = anthropic.Anthropic(**kwargs)
         logger.info("Claude provider configured")
 
     @property

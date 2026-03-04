@@ -74,6 +74,28 @@ def disable_ssl_verification() -> None:
     except ImportError:
         pass
 
+    # 5. Monkey-patch httpx.Client and httpx.AsyncClient to default verify=False
+    #    This is critical for the Anthropic SDK and any other library using httpx,
+    #    since httpx creates its own SSL context and ignores ssl._create_default_https_context
+    try:
+        import httpx
+
+        _orig_httpx_client_init = httpx.Client.__init__
+        _orig_httpx_async_client_init = httpx.AsyncClient.__init__
+
+        def _patched_httpx_client_init(self, *args, **kwargs):
+            kwargs.setdefault("verify", False)
+            _orig_httpx_client_init(self, *args, **kwargs)
+
+        def _patched_httpx_async_client_init(self, *args, **kwargs):
+            kwargs.setdefault("verify", False)
+            _orig_httpx_async_client_init(self, *args, **kwargs)
+
+        httpx.Client.__init__ = _patched_httpx_client_init  # type: ignore[method-assign]
+        httpx.AsyncClient.__init__ = _patched_httpx_async_client_init  # type: ignore[method-assign]
+    except ImportError:
+        pass
+
     _ssl_disabled = True
     logger.info("SSL certificate verification disabled globally")
 
