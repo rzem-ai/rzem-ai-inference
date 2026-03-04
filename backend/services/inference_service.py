@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+import io
 import json
 import logging
 import os
@@ -14,6 +16,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import requests
 from PIL import Image
 
 from rzem_ai_inference_engine import (
@@ -57,6 +60,7 @@ class LocalInferenceService:
         self._job_output_filenames: dict[str, str] = {}  # job_id → custom output filename stem
         self._start_time: float | None = None  # monotonic time engine started
         self._completed_count: int = 0  # total jobs completed this session
+        self._fal_cancel: set[str] = set()  # job_ids flagged for cancellation
 
     def set_output_dir(self, output_dir: Path) -> None:
         """Update the output directory, creating it if needed."""
@@ -142,6 +146,12 @@ class LocalInferenceService:
             "completed_count": self._completed_count,
         }
 
+    def _is_fal_cloud(self, params: JobParams) -> bool:
+        """Check if params indicate a FAL cloud job."""
+        tt = params.transformer_type
+        val = tt.value if hasattr(tt, "value") else str(tt)
+        return val == "fal_cloud"
+
     def submit(
         self,
         params: JobParams,
@@ -152,6 +162,12 @@ class LocalInferenceService:
         output_filename: str | None = None,
     ) -> str:
         """Submit a generation job. Returns the job ID."""
+        # Handle FAL cloud jobs directly to avoid engine pipeline argument mismatch
+        if self._is_fal_cloud(params):
+            return self._submit_fal_cloud(
+                params, bundle_id, style_id, raw_prompt, output_dir, output_filename,
+            )
+
         if not self._engine:
             raise RuntimeError("Engine not started")
         job_id = self._engine.submit(params)
@@ -172,9 +188,182 @@ class LocalInferenceService:
         return job_id
 
     def cancel(self, job_id: str) -> None:
+        # Allow cancelling FAL cloud jobs (signal the polling loop to stop)
+        if job_id in self._fal_cancel or job_id in self._job_params:
+            tt = self._job_params.get(job_id)
+            if tt and self._is_fal_cloud(tt):
+                self._fal_cancel.add(job_id)
+                return
         if not self._engine:
             raise RuntimeError("Engine not started")
         self._engine.cancel(job_id)
+
+    # ── FAL Cloud (direct REST API, bypasses engine pipeline) ────────
+
+    def _store_job_metadata(
+        self,
+        job_id: str,
+        params: JobParams,
+        bundle_id: str | None,
+        style_id: str | None,
+        raw_prompt: str | None,
+        output_dir: str | None,
+        output_filename: str | None,
+    ) -> None:
+        """Store job metadata used by image saving and DB persistence."""
+        self._job_params[job_id] = params
+        self._job_start_times[job_id] = time.monotonic()
+        if bundle_id:
+            self._job_bundle_ids[job_id] = bundle_id
+        if style_id:
+            self._job_style_ids[job_id] = style_id
+        if raw_prompt is not None:
+            self._job_raw_prompts[job_id] = raw_prompt
+        if output_dir:
+            out = Path(output_dir)
+            out.mkdir(parents=True, exist_ok=True)
+            self._job_output_dirs[job_id] = out
+        if output_filename:
+            self._job_output_filenames[job_id] = Path(output_filename).stem
+
+    def _submit_fal_cloud(
+        self,
+        params: JobParams,
+        bundle_id: str | None,
+        style_id: str | None,
+        raw_prompt: str | None,
+        output_dir: str | None,
+        output_filename: str | None,
+    ) -> str:
+        """Submit a FAL cloud job directly via REST API, bypassing the engine."""
+        job_id = str(uuid.uuid4())
+        self._store_job_metadata(
+            job_id, params, bundle_id, style_id, raw_prompt, output_dir, output_filename,
+        )
+        thread = threading.Thread(
+            target=self._run_fal_cloud,
+            args=(job_id, params),
+            daemon=True,
+            name=f"fal-cloud-{job_id[:8]}",
+        )
+        thread.start()
+        return job_id
+
+    def _run_fal_cloud(self, job_id: str, params: JobParams) -> None:
+        """Execute a FAL cloud generation via the queue API."""
+        try:
+            self._emit_fal_event("job_queued", {"job_id": job_id})
+
+            endpoint = params.fal_endpoint
+            api_key = params.fal_api_key
+            if not endpoint or not api_key:
+                self._emit_fal_event("job_failed", {
+                    "job_id": job_id,
+                    "error": "FAL endpoint or API key not configured",
+                })
+                return
+
+            headers = {
+                "Authorization": f"Key {api_key}",
+                "Content-Type": "application/json",
+            }
+
+            body: dict[str, Any] = {
+                "prompt": params.prompt,
+                "image_size": {"width": params.width, "height": params.height},
+            }
+            if params.steps and params.steps > 0:
+                body["num_inference_steps"] = params.steps
+            if params.cfg_scale and params.cfg_scale > 0:
+                body["guidance_scale"] = params.cfg_scale
+            if params.seed is not None and params.seed >= 0:
+                body["seed"] = params.seed
+
+            # Encode input image for img2img / kontext endpoints
+            if params.input_image_path:
+                input_path = Path(params.input_image_path)
+                if input_path.is_file():
+                    b64 = base64.b64encode(input_path.read_bytes()).decode("ascii")
+                    ext = input_path.suffix.lower()
+                    mime = "image/jpeg" if ext in (".jpg", ".jpeg") else "image/png"
+                    body["image_url"] = f"data:{mime};base64,{b64}"
+
+            logger.info("FAL cloud submit | job=%s endpoint=%s", job_id, endpoint)
+            self._emit_fal_event("job_started", {"job_id": job_id})
+
+            # Submit to FAL queue API
+            queue_url = f"https://queue.fal.run/{endpoint}"
+            submit_resp = requests.post(queue_url, headers=headers, json=body, timeout=30)
+            submit_resp.raise_for_status()
+            request_id = submit_resp.json()["request_id"]
+            logger.info("FAL cloud queued | job=%s request_id=%s", job_id, request_id)
+
+            # Poll for completion
+            status_url = f"{queue_url}/requests/{request_id}/status"
+            while True:
+                if job_id in self._fal_cancel:
+                    self._fal_cancel.discard(job_id)
+                    self._emit_fal_event("job_cancelled", {"job_id": job_id})
+                    logger.info("FAL cloud cancelled | job=%s", job_id)
+                    return
+
+                time.sleep(1)
+                status_resp = requests.get(status_url, headers=headers, timeout=10)
+                status_resp.raise_for_status()
+                status_data = status_resp.json()
+                status = status_data.get("status", "")
+
+                if status == "COMPLETED":
+                    break
+                elif status in ("FAILED", "CANCELLED"):
+                    error_msg = status_data.get("error", f"FAL job {status.lower()}")
+                    self._emit_fal_event("job_failed", {"job_id": job_id, "error": error_msg})
+                    return
+
+            # Fetch result
+            result_url = f"{queue_url}/requests/{request_id}"
+            result_resp = requests.get(result_url, headers=headers, timeout=60)
+            result_resp.raise_for_status()
+            result_data = result_resp.json()
+
+            images = result_data.get("images", [])
+            if not images:
+                self._emit_fal_event("job_failed", {
+                    "job_id": job_id, "error": "No images in FAL response",
+                })
+                return
+
+            # Download and save the image
+            image_url = images[0]["url"]
+            img_resp = requests.get(image_url, timeout=120)
+            img_resp.raise_for_status()
+            image = Image.open(io.BytesIO(img_resp.content))
+
+            seed = result_data.get("seed", -1)
+            image_path, cover_path = self._save_output_image(image, job_id, seed=seed)
+
+            event_data: dict[str, Any] = {
+                "job_id": job_id,
+                "image_path": image_path,
+                "cover_path": cover_path,
+                "seed": seed,
+                "width": params.width,
+                "height": params.height,
+            }
+
+            self._completed_count += 1
+            self._persist_image(event_data)
+            self._emit_fal_event("job_completed", event_data)
+            logger.info("FAL cloud completed | job=%s", job_id)
+
+        except Exception as e:
+            logger.exception("FAL cloud job %s failed", job_id)
+            self._emit_fal_event("job_failed", {"job_id": job_id, "error": str(e)})
+
+    def _emit_fal_event(self, event_type: str, data: dict[str, Any]) -> None:
+        """Push a frontend event directly (bypasses engine event system)."""
+        with self._lock:
+            self._events.append(FrontendEvent(type=event_type, data=data))
 
     def drain_events(self) -> list[dict[str, Any]]:
         """Return and clear all buffered events. Thread-safe."""
