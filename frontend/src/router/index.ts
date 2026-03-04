@@ -111,6 +111,11 @@ const router = createRouter({
           name: 'settings-ai',
           component: () => import('@/pages/settings/AI.vue'),
         },
+        {
+          path: 'network',
+          name: 'settings-network',
+          component: () => import('@/pages/settings/Network.vue'),
+        },
       ],
     },
   ],
