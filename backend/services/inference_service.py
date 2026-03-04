@@ -295,11 +295,15 @@ class LocalInferenceService:
             queue_url = f"https://queue.fal.run/{endpoint}"
             submit_resp = requests.post(queue_url, headers=headers, json=body, timeout=30)
             submit_resp.raise_for_status()
-            request_id = submit_resp.json()["request_id"]
+            submit_data = submit_resp.json()
+            request_id = submit_data["request_id"]
+
+            # Use pre-built URLs from the submit response (handles subpath routing correctly)
+            status_url = submit_data.get("status_url", f"{queue_url}/requests/{request_id}/status")
+            response_url = submit_data.get("response_url", f"{queue_url}/requests/{request_id}")
             logger.info("FAL cloud queued | job=%s request_id=%s", job_id, request_id)
 
             # Poll for completion
-            status_url = f"{queue_url}/requests/{request_id}/status"
             while True:
                 if job_id in self._fal_cancel:
                     self._fal_cancel.discard(job_id)
@@ -321,8 +325,7 @@ class LocalInferenceService:
                     return
 
             # Fetch result
-            result_url = f"{queue_url}/requests/{request_id}"
-            result_resp = requests.get(result_url, headers=headers, timeout=60)
+            result_resp = requests.get(response_url, headers=headers, timeout=60)
             result_resp.raise_for_status()
             result_data = result_resp.json()
 
