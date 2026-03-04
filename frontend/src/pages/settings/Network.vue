@@ -18,7 +18,7 @@
                 (model downloads, API calls, remote servers) to work through the proxy.
               </div>
               <div v-if="localDisabled" class="mt-2 flex items-center gap-2 text-amber-600">
-                <ShieldAlert :size="14" />
+                <Shield :size="14" />
                 <span class="text-sm font-medium">SSL verification is disabled. Connections are not verified.</span>
               </div>
             </div>

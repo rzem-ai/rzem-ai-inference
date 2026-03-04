@@ -31,7 +31,7 @@ const navItems = [
   { label: 'Image Generation', icon: 'SlidersHorizontal', route: 'settings-generation' },
   { label: 'Inference Engine', icon: 'Cpu', route: 'settings-engine' },
   { label: 'Model Cache', icon: 'HardDrive', route: 'settings-cache' },
-  { label: 'Remote Servers', icon: 'Wifi', route: 'settings-servers' },
   { label: 'Network', icon: 'Globe', route: 'settings-network' },
+  { label: 'Remote Servers', icon: 'Wifi', route: 'settings-servers' },
 ];
 </script>

@@ -10,7 +10,7 @@
       <TabList>
         <Tab value="prompts">
           <div class="flex items-center gap-1">
-            <List :size="14" />
+            <ListIcon :size="14" />
             Prompts
           </div>
         </Tab>
