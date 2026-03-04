@@ -116,6 +116,10 @@ export interface PywebviewAPI {
   get_disk_usage(): Promise<ApiResponse<Partial<DiskUsage>>>;
   browse_output_directory(): Promise<ApiResponse<{ changed?: boolean; output_dir?: string }>>;
 
+  // ── SSL Verification ──
+  get_ssl_verification_disabled(): Promise<ApiResponse<{ disabled?: boolean }>>;
+  set_ssl_verification_disabled(args: { disabled: boolean }): Promise<ApiResponse<{ disabled?: boolean }>>;
+
   // ── Styles ──
   get_styles(args?: {
     category?: string;

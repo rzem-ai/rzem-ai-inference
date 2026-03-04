@@ -52,6 +52,9 @@ export const useSettingsStore = defineStore('settings', {
       },
     } as Record<string, { prompt: string; displayText: string }>,
 
+    // Network / SSL
+    sslVerificationDisabled: false,
+
     loading: false,
   }),
 
@@ -349,6 +352,24 @@ export const useSettingsStore = defineStore('settings', {
           output_size: res.output_size ?? 0,
           hf_cache_size: res.hf_cache_size ?? 0,
         };
+      }
+    },
+
+    // ── Network / SSL ──
+
+    async loadSslVerificationDisabled() {
+      const api = await getApiAsync();
+      const res = await api.get_ssl_verification_disabled();
+      if (res.status === 'success') {
+        this.sslVerificationDisabled = res.disabled ?? false;
+      }
+    },
+
+    async saveSslVerificationDisabled(disabled: boolean) {
+      const api = await getApiAsync();
+      const res = await api.set_ssl_verification_disabled({ disabled });
+      if (res.status === 'success') {
+        this.sslVerificationDisabled = res.disabled ?? false;
       }
     },
 

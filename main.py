@@ -33,6 +33,7 @@ from backend.services.chat_service import ChatService
 from backend.services.discovery_service import DiscoveryService
 from backend.services.inference_manager import InferenceServiceManager
 from backend.services.inference_service import LocalInferenceService
+from backend.ssl_utils import disable_ssl_verification
 from backend.tracing import trace_method
 
 logging.basicConfig(
@@ -93,6 +94,10 @@ def main() -> None:
 
     db = Database(config.data_dir / "inference.db")
     db.connect()
+
+    # Apply SSL verification setting before any network activity
+    if db.get_setting("DISABLE_SSL_VERIFICATION") == "1":
+        disable_ssl_verification()
 
     # Use custom output directory from DB settings, falling back to default
     output_dir = config.output_dir

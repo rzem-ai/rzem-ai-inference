@@ -12,6 +12,7 @@ import webview
 from backend.config import AppConfig
 from backend.db.database import Database
 from backend.services.inference_manager import InferenceServiceManager
+from backend.ssl_utils import disable_ssl_verification, enable_ssl_verification, is_ssl_verification_disabled
 
 logger = logging.getLogger(__name__)
 
@@ -238,4 +239,37 @@ class SettingsAPI:
             }
         except Exception as e:
             logger.error("Failed to get disk usage: %s", e)
+            return {"status": "error", "message": str(e)}
+
+    # ── SSL Verification ──────────────────────────────────────────
+
+    def get_ssl_verification_disabled(self) -> dict[str, Any]:
+        """Return whether SSL verification is currently disabled."""
+        try:
+            return {
+                "status": "success",
+                "disabled": is_ssl_verification_disabled(),
+            }
+        except Exception as e:
+            logger.error("Failed to get SSL verification status: %s", e)
+            return {"status": "error", "message": str(e)}
+
+    def set_ssl_verification_disabled(self, disabled: bool = False, **kwargs) -> dict[str, Any]:
+        """Enable or disable SSL certificate verification globally.
+
+        When disabled, all HTTPS connections skip certificate validation.
+        This is required in corporate environments with SSL-intercepting proxies.
+        The setting is persisted and applied on next startup.
+        """
+        try:
+            if disabled:
+                disable_ssl_verification()
+            else:
+                enable_ssl_verification()
+
+            self._db.set_setting("DISABLE_SSL_VERIFICATION", "1" if disabled else "0")
+            logger.info("SSL verification %s (persisted)", "disabled" if disabled else "enabled")
+            return {"status": "success", "disabled": disabled}
+        except Exception as e:
+            logger.error("Failed to set SSL verification: %s", e)
             return {"status": "error", "message": str(e)}

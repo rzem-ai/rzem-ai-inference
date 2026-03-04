@@ -456,6 +456,14 @@ export const mockApi: PywebviewAPI = {
     return { status: "success", changed: false };
   },
 
+  // ── SSL Verification ──
+  async get_ssl_verification_disabled() {
+    return { status: "success", disabled: false };
+  },
+  async set_ssl_verification_disabled(_args: { disabled: boolean }) {
+    return { status: "success", disabled: _args.disabled };
+  },
+
   // ── Styles ──
   async get_styles(_args?) {
     return {

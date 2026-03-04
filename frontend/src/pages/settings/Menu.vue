@@ -32,5 +32,6 @@ const navItems = [
   { label: 'Inference Engine', icon: 'Cpu', route: 'settings-engine' },
   { label: 'Model Cache', icon: 'HardDrive', route: 'settings-cache' },
   { label: 'Remote Servers', icon: 'Wifi', route: 'settings-servers' },
+  { label: 'Network', icon: 'Globe', route: 'settings-network' },
 ];
 </script>
