@@ -241,6 +241,40 @@ class SettingsAPI:
             logger.error("Failed to get disk usage: %s", e)
             return {"status": "error", "message": str(e)}
 
+    # ── Setup ─────────────────────────────────────────────────────
+
+    def complete_setup(self, generation_mode: str, api_keys: dict | None = None, **kwargs) -> dict[str, Any]:
+        """Complete first-run setup: save generation mode, API keys, and hide cloud bundles if local-only.
+
+        Args:
+            generation_mode: "local", "both", or "cloud"
+            api_keys: Optional dict of {setting_key: value} for API keys
+        """
+        try:
+            self._db.set_setting("GENERATION_MODE", generation_mode)
+
+            # Save any provided API keys
+            if api_keys:
+                for key, value in api_keys.items():
+                    if value:
+                        self._db.set_setting(key, value)
+                        if key == "HF_API_KEY":
+                            os.environ["HF_TOKEN"] = value
+
+            # For local-only mode, hide all cloud bundles
+            if generation_mode == "local":
+                bundles = self._db.get_bundles(include_hidden=True)
+                for b in bundles:
+                    if b.get("source", "local") == "cloud" and not b.get("hidden"):
+                        self._db.toggle_bundle_hidden(b["id"])
+
+            self._db.set_setting("SETUP_COMPLETED", "1")
+            logger.info("Setup completed: mode=%s", generation_mode)
+            return {"status": "success"}
+        except Exception as e:
+            logger.error("Failed to complete setup: %s", e)
+            return {"status": "error", "message": str(e)}
+
     # ── SSL Verification ──────────────────────────────────────────
 
     def get_ssl_verification_disabled(self) -> dict[str, Any]:

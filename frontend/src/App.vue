@@ -11,18 +11,36 @@
       <RouterView />
     </main>
   </div>
+
+  <SetupDialog v-model:visible="showSetup" @completed="onSetupCompleted" />
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import NavBar from '@/components/NavBar.vue';
+import SetupDialog from '@/components/SetupDialog.vue';
 import { useDiscoveryStore } from '@/stores/discovery';
+import { getApiAsync } from '@/bridge';
 
 const discoveryStore = useDiscoveryStore();
+const showSetup = ref(false);
+
+async function checkFirstRun() {
+  const api = await getApiAsync();
+  const res = await api.get_setting({ key: 'SETUP_COMPLETED' });
+  if (res.status === 'success' && res.value !== '1') {
+    showSetup.value = true;
+  }
+}
+
+function onSetupCompleted() {
+  showSetup.value = false;
+}
 
 onMounted(() => {
   discoveryStore.loadConnectionMode();
   discoveryStore.startDiscoveryPolling();
+  checkFirstRun();
 });
 
 onUnmounted(() => {

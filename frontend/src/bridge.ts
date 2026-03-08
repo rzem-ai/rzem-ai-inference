@@ -368,6 +368,11 @@ export const mockApi: PywebviewAPI = {
     return { status: "success", tags: [] };
   },
 
+  // ── Setup ──
+  async complete_setup(_args) {
+    return { status: "success" };
+  },
+
   // ── Settings (key-value) ──
   async get_setting(_args) {
     return { status: "success", value: null };
