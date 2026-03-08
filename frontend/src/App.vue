@@ -20,9 +20,11 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import NavBar from '@/components/NavBar.vue';
 import SetupDialog from '@/components/SetupDialog.vue';
 import { useDiscoveryStore } from '@/stores/discovery';
+import { useChatStore } from '@/stores/chat';
 import { getApiAsync } from '@/bridge';
 
 const discoveryStore = useDiscoveryStore();
+const chatStore = useChatStore();
 const showSetup = ref(false);
 
 async function checkFirstRun() {
@@ -33,8 +35,9 @@ async function checkFirstRun() {
   }
 }
 
-function onSetupCompleted() {
+async function onSetupCompleted() {
   showSetup.value = false;
+  await chatStore.checkConfigured();
 }
 
 onMounted(() => {

@@ -58,9 +58,11 @@
 import { reactive, onMounted } from 'vue';
 import { useInferenceStore } from '@/stores/inference';
 import { useSettingsStore } from '@/stores/settings';
+import { useChatStore } from '@/stores/chat';
 
 const settingsStore = useSettingsStore();
 const inferenceStore = useInferenceStore();
+const chatStore = useChatStore();
 
 const keyDefinitions = [
   {
@@ -109,6 +111,9 @@ async function handleSave(key: string) {
     await settingsStore.deleteApiKey(key);
     localKeys[key] = '';
   }
+  if (key === 'CLAUDE_API_KEY') {
+    await chatStore.checkConfigured();
+  }
   if (key === 'FAL_KEY') {
     await inferenceStore.loadBundles();
   }
@@ -118,6 +123,9 @@ async function handleDelete(key: string) {
   await settingsStore.deleteApiKey(key);
   localKeys[key] = '';
   visibleKeys[key] = false;
+  if (key === 'CLAUDE_API_KEY') {
+    await chatStore.checkConfigured();
+  }
   if (key === 'FAL_KEY') {
     // Deselect current bundle if it's a cloud bundle
     if (inferenceStore.selectedBundle?.source === 'cloud') {
