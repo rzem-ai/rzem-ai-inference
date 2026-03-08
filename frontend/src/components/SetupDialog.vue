@@ -8,26 +8,25 @@
     class="w-160">
 
     <!-- Step 1: Generation Mode Selection -->
-    <div v-if="step === 'mode'" class="flex flex-col gap-4 py-2">
-      <p class="text-surface-400 text-sm">Choose how you want to generate images. You can change this later in Settings.</p>
+    <div v-if="step === 'mode'" class="flex flex-col gap-4  ">
+      <p class="text-surface-700 text-lg">Choose how you want to generate images. You can change this later in Settings.</p>
 
       <div class="flex flex-col gap-3">
-        <button
+        <Button
           v-for="mode in modes"
           :key="mode.id"
-          class="flex items-start gap-4 p-4 rounded-lg border-2 text-left transition-colors cursor-pointer"
-          :class="selectedMode === mode.id
-            ? 'border-primary-500 bg-primary-500/10'
-            : 'border-surface-600 bg-surface-700 hover:border-surface-400'"
+          :severity="selectedMode === mode.id ? 'primary' : 'secondary'"
+          class="flex items-start gap-4 p-4 text-left "
+          :class="selectedMode === mode.id ? '' : ''"
           @click="selectedMode = mode.id">
           <div class="mt-1 shrink-0">
-            <component :is="mode.icon" :size="28" class="text-primary-400" />
+            <component :is="mode.icon" :size="28" class="text-primary-500" :class="selectedMode === mode.id ? 'text-surface-0' : 'text-primary-500'" />
           </div>
           <div class="flex flex-col gap-1">
-            <span class="text-base font-semibold text-surface-0">{{ mode.label }}</span>
-            <span class="text-sm text-surface-400">{{ mode.description }}</span>
+            <span class="text-xl font-semibold" :class="selectedMode === mode.id ? 'text-surface-0' : 'text-surface-700'">{{ mode.label }}</span>
+            <span class="text-lg" :class="selectedMode === mode.id ? 'text-surface-100' : 'text-surface-700'">{{ mode.description }}</span>
           </div>
-        </button>
+        </Button>
       </div>
     </div>
 
@@ -42,8 +41,8 @@
 
       <div class="flex flex-col gap-3">
         <div v-for="keyDef in requiredKeys" :key="keyDef.key" class="flex flex-col gap-1">
-          <label class="text-sm font-medium text-surface-200">{{ keyDef.label }}</label>
-          <p class="text-xs text-surface-400 mb-1">{{ keyDef.description }}</p>
+          <label class="text-lg font-medium text-surface-700">{{ keyDef.label }}</label>
+          <p class="text-base text-surface-500 mb-1">{{ keyDef.description }}</p>
           <InputGroup>
             <InputGroupAddon class="bg-surface-100"><KeySquare :size="16" /></InputGroupAddon>
             <InputText
@@ -192,7 +191,7 @@ const hasAnyKey = computed(() => {
 });
 
 const stepTitle = computed(() => {
-  return step.value === 'mode' ? 'Welcome to Rzem AI' : 'API Keys (Optional)';
+  return step.value === 'mode' ? 'Welcome to Inference' : 'API Keys (Optional)';
 });
 
 function handleModeSelected() {
