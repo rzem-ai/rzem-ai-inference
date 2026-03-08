@@ -19,6 +19,7 @@ uv run pyinstaller \
   --noconfirm \
   --windowed \
   --add-data "$ROOT_DIR/frontend/dist:frontend/dist" \
+  --add-data "$ROOT_DIR/backend/db/schema.sql:backend/db" \
   main.py
 
 echo ""

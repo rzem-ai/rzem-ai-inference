@@ -33,6 +33,11 @@ else
   uv pip install pyinstaller
 fi
 
+if [ "$OS" = "Darwin" ]; then
+  echo "==> Installing create-dmg..."
+  brew install create-dmg
+fi
+
 echo "==> Installing frontend dependencies..."
 cd "$ROOT_DIR/frontend"
 npm install
