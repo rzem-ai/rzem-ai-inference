@@ -126,6 +126,17 @@
     <!-- Card context menu -->
     <ContextMenu ref="cardMenu" :model="cardMenuItems" />
 
+    <!-- Create style loading dialog -->
+    <Dialog v-model:visible="creatingStyle" modal :closable="false" :style="{ width: '300px' }">
+      <template #header>
+        <span class="font-semibold">Creating Style</span>
+      </template>
+      <div class="flex flex-col items-center gap-3 py-4">
+        <div class="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+        <p class="text-sm text-slate-500 text-center">Analyzing image and generating style…</p>
+      </div>
+    </Dialog>
+
     <!-- Image overlay (full-screen lightbox) -->
     <ImageOverlay
       v-if="selectedImage"
@@ -146,7 +157,9 @@
 
 <script setup lang="ts">
 import { computed, ref, reactive, onMounted, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import { useGalleryStore } from '@/stores/gallery';
+import { usePywebview } from '@/composables/usePywebview';
 import type { GalleryImage } from '@/types/inference';
 import GalleryList from './GalleryList.vue';
 import ImageOverlay from './ImageOverlay.vue';
@@ -155,6 +168,8 @@ import FolderPopover from './FolderPopover.vue';
 import TagPopover from './TagPopover.vue';
 
 const gallery = useGalleryStore();
+const router = useRouter();
+const { api } = usePywebview();
 
 const GRID_VIEW = { value: 'grid', icon: 'LayoutGrid' };
 const LIST_VIEW = { value: 'list', icon: 'ListIcon' };
@@ -170,6 +185,7 @@ const tagPopover = ref<InstanceType<typeof TagPopover>>();
 const sortPopover = ref();
 const cardMenu = ref();
 const contextImageId = ref<string | null>(null);
+const creatingStyle = ref(false);
 
 const gallerySortOptions = [
   { value: 'created_at', label: 'Date' },
@@ -277,7 +293,31 @@ function onToggleSortOrder() {
 
 // ── Context menu ──
 
+async function onCreateStyleFromImage() {
+  if (!contextImageId.value || !api.value) return;
+  const image = gallery.images.find(i => i.id === contextImageId.value);
+  if (!image) return;
+
+  creatingStyle.value = true;
+  try {
+    const res = await api.value.create_style_from_image({ image_path: image.file_path });
+    if (res.status === 'success' && res.style) {
+      router.push({ name: 'styles-edit', params: { id: res.style.id } });
+    } else {
+      alert(res.message ?? 'Failed to create style');
+    }
+  } finally {
+    creatingStyle.value = false;
+  }
+}
+
 const cardMenuItems = computed(() => [
+  {
+    label: 'Create Style from Image',
+    icon: 'pi pi-palette',
+    command: onCreateStyleFromImage,
+  },
+  { separator: true },
   {
     label: 'Add to Folder',
     icon: 'pi pi-folder',

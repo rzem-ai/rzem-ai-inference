@@ -43,7 +43,7 @@ export const useSettingsStore = defineStore('settings', {
         displayText: 'Analyze style from image',
       },
       both: {
-        prompt: 'Analyze this image in exhaustive detail — subject, composition, lighting, color palette, artistic style, medium, mood, and any notable visual elements. Then update my prompt to reproduce this image as closely as possible.',
+        prompt: 'Analyze this image in exhaustive detail to generate a FLUX-optimized reproduction prompt. Write the prompt as one continuous flowing paragraph (150–350 words), starting directly with the subject — not with "A photo of" or "An image of". Use precise, concrete language. Do not invent elements not visible in the image. Describe in this order: (1) Medium & Format — photograph, illustration, painting, 3D render, etc. (2) Primary Subject — form, posture, expression, clothing, texture, color, distinguishing features. (3) Composition & Framing — camera angle, shot type, focal length feel, depth of field. (4) Spatial Layout — foreground, midground, background elements and relative positions. (5) Lighting — type, direction, quality, color temperature. (6) Color Palette — dominant hues, accents, saturation, contrast. (7) Atmosphere & Mood — emotional tone, environmental conditions. (8) Texture & Surface Detail — material qualities, film grain, noise. (9) Style & Aesthetic — recognizable aesthetic, photographic or artistic technique. (10) Technical Qualities — sharpness, post-processing, aspect ratio. For photographic images, include plausible camera/lens descriptors. Then update my prompt to reproduce this image as closely as possible.',
         displayText: 'Analyze style and subject from image',
       },
       subject: {

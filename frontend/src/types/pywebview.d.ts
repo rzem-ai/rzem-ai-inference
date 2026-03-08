@@ -192,6 +192,9 @@ export interface PywebviewAPI {
   browse_and_import_metadata(): Promise<ApiResponse<{ styles?: Style[]; errors?: string[] }>>;
   import_civitai_metadata(args: { file_path?: string; json_content?: string }): Promise<ApiResponse<{ style?: Style }>>;
 
+  // ── Style from Image ──
+  create_style_from_image(args: { image_path: string }): Promise<ApiResponse<{ style?: Style }>>;
+
   // ── Style AI Review ──
   review_styles(args: { style_ids: string[] }): Promise<ApiResponse<{ suggestions?: StyleReviewSuggestion[] }>>;
   apply_style_review(args: { changes: Array<{ style_id: string; name?: string; tags?: string[] }> }): Promise<ApiResponse<{ applied?: number }>>;

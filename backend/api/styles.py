@@ -798,6 +798,100 @@ class StylesAPI:
             logger.error("Failed to apply style review: %s", e)
             return {"status": "error", "message": str(e)}
 
+    # ── Create Style from Image ────────────────────────────────
+
+    def create_style_from_image(self, image_path: str, **kwargs) -> dict[str, Any]:
+        """Create a new style from a gallery image, using AI to generate style attributes."""
+        try:
+            if not os.path.isfile(image_path):
+                return {"status": "error", "message": f"Image not found: {image_path}"}
+
+            style_id = str(uuid.uuid4())
+
+            # Copy image into the styles directory
+            paths = store_style_image(image_path, self._styles_dir, style_id)
+            if not paths:
+                return {"status": "error", "message": "Failed to import image into styles directory"}
+            full_image_path, thumbnail_path = paths
+
+            # Fallback name from filename
+            fallback_name = Path(image_path).stem.replace("_", " ").replace("-", " ").title()
+
+            prompt_template = "{prompt}"
+            description: str | None = None
+            category: str | None = None
+            ai_name: str | None = None
+
+            # AI generation if vision is available
+            if self._chat and self._chat.is_configured and self._chat.active_provider.supports_vision():
+                try:
+                    mime = mimetypes.guess_type(str(full_image_path))[0] or "image/png"
+                    image_data = base64.standard_b64encode(Path(full_image_path).read_bytes()).decode("ascii")
+
+                    messages = [{
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "image",
+                                "source": {
+                                    "type": "base64",
+                                    "media_type": mime,
+                                    "data": image_data,
+                                },
+                            },
+                            {
+                                "type": "text",
+                                "text": (
+                                    "Analyze this image and create an AI image generation style from it.\n\n"
+                                    "Return a JSON object with exactly these fields:\n"
+                                    '- "name": A short, creative style name (2-4 words, title case)\n'
+                                    '- "description": A 1-2 sentence description of the visual style\n'
+                                    '- "prompt_template": A generation prompt template capturing the visual style '
+                                    "(lighting, color palette, medium, mood, aesthetic). MUST include {prompt} exactly once. "
+                                    "30-80 words, written as a generation prompt. Do NOT describe specific subjects — only the style.\n"
+                                    '- "category": Best fitting category from: Photography, Illustration, Painting, '
+                                    "Digital Art, Architecture, Fashion, Character Design, Mixed Media\n\n"
+                                    "Output ONLY valid JSON, no markdown fences, no extra text."
+                                ),
+                            },
+                        ],
+                    }]
+
+                    raw = self._chat.complete(messages, max_tokens=512).strip()
+                    if raw.startswith("```"):
+                        raw = raw.split("\n", 1)[1] if "\n" in raw else raw[3:]
+                        if raw.endswith("```"):
+                            raw = raw[:-3]
+                        raw = raw.strip()
+
+                    style_data = json.loads(raw)
+                    ai_name = style_data.get("name")
+                    prompt_template = style_data.get("prompt_template", "{prompt}")
+                    description = style_data.get("description")
+                    category = style_data.get("category")
+
+                    if "{prompt}" not in prompt_template:
+                        prompt_template += " {prompt}"
+
+                except Exception as e:
+                    logger.warning("AI style generation from image failed: %s", e)
+
+            style = self._db.insert_style(
+                id=style_id,
+                name=ai_name or fallback_name,
+                prompt_template=prompt_template,
+                description=description,
+                thumbnail_path=thumbnail_path,
+                category=category,
+            )
+
+            logger.info("Created style from image '%s' → '%s' (id=%s)", image_path, style["name"], style_id)
+            return {"status": "success", "style": style}
+
+        except Exception as e:
+            logger.error("Failed to create style from image: %s", e)
+            return {"status": "error", "message": str(e)}
+
     # ── Style Builder ─────────────────────────────────────────
 
     def generate_style_from_filters(self, filters: list[str], **kwargs) -> dict[str, Any]:

@@ -492,6 +492,19 @@ export const useInferenceStore = defineStore('inference', {
 
     applyParams(partial: Partial<SubmitJobParams>) {
       Object.assign(this.params, partial);
+      if (partial.width !== undefined || partial.height !== undefined) {
+        const ratio = this.params.width / this.params.height;
+        let closest = ASPECT_RATIOS[0];
+        let minDiff = Infinity;
+        for (const ar of ASPECT_RATIOS) {
+          const diff = Math.abs(ar.width / ar.height - ratio);
+          if (diff < minDiff) {
+            minDiff = diff;
+            closest = ar;
+          }
+        }
+        this.activeAspectRatio = closest.label;
+      }
     },
 
     setError(error: string | null) {
