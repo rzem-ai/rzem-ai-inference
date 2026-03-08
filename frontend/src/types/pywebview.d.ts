@@ -100,6 +100,9 @@ export interface PywebviewAPI {
   remove_tag_from_image(args: { image_id: string; tag_id: number }): Promise<ApiResponse>;
   get_image_tags(args: { image_id: string }): Promise<ApiResponse<{ tags?: Tag[] }>>;
 
+  // ── Setup ──
+  complete_setup(args: { generation_mode: string; api_keys?: Record<string, string> }): Promise<ApiResponse>;
+
   // ── Settings (key-value) ──
   get_setting(args: { key: string }): Promise<ApiResponse<{ value?: string | null }>>;
   set_setting(args: { key: string; value: string }): Promise<ApiResponse>;
