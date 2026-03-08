@@ -21,9 +21,16 @@ ARCHIVE_NAME="${APP_NAME}-${VERSION}-${PLATFORM}-${ARCH}"
 cd "$DIST_DIR"
 
 if [ "$PLATFORM" = "darwin" ]; then
-  # macOS: create .zip
-  zip -r "$PACKAGE_DIR/${ARCHIVE_NAME}.zip" "$APP_NAME"
-  echo "Package: $PACKAGE_DIR/${ARCHIVE_NAME}.zip"
+  # macOS: create .dmg with drag-to-Applications layout
+  create-dmg \
+    --volname "$APP_NAME" \
+    --window-size 600 400 \
+    --icon-size 100 \
+    --icon "$APP_NAME.app" 150 185 \
+    --app-drop-link 450 185 \
+    "$PACKAGE_DIR/${ARCHIVE_NAME}.dmg" \
+    "$DIST_DIR/$APP_NAME.app"
+  echo "Package: $PACKAGE_DIR/${ARCHIVE_NAME}.dmg"
 else
   # Linux / other: create .tar.gz
   tar -czf "$PACKAGE_DIR/${ARCHIVE_NAME}.tar.gz" "$APP_NAME"
@@ -31,5 +38,5 @@ else
 fi
 
 echo ""
-echo "Done! Release package:"
-ls -lh "$PACKAGE_DIR/${ARCHIVE_NAME}"*
+echo "Done! Release packages:"
+ls -lh "$PACKAGE_DIR/"
