@@ -11,6 +11,7 @@ import webview
 
 from backend.config import AppConfig
 from backend.db.database import Database
+from backend.services.chat_service import ChatService
 from backend.services.inference_manager import InferenceServiceManager
 from backend.ssl_utils import disable_ssl_verification, enable_ssl_verification, is_ssl_verification_disabled
 
@@ -34,10 +35,11 @@ def _dir_size_bytes(path: Path) -> int:
 class SettingsAPI:
     """pywebview js_api mixin for settings pages."""
 
-    def __init__(self, inference: InferenceServiceManager, config: AppConfig, db: Database) -> None:
+    def __init__(self, inference: InferenceServiceManager, config: AppConfig, db: Database, chat_service: ChatService) -> None:
         self._inference = inference
         self._config = config
         self._db = db
+        self._chat_service = chat_service
 
     # ── VRAM ──────────────────────────────────────────────────────
 
@@ -253,12 +255,16 @@ class SettingsAPI:
         try:
             self._db.set_setting("GENERATION_MODE", generation_mode)
 
-            # Save any provided API keys
+            # Save any provided API keys and configure providers in memory
             if api_keys:
                 for key, value in api_keys.items():
                     if value:
                         self._db.set_setting(key, value)
-                        if key == "HF_API_KEY":
+                        if key == "CLAUDE_API_KEY":
+                            self._chat_service.set_provider_api_key("claude", value)
+                        elif key == "PERPLEXITY_API_KEY":
+                            self._chat_service.set_provider_api_key("perplexity", value)
+                        elif key == "HF_API_KEY":
                             os.environ["HF_TOKEN"] = value
 
             # For local-only mode, hide all cloud bundles

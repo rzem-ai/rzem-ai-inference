@@ -105,7 +105,12 @@ function toggleVisibility(key: string) {
 async function handleSave(key: string) {
   const value = (localKeys[key] ?? '').trim();
   if (value) {
-    await settingsStore.saveApiKey(key, value);
+    if (key === 'CLAUDE_API_KEY') {
+      // chat_set_api_key saves to DB and configures the provider in memory
+      await chatStore.setApiKey(value, 'claude');
+    } else {
+      await settingsStore.saveApiKey(key, value);
+    }
     localKeys[key] = value;
   } else {
     await settingsStore.deleteApiKey(key);
