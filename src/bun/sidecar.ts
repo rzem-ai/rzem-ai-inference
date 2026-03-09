@@ -4,6 +4,7 @@ export interface SidecarConfig {
 	outputDir: string;
 	port: number;
 	host?: string;
+	engineDir?: string;
 	device?: string;
 	vramLimitGb?: number;
 	previewInterval?: number;
@@ -96,9 +97,10 @@ export class SidecarManager {
 			args.push("--preview-interval", String(this.config.previewInterval));
 		}
 
-		console.log(`Starting sidecar: ${args.join(" ")}`);
+		console.log(`Starting sidecar: ${args.join(" ")}${this.config.engineDir ? ` (cwd: ${this.config.engineDir})` : ""}`);
 
 		this.process = Bun.spawn(args, {
+			cwd: this.config.engineDir,
 			stdout: "inherit",
 			stderr: "inherit",
 			onExit: (_proc, exitCode, signal) => {

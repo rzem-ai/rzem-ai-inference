@@ -1,6 +1,6 @@
 import { BrowserWindow, Updater, Utils } from "electrobun/bun";
 import { mkdirSync, existsSync } from "fs";
-import { join } from "path";
+import { join, resolve, dirname } from "path";
 
 import { initDatabase } from "./database";
 import { SidecarManager } from "./sidecar";
@@ -30,9 +30,23 @@ for (const dir of [outputDir, stylesDir]) {
 }
 
 // ── Sidecar (Python inference engine) ────────────────────────────
+// Resolve engine repo: check DB setting, env var, or sibling directory
+function resolveEngineDir(): string | undefined {
+	const fromDb = db.prepare("SELECT value FROM settings WHERE key = 'ENGINE_DIR'").get() as { value: string } | null;
+	if (fromDb?.value && existsSync(fromDb.value)) return fromDb.value;
+	if (process.env.ENGINE_DIR && existsSync(process.env.ENGINE_DIR)) return process.env.ENGINE_DIR;
+	// Dev default: sibling repo relative to project root
+	// import.meta.dir = src/bun/, so go up twice to reach project root, then up once more for sibling
+	const projectRoot = resolve(import.meta.dir, "..", "..");
+	const sibling = resolve(projectRoot, "..", "rzem-ai-inference-engine");
+	if (existsSync(join(sibling, "pyproject.toml"))) return sibling;
+	return undefined;
+}
+
 const sidecar = new SidecarManager({
 	outputDir,
 	port: 8100,
+	engineDir: resolveEngineDir(),
 });
 
 // ── RPC ──────────────────────────────────────────────────────────
