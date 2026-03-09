@@ -545,13 +545,16 @@ export function defineAppRPC(db: Database, sidecar: SidecarManager) {
 						return { status: "error", message: "Engine not ready" };
 					}
 					try {
-						const health = await sidecar.fetchJson<{
-							device: string;
-						}>("/health");
+						const info = await sidecar.fetchJson<{
+							device_type: string;
+							device_name: string | null;
+							total_vram_gb: number | null;
+						}>("/gpu-info");
 						return {
 							status: "success",
-							deviceType: health.device.includes("cuda") ? "cuda" : health.device,
-							deviceName: health.device,
+							deviceType: info.device_type,
+							deviceName: info.device_name,
+							totalVramGb: info.total_vram_gb ?? undefined,
 						};
 					} catch (err) {
 						return { status: "error", message: String(err) };
