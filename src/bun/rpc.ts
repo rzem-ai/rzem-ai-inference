@@ -143,8 +143,46 @@ export type AppRPCSchema = {
 			chatGetProviderInfo: { params: {}; response: Res };
 			chatSendMessage: { params: Res; response: Res };
 
+			// ── Polling (compatibility) ──
+			pollEvents: { params: {}; response: Res };
+			pollChatEvents: { params: {}; response: Res };
+
+			// ── Debug ──
+			getDebugImages: { params: {}; response: Res };
+
+			// ── Workflows ──
+			getWorkflows: { params: Res; response: Res };
+			getWorkflow: { params: { workflowId: string }; response: Res };
+			saveWorkflow: { params: Res; response: Res };
+			deleteWorkflow: { params: { workflowId: string }; response: Res };
+			runWorkflow: { params: Res; response: Res };
+			cancelWorkflow: { params: Res; response: Res };
+			pollWorkflowEvents: { params: Res; response: Res };
+
+			// ── File browsing ──
+			browseOutputDirectory: { params: {}; response: Res };
+			browseLoraFiles: { params: {}; response: Res };
+			browseImageFile: { params: Res; response: Res };
+			browseInputImage: { params: {}; response: Res };
+			browseWorkflowImage: { params: Res; response: Res };
+			saveClipboardImage: { params: Res; response: Res };
+			saveImageAs: { params: Res; response: Res };
+			batchSaveImages: { params: Res; response: Res };
+			importStyleImage: { params: Res; response: Res };
+			browseMetadataFiles: { params: {}; response: Res };
+			browseAndImportMetadata: { params: {}; response: Res };
+			importCivitaiMetadata: { params: Res; response: Res };
+
+			// ── Style AI ──
+			reviewStyles: { params: Res; response: Res };
+			applyStyleReview: { params: Res; response: Res };
+			generateStyleFromFilters: { params: Res; response: Res };
+			createStyleFromImage: { params: Res; response: Res };
+
 			// ── Discovery ──
 			getDiscoveredServers: { params: {}; response: Res };
+			connectToServer: { params: Res; response: Res };
+			disconnectFromServer: { params: {}; response: Res };
 			getConnectionMode: { params: {}; response: Res };
 		};
 		messages: {};
@@ -168,6 +206,9 @@ export function defineAppRPC(
 ) {
 	const styles = createStylesHandlers(db, config.stylesDir);
 	const settings = createSettingsHandlers(db, sidecar, config.outputDir);
+
+	// Event buffer for polling compatibility (push events are preferred)
+	const inferenceEventBuffer: Res[] = [];
 
 	const rpc = BrowserView.defineRPC<AppRPCSchema>({
 		maxRequestTime: 30_000,
@@ -442,16 +483,80 @@ export function defineAppRPC(
 					return { status: "error", message: "Chat not yet implemented in Electrobun build" };
 				},
 
+				// ── Polling (compatibility — push events preferred) ──
+				pollEvents: () => {
+					const batch = inferenceEventBuffer.splice(0, inferenceEventBuffer.length);
+					return { status: "success", events: batch };
+				},
+				pollChatEvents: () => ({ status: "success", events: [] as Res[] }),
+
+				// ── Debug ──
+				getDebugImages: () => ({ status: "success", output: null, previews: {} }),
+
+				// ── Workflows (DB CRUD) ──
+				getWorkflows: () => ({
+					status: "success",
+					workflows: db.prepare("SELECT id, name, description, created_at, updated_at FROM workflows ORDER BY updated_at DESC").all() as Row[],
+				}),
+				getWorkflow: ({ workflowId }: { workflowId: string }) => {
+					const row = db.prepare("SELECT * FROM workflows WHERE id = ?").get(workflowId) as Row | null;
+					if (!row) return { status: "error", message: "Workflow not found" };
+					return { status: "success", workflow: row };
+				},
+				saveWorkflow: ({ workflowId, name, description, graphJson }: { workflowId: string; name: string; description: string; graphJson: string }) => {
+					const now = Math.floor(Date.now() / 1000);
+					db.prepare("INSERT INTO workflows (id, name, description, graph_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET name = excluded.name, description = excluded.description, graph_json = excluded.graph_json, updated_at = excluded.updated_at").run(workflowId, name, description, graphJson, now, now);
+					return { status: "success" };
+				},
+				deleteWorkflow: ({ workflowId }: { workflowId: string }) => {
+					db.prepare("DELETE FROM workflows WHERE id = ?").run(workflowId);
+					return { status: "success" };
+				},
+				runWorkflow: () => ({ status: "error", message: "Workflow execution not yet implemented" }),
+				cancelWorkflow: () => ({ status: "success" }),
+				pollWorkflowEvents: () => ({ status: "success", events: [] as Res[] }),
+
+				// ── File browsing (stubs — need Electrobun native dialogs) ──
+				browseOutputDirectory: () => ({ status: "success", changed: false }),
+				browseLoraFiles: () => ({ status: "success", loras: [] as Res[] }),
+				browseImageFile: () => ({ status: "success", path: null, thumbnailPath: null }),
+				browseInputImage: () => ({ status: "success", path: null }),
+				browseWorkflowImage: () => ({ status: "success", path: null }),
+				saveClipboardImage: () => ({ status: "success", path: null }),
+				saveImageAs: () => ({ status: "success", saved: false }),
+				batchSaveImages: () => ({ status: "success", savedCount: 0 }),
+				importStyleImage: () => ({ status: "error", message: "Not yet implemented" }),
+				browseMetadataFiles: () => ({ status: "success", paths: [] as string[] }),
+				browseAndImportMetadata: () => ({ status: "success", styles: [] as Res[], errors: [] as string[] }),
+				importCivitaiMetadata: () => ({ status: "error", message: "Not yet implemented" }),
+
+				// ── Style AI (stubs — need Anthropic TS SDK) ──
+				reviewStyles: () => ({ status: "error", message: "Not yet implemented" }),
+				applyStyleReview: () => ({ status: "error", message: "Not yet implemented" }),
+				generateStyleFromFilters: () => ({ status: "error", message: "Not yet implemented" }),
+				createStyleFromImage: () => ({ status: "error", message: "Not yet implemented" }),
+
 				// ── Discovery (stub — will use multicast-dns npm) ──
-				getDiscoveredServers: () => ({ status: "success", servers: [] }),
+				getDiscoveredServers: () => ({ status: "success", servers: [] as Res[] }),
+				connectToServer: () => ({ status: "success", mode: "local" }),
+				disconnectFromServer: () => ({ status: "success", mode: "local" }),
 				getConnectionMode: () => ({ status: "success", mode: "local", connectedServer: null }),
 			},
 			messages: {},
 		},
 	});
 
-	// Wire sidecar events → webview push messages
+	// Wire sidecar events → both push messages and polling buffer
 	sidecar.onEvent((event) => {
+		const mapped: Res = {
+			type: (event.event as string) ?? "unknown",
+			data: (event.data as Res) ?? {},
+		};
+		inferenceEventBuffer.push(mapped);
+		if (inferenceEventBuffer.length > 500) {
+			inferenceEventBuffer.splice(0, inferenceEventBuffer.length - 500);
+		}
+
 		try {
 			rpc.send.inferenceEvent({
 				event: (event.event as string) ?? "unknown",

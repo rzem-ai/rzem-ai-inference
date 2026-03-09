@@ -1,14 +1,178 @@
 import type { PywebviewAPI } from "@/types/pywebview";
 
-const READY_TIMEOUT = 5000;
+// ── Environment detection ────────────────────────────────────────
+
+/** Check if running inside an Electrobun webview. */
+export function isElectrobun(): boolean {
+  return typeof window !== "undefined" && "__electrobunWebviewId" in window;
+}
+
+/** Check if running inside a pywebview window (legacy). */
+export function isPywebview(): boolean {
+  return !!window.pywebview;
+}
+
+// ── Key conversion utilities ─────────────────────────────────────
+
+function snakeToCamel(str: string): string {
+  return str.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+}
+
+function camelToSnake(str: string): string {
+  return str.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
+}
+
+/** Deep-convert object keys from snake_case to camelCase. */
+function keysToCamel(obj: unknown): unknown {
+  if (Array.isArray(obj)) return obj.map(keysToCamel);
+  if (obj && typeof obj === "object" && !(obj instanceof Date)) {
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+      result[snakeToCamel(key)] = keysToCamel(value);
+    }
+    return result;
+  }
+  return obj;
+}
+
+/** Deep-convert object keys from camelCase to snake_case. */
+function keysToSnake(obj: unknown): unknown {
+  if (Array.isArray(obj)) return obj.map(keysToSnake);
+  if (obj && typeof obj === "object" && !(obj instanceof Date)) {
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+      result[camelToSnake(key)] = keysToSnake(value);
+    }
+    return result;
+  }
+  return obj;
+}
+
+// ── Electrobun RPC bridge ────────────────────────────────────────
+
+let _rpc: any = null;
+let _rpcReady: Promise<any> | null = null;
+
+async function initRPC(): Promise<any> {
+  const { Electroview } = await import("electrobun/view");
+  const rpc = Electroview.defineRPC({
+    maxRequestTime: 30_000,
+    handlers: {
+      requests: {},
+      messages: {},
+    },
+  });
+  // Activate the WebSocket transport
+  new Electroview({ rpc });
+  return rpc;
+}
+
+function getRPC(): Promise<any> {
+  if (!_rpcReady) {
+    _rpcReady = initRPC().then((rpc) => {
+      _rpc = rpc;
+      return rpc;
+    });
+  }
+  return _rpcReady;
+}
 
 /**
- * Wait for the pywebview bridge to become fully available.
+ * Create a PywebviewAPI-compatible wrapper around Electrobun RPC.
  *
- * pywebview attaches `window.pywebview` before its API methods are ready,
- * so we poll for `health_check` (our canary method) to confirm the API
- * surface is fully populated.
+ * The frontend uses snake_case method names and param keys (inherited
+ * from the Python backend). The Electrobun RPC uses camelCase. This
+ * Proxy transparently converts between the two conventions.
  */
+function createElectrobunApi(): PywebviewAPI {
+  return new Proxy({} as PywebviewAPI, {
+    get(_target, prop: string) {
+      if (typeof prop !== "string") return undefined;
+      const camelMethod = snakeToCamel(prop);
+
+      return async (args?: unknown) => {
+        const rpc = await getRPC();
+        // Convert snake_case param keys to camelCase
+        const camelArgs =
+          args && typeof args === "object" && !Array.isArray(args)
+            ? keysToCamel(args)
+            : args ?? {};
+        const result = await rpc.request[camelMethod](camelArgs);
+        // Convert camelCase response keys back to snake_case
+        return keysToSnake(result);
+      };
+    },
+  });
+}
+
+// ── Push event listeners ─────────────────────────────────────────
+
+export interface InferenceEventPayload {
+  event: string;
+  jobId: string;
+  data: Record<string, unknown>;
+}
+
+export interface ChatEventPayload {
+  event: string;
+  data: Record<string, unknown>;
+}
+
+export interface SidecarStatusPayload {
+  ready: boolean;
+  pid: number | null;
+}
+
+/**
+ * Register a listener for inference events pushed from the bun process.
+ * Returns an unsubscribe function.
+ */
+export function onInferenceEvent(
+  callback: (payload: InferenceEventPayload) => void,
+): () => void {
+  if (!isElectrobun()) return () => {};
+  getRPC().then((rpc) => rpc.addMessageListener("inferenceEvent", callback));
+  return () => {
+    getRPC().then((rpc) =>
+      rpc.removeMessageListener("inferenceEvent", callback),
+    );
+  };
+}
+
+/**
+ * Register a listener for chat events pushed from the bun process.
+ * Returns an unsubscribe function.
+ */
+export function onChatEvent(
+  callback: (payload: ChatEventPayload) => void,
+): () => void {
+  if (!isElectrobun()) return () => {};
+  getRPC().then((rpc) => rpc.addMessageListener("chatEvent", callback));
+  return () => {
+    getRPC().then((rpc) => rpc.removeMessageListener("chatEvent", callback));
+  };
+}
+
+/**
+ * Register a listener for sidecar status updates.
+ * Returns an unsubscribe function.
+ */
+export function onSidecarStatus(
+  callback: (payload: SidecarStatusPayload) => void,
+): () => void {
+  if (!isElectrobun()) return () => {};
+  getRPC().then((rpc) => rpc.addMessageListener("sidecarStatus", callback));
+  return () => {
+    getRPC().then((rpc) =>
+      rpc.removeMessageListener("sidecarStatus", callback),
+    );
+  };
+}
+
+// ── Legacy pywebview support ─────────────────────────────────────
+
+const READY_TIMEOUT = 5000;
+
 export function waitForPywebview(): Promise<void> {
   return new Promise((resolve, reject) => {
     const deadline = Date.now() + READY_TIMEOUT;
@@ -32,33 +196,42 @@ export function waitForPywebview(): Promise<void> {
   });
 }
 
-/** Check whether we are running inside a pywebview window. */
-export function isPywebview(): boolean {
-  return !!window.pywebview;
-}
-
 /** Get the typed pywebview API, or null when running in a browser. */
 export function getApi(): PywebviewAPI | null {
   return window.pywebview?.api ?? null;
 }
 
-// Singleton promise: first call triggers init, subsequent calls return the same (resolved) promise
+// ── Public API ───────────────────────────────────────────────────
+
 let _apiPromise: Promise<PywebviewAPI> | null = null;
 
-/** Lazily-initialized, cached promise that resolves to the PywebviewAPI once ready. */
+/**
+ * Get the API instance. Resolves to:
+ * - Electrobun RPC wrapper (when in Electrobun webview)
+ * - Native pywebview API (when in pywebview window, legacy)
+ * - Mock API (when in plain browser for development)
+ */
 export function getApiAsync(): Promise<PywebviewAPI> {
   if (!_apiPromise) {
-    _apiPromise = waitForPywebview()
-      .then(() => getApi() ?? mockApi)
-      .catch(() => mockApi);
+    if (isElectrobun()) {
+      _apiPromise = getRPC().then(() => createElectrobunApi());
+    } else if (isPywebview()) {
+      _apiPromise = waitForPywebview()
+        .then(() => getApi() ?? mockApi)
+        .catch(() => mockApi);
+    } else {
+      _apiPromise = Promise.resolve(mockApi);
+    }
   }
   return _apiPromise;
 }
 
+// ── Mock API ─────────────────────────────────────────────────────
+
 let _counter = 0;
 const _mockSettings: Record<string, string> = {};
 
-/** Mock API for browser-based development without pywebview. */
+/** Mock API for browser-based development without a native shell. */
 export const mockApi: PywebviewAPI = {
   // ── System ──
   async get_system_info() {
@@ -71,7 +244,7 @@ export const mockApi: PywebviewAPI = {
     };
   },
   async greet(_name) {
-    return `Hello, ${_name}! (mock response — not connected to Python)`;
+    return `Hello, ${_name}! (mock response)`;
   },
   async increment_counter() {
     return ++_counter;
@@ -121,165 +294,16 @@ export const mockApi: PywebviewAPI = {
     return {
       status: "success",
       bundle_types: [
-        { id: "flux1_dev", label: "FLUX.1 Dev", icon: "gpu", guide: "## Prompting\n\nFLUX.1 Dev responds best to **descriptive, natural language prompts**.", sort_order: 0 },
-        { id: "flux2_dev", label: "FLUX.2 Dev", icon: "gpu", guide: "## Prompting\n\nFLUX.2 Dev uses a **Qwen3 text encoder**.", sort_order: 2 },
-        { id: "z_image", label: "Z-Image", icon: "gpu", guide: "## Prompting\n\nZ-Image uses a bundled **Qwen3-4B text encoder**.", sort_order: 3 },
-        { id: "flux1_kontext", label: "FLUX.1 Kontext", icon: "gpu", guide: "## Editing\n\nFLUX.1 Kontext [dev] edits images from a **text prompt + input image**.", sort_order: 4 },
-        { id: "qwen_image", label: "Qwen-Image", icon: "gpu", guide: "## Prompting\n\nQwen-Image excels at **text rendering in images**.", sort_order: 5 },
-        { id: "fal_cloud", label: "FAL.ai Cloud", icon: "cloud", guide: "## Overview\n\nFAL.ai Cloud models run on remote servers.", sort_order: 10 },
+        { id: "flux1_dev", label: "FLUX.1 Dev", icon: "gpu", guide: "FLUX.1 Dev", sort_order: 0 },
+        { id: "flux1_kontext", label: "FLUX.1 Kontext", icon: "gpu", guide: "FLUX.1 Kontext", sort_order: 4 },
+        { id: "fal_cloud", label: "FAL.ai Cloud", icon: "cloud", guide: "FAL.ai Cloud", sort_order: 10 },
       ],
     };
   },
 
   // ── Bundles ──
   async get_bundles(_args?) {
-    return {
-      status: "success",
-      bundles: [
-        {
-          id: "flux1_dev_performance",
-          label: "FLUX.1 Dev — Fast",
-          description: "FLUX.1-dev Q4 quantized (mock)",
-          transformer_type: "flux1_dev",
-          tier: "performance",
-          transformer_model: "city96/FLUX.1-dev-gguf/flux1-dev-Q4_K_S.gguf",
-          vae_model: "black-forest-labs/FLUX.1-dev",
-          clip_tokenizer: "openai/clip-vit-large-patch14",
-          clip_encoder: "openai/clip-vit-large-patch14",
-          t5_tokenizer: "google/t5-v1_1-xxl",
-          t5_encoder: "google/t5-v1_1-xxl",
-          steps: 15,
-          cfg_scale: 1.0,
-          sampler: "euler",
-          scheduler: "normal",
-          vram_estimate_gb: 17.7,
-          is_default: 1,
-          favorite: 1,
-          hidden: 0,
-        },
-        {
-          id: "flux1_dev_quality",
-          label: "FLUX.1 Dev — Quality",
-          description: "FLUX.1-dev BF16 full precision (mock)",
-          transformer_type: "flux1_dev",
-          tier: "quality",
-          transformer_model: "black-forest-labs/FLUX.1-dev",
-          vae_model: "black-forest-labs/FLUX.1-dev",
-          clip_tokenizer: "openai/clip-vit-large-patch14",
-          clip_encoder: "openai/clip-vit-large-patch14",
-          t5_tokenizer: "google/t5-v1_1-xxl",
-          t5_encoder: "google/t5-v1_1-xxl",
-          steps: 28,
-          cfg_scale: 1.0,
-          sampler: "euler",
-          scheduler: "normal",
-          vram_estimate_gb: 33.7,
-          is_default: 1,
-          favorite: 0,
-          hidden: 0,
-        },
-        {
-          id: "flux2_dev_quality",
-          label: "FLUX.2 Dev",
-          description: "FLUX.2-dev BF16 with Qwen3 (mock)",
-          transformer_type: "flux2_dev",
-          tier: "quality",
-          transformer_model: "black-forest-labs/FLUX.2-dev",
-          vae_model: "black-forest-labs/FLUX.2-dev",
-          qwen3_tokenizer: "Qwen/Qwen3-0.6B",
-          qwen3_encoder: "Qwen/Qwen3-0.6B",
-          steps: 28,
-          cfg_scale: 1.0,
-          sampler: "euler",
-          scheduler: "normal",
-          vram_estimate_gb: 23.2,
-          is_default: 1,
-          favorite: 0,
-          hidden: 0,
-        },
-        {
-          id: "flux1_kontext_performance",
-          label: "FLUX.1 Kontext - Fast",
-          description: "FLUX.1-Kontext Q4 quantized (mock)",
-          transformer_type: "flux1_kontext",
-          tier: "performance",
-          transformer_model: "bullerwins/FLUX.1-Kontext-dev-GGUF/flux1-kontext-dev-Q4_K_S.gguf",
-          vae_model: "black-forest-labs/FLUX.1-Kontext-dev",
-          clip_tokenizer: "openai/clip-vit-large-patch14",
-          clip_encoder: "openai/clip-vit-large-patch14",
-          t5_tokenizer: "google/t5-v1_1-xxl",
-          t5_encoder: "google/t5-v1_1-xxl",
-          t5_encoder_config: { load_in_4bit: true, bnb_4bit_quant_type: "nf4" },
-          steps: 28,
-          cfg_scale: 2.5,
-          sampler: "euler",
-          scheduler: "normal",
-          vram_estimate_gb: 11.0,
-          is_default: 1,
-          favorite: 1,
-          hidden: 0,
-        },
-        {
-          id: "flux1_kontext_quality",
-          label: "FLUX.1 Kontext - Quality",
-          description: "FLUX.1-Kontext BF16 full precision (mock)",
-          transformer_type: "flux1_kontext",
-          tier: "quality",
-          transformer_model: "black-forest-labs/FLUX.1-Kontext-dev",
-          vae_model: "black-forest-labs/FLUX.1-Kontext-dev",
-          clip_tokenizer: "openai/clip-vit-large-patch14",
-          clip_encoder: "openai/clip-vit-large-patch14",
-          t5_tokenizer: "google/t5-v1_1-xxl",
-          t5_encoder: "google/t5-v1_1-xxl",
-          steps: 40,
-          cfg_scale: 2.5,
-          sampler: "euler",
-          scheduler: "normal",
-          vram_estimate_gb: 33.7,
-          is_default: 1,
-          favorite: 0,
-          hidden: 0,
-        },
-        {
-          id: "fal_flux_schnell",
-          label: "FLUX.1 Schnell",
-          description: "FAL.ai cloud — FLUX.1 Schnell (mock)",
-          transformer_type: "fal_cloud",
-          tier: "performance",
-          transformer_model: "fal-ai/flux/schnell",
-          vae_model: "cloud",
-          steps: 4,
-          cfg_scale: 1.0,
-          sampler: "euler",
-          scheduler: "normal",
-          vram_estimate_gb: 0,
-          is_default: 1,
-          source: "cloud",
-          fal_endpoint: "fal-ai/flux/schnell",
-          favorite: 0,
-          hidden: 0,
-        },
-        {
-          id: "fal_flux_dev",
-          label: "FLUX.1 Dev",
-          description: "FAL.ai cloud — FLUX.1 Dev (mock)",
-          transformer_type: "fal_cloud",
-          tier: "balanced",
-          transformer_model: "fal-ai/flux/dev",
-          vae_model: "cloud",
-          steps: 28,
-          cfg_scale: 3.5,
-          sampler: "euler",
-          scheduler: "normal",
-          vram_estimate_gb: 0,
-          is_default: 1,
-          source: "cloud",
-          fal_endpoint: "fal-ai/flux/dev",
-          favorite: 0,
-          hidden: 0,
-        },
-      ],
-    };
+    return { status: "success", bundles: [] };
   },
   async get_bundle(_args) {
     return { status: "success", bundle: undefined };
@@ -376,7 +400,7 @@ export const mockApi: PywebviewAPI = {
 
   // ── Settings (key-value) ──
   async get_setting(_args) {
-    const key = typeof _args === 'object' ? _args.key : _args;
+    const key = typeof _args === "object" ? _args.key : _args;
     return { status: "success", value: _mockSettings[key] ?? null };
   },
   async set_setting(_args) {
@@ -387,79 +411,31 @@ export const mockApi: PywebviewAPI = {
 
   // ── Settings pages ──
   async get_vram_usage() {
-    return {
-      status: "success",
-      available: true,
-      allocated: 4.2 * 1024 ** 3,
-      reserved: 6.8 * 1024 ** 3,
-      free: 17.2 * 1024 ** 3,
-      total: 24 * 1024 ** 3,
-    };
+    return { status: "success", available: true, allocated: 0, reserved: 0, free: 0, total: 0 };
   },
   async clear_vram_cache() {
     return { status: "success" };
   },
   async get_engine_status() {
-    return { status: "success", ready: true, uptime_seconds: 3742, completed_count: 14 };
+    return { status: "success", ready: false, completed_count: 0 };
   },
   async get_cuda_version() {
-    return { status: "success", cuda_version: "12.4" };
+    return { status: "success", cuda_version: null };
   },
   async reset_engine() {
     return { status: "success" };
   },
   async get_cache_info() {
-    return {
-      status: "success",
-      models: [
-        {
-          repo_id: "black-forest-labs/FLUX.1-dev",
-          repo_type: "model",
-          size_on_disk: 23_800_000_000,
-          nb_files: 12,
-          revisions: [{ commit_hash: "abc123", size_on_disk: 23_800_000_000, last_modified: Date.now() / 1000 }],
-          last_accessed: Date.now() / 1000,
-          last_modified: Date.now() / 1000,
-        },
-        {
-          repo_id: "openai/clip-vit-large-patch14",
-          repo_type: "model",
-          size_on_disk: 1_700_000_000,
-          nb_files: 6,
-          revisions: [{ commit_hash: "def456", size_on_disk: 1_700_000_000, last_modified: Date.now() / 1000 }],
-          last_accessed: Date.now() / 1000,
-          last_modified: Date.now() / 1000,
-        },
-        {
-          repo_id: "google/t5-v1_1-xxl",
-          repo_type: "model",
-          size_on_disk: 11_500_000_000,
-          nb_files: 8,
-          revisions: [{ commit_hash: "ghi789", size_on_disk: 11_500_000_000, last_modified: Date.now() / 1000 }],
-          last_accessed: Date.now() / 1000,
-          last_modified: Date.now() / 1000,
-        },
-      ],
-      total_size: 37_000_000_000,
-    };
+    return { status: "success", models: [], total_size: 0 };
   },
   async delete_cached_model(_args) {
     return { status: "success" };
   },
   async get_data_paths() {
-    return {
-      status: "success",
-      data_dir: "/home/user/.rzem-ai",
-      output_dir: "/home/user/.rzem-ai/output",
-      hf_cache_dir: "/home/user/.cache/huggingface/hub",
-    };
+    return { status: "success", data_dir: "/mock", output_dir: "/mock/output", hf_cache_dir: "/mock/cache" };
   },
   async get_disk_usage() {
-    return {
-      status: "success",
-      output_size: 2_400_000_000,
-      hf_cache_size: 37_000_000_000,
-    };
+    return { status: "success", output_size: 0, hf_cache_size: 0 };
   },
   async browse_output_directory() {
     return { status: "success", changed: false };
@@ -475,62 +451,7 @@ export const mockApi: PywebviewAPI = {
 
   // ── Styles ──
   async get_styles(_args?) {
-    return {
-      status: "success",
-      styles: [
-        {
-          id: "mock-style-1",
-          name: "Cinematic Film",
-          description: "Hollywood cinematic look with dramatic lighting",
-          prompt_template: "cinematic film still, dramatic lighting, {prompt}, 35mm photograph, film grain",
-          negative_prompt: "cartoon, anime, drawing, painting",
-          default_strength: 1.0,
-          strength_min: 0.5,
-          strength_max: 1.5,
-          category: "Photography",
-          thumbnail_path: null,
-          bundle_id: null,
-          is_favorite: 1,
-          usage_count: 12,
-          created_at: 1700000000,
-          updated_at: 1700000000,
-        },
-        {
-          id: "mock-style-2",
-          name: "Anime Girl",
-          description: "High quality anime illustration style",
-          prompt_template: "anime illustration, {prompt}, detailed, vibrant colors, studio ghibli",
-          negative_prompt: "photo, realistic, 3d render",
-          default_strength: 1.0,
-          strength_min: 0.5,
-          strength_max: 1.5,
-          category: "Illustration",
-          thumbnail_path: null,
-          bundle_id: null,
-          is_favorite: 0,
-          usage_count: 8,
-          created_at: 1700100000,
-          updated_at: 1700100000,
-        },
-        {
-          id: "mock-style-3",
-          name: "Watercolor Dream",
-          description: "Soft watercolor painting effect",
-          prompt_template: "watercolor painting, soft edges, {prompt}, paper texture, artistic",
-          negative_prompt: "photo, sharp, digital",
-          default_strength: 1.0,
-          strength_min: 0.5,
-          strength_max: 1.5,
-          category: "Painting",
-          thumbnail_path: null,
-          bundle_id: null,
-          is_favorite: 0,
-          usage_count: 5,
-          created_at: 1700200000,
-          updated_at: 1700200000,
-        },
-      ],
-    };
+    return { status: "success", styles: [] };
   },
   async get_style(_args) {
     return { status: "error", message: "Mock mode" };
@@ -548,10 +469,10 @@ export const mockApi: PywebviewAPI = {
     return { status: "error", message: "Mock mode" };
   },
   async get_style_categories() {
-    return { status: "success", categories: ["Photography", "Illustration", "Painting"] };
+    return { status: "success", categories: [] };
   },
   async get_style_bundle_type_counts() {
-    return { status: "success", counts: [{ type_id: "flux1_dev", count: 3 }, { type_id: "flux1_kontext", count: 1 }, { type_id: "__unbound__", count: 2 }] };
+    return { status: "success", counts: [] };
   },
   async get_styles_dir() {
     return { status: "success" as const, path: "/mock/styles" };
@@ -560,7 +481,7 @@ export const mockApi: PywebviewAPI = {
     return { status: "success" as const, thumbnails: [] };
   },
   async get_filter_thumbnail(_args: { image_name: string }) {
-    return { status: "error" as const, message: "Mock mode — no thumbnails" };
+    return { status: "error" as const, message: "Mock mode" };
   },
   async get_style_examples(_args) {
     return { status: "success", examples: [] };
@@ -596,10 +517,10 @@ export const mockApi: PywebviewAPI = {
     return { status: "success", path: null, thumbnail_path: null };
   },
   async browse_input_image() {
-    return { status: 'success' as const, path: null };
+    return { status: "success" as const, path: null };
   },
   async save_clipboard_image() {
-    return { status: 'success' as const, path: '/tmp/mock_clipboard.png' };
+    return { status: "success" as const, path: "/tmp/mock_clipboard.png" };
   },
   async import_style_image() {
     return { status: "error", message: "Not available in mock mode" };
@@ -611,75 +532,25 @@ export const mockApi: PywebviewAPI = {
     return { status: "success", styles: [], errors: [] };
   },
   async import_civitai_metadata(_args: { file_path?: string; json_content?: string }) {
-    return {
-      status: "success",
-      style: {
-        id: "mock-imported-style",
-        name: "Imported Style (mock)",
-        description: "Imported from CivitAI metadata",
-        prompt_template: "trigger_word {prompt}",
-        negative_prompt: null,
-        default_strength: 1.0,
-        strength_min: 0.5,
-        strength_max: 1.5,
-        category: null,
-        thumbnail_path: null,
-        is_favorite: 0,
-        usage_count: 0,
-        created_at: Date.now() / 1000,
-        updated_at: Date.now() / 1000,
-      },
-    };
+    return { status: "error", message: "Not available in mock mode" };
+  },
+
+  // ── Style from Image ──
+  async create_style_from_image(_args) {
+    return { status: "error", message: "Not available in mock mode" };
   },
 
   // ── Style AI Review ──
   async review_styles(_args) {
-    await new Promise((r) => setTimeout(r, 2000));
-    return {
-      status: "success" as const,
-      suggestions: [
-        {
-          id: "mock-style-1",
-          suggested_name: "Cinematic Film Still",
-          name_changed: true,
-          suggested_tags: ["cinematic", "photography", "dramatic lighting", "film grain"],
-          reason: "Added 'Still' for clarity and suggested tags matching prompt template keywords.",
-        },
-        {
-          id: "mock-style-2",
-          suggested_name: "Anime Illustration",
-          name_changed: true,
-          suggested_tags: ["anime", "illustration", "vibrant", "studio ghibli"],
-          reason: "Simplified name and added tags reflecting the style's visual characteristics.",
-        },
-        {
-          id: "mock-style-3",
-          suggested_name: "Watercolor Dream",
-          name_changed: false,
-          suggested_tags: ["watercolor", "painting", "soft", "artistic"],
-          reason: "Name is already good; added descriptive tags for better discoverability.",
-        },
-      ],
-    };
+    return { status: "error", message: "Not available in mock mode" };
   },
   async apply_style_review(_args) {
-    await new Promise((r) => setTimeout(r, 500));
-    return { status: "success" as const, applied: 3 };
+    return { status: "error", message: "Not available in mock mode" };
   },
 
   // ── Style Builder ──
   async generate_style_from_filters(_args) {
-    await new Promise((r) => setTimeout(r, 1500));
-    return {
-      status: "success" as const,
-      style_data: {
-        name: "Mock Generated Style",
-        description: "A rich visual style combining selected filters into a cohesive aesthetic.",
-        prompt_template: "artistic composition, {prompt}, detailed, high quality",
-        negative_prompt: "low quality, blurry, deformed",
-        category: "Mixed Media",
-      },
-    };
+    return { status: "error", message: "Not available in mock mode" };
   },
 
   // ── Batch ──
@@ -716,7 +587,7 @@ export const mockApi: PywebviewAPI = {
       status: "success",
       provider: "claude",
       models: [
-        { id: "claude-haiku-4-5-20251001", label: "Claude Haiku 4.6 — Fast, low cost" },
+        { id: "claude-haiku-4-5-20251001", label: "Claude Haiku 4.5 — Fast, low cost" },
         { id: "claude-sonnet-4-6", label: "Claude Sonnet 4.6 — Balanced (default)" },
         { id: "claude-opus-4-6", label: "Claude Opus 4.6 — Most capable" },
       ],
@@ -739,5 +610,31 @@ export const mockApi: PywebviewAPI = {
   },
   async poll_chat_events() {
     return { status: "success", events: [] };
+  },
+
+  // ── Workflows ──
+  async get_workflows(_args?) {
+    return { status: "success", workflows: [] };
+  },
+  async get_workflow(_args) {
+    return { status: "error", workflow: { id: "", name: "", description: "", graph_json: "{}", created_at: 0, updated_at: 0 } };
+  },
+  async save_workflow(_args) {
+    return { status: "success" };
+  },
+  async delete_workflow(_args) {
+    return { status: "success" };
+  },
+  async run_workflow(_args) {
+    return { status: "success", run_id: `mock-run-${++_counter}` };
+  },
+  async cancel_workflow(_args) {
+    return { status: "success" };
+  },
+  async poll_workflow_events(_args?) {
+    return { status: "success", events: [] };
+  },
+  async browse_workflow_image(_args?) {
+    return { status: "success", path: "/mock/workflow_image.png" };
   },
 };

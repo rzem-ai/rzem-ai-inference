@@ -1,6 +1,6 @@
 import { ref, onMounted } from "vue";
 import type { PywebviewAPI } from "@/types/pywebview";
-import { waitForPywebview, getApi, isPywebview, mockApi } from "@/bridge";
+import { getApiAsync, isElectrobun, isPywebview, mockApi } from "@/bridge";
 
 export function usePywebview() {
   const api = ref<PywebviewAPI>(mockApi);
@@ -10,14 +10,9 @@ export function usePywebview() {
 
   onMounted(async () => {
     try {
-      await waitForPywebview();
-      const nativeApi = getApi();
-      if (nativeApi) {
-        api.value = nativeApi;
-        isNative.value = true;
-      }
+      api.value = await getApiAsync();
+      isNative.value = isElectrobun() || isPywebview();
     } catch {
-      // Not inside pywebview — fall back to mock
       error.value = "Running in browser mode (mock API)";
     }
     isReady.value = true;
