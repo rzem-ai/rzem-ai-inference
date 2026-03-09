@@ -10,13 +10,13 @@ export default {
 		bun: {
 			entrypoint: "src/bun/index.ts",
 		},
-		// Vite builds the Vue frontend to frontend/dist/, we copy from there
+		// Vite builds the Vue frontend to src/mainview/dist/, we copy from there
 		copy: {
-			"frontend/dist/index.html": "views/mainview/index.html",
-			"frontend/dist/assets": "views/mainview/assets",
+			"src/mainview/dist/index.html": "views/mainview/index.html",
+			"src/mainview/dist/assets": "views/mainview/assets",
 		},
 		// Ignore Vite output in watch mode — HMR handles view rebuilds
-		watchIgnore: ["frontend/dist/**"],
+		watchIgnore: ["src/mainview/dist/**"],
 		mac: {
 			bundleCEF: false,
 		},

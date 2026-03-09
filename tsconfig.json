@@ -23,6 +23,6 @@
 
     "types": ["bun"]
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "frontend"]
+  "include": ["src/bun/**/*.ts"],
+  "exclude": ["node_modules", "src/mainview"]
 }

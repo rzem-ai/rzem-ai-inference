@@ -5,10 +5,10 @@
   "type": "module",
   "description": "Desktop AI image generation app — Electrobun + Vue 3 + Python sidecar",
   "scripts": {
-    "start": "cd frontend && npm run build && cd .. && electrobun dev",
+    "start": "cd src/mainview && npm run build && cd ../.. && electrobun dev",
     "dev": "electrobun dev --watch",
-    "dev:hmr": "concurrently \"cd frontend && npm run dev\" \"electrobun dev\"",
-    "build:canary": "cd frontend && npm run build && cd .. && electrobun build --env=canary"
+    "dev:hmr": "concurrently \"cd src/mainview && npm run dev\" \"electrobun dev\"",
+    "build:canary": "cd src/mainview && npm run build && cd ../.. && electrobun build --env=canary"
   },
   "dependencies": {
     "electrobun": "^1.15.1"
