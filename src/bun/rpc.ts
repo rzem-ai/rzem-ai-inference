@@ -14,6 +14,8 @@ import { createStylesHandlers } from "./services/styles";
 import { createSettingsHandlers } from "./services/settings";
 import { createChatService } from "./services/chat";
 import { createFilesHandlers } from "./services/files";
+import { DEFAULT_BUNDLES, DEFAULT_BUNDLE_TYPES } from "./services/bundles";
+import { statSync } from "fs";
 
 // ── Shared types ─────────────────────────────────────────────────
 
@@ -214,6 +216,15 @@ export function defineAppRPC(
 	// Event buffer for polling compatibility (push events are preferred)
 	const inferenceEventBuffer: Res[] = [];
 
+	// Job metadata tracking for image persistence on completion
+	const jobMeta = new Map<string, {
+		params: Record<string, unknown>;
+		bundleId?: string;
+		styleId?: string;
+		rawPrompt?: string;
+		startTime: number;
+	}>();
+
 	const rpc = BrowserView.defineRPC<AppRPCSchema>({
 		maxRequestTime: 30_000,
 		handlers: {
@@ -281,7 +292,17 @@ export function defineAppRPC(
 					return { status: "success", bundle: db.prepare("SELECT * FROM bundles WHERE id = ?").get(bundleId) as Row };
 				},
 				resetDefaultBundles: () => {
-					// TODO: implement with default bundle data
+					// Delete existing defaults and re-seed
+					db.prepare("DELETE FROM bundles WHERE is_default = 1").run();
+					const insertBundle = db.prepare(`INSERT OR REPLACE INTO bundles (id, label, description, transformer_type, tier, transformer_model, vae_model, clip_tokenizer, clip_encoder, t5_tokenizer, t5_encoder, t5_encoder_config, qwen3_tokenizer, qwen3_encoder, steps, cfg_scale, sampler, scheduler, vram_estimate_gb, is_default, source, fal_endpoint, fal_aspectratio) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+					for (const b of DEFAULT_BUNDLES) {
+						insertBundle.run(b.id, b.label, b.description, b.transformer_type, b.tier, b.transformer_model, b.vae_model, b.clip_tokenizer, b.clip_encoder, b.t5_tokenizer, b.t5_encoder, b.t5_encoder_config, b.qwen3_tokenizer, b.qwen3_encoder, b.steps, b.cfg_scale, b.sampler, b.scheduler, b.vram_estimate_gb, b.is_default, b.source, b.fal_endpoint, b.fal_aspectratio);
+					}
+					// Also re-seed bundle types
+					const insertType = db.prepare("INSERT OR REPLACE INTO bundle_types (id, label, icon, sort_order, guide) VALUES (?, ?, ?, ?, ?)");
+					for (const t of DEFAULT_BUNDLE_TYPES) {
+						insertType.run(t.id, t.label, t.icon, t.sort_order, t.guide);
+					}
 					return { status: "success", bundles: db.prepare("SELECT * FROM bundles WHERE is_default = 1").all() as Row[] };
 				},
 
@@ -411,7 +432,16 @@ export function defineAppRPC(
 				submitJob: async (params) => {
 					if (!sidecar.ready) return { status: "error", message: "Engine not ready" };
 					try {
+						const p = params as Record<string, any>;
 						const result = await sidecar.fetchJson<{ job_id: string }>("/jobs", { method: "POST", body: JSON.stringify(params) });
+						// Store job metadata for image persistence on completion
+						jobMeta.set(result.job_id, {
+							params: p,
+							bundleId: p.bundleId ?? p.bundle_id,
+							styleId: p.styleId ?? p.style_id,
+							rawPrompt: p.rawPrompt ?? p.raw_prompt,
+							startTime: performance.now(),
+						});
 						return { status: "success", jobId: result.job_id };
 					} catch (err) { return { status: "error", message: String(err) }; }
 				},
@@ -636,10 +666,61 @@ export function defineAppRPC(
 
 	// Wire sidecar events → both push messages and polling buffer
 	sidecar.onEvent((event) => {
-		const mapped: Res = {
-			type: (event.event as string) ?? "unknown",
-			data: (event.data as Res) ?? {},
-		};
+		const eventType = (event.event as string) ?? "unknown";
+		const jobId = (event.job_id as string) ?? "";
+		const data = (event.data as Res) ?? {};
+
+		// Persist image to database on job completion
+		if (eventType === "job_completed" && jobId) {
+			const meta = jobMeta.get(jobId);
+			const imagePath = (data.image_path as string) ?? (event.image_path as string);
+			if (imagePath) {
+				try {
+					const p = meta?.params ?? {};
+					const imageId = crypto.randomUUID();
+					const now = Math.floor(Date.now() / 1000);
+					const genTimeMs = meta ? Math.round(performance.now() - meta.startTime) : null;
+					let fileSize: number | null = null;
+					try { fileSize = statSync(imagePath).size; } catch { /* file may not be accessible */ }
+					const coverPath = (data.cover_path as string) ?? (event.cover_path as string) ?? null;
+					const modelConfig = JSON.stringify({
+						transformer_model: p.transformer_model ?? p.transformerModel,
+						transformer_type: p.transformer_type ?? p.transformerType,
+						vae_model: p.vae_model ?? p.vaeModel,
+						sampler: p.sampler, scheduler: p.scheduler,
+						bundle_id: meta?.bundleId, style_id: meta?.styleId,
+					});
+					db.prepare(
+						`INSERT INTO images (id, file_path, thumbnail_path, prompt, raw_prompt, width, height, file_size, steps, cfg_scale, seed, bundle_id, model_config, loras, generation_time_ms, created_at, updated_at)
+						VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+					).run(
+						imageId,
+						imagePath,
+						coverPath,
+						(p.prompt as string) ?? "",
+						meta?.rawPrompt ?? null,
+						(p.width as number) ?? 1024,
+						(p.height as number) ?? 1024,
+						fileSize,
+						(p.steps as number) ?? 20,
+						(p.cfg_scale as number) ?? (p.cfgScale as number) ?? 1.0,
+						(data.seed as number) ?? (event.seed as number) ?? -1,
+						meta?.bundleId ?? null,
+						modelConfig,
+						p.loras ? JSON.stringify(p.loras) : null,
+						genTimeMs,
+						now, now,
+					);
+				} catch (err) {
+					console.error("Failed to persist image:", err);
+				}
+			}
+			jobMeta.delete(jobId);
+		} else if (eventType === "job_failed" || eventType === "job_cancelled") {
+			jobMeta.delete(jobId);
+		}
+
+		const mapped: Res = { type: eventType, data };
 		inferenceEventBuffer.push(mapped);
 		if (inferenceEventBuffer.length > 500) {
 			inferenceEventBuffer.splice(0, inferenceEventBuffer.length - 500);
@@ -647,9 +728,9 @@ export function defineAppRPC(
 
 		try {
 			rpc.send.inferenceEvent({
-				event: (event.event as string) ?? "unknown",
-				jobId: (event.job_id as string) ?? "",
-				data: (event.data as Res) ?? {},
+				event: eventType,
+				jobId,
+				data,
 			});
 		} catch {
 			// Window may not be ready yet
