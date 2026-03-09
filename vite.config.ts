@@ -13,7 +13,7 @@ export default defineConfig({
 	},
 	resolve: {
 		alias: {
-			"@": fileURLToPath(new URL("./src/mainview/src", import.meta.url)),
+			"@": fileURLToPath(new URL("./src/mainview", import.meta.url)),
 		},
 	},
 	server: {

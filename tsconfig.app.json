@@ -16,8 +16,8 @@
 		"composite": true,
 		"noEmit": true,
 		"paths": {
-			"@/*": ["./src/mainview/src/*"]
+			"@/*": ["./src/mainview/*"]
 		}
 	},
-	"include": ["src/mainview/src/**/*.ts", "src/mainview/src/**/*.tsx", "src/mainview/src/**/*.vue", "env.d.ts"]
+	"include": ["src/mainview/**/*.ts", "src/mainview/**/*.tsx", "src/mainview/**/*.vue", "env.d.ts"]
 }

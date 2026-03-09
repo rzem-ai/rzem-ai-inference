@@ -97,9 +97,14 @@ function createElectrobunApi(): PywebviewAPI {
           args && typeof args === "object" && !Array.isArray(args)
             ? keysToCamel(args)
             : args ?? {};
-        const result = await rpc.request[camelMethod](camelArgs);
-        // Convert camelCase response keys back to snake_case
-        return keysToSnake(result);
+        try {
+          const result = await rpc.request[camelMethod](camelArgs);
+          // Convert camelCase response keys back to snake_case
+          return keysToSnake(result);
+        } catch (err) {
+          console.error(`[bridge] RPC ${prop} → ${camelMethod} failed:`, err);
+          throw err;
+        }
       };
     },
   });
@@ -213,13 +218,19 @@ let _apiPromise: Promise<PywebviewAPI> | null = null;
  */
 export function getApiAsync(): Promise<PywebviewAPI> {
   if (!_apiPromise) {
+    const env = isElectrobun() ? "electrobun" : isPywebview() ? "pywebview" : "browser";
+    console.log(`[bridge] Environment: ${env}`);
     if (isElectrobun()) {
-      _apiPromise = getRPC().then(() => createElectrobunApi());
+      _apiPromise = getRPC().then(() => {
+        console.log("[bridge] RPC initialized, creating Electrobun API proxy");
+        return createElectrobunApi();
+      });
     } else if (isPywebview()) {
       _apiPromise = waitForPywebview()
         .then(() => getApi() ?? mockApi)
         .catch(() => mockApi);
     } else {
+      console.log("[bridge] Using mock API");
       _apiPromise = Promise.resolve(mockApi);
     }
   }
