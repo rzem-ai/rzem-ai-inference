@@ -12,6 +12,8 @@ import type { SidecarManager } from "./sidecar";
 import { batchParseData, batchRenderTemplate } from "./services/batch";
 import { createStylesHandlers } from "./services/styles";
 import { createSettingsHandlers } from "./services/settings";
+import { createChatService } from "./services/chat";
+import { createFilesHandlers } from "./services/files";
 
 // ── Shared types ─────────────────────────────────────────────────
 
@@ -206,6 +208,8 @@ export function defineAppRPC(
 ) {
 	const styles = createStylesHandlers(db, config.stylesDir);
 	const settings = createSettingsHandlers(db, sidecar, config.outputDir);
+	const chat = createChatService(db);
+	const files = createFilesHandlers(db, config);
 
 	// Event buffer for polling compatibility (push events are preferred)
 	const inferenceEventBuffer: Res[] = [];
@@ -441,54 +445,22 @@ export function defineAppRPC(
 				setSslVerificationDisabled: (params) => settings.setSslVerificationDisabled(params),
 				completeSetup: (params) => settings.completeSetup(params as any),
 
-				// ── Chat (stub — will be ported with Anthropic TS SDK) ──
-				chatIsConfigured: () => {
-					const key = db.prepare("SELECT value FROM settings WHERE key = 'CLAUDE_API_KEY'").get() as { value: string } | null;
-					return { status: "success", configured: !!key?.value };
-				},
-				chatSetApiKey: ({ apiKey, provider }) => {
-					const keyName = provider === "perplexity" ? "PERPLEXITY_API_KEY" : "CLAUDE_API_KEY";
-					db.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(keyName, apiKey);
-					return { status: "success" };
-				},
-				chatCreateConversation: ({ title }) => {
-					const id = crypto.randomUUID();
-					const now = Math.floor(Date.now() / 1000);
-					db.prepare("INSERT INTO conversations (id, title, created_at, updated_at) VALUES (?, ?, ?, ?)").run(id, title ?? "New Chat", now, now);
-					return { status: "success", conversation: db.prepare("SELECT * FROM conversations WHERE id = ?").get(id) as Row };
-				},
-				chatGetConversations: () => {
-					return { status: "success", conversations: db.prepare("SELECT * FROM conversations ORDER BY updated_at DESC").all() as Row[] };
-				},
-				chatGetMessages: ({ conversationId }) => {
-					return { status: "success", messages: db.prepare("SELECT * FROM conversation_messages WHERE conversation_id = ? ORDER BY created_at").all(conversationId) as Row[] };
-				},
-				chatDeleteConversation: ({ conversationId }) => {
-					db.prepare("DELETE FROM conversations WHERE id = ?").run(conversationId);
-					return { status: "success" };
-				},
-				chatGetProviderInfo: () => {
-					return {
-						status: "success",
-						provider: "claude",
-						models: [
-							{ id: "claude-haiku-4-5-20251001", label: "Claude Haiku 4.5 — Fast, low cost" },
-							{ id: "claude-sonnet-4-6", label: "Claude Sonnet 4.6 — Balanced (default)" },
-							{ id: "claude-opus-4-6", label: "Claude Opus 4.6 — Most capable" },
-						],
-					};
-				},
-				chatSendMessage: async (_params) => {
-					// TODO: implement with Anthropic TS SDK
-					return { status: "error", message: "Chat not yet implemented in Electrobun build" };
-				},
+				// ── Chat (delegated to service) ──
+				chatIsConfigured: () => chat.isConfigured(),
+				chatSetApiKey: (params) => chat.setApiKey(params),
+				chatCreateConversation: (params) => chat.createConversation(params),
+				chatGetConversations: () => chat.getConversations(),
+				chatGetMessages: (params) => chat.getMessages(params),
+				chatDeleteConversation: (params) => chat.deleteConversation(params),
+				chatGetProviderInfo: () => chat.getProviderInfo(),
+				chatSendMessage: (params) => chat.sendMessage(params as Record<string, unknown>),
 
 				// ── Polling (compatibility — push events preferred) ──
 				pollEvents: () => {
 					const batch = inferenceEventBuffer.splice(0, inferenceEventBuffer.length);
 					return { status: "success", events: batch };
 				},
-				pollChatEvents: () => ({ status: "success", events: [] as Res[] }),
+				pollChatEvents: () => ({ status: "success", events: chat.drainEvents() as unknown as Res[] }),
 
 				// ── Debug ──
 				getDebugImages: () => ({ status: "success", output: null, previews: {} }),
@@ -503,9 +475,10 @@ export function defineAppRPC(
 					if (!row) return { status: "error", message: "Workflow not found" };
 					return { status: "success", workflow: row };
 				},
-				saveWorkflow: ({ workflowId, name, description, graphJson }: { workflowId: string; name: string; description: string; graphJson: string }) => {
+				saveWorkflow: (params) => {
+					const p = params as Record<string, any>;
 					const now = Math.floor(Date.now() / 1000);
-					db.prepare("INSERT INTO workflows (id, name, description, graph_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET name = excluded.name, description = excluded.description, graph_json = excluded.graph_json, updated_at = excluded.updated_at").run(workflowId, name, description, graphJson, now, now);
+					db.prepare("INSERT INTO workflows (id, name, description, graph_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET name = excluded.name, description = excluded.description, graph_json = excluded.graph_json, updated_at = excluded.updated_at").run(p.workflowId, p.name, p.description, p.graphJson, now, now);
 					return { status: "success" };
 				},
 				deleteWorkflow: ({ workflowId }: { workflowId: string }) => {
@@ -516,25 +489,128 @@ export function defineAppRPC(
 				cancelWorkflow: () => ({ status: "success" }),
 				pollWorkflowEvents: () => ({ status: "success", events: [] as Res[] }),
 
-				// ── File browsing (stubs — need Electrobun native dialogs) ──
-				browseOutputDirectory: () => ({ status: "success", changed: false }),
-				browseLoraFiles: () => ({ status: "success", loras: [] as Res[] }),
-				browseImageFile: () => ({ status: "success", path: null, thumbnailPath: null }),
-				browseInputImage: () => ({ status: "success", path: null }),
-				browseWorkflowImage: () => ({ status: "success", path: null }),
-				saveClipboardImage: () => ({ status: "success", path: null }),
-				saveImageAs: () => ({ status: "success", saved: false }),
-				batchSaveImages: () => ({ status: "success", savedCount: 0 }),
-				importStyleImage: () => ({ status: "error", message: "Not yet implemented" }),
-				browseMetadataFiles: () => ({ status: "success", paths: [] as string[] }),
-				browseAndImportMetadata: () => ({ status: "success", styles: [] as Res[], errors: [] as string[] }),
-				importCivitaiMetadata: () => ({ status: "error", message: "Not yet implemented" }),
+				// ── File browsing (delegated to service) ──
+				browseOutputDirectory: () => files.browseOutputDirectory(),
+				browseLoraFiles: () => files.browseLoraFiles(),
+				browseImageFile: (params) => files.browseImageFile(params as Record<string, unknown>),
+				browseInputImage: () => files.browseInputImage(),
+				browseWorkflowImage: (params) => files.browseWorkflowImage(params as Record<string, unknown>),
+				saveClipboardImage: (params) => files.saveClipboardImage(params as Record<string, unknown>),
+				saveImageAs: (params) => files.saveImageAs(params as Record<string, unknown>),
+				batchSaveImages: (params) => files.batchSaveImages(params as Record<string, unknown>),
+				importStyleImage: (params) => files.importStyleImage(params as Record<string, unknown>),
+				browseMetadataFiles: () => files.browseMetadataFiles(),
+				browseAndImportMetadata: () => files.browseAndImportMetadata(),
+				importCivitaiMetadata: (params) => files.importCivitaiMetadata(params as Record<string, unknown>),
 
-				// ── Style AI (stubs — need Anthropic TS SDK) ──
-				reviewStyles: () => ({ status: "error", message: "Not yet implemented" }),
-				applyStyleReview: () => ({ status: "error", message: "Not yet implemented" }),
-				generateStyleFromFilters: () => ({ status: "error", message: "Not yet implemented" }),
-				createStyleFromImage: () => ({ status: "error", message: "Not yet implemented" }),
+				// ── Style AI (uses chat service for AI completions) ──
+				reviewStyles: async (params) => {
+					try {
+						const p = params as Record<string, any>;
+						const styleIds = p.styleIds as string[] ?? [];
+						if (!styleIds.length) return { status: "error", message: "No styles selected" };
+
+						const allStyles = db.prepare("SELECT * FROM styles").all() as Row[];
+						const selected = allStyles.filter((s) => styleIds.includes(s.id as string));
+						if (!selected.length) return { status: "error", message: "No matching styles found" };
+
+						const allTags = db.prepare("SELECT * FROM tags").all() as Row[];
+						const tagNames = allTags.map((t) => t.name as string);
+
+						// Build compact style data for AI review
+						const styleData = selected.map((s) => {
+							const styleTags = db.prepare("SELECT t.name FROM tags t JOIN style_tags st ON t.id = st.tag_id WHERE st.style_id = ?").all(s.id as string) as { name: string }[];
+							return { id: s.id, name: s.name, prompt: (s.prompt_template as string ?? "").slice(0, 200), tags: styleTags.map((t) => t.name) };
+						});
+
+						const prompt = `Review these image generation styles and suggest better names and tags. Existing tags: [${tagNames.join(", ")}]. Prefer reusing existing tags.\n\nStyles:\n${JSON.stringify(styleData, null, 2)}\n\nRespond with JSON array: [{"id": "...", "name": "suggested name", "tags": ["tag1", "tag2"], "reason": "why"}]`;
+
+						const result = await chat.complete([{ role: "user", content: prompt }]);
+						const jsonMatch = result.match(/\[[\s\S]*\]/);
+						if (!jsonMatch) return { status: "error", message: "Failed to parse AI response" };
+						const suggestions = JSON.parse(jsonMatch[0]);
+						const validSuggestions = suggestions.filter((s: any) => styleIds.includes(s.id));
+						return { status: "success", suggestions: validSuggestions };
+					} catch (err) { return { status: "error", message: String(err) }; }
+				},
+
+				applyStyleReview: (params) => {
+					try {
+						const p = params as Record<string, any>;
+						const changes = p.changes as Array<{ id: string; name?: string; tags?: string[] }> ?? [];
+						for (const change of changes) {
+							if (change.name) {
+								db.prepare("UPDATE styles SET name = ?, updated_at = ? WHERE id = ?").run(change.name, Math.floor(Date.now() / 1000), change.id);
+							}
+							if (change.tags) {
+								const tagIds: number[] = [];
+								for (const tagName of change.tags) {
+									let tag = db.prepare("SELECT id FROM tags WHERE name = ?").get(tagName) as { id: number } | null;
+									if (!tag) {
+										db.prepare("INSERT INTO tags (name, category) VALUES (?, 'style')").run(tagName);
+										tag = db.prepare("SELECT id FROM tags WHERE name = ?").get(tagName) as { id: number } | null;
+									}
+									if (tag) tagIds.push(tag.id);
+								}
+								// Replace style tags
+								db.prepare("DELETE FROM style_tags WHERE style_id = ?").run(change.id);
+								const insert = db.prepare("INSERT OR IGNORE INTO style_tags (style_id, tag_id) VALUES (?, ?)");
+								for (const tagId of tagIds) insert.run(change.id, tagId);
+							}
+						}
+						return { status: "success" };
+					} catch (err) { return { status: "error", message: String(err) }; }
+				},
+
+				generateStyleFromFilters: async (params) => {
+					try {
+						const p = params as Record<string, any>;
+						const filterNames = p.filterNames as string[] ?? [];
+						if (!filterNames.length) return { status: "error", message: "No filters selected" };
+
+						const prompt = `Create an image generation style combining these visual filters: ${filterNames.join(", ")}.\n\nRespond with JSON: {"name": "style name", "description": "...", "prompt_template": "a {prompt} with style details...", "negative_prompt": "...", "category": "custom"}.\n\nThe prompt_template MUST contain {prompt} as a placeholder.`;
+
+						const result = await chat.complete([{ role: "user", content: prompt }]);
+						const cleaned = result.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+						const styleData = JSON.parse(cleaned);
+						if (!styleData.prompt_template?.includes("{prompt}")) {
+							styleData.prompt_template = `a {prompt}, ${styleData.prompt_template ?? filterNames.join(", ")}`;
+						}
+						return { status: "success", styleData };
+					} catch (err) { return { status: "error", message: String(err) }; }
+				},
+
+				createStyleFromImage: async (params) => {
+					try {
+						const p = params as Record<string, any>;
+						const imagePath = p.imagePath as string;
+						if (!imagePath) return { status: "error", message: "No image path provided" };
+
+						const bytes = require("fs").readFileSync(imagePath);
+						const b64 = Buffer.from(bytes).toString("base64");
+						const ext = imagePath.split(".").pop()?.toLowerCase() ?? "png";
+						const mediaType = ext === "jpg" || ext === "jpeg" ? "image/jpeg" : ext === "webp" ? "image/webp" : "image/png";
+
+						const result = await chat.completeWithVision([{
+							role: "user",
+							content: [
+								{ type: "image", source: { type: "base64", media_type: mediaType as any, data: b64 } },
+								{ type: "text", text: 'Analyze this image and create a reusable generation style. Respond with JSON: {"name": "style name", "description": "...", "prompt_template": "a {prompt} in this style...", "category": "custom"}. The prompt_template MUST contain {prompt}.' },
+							],
+						}]);
+						const cleaned = result.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+						const styleData = JSON.parse(cleaned);
+
+						const styleId = crypto.randomUUID();
+						const now = Math.floor(Date.now() / 1000);
+						db.prepare(
+							"INSERT INTO styles (id, name, description, prompt_template, category, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+						).run(styleId, styleData.name, styleData.description ?? "", styleData.prompt_template, styleData.category ?? "custom", now, now);
+
+						const style = db.prepare("SELECT * FROM styles WHERE id = ?").get(styleId) as Row;
+						return { status: "success", style };
+					} catch (err) { return { status: "error", message: String(err) }; }
+				},
 
 				// ── Discovery (stub — will use multicast-dns npm) ──
 				getDiscoveredServers: () => ({ status: "success", servers: [] as Res[] }),
@@ -544,6 +620,18 @@ export function defineAppRPC(
 			},
 			messages: {},
 		},
+	});
+
+	// Wire chat events → push messages to webview
+	chat.onEvent((event) => {
+		try {
+			rpc.send.chatEvent({
+				event: event.type,
+				data: event.data,
+			});
+		} catch {
+			// Window may not be ready yet
+		}
 	});
 
 	// Wire sidecar events → both push messages and polling buffer
