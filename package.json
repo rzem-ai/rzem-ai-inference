@@ -5,18 +5,45 @@
   "type": "module",
   "description": "Desktop AI image generation app — Electrobun + Vue 3 + Python sidecar",
   "scripts": {
-    "start": "cd src/mainview && npm run build && cd ../.. && electrobun dev",
+    "start": "vite build && electrobun dev",
     "dev": "electrobun dev --watch",
-    "dev:hmr": "concurrently \"cd src/mainview && npm run dev\" \"electrobun dev\"",
-    "build:canary": "cd src/mainview && npm run build && cd ../.. && electrobun build --env=canary"
+    "dev:hmr": "concurrently \"vite\" \"electrobun dev\"",
+    "build:canary": "vite build && electrobun build --env=canary",
+    "type-check": "vue-tsc --noEmit -p tsconfig.app.json"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
-    "electrobun": "^1.15.1"
+    "@primeuix/themes": "^2.0.3",
+    "@tiptap/core": "^3.15.3",
+    "@tiptap/extension-placeholder": "^3.15.3",
+    "@tiptap/pm": "^3.15.3",
+    "@tiptap/starter-kit": "^3.15.3",
+    "@tiptap/vue-3": "^3.15.3",
+    "@types/marked": "^5.0.2",
+    "@vueuse/core": "^14.2.1",
+    "electrobun": "^1.15.1",
+    "lucide-vue-next": "^0.563.0",
+    "marked": "^17.0.3",
+    "ogl": "^1.0.11",
+    "pinia": "^3.0.0",
+    "primeicons": "^7.0.0",
+    "primevue": "^4.5.4",
+    "tailwindcss-primeui": "^0.6.0",
+    "vue": "^3.5.0",
+    "vue-router": "^4.5.0"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.2.1",
+    "@tailwindcss/vite": "^4.2.1",
     "@types/bun": "latest",
+    "@vitejs/plugin-vue": "^6.0.4",
+    "autoprefixer": "^10.4.0",
     "concurrently": "^9.2.1",
-    "typescript": "^5.9.0"
+    "prettier": "^3.8.1",
+    "prettier-plugin-tailwindcss": "^0.7.2",
+    "tailwindcss": "^4.2.1",
+    "typescript": "^5.9.0",
+    "vite": "^7.3.1",
+    "vue-tsc": "^3.2.5"
   }
 }
