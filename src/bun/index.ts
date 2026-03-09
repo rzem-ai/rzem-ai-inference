@@ -17,18 +17,26 @@ const dbPath = join(dataDir, "inference.db");
 const db = initDatabase(dbPath);
 console.log(`Database: ${dbPath}`);
 
-// ── Sidecar (Python inference engine) ────────────────────────────
-const outputDir = db
+// ── Paths ────────────────────────────────────────────────────────
+const customOutputDir = db
 	.prepare("SELECT value FROM settings WHERE key = 'OUTPUT_DIR'")
 	.get() as { value: string } | null;
+const outputDir = customOutputDir?.value ?? join(dataDir, "output");
+const stylesDir = join(dataDir, "styles");
 
+// Ensure output and styles directories exist
+for (const dir of [outputDir, stylesDir]) {
+	if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+}
+
+// ── Sidecar (Python inference engine) ────────────────────────────
 const sidecar = new SidecarManager({
-	outputDir: outputDir?.value ?? join(dataDir, "output"),
+	outputDir,
 	port: 8100,
 });
 
 // ── RPC ──────────────────────────────────────────────────────────
-const appRPC = defineAppRPC(db, sidecar);
+const appRPC = defineAppRPC(db, sidecar, { outputDir, stylesDir });
 
 // ── Window ───────────────────────────────────────────────────────
 const VITE_DEV_PORT = 1978;
