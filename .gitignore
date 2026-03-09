@@ -1,25 +1,26 @@
-# Python
-__pycache__/
-*.pyc
-.venv/
-.env
-
-data/
-legacy/
-
-# Frontend
+# Dependencies
 node_modules/
-dist/
+bun.lock
 
-# Build artifacts
+# Build output
+dist/
 build/
 .vite/
-.DS_Store
+
+# Environment
 .env
+
+# OS
+.DS_Store
+
+# Data
+data/
 logs/
-uv.lock
+
+# Claude Code
 .claude/skills/primevue.md
 .claude/settings.local.json
-bun.lock
+
+# TypeScript build info
 tsconfig.app.tsbuildinfo
 tsconfig.bun.tsbuildinfo

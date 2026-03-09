@@ -4,33 +4,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-Desktop AI image generation app: Python backend (pywebview) + Vue 3 frontend (Vite). The Python process opens a native window that renders the Vue app. Communication happens via pywebview's `js_api` bridge — the frontend calls Python methods directly through `window.pywebview.api`.
-
-Depends on a sibling repo `../rzem-ai-inference-engine` (editable install) which provides `InferenceEngine`, `JobParams`, event types, etc.
+Desktop AI image generation app built with **Electrobun** (Bun + system WebViews) and a Vue 3 frontend. The Bun main process handles database, RPC, and services. A Python sidecar (`rzem-ai-inference-engine` from sibling repo) runs inference via FastAPI with REST + WebSocket.
 
 ## Commands
 
 ```bash
-# Setup (one-time)
-bash scripts/install.sh        # Creates .venv (uv), installs Python + Node deps
+# Development
+bun run start                  # Build frontend + start Electrobun
+bun run dev                    # Electrobun dev with watch mode
+bun run dev:hmr                # Vite HMR + Electrobun (two processes)
+bun run type-check             # vue-tsc type check for frontend
 
-# Development (two terminals)
-cd frontend && npm run dev     # Terminal 1: Vite HMR on :1978
-bash scripts/dev.sh            # Terminal 2: pywebview window → localhost:1978
+# Build
+bun run build:canary           # Build frontend + Electrobun canary build
 
-# Or browser-only dev (mock API, no Python needed)
-cd frontend && npm run dev     # Open http://localhost:1978 in browser
-
-# Frontend
-cd frontend && npm run build       # Production build → dist/
-cd frontend && npm run type-check  # vue-tsc --noEmit
-
-# Run / Build
-bash scripts/run.sh            # Build frontend (if needed) + run app
-bash scripts/build.sh          # PyInstaller → build/dist/Inference/
-
-# Run any Python command in the project venv
-uv run python main.py
+# Type checking
+bun run --bun tsc --noEmit -p tsconfig.bun.json   # Bun process
+bun run type-check                                 # Vue frontend
 ```
 
 No test framework is configured. No linter is configured.
@@ -38,56 +28,62 @@ No test framework is configured. No linter is configured.
 ## Architecture
 
 ```
-main.py
-  ├── AppConfig (backend/config.py) — dev/prod paths, window dimensions
-  ├── CombinedAPI (backend/api/combined.py) — single js_api object for pywebview
-  │     ├── SystemAPI (backend/api/system.py)
-  │     └── InferenceAPI (backend/api/inference.py)
-  └── Services
-        ├── AppService (backend/services/app_service.py)
-        └── InferenceService (backend/services/inference_service.py)
-
-frontend/src/
-  ├── bridge.ts — pywebview readiness detection + mock API fallback
-  ├── composables/usePywebview.ts — reactive API composable
-  ├── stores/inference.ts — Pinia store: engine state, job lifecycle, event polling
-  ├── types/pywebview.d.ts — TypeScript interface for all API methods
-  └── pages/create/ — Main generation UI (Main.vue = results, Menu.vue = sidebar)
+Electrobun App
+├── src/bun/                    — Bun main process (TypeScript)
+│   ├── index.ts                — Entry: database, sidecar, RPC, window
+│   ├── rpc.ts                  — Typed RPC schema + all handlers (~90 methods)
+│   ├── database.ts             — bun:sqlite schema + migrations + seeding
+│   ├── sidecar.ts              — Python engine subprocess manager
+│   └── services/
+│       ├── batch.ts            — CSV parsing + template rendering
+│       ├── bundles.ts          — Default bundle data (15 bundles, 6 types)
+│       ├── chat.ts             — Anthropic SDK streaming + tool use
+│       ├── files.ts            — Native file dialogs (Electrobun openFileDialog)
+│       ├── settings.ts         — Engine status, VRAM, cache, paths
+│       └── styles.ts           — Style CRUD, LoRA, tags, AI features
+│
+├── src/mainview/               — Vue 3 webview (largely unchanged from pywebview era)
+│   └── src/
+│       ├── bridge.ts           — Electrobun RPC adapter (Proxy-based snake↔camel)
+│       ├── composables/        — usePywebview (API abstraction)
+│       ├── stores/             — Pinia stores (inference, gallery, styles, etc.)
+│       ├── pages/              — Route pages (create, gallery, edit, styles, settings)
+│       └── types/pywebview.d.ts — API type definitions (snake_case)
+│
+└── Python Sidecar (subprocess)
+    └── rzem-ai-inference-engine (sibling repo)
+        ├── FastAPI server (REST + WebSocket)
+        ├── InferenceEngine — GPU jobs
+        └── HF cache management
 ```
 
-### PyWebView Argument Bridge (Critical Pattern)
+### RPC Bridge Pattern
 
-pywebview passes JS objects as a single positional dict, not kwargs. The `ApiMeta` metaclass in `backend/api/__init__.py` auto-wraps every public API method to:
-1. Detect single-dict positional arg from pywebview
-2. Convert camelCase keys to snake_case
-3. Unpack as `**kwargs`
+The frontend uses a Proxy-based bridge (`bridge.ts`) that transparently converts `api.get_bundles()` → `rpc.request.getBundles()`. Response keys are converted camelCase → snake_case to match frontend expectations. This allows existing stores to work with zero changes.
 
-**Rule**: Python API param names must match the frontend's camelCase keys after snake_case conversion. Use `**kwargs` to absorb extra keys. Frontend always sends flat dicts.
+### Event System
 
-### Event Polling (Not WebSockets)
-
-The inference engine fires events from a background thread. `InferenceService` serializes them into a thread-safe deque (max 500). The frontend polls `poll_events()` every 200ms to drain them. PIL images are saved to disk as PNGs; only file paths are sent to the frontend, which then calls `get_image_base64()` to load them.
+Sidecar emits events via WebSocket → Bun buffers them → forwarded to webview via both push messages (`rpc.send.inferenceEvent`) and polling buffer (`pollEvents`). Image persistence happens in the Bun process when `job_completed` events arrive.
 
 ### API Response Convention
 
-Every Python API method returns `{"status": "success", ...}` or `{"status": "error", "message": "..."}`. Never raise exceptions through the bridge.
+Every RPC handler returns `{"status": "success", ...}` or `{"status": "error", "message": "..."}`.
 
 ## Key Constraints
 
-- **Hash router required**: pywebview's built-in HTTP server has no SPA fallback — `vue-router` must use hash mode
-- **Vite port 1978**: Hardcoded in both `vite.config.ts` (strictPort) and `backend/config.py`
-- **`os._exit(0)` on close**: Tearing down CUDA from non-main thread causes C++ errors; the app force-exits instead
-- **`--system-site-packages` venv**: Required on Linux for pywebview's GTK/WebKit bindings (system `gi` module)
+- **Hash router required**: System WebView has no SPA fallback — `vue-router` must use hash mode
+- **Vite port 1978**: Hardcoded in `vite.config.ts` and `src/bun/index.ts`
+- **Bun owns the database**: The Python sidecar is stateless — only Bun writes to SQLite
 - **Database migrations**: Use proper migration strategies for schema changes
 
 ## Frontend Stack
 
 - Vue 3 + TypeScript + Pinia (composition API, `<script setup>`)
-- PrimeVue 4 with custom Glass theme preset (`frontend/src/theme/`)
+- PrimeVue 4 with custom Glass theme preset (`src/mainview/src/theme/`)
 - Tailwind CSS 4 via `@tailwindcss/vite` plugin
 - Tiptap rich text editor (for prompt input)
 - Lucide icons (`lucide-vue-next`)
-- Path alias: `@` → `frontend/src/`
+- Path alias: `@` → `src/mainview/src/`
 
 ---
 
