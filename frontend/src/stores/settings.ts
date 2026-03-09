@@ -55,6 +55,10 @@ export const useSettingsStore = defineStore('settings', {
     // Network / SSL
     sslVerificationDisabled: false,
 
+    // Onboarding
+    onboardingCompleted: false,
+    generationMode: 'both' as string,
+
     loading: false,
   }),
 
@@ -370,6 +374,45 @@ export const useSettingsStore = defineStore('settings', {
       const res = await api.set_ssl_verification_disabled({ disabled });
       if (res.status === 'success') {
         this.sslVerificationDisabled = res.disabled ?? false;
+      }
+    },
+
+    // ── Onboarding ──
+
+    async loadOnboardingStatus() {
+      const api = await getApiAsync();
+      const res = await api.get_setting({ key: 'ONBOARDING_COMPLETED' });
+      if (res.status === 'success') {
+        this.onboardingCompleted = res.value === 'true';
+      }
+      const modeRes = await api.get_setting({ key: 'GENERATION_MODE' });
+      if (modeRes.status === 'success' && modeRes.value) {
+        this.generationMode = modeRes.value;
+      }
+    },
+
+    async completeOnboarding(mode: string, keys: Record<string, string>) {
+      const api = await getApiAsync();
+      // Save generation mode
+      await api.set_setting({ key: 'GENERATION_MODE', value: mode });
+      this.generationMode = mode;
+      // Save API keys
+      for (const [key, value] of Object.entries(keys)) {
+        if (value.trim()) {
+          await api.set_setting({ key, value: value.trim() });
+          this.apiKeys[key] = value.trim();
+        }
+      }
+      // Mark onboarding complete
+      await api.set_setting({ key: 'ONBOARDING_COMPLETED', value: 'true' });
+      this.onboardingCompleted = true;
+    },
+
+    async saveGenerationMode(mode: string) {
+      const api = await getApiAsync();
+      const res = await api.set_setting({ key: 'GENERATION_MODE', value: mode });
+      if (res.status === 'success') {
+        this.generationMode = mode;
       }
     },
 

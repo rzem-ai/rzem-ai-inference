@@ -40,7 +40,7 @@ async function onSetupCompleted() {
   await chatStore.checkConfigured();
 }
 
-onMounted(() => {
+onMounted(async () => {
   discoveryStore.loadConnectionMode();
   discoveryStore.startDiscoveryPolling();
   checkFirstRun();

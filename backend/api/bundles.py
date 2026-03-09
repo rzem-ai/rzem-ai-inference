@@ -31,6 +31,12 @@ class BundlesAPI:
             fal_key = self._bundles_db.get_setting("FAL_KEY")
             if not fal_key:
                 bundles = [b for b in bundles if b.get("source", "local") != "cloud"]
+            # Filter by generation mode preference
+            gen_mode = self._bundles_db.get_setting("GENERATION_MODE")
+            if gen_mode == "local":
+                bundles = [b for b in bundles if b.get("source", "local") != "cloud"]
+            elif gen_mode == "cloud":
+                bundles = [b for b in bundles if b.get("source", "local") != "local"]
             return {"status": "success", "bundles": bundles}
         except Exception as e:
             logger.error("Failed to get bundles: %s", e)

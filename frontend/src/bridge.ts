@@ -56,6 +56,7 @@ export function getApiAsync(): Promise<PywebviewAPI> {
 }
 
 let _counter = 0;
+const _mockSettings: Record<string, string> = {};
 
 /** Mock API for browser-based development without pywebview. */
 export const mockApi: PywebviewAPI = {
@@ -375,9 +376,12 @@ export const mockApi: PywebviewAPI = {
 
   // ── Settings (key-value) ──
   async get_setting(_args) {
-    return { status: "success", value: null };
+    const key = typeof _args === 'object' ? _args.key : _args;
+    return { status: "success", value: _mockSettings[key] ?? null };
   },
   async set_setting(_args) {
+    const { key, value } = _args as { key: string; value: string };
+    _mockSettings[key] = value;
     return { status: "success" };
   },
 
