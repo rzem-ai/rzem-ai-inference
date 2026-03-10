@@ -10,16 +10,8 @@ permissions:
 
 jobs:
   build:
-    name: Build (${{ matrix.arch }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-15
-            arch: arm64
-          - os: macos-13
-            arch: x86_64
+    name: Build (arm64)
+    runs-on: macos-15
 
     steps:
       # ── Checkout ──────────────────────────────────────────────────────────
@@ -108,7 +100,6 @@ jobs:
         working-directory: rzem-ai-inference
         env:
           RELEASE_TAG: ${{ github.ref_name }}
-          RELEASE_ARCH: ${{ matrix.arch }}
         run: |
           APP=$(find build -name "*.app" -maxdepth 3 | head -1)
           if [ -z "$APP" ]; then
@@ -119,7 +110,7 @@ jobs:
           echo "Found: $APP"
           APP_DIR=$(dirname "$APP")
           APP_NAME=$(basename "$APP" .app)
-          ARCHIVE="${APP_NAME}-${RELEASE_TAG}-macOS-${RELEASE_ARCH}.zip"
+          ARCHIVE="${APP_NAME}-${RELEASE_TAG}-macOS-arm64.zip"
           cd "$APP_DIR" && zip -r "$OLDPWD/$ARCHIVE" "$(basename "$APP")"
           echo "ARCHIVE=$ARCHIVE" >> $GITHUB_ENV
 
