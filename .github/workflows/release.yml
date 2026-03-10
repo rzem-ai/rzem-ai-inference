@@ -10,8 +10,16 @@ permissions:
 
 jobs:
   build:
-    name: Build (arm64)
-    runs-on: macos-15
+    name: Build (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            platform: macOS-arm64
+          - os: ubuntu-22.04
+            platform: Linux-x86_64
 
     steps:
       # ── Checkout ──────────────────────────────────────────────────────────
@@ -46,6 +54,17 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
+      # Linux requires WebKitGTK (Electrobun system WebView) and xz-utils
+      # (for the Zig toolchain download inside build-extractor.sh).
+      - name: Install Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            xz-utils
 
       # ── Build engine (CPU-only PyInstaller) ───────────────────────────────
 
@@ -96,7 +115,9 @@ jobs:
 
       # ── Package & release ─────────────────────────────────────────────────
 
-      - name: Find and archive .app bundle
+      # macOS: zip the .app bundle from build/
+      - name: Archive macOS app
+        if: runner.os == 'macOS'
         working-directory: rzem-ai-inference
         env:
           RELEASE_TAG: ${{ github.ref_name }}
@@ -107,11 +128,27 @@ jobs:
             find build -type f | head -20
             exit 1
           fi
-          echo "Found: $APP"
-          APP_DIR=$(dirname "$APP")
           APP_NAME=$(basename "$APP" .app)
           ARCHIVE="${APP_NAME}-${RELEASE_TAG}-macOS-arm64.zip"
-          cd "$APP_DIR" && zip -r "$OLDPWD/$ARCHIVE" "$(basename "$APP")"
+          cd "$(dirname "$APP")" && zip -r "$OLDPWD/$ARCHIVE" "$(basename "$APP")"
+          echo "ARCHIVE=$ARCHIVE" >> $GITHUB_ENV
+
+      # Linux: Electrobun produces build/Inference-Setup.tar.gz (self-extracting installer)
+      - name: Archive Linux installer
+        if: runner.os == 'Linux'
+        working-directory: rzem-ai-inference
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          INSTALLER=$(find build -name "*-Setup.tar.gz" -maxdepth 2 | head -1)
+          if [ -z "$INSTALLER" ]; then
+            echo "ERROR: No installer found in build/"
+            find build -type f | head -20
+            exit 1
+          fi
+          BASE=$(basename "$INSTALLER" .tar.gz)
+          ARCHIVE="${BASE}-${RELEASE_TAG}-Linux-x86_64.tar.gz"
+          cp "$INSTALLER" "$ARCHIVE"
           echo "ARCHIVE=$ARCHIVE" >> $GITHUB_ENV
 
       - name: Create GitHub Release

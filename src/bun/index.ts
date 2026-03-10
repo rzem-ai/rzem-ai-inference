@@ -60,8 +60,11 @@ function resolveEngineDir(): string | undefined {
 // In a packaged macOS .app, look for the PyInstaller-built engine in
 // Contents/Resources/engine/ (sibling of Contents/MacOS/ where we run from).
 function resolveBundledEngineExecutable(): string | undefined {
+	// In a packaged app, bun runs from:
+	//   macOS: Contents/MacOS/bun  →  ../Resources/app/engine/
+	//   Linux: Inference/bin/bun   →  ../Resources/app/engine/
 	const execDir = dirname(process.execPath);
-	const executable = resolve(execDir, "..", "Resources", "engine", "rzem-ai-inference-engine");
+	const executable = resolve(execDir, "..", "Resources", "app", "engine", "rzem-ai-inference-engine");
 	if (existsSync(executable)) {
 		console.log(`Bundled engine found at: ${executable}`);
 		return executable;
