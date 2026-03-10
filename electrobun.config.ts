@@ -2,7 +2,7 @@ import type { ElectrobunConfig } from "electrobun";
 
 export default {
 	app: {
-		name: "RZEM AI Inference",
+		name: "Inference",
 		identifier: "ai.rzem.inference",
 		version: "0.5.0",
 	},
@@ -21,7 +21,7 @@ export default {
 			bundleCEF: false,
 		},
 		linux: {
-			bundleCEF: false,
+			bundleCEF: true,
 		},
 		win: {
 			bundleCEF: false,

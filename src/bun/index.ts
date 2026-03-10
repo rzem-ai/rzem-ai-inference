@@ -90,6 +90,7 @@ const mainWindow = new BrowserWindow({
 	title: "RZEM AI Inference",
 	url,
 	rpc: appRPC,
+	renderer: "cef",  // Specify CEF renderer
 	frame: {
 		width: 1400,
 		height: 900,
@@ -109,6 +110,7 @@ sidecar.start().catch((err) => {
 mainWindow.on("close", () => {
 	sidecar.stop();
 	db.close();
+	process.exit(0);
 });
 
 console.log("RZEM AI Inference started!");

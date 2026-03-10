@@ -8,8 +8,12 @@
     "start": "vite build && electrobun dev",
     "dev": "electrobun dev --watch",
     "dev:hmr": "concurrently \"vite\" \"electrobun dev\"",
+    "build": "vite build && electrobun build --env=stable",
+    "build:dev": "vite build && electrobun build --env=dev",
     "build:canary": "vite build && electrobun build --env=canary",
-    "type-check": "vue-tsc --noEmit -p tsconfig.app.json"
+    "type-check": "vue-tsc --noEmit -p tsconfig.app.json",
+    "postinstall": "bash scripts/build-extractor.sh",
+    "build:extractor": "bash scripts/build-extractor.sh"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
