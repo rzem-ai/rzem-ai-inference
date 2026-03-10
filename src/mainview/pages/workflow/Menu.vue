@@ -69,6 +69,7 @@
       </div>
     </template>
     <template #footer>
+      <WorkflowProgressOverlay />
       <div v-if="workflowStore.isRunning" class="flex gap-2">
         <Button class="flex-1" severity="danger" raised @click="handleCancel">
           <Square :size="14" />
@@ -108,6 +109,7 @@ import {
   Monitor,
 } from 'lucide-vue-next';
 import MenuPanel from '@/components/MenuPanel.vue';
+import WorkflowProgressOverlay from './WorkflowProgressOverlay.vue';
 import { NODE_REGISTRY } from './nodeRegistry';
 import { useWorkflowStore } from '@/stores/workflow';
 import type { WorkflowNodeType } from '@/types/workflow';

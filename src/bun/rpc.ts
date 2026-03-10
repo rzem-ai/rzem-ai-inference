@@ -799,11 +799,13 @@ export function defineAppRPC(
 		const data = (event.data as Res) ?? {};
 
 		// Persist image to database on job completion
+		let resolvedImagePath: string | null = null;
 		if (eventType === "job_completed" && jobId) {
 			const meta = jobMeta.get(jobId);
 			// Sidecar saves images as {outputDir}/{jobId}.png — rename to timestamped + generate thumbnail
 			const sidecarPath = join(config.outputDir, `${jobId}.png`);
 			const { imagePath, coverPath } = processOutputImage(sidecarPath, config.outputDir, jobId);
+			resolvedImagePath = imagePath;
 			try {
 				const p = meta?.params ?? {};
 				const imageId = crypto.randomUUID();
@@ -863,7 +865,8 @@ export function defineAppRPC(
 			jobMeta.delete(jobId);
 		}
 
-		const mapped: Res = { type: eventType, data };
+		const mappedData = resolvedImagePath ? { ...data, image_path: resolvedImagePath } : data;
+		const mapped: Res = { type: eventType, data: mappedData };
 		inferenceEventBuffer.push(mapped);
 		if (inferenceEventBuffer.length > 500) {
 			inferenceEventBuffer.splice(0, inferenceEventBuffer.length - 500);
@@ -873,7 +876,7 @@ export function defineAppRPC(
 			rpc.send.inferenceEvent({
 				event: eventType,
 				jobId,
-				data,
+				data: mappedData,
 			});
 		} catch {
 			// Window may not be ready yet

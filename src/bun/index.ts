@@ -1,4 +1,4 @@
-import { BrowserWindow, Updater, Utils } from "electrobun/bun";
+import { BrowserWindow, Updater, Utils, ApplicationMenu } from "electrobun/bun";
 import { mkdirSync, existsSync } from "fs";
 import { join, resolve, dirname } from "path";
 
@@ -98,6 +98,43 @@ const mainWindow = new BrowserWindow({
 		y: 100,
 	},
 });
+
+// ── Application menu ─────────────────────────────────────────────
+// Required for Cmd+C/V/X/Z keyboard shortcuts to work in WKWebView.
+// macOS routes these through NSResponder roles in the native app menu.
+ApplicationMenu.setApplicationMenu([
+	{
+		label: "RZEM AI Inference",
+		submenu: [
+			{ role: "about" },
+			{ type: "separator" },
+			{ role: "hide" },
+			{ role: "hideOthers" },
+			{ role: "showAll" },
+			{ type: "separator" },
+			{ role: "quit" },
+		],
+	},
+	{
+		label: "Edit",
+		submenu: [
+			{ role: "undo" },
+			{ role: "redo" },
+			{ type: "separator" },
+			{ role: "cut" },
+			{ role: "copy" },
+			{ role: "paste" },
+			{ role: "selectAll" },
+		],
+	},
+	{
+		label: "Window",
+		submenu: [
+			{ role: "minimize" },
+			{ role: "zoom" },
+		],
+	},
+]);
 
 // ── Lifecycle ────────────────────────────────────────────────────
 
