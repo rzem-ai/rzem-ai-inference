@@ -101,7 +101,7 @@ export function createFilesHandlers(
 					return { status: "success", path: null, thumbnailPath: null };
 				}
 				const source = result[0]!;
-				const stored = storeStyleImage(source, config.stylesDir, styleId);
+				const stored = await storeStyleImage(source, config.stylesDir, styleId);
 				if (!stored) {
 					return { status: "error", message: "Failed to process image" };
 				}
@@ -261,7 +261,7 @@ export function createFilesHandlers(
 				if (!source) {
 					return { status: "error", message: "No source provided" };
 				}
-				const stored = storeStyleImage(source, config.stylesDir, styleId);
+				const stored = await storeStyleImage(source, config.stylesDir, styleId);
 				if (!stored) {
 					return { status: "error", message: "Failed to process image" };
 				}
@@ -348,14 +348,14 @@ export function createFilesHandlers(
 // ── Image processing helper ─────────────────────────────────────
 
 /**
- * Copy a local image to the styles directory with a unique name.
- * Creates a simple copy (no resize/thumbnail — would need sharp for that).
+ * Copy a local image to the styles directory with a unique name,
+ * then generate a WebP thumbnail (max 512px wide, quality 85).
  */
-function storeStyleImage(
+async function storeStyleImage(
 	source: string,
 	stylesDir: string,
 	styleId?: string,
-): { fullPath: string; thumbPath: string } | null {
+): Promise<{ fullPath: string; thumbPath: string } | null> {
 	try {
 		if (!existsSync(source)) return null;
 		mkdirSync(stylesDir, { recursive: true });
@@ -367,9 +367,22 @@ function storeStyleImage(
 		const fullPath = join(stylesDir, `${stem}${ext}`);
 		copyFileSync(source, fullPath);
 
-		// Use the same path for thumbnail for now (sharp would be needed for proper thumbnails)
-		const thumbPath = fullPath;
-		return { fullPath, thumbPath };
+		// Generate thumbnail
+		const thumbPath = join(stylesDir, `${stem}_thumb.webp`);
+		let thumbnailPath: string;
+		try {
+			const sharp = (await import("sharp")).default;
+			await sharp(fullPath)
+				.resize({ width: 512, withoutEnlargement: true })
+				.webp({ quality: 85 })
+				.toFile(thumbPath);
+			thumbnailPath = thumbPath;
+		} catch {
+			// Thumbnail generation is best-effort
+			thumbnailPath = fullPath;
+		}
+
+		return { fullPath, thumbPath: thumbnailPath };
 	} catch {
 		return null;
 	}

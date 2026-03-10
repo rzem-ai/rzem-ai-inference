@@ -16,7 +16,80 @@ import { createChatService } from "./services/chat";
 import { createFilesHandlers } from "./services/files";
 import { createWorkflowService } from "./services/workflow";
 import { DEFAULT_BUNDLES, DEFAULT_BUNDLE_TYPES } from "./services/bundles";
-import { statSync } from "fs";
+import { statSync, renameSync, unlinkSync, existsSync, readFileSync, writeFileSync } from "fs";
+import { join, dirname } from "path";
+
+// ── Key conversion ───────────────────────────────────────────────
+
+/** Convert camelCase keys to snake_case (deep). */
+function keysToSnake(obj: unknown): unknown {
+	if (Array.isArray(obj)) return obj.map(keysToSnake);
+	if (obj && typeof obj === "object" && !(obj instanceof Date)) {
+		const result: Record<string, unknown> = {};
+		for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+			const snakeKey = key.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
+			result[snakeKey] = keysToSnake(value);
+		}
+		return result;
+	}
+	return obj;
+}
+
+// ── Image helpers ────────────────────────────────────────────────
+
+function formatTimestamp(): string {
+	const d = new Date();
+	const pad = (n: number) => String(n).padStart(2, "0");
+	return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+}
+
+/**
+ * Rename the sidecar's `{jobId}.png` to `{timestamp}_{jobId}.png` and
+ * generate a half-res WebP thumbnail (`_cover.webp`).
+ * Returns { imagePath, coverPath } with the final file locations.
+ */
+function processOutputImage(
+	sidecarPath: string,
+	outputDir: string,
+	jobId: string,
+): { imagePath: string; coverPath: string | null } {
+	const timestamp = formatTimestamp();
+	const stem = `${timestamp}_${jobId}`;
+	const imagePath = join(outputDir, `${stem}.png`);
+	const coverPath = join(outputDir, `${stem}_cover.webp`);
+
+	// Rename sidecar file to timestamped name
+	if (existsSync(sidecarPath)) {
+		try {
+			renameSync(sidecarPath, imagePath);
+		} catch {
+			// If rename fails (cross-device), fall back to original path
+			return { imagePath: sidecarPath, coverPath: null };
+		}
+	} else {
+		// File may have been renamed already (e.g., by workflow executor) — find it
+		const { readdirSync } = require("fs") as typeof import("fs");
+		const match = readdirSync(outputDir).find((f: string) => f.endsWith(`_${jobId}.png`));
+		if (match) {
+			const existingPath = join(outputDir, match);
+			const existingCover = existingPath.replace(/\.png$/, "_cover.webp");
+			return { imagePath: existingPath, coverPath: existsSync(existingCover) ? existingCover : null };
+		}
+		return { imagePath: sidecarPath, coverPath: null };
+	}
+
+	// Generate half-res WebP thumbnail via sharp (async, non-blocking)
+	import("sharp").then((mod) => {
+		const sharp = mod.default;
+		sharp(imagePath)
+			.resize({ width: 512, withoutEnlargement: true })
+			.webp({ quality: 85 })
+			.toFile(coverPath)
+			.catch(() => { /* thumbnail generation is best-effort */ });
+	}).catch(() => { /* sharp not available */ });
+
+	return { imagePath, coverPath };
+}
 
 // ── Shared types ─────────────────────────────────────────────────
 
@@ -213,7 +286,13 @@ export function defineAppRPC(
 	const settings = createSettingsHandlers(db, sidecar, config.outputDir);
 	const chat = createChatService(db);
 	const files = createFilesHandlers(db, config);
-	const workflow = createWorkflowService({ db, sidecar, chatService: chat });
+	const workflow = createWorkflowService({ db, sidecar, outputDir: config.outputDir, chatService: chat });
+
+	// Initialize HF_TOKEN from database if set
+	const hfKey = db.prepare("SELECT value FROM settings WHERE key = 'HF_API_KEY'").get() as { value: string } | null;
+	if (hfKey?.value) {
+		process.env.HF_TOKEN = hfKey.value;
+	}
 
 	// Event buffer for polling compatibility (push events are preferred)
 	const inferenceEventBuffer: Res[] = [];
@@ -241,6 +320,10 @@ export function defineAppRPC(
 				},
 				setSetting: ({ key, value }) => {
 					db.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(key, value);
+					// Sync HF API key to environment for huggingface_hub usage
+					if (key === "HF_API_KEY" && value) {
+						process.env.HF_TOKEN = value;
+					}
 					return { status: "success" };
 				},
 
@@ -335,15 +418,23 @@ export function defineAppRPC(
 					db.prepare("UPDATE images SET favorite = CASE WHEN favorite = 0 THEN 1 ELSE 0 END WHERE id = ?").run(imageId);
 					return { status: "success", image: db.prepare("SELECT * FROM images WHERE id = ?").get(imageId) as Row };
 				},
-				deleteImage: ({ imageId }) => { db.prepare("DELETE FROM images WHERE id = ?").run(imageId); return { status: "success" }; },
+				deleteImage: ({ imageId }) => {
+					const img = db.prepare("SELECT file_path, thumbnail_path FROM images WHERE id = ?").get(imageId) as { file_path?: string; thumbnail_path?: string } | null;
+					if (img) {
+						if (img.file_path && existsSync(img.file_path)) try { unlinkSync(img.file_path); } catch { /* ignore */ }
+						if (img.thumbnail_path && existsSync(img.thumbnail_path)) try { unlinkSync(img.thumbnail_path); } catch { /* ignore */ }
+					}
+					db.prepare("DELETE FROM images WHERE id = ?").run(imageId);
+					return { status: "success" };
+				},
 				getImageBase64: ({ imagePath }) => {
 					try {
-						const file = Bun.file(imagePath);
-						if (!file.size) return { status: "error", message: "File not found" };
+						if (!imagePath || !existsSync(imagePath)) {
+							return { status: "error", message: `File not found: ${imagePath}` };
+						}
 						const ext = imagePath.split(".").pop()?.toLowerCase() ?? "png";
 						const mime = ext === "jpg" || ext === "jpeg" ? "image/jpeg" : ext === "webp" ? "image/webp" : "image/png";
-						// Read synchronously for simplicity
-						const bytes = require("fs").readFileSync(imagePath);
+						const bytes = readFileSync(imagePath);
 						const b64 = Buffer.from(bytes).toString("base64");
 						return { status: "success", dataUrl: `data:${mime};base64,${b64}` };
 					} catch (err) {
@@ -435,7 +526,29 @@ export function defineAppRPC(
 					if (!sidecar.ready) return { status: "error", message: "Engine not ready" };
 					try {
 						const p = params as Record<string, any>;
-						const result = await sidecar.fetchJson<{ job_id: string }>("/jobs", { method: "POST", body: JSON.stringify(params) });
+						// Inject FAL API key for cloud transformer jobs
+						const transformerType = p.transformer_type ?? p.transformerType;
+						if (transformerType === "fal_cloud") {
+							const falRow = db.prepare("SELECT value FROM settings WHERE key = ?").get("FAL_KEY") as { value: string } | null;
+							if (!falRow?.value) return { status: "error", message: "FAL API key not configured" };
+							p.fal_api_key = falRow.value;
+							if (!p.fal_endpoint) {
+								const bundleId = p.bundle_id ?? p.bundleId;
+								if (bundleId) {
+									const bundle = db.prepare("SELECT fal_endpoint FROM bundles WHERE id = ?").get(bundleId) as { fal_endpoint: string } | null;
+									p.fal_endpoint = bundle?.fal_endpoint ?? "";
+								} else {
+									p.fal_endpoint = "";
+								}
+							}
+						}
+						// Parse stringified JSON arrays (e.g. fal_aspectratio from DB)
+						for (const k of ["fal_aspectratio", "falAspectratio", "loras"]) {
+							if (typeof p[k] === "string") {
+								try { p[k] = JSON.parse(p[k]); } catch { /* leave as-is */ }
+							}
+						}
+						const result = await sidecar.fetchJson<{ job_id: string }>("/jobs", { method: "POST", body: JSON.stringify(keysToSnake(p)) });
 						// Store job metadata for image persistence on completion
 						jobMeta.set(result.job_id, {
 							params: p,
@@ -688,48 +801,63 @@ export function defineAppRPC(
 		// Persist image to database on job completion
 		if (eventType === "job_completed" && jobId) {
 			const meta = jobMeta.get(jobId);
-			const imagePath = (data.image_path as string) ?? (event.image_path as string);
-			if (imagePath) {
-				try {
-					const p = meta?.params ?? {};
-					const imageId = crypto.randomUUID();
-					const now = Math.floor(Date.now() / 1000);
-					const genTimeMs = meta ? Math.round(performance.now() - meta.startTime) : null;
-					let fileSize: number | null = null;
-					try { fileSize = statSync(imagePath).size; } catch { /* file may not be accessible */ }
-					const coverPath = (data.cover_path as string) ?? (event.cover_path as string) ?? null;
-					const modelConfig = JSON.stringify({
-						transformer_model: p.transformer_model ?? p.transformerModel,
-						transformer_type: p.transformer_type ?? p.transformerType,
-						vae_model: p.vae_model ?? p.vaeModel,
-						sampler: p.sampler, scheduler: p.scheduler,
-						bundle_id: meta?.bundleId, style_id: meta?.styleId,
-					});
-					db.prepare(
-						`INSERT INTO images (id, file_path, thumbnail_path, prompt, raw_prompt, width, height, file_size, steps, cfg_scale, seed, bundle_id, model_config, loras, generation_time_ms, created_at, updated_at)
-						VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-					).run(
-						imageId,
-						imagePath,
-						coverPath,
-						(p.prompt as string) ?? "",
-						meta?.rawPrompt ?? null,
-						(p.width as number) ?? 1024,
-						(p.height as number) ?? 1024,
-						fileSize,
-						(p.steps as number) ?? 20,
-						(p.cfg_scale as number) ?? (p.cfgScale as number) ?? 1.0,
-						(data.seed as number) ?? (event.seed as number) ?? -1,
-						meta?.bundleId ?? null,
-						modelConfig,
-						p.loras ? JSON.stringify(p.loras) : null,
-						genTimeMs,
-						now, now,
-					);
-				} catch (err) {
-					console.error("Failed to persist image:", err);
-				}
+			// Sidecar saves images as {outputDir}/{jobId}.png — rename to timestamped + generate thumbnail
+			const sidecarPath = join(config.outputDir, `${jobId}.png`);
+			const { imagePath, coverPath } = processOutputImage(sidecarPath, config.outputDir, jobId);
+			try {
+				const p = meta?.params ?? {};
+				const imageId = crypto.randomUUID();
+				const now = Math.floor(Date.now() / 1000);
+				const genTimeMs = meta ? Math.round(performance.now() - meta.startTime) : null;
+				let fileSize: number | null = null;
+				try { fileSize = statSync(imagePath).size; } catch { /* file may not be accessible */ }
+				const negativePrompt = (p.negative_prompt as string) ?? (p.negativePrompt as string) ?? null;
+				const modelConfig = JSON.stringify({
+					transformer_model: p.transformer_model ?? p.transformerModel,
+					transformer_type: p.transformer_type ?? p.transformerType,
+					vae_model: p.vae_model ?? p.vaeModel,
+					clip_tokenizer: p.clip_tokenizer ?? p.clipTokenizer,
+					clip_encoder: p.clip_encoder ?? p.clipEncoder,
+					t5_tokenizer: p.t5_tokenizer ?? p.t5Tokenizer,
+					t5_encoder: p.t5_encoder ?? p.t5Encoder,
+					sampler: p.sampler, scheduler: p.scheduler,
+					input_image_path: p.input_image_path ?? p.inputImagePath,
+					fal_endpoint: p.fal_endpoint ?? p.falEndpoint,
+					bundle_id: meta?.bundleId, style_id: meta?.styleId,
+				});
+				db.prepare(
+					`INSERT INTO images (id, file_path, thumbnail_path, prompt, raw_prompt, negative_prompt, width, height, file_size, steps, cfg_scale, seed, bundle_id, model_config, loras, generation_time_ms, created_at, updated_at)
+					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				).run(
+					imageId,
+					imagePath,
+					coverPath,
+					(p.prompt as string) ?? "",
+					meta?.rawPrompt ?? null,
+					negativePrompt,
+					(p.width as number) ?? 1024,
+					(p.height as number) ?? 1024,
+					fileSize,
+					(p.steps as number) ?? 20,
+					(p.cfg_scale as number) ?? (p.cfgScale as number) ?? 1.0,
+					(data.seed as number) ?? (event.seed as number) ?? -1,
+					meta?.bundleId ?? null,
+					modelConfig,
+					p.loras ? JSON.stringify(p.loras) : null,
+					genTimeMs,
+					now, now,
+				);
+			} catch (err) {
+				console.error("Failed to persist image:", err);
 			}
+			// Clean up preview images
+			try {
+				const { readdirSync, unlinkSync } = require("fs") as typeof import("fs");
+				const previews = readdirSync(config.outputDir).filter((f: string) => f.startsWith(`${jobId}_preview_`));
+				for (const preview of previews) {
+					try { unlinkSync(join(config.outputDir, preview)); } catch { /* ignore */ }
+				}
+			} catch { /* ignore cleanup errors */ }
 			jobMeta.delete(jobId);
 		} else if (eventType === "job_failed" || eventType === "job_cancelled") {
 			jobMeta.delete(jobId);

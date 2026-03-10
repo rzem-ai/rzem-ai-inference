@@ -90,7 +90,7 @@ const mainWindow = new BrowserWindow({
 	title: "RZEM AI Inference",
 	url,
 	rpc: appRPC,
-	renderer: "cef",  // Specify CEF renderer
+	//renderer: "cef",  // Specify CEF renderer
 	frame: {
 		width: 1400,
 		height: 900,

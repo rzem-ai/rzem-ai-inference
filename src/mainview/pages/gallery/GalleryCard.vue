@@ -1,6 +1,5 @@
 <template>
   <div
-    ref="cardRef"
     class="group relative rounded-lg overflow-hidden cursor-pointer bg-slate-100 border border-slate-200 hover:border-slate-300 transition-colors"
     :class="{ 'ring-2 ring-blue-500 border-blue-500': selected }"
     @click="emit('click', image.id)"
@@ -53,8 +52,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
-import { getApi, mockApi } from '@/bridge';
+import { ref, onMounted } from 'vue';
+import { getApiAsync } from '@/bridge';
 import type { GalleryImage } from '@/types/inference';
 
 const props = defineProps<{
@@ -70,31 +69,21 @@ const emit = defineEmits<{
   contextmenu: [event: MouseEvent, imageId: string];
 }>();
 
-const cardRef = ref<HTMLElement>();
 const dataUrl = ref<string | null>(null);
-let observer: IntersectionObserver | null = null;
 
 async function loadImage() {
-  const api = getApi() ?? mockApi;
-  const path = props.image.thumbnail_path || props.image.file_path;
-  const res = await api.get_image_base64({ image_path: path });
-  if (res.status === 'success' && res.data_url) {
-    dataUrl.value = res.data_url;
+  try {
+    const api = await getApiAsync();
+    const path = props.image.thumbnail_path || props.image.file_path;
+    const res = await api.get_image_base64({ image_path: path });
+    if (res.status === 'success' && res.data_url) {
+      dataUrl.value = res.data_url;
+    }
+  } catch (err) {
+    console.error('[GalleryCard] loadImage failed:', err);
   }
 }
 
-onMounted(() => {
-  observer = new IntersectionObserver(
-    ([entry]) => {
-      if (entry.isIntersecting) {
-        loadImage();
-        observer?.disconnect();
-      }
-    },
-    { rootMargin: '200px' },
-  );
-  if (cardRef.value) observer.observe(cardRef.value);
-});
-
-onUnmounted(() => observer?.disconnect());
+// VirtualGrid already handles virtualization — load immediately on mount
+onMounted(() => loadImage());
 </script>

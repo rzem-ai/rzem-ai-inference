@@ -62,7 +62,7 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue';
-import { getApi, mockApi } from '@/bridge';
+import { getApiAsync } from '@/bridge';
 import type { GalleryImage } from '@/types/inference';
 
 const props = defineProps<{
@@ -84,12 +84,12 @@ function close() {
 }
 
 async function onDownload() {
-  const api = getApi() ?? mockApi;
+  const api = await getApiAsync();
   await api.save_image_as({ file_path: props.image.file_path });
 }
 
 async function loadFullImage() {
-  const api = getApi() ?? mockApi;
+  const api = await getApiAsync();
   const res = await api.get_image_base64({ image_path: props.image.file_path });
   if (res.status === 'success' && res.data_url) {
     dataUrl.value = res.data_url;

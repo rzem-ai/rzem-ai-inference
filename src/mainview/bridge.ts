@@ -88,6 +88,8 @@ function createElectrobunApi(): PywebviewAPI {
   return new Proxy({} as PywebviewAPI, {
     get(_target, prop: string) {
       if (typeof prop !== "string") return undefined;
+      // Prevent Promise resolution from treating this proxy as a thenable
+      if (prop === "then") return undefined;
       const camelMethod = snakeToCamel(prop);
 
       return async (args?: unknown) => {

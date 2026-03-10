@@ -348,7 +348,7 @@ export const useWorkflowStore = defineStore('workflow', {
 
           case 'workflow_completed':
             this.isRunning = false;
-            this.finalOutputs = event.final_outputs ?? null;
+            this.finalOutputs = event.outputs ?? event.final_outputs ?? null;
             this.stopWorkflowPolling();
             break;
 
@@ -390,11 +390,16 @@ export const useWorkflowStore = defineStore('workflow', {
 
     async loadDefaultWorkflow() {
       // Fetch bundles to pre-select the first available one
-      const api = await getApiAsync();
-      const bundleRes = await api.get_bundles();
-      const firstBundle = bundleRes.status === 'success' && bundleRes.bundles?.length
-        ? bundleRes.bundles[0]
-        : null;
+      let firstBundle: Record<string, any> | null = null;
+      try {
+        const api = await getApiAsync();
+        const bundleRes = await api.get_bundles();
+        firstBundle = bundleRes.status === 'success' && bundleRes.bundles?.length
+          ? bundleRes.bundles[0] as Record<string, any>
+          : null;
+      } catch (err) {
+        console.warn('[workflow] Failed to fetch bundles for default workflow:', err);
+      }
 
       const textId = crypto.randomUUID();
       const genId = crypto.randomUUID();

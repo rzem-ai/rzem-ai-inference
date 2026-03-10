@@ -178,6 +178,8 @@ export class SidecarManager {
 			},
 		});
 		if (!res.ok) {
+			const errorBody = await res.text().catch(() => "");
+			console.error(`[sidecar] ${options?.method ?? "GET"} ${path} → ${res.status}`, errorBody);
 			throw new Error(
 				`Sidecar ${options?.method ?? "GET"} ${path} failed: ${res.status} ${res.statusText}`,
 			);

@@ -7,13 +7,13 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { getApi, mockApi } from '@/bridge';
+import { getApiAsync } from '@/bridge';
 
 const props = defineProps<{ path: string }>();
 const dataUrl = ref<string | null>(null);
 
 onMounted(async () => {
-  const api = getApi() ?? mockApi;
+  const api = await getApiAsync();
   const res = await api.get_image_base64({ image_path: props.path });
   if (res.status === 'success' && res.data_url) {
     dataUrl.value = res.data_url;

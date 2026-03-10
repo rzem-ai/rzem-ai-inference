@@ -5,8 +5,24 @@
 
 import type Database from "bun:sqlite";
 import type { SidecarManager } from "../sidecar";
-import { readFileSync, existsSync } from "fs";
-import { resolve } from "path";
+import { readFileSync, existsSync, renameSync } from "fs";
+import { resolve, join } from "path";
+
+// ── Key conversion ───────────────────────────────────────────────
+
+/** Convert camelCase keys to snake_case (deep). */
+function keysToSnake(obj: unknown): unknown {
+	if (Array.isArray(obj)) return obj.map(keysToSnake);
+	if (obj && typeof obj === "object" && !(obj instanceof Date)) {
+		const result: Record<string, unknown> = {};
+		for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+			const snakeKey = key.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
+			result[snakeKey] = keysToSnake(value);
+		}
+		return result;
+	}
+	return obj;
+}
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -116,6 +132,7 @@ class ImageGenExecutor implements NodeExecutor {
 	constructor(
 		private sidecar: SidecarManager,
 		private db: Database,
+		private outputDir: string,
 	) {}
 
 	async execute(
@@ -173,10 +190,10 @@ class ImageGenExecutor implements NodeExecutor {
 		// Submit to sidecar
 		const submitRes = await this.sidecar.fetchJson<{ job_id: string }>("/jobs", {
 			method: "POST",
-			body: JSON.stringify({
+			body: JSON.stringify(keysToSnake({
 				...jobParams,
 				bundle_id: bundleId,
-			}),
+			})),
 		});
 		const jobId = submitRes.job_id;
 
@@ -193,21 +210,38 @@ class ImageGenExecutor implements NodeExecutor {
 
 			const status = await this.sidecar.fetchJson<{
 				status: string;
-				step?: number;
-				total_steps?: number;
-				image_path?: string;
-				error?: string;
+				progress?: { step: number; total_steps: number };
+				result?: { seed: number; image_url: string };
+				error?: { error: string } | unknown;
 			}>(`/jobs/${jobId}`);
 
 			if (status.status === "completed") {
-				if (!status.image_path) throw new Error("Generation completed but no image path returned");
+				// Sidecar saves as {outputDir}/{jobId}.png — check both original and timestamped names
+				let imagePath = join(this.outputDir, `${jobId}.png`);
+				if (!existsSync(imagePath)) {
+					// Event handler may have already renamed it — search for timestamped version
+					const { readdirSync } = require("fs") as typeof import("fs");
+					const match = readdirSync(this.outputDir).find((f: string) => f.endsWith(`_${jobId}.png`));
+					if (match) {
+						imagePath = join(this.outputDir, match);
+					} else {
+						throw new Error(`Generation completed but image file not found at: ${imagePath}`);
+					}
+				}
 				progressCallback(1.0, "Generation complete");
-				return { image: status.image_path };
+				return { image: imagePath };
 			} else if (status.status === "failed") {
-				throw new Error(`Image generation failed: ${status.error || "Unknown error"}`);
-			} else if (status.status === "running" && status.step != null && status.total_steps) {
-				const pct = 0.2 + 0.7 * (status.step / Math.max(status.total_steps, 1));
-				progressCallback(pct, `Generating step ${status.step}/${status.total_steps}`);
+				const errObj = status.error as { error?: string } | string | null;
+				const errMsg = typeof errObj === "string"
+					? errObj
+					: errObj && typeof errObj === "object" && errObj.error
+						? errObj.error
+						: errObj ? JSON.stringify(errObj) : "Unknown error";
+				throw new Error(`Image generation failed: ${errMsg}`);
+			} else if (status.status === "running" && status.progress) {
+				const { step, total_steps } = status.progress;
+				const pct = 0.2 + 0.7 * (step / Math.max(total_steps, 1));
+				progressCallback(pct, `Generating step ${step}/${total_steps}`);
 			}
 
 			await new Promise((r) => setTimeout(r, 300));
@@ -319,13 +353,14 @@ function buildInputMap(
 export interface WorkflowServiceDeps {
 	db: Database;
 	sidecar: SidecarManager;
+	outputDir: string;
 	chatService: {
 		completeWithVision(messages: unknown[], maxTokens?: number): Promise<string>;
 	};
 }
 
 export function createWorkflowService(deps: WorkflowServiceDeps) {
-	const { db, sidecar, chatService } = deps;
+	const { db, sidecar, outputDir, chatService } = deps;
 
 	const events: WorkflowEvent[] = [];
 	const activeRuns = new Map<string, { cancelled: boolean }>();
@@ -334,7 +369,7 @@ export function createWorkflowService(deps: WorkflowServiceDeps) {
 	const executors: Record<string, NodeExecutor> = {
 		image_input: new ImageInputExecutor(),
 		vision_qa: new VisionQAExecutor(chatService),
-		image_gen: new ImageGenExecutor(sidecar, db),
+		image_gen: new ImageGenExecutor(sidecar, db, outputDir),
 		text: new TextExecutor(),
 		output: new OutputExecutor(),
 	};

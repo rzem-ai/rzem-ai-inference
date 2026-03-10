@@ -87,7 +87,9 @@ watch(
       outputImageUrl.value = null;
       return;
     }
-    const imagePath = typeof outputs.image_path === 'string' ? outputs.image_path : null;
+    const imagePath = typeof outputs.image === 'string' ? outputs.image
+      : typeof outputs.image_path === 'string' ? outputs.image_path
+      : null;
     if (imagePath) {
       const api = await getApiAsync();
       const res = await api.get_image_base64({ image_path: imagePath });

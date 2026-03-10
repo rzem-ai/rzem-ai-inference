@@ -59,20 +59,27 @@ const finalOutputs = computed(() => workflowStore.finalOutputs);
 const hasOutputs = computed(() => finalOutputs.value !== null);
 const imageUrls = ref<string[]>([]);
 
-const textOutputs = computed(() => {
-  if (!finalOutputs.value) return [];
-  const texts: string[] = [];
-  for (const [, value] of Object.entries(finalOutputs.value)) {
-    if (typeof value === 'string' && !isImagePath(value)) {
-      texts.push(value);
-    }
-  }
-  return texts;
-});
-
 function isImagePath(value: string): boolean {
   return /\.(png|jpe?g|webp|bmp|tiff?)$/i.test(value);
 }
+
+/** Extract all string values from nested output objects. */
+function collectValues(obj: Record<string, unknown>): string[] {
+  const values: string[] = [];
+  for (const value of Object.values(obj)) {
+    if (typeof value === 'string') {
+      values.push(value);
+    } else if (value && typeof value === 'object' && !Array.isArray(value)) {
+      values.push(...collectValues(value as Record<string, unknown>));
+    }
+  }
+  return values;
+}
+
+const textOutputs = computed(() => {
+  if (!finalOutputs.value) return [];
+  return collectValues(finalOutputs.value).filter(v => !isImagePath(v));
+});
 
 // Load images when finalOutputs change
 watch(
@@ -81,20 +88,14 @@ watch(
     imageUrls.value = [];
     if (!outputs) return;
 
-    const imagePaths: string[] = [];
-    for (const [, value] of Object.entries(outputs)) {
-      if (typeof value === 'string' && isImagePath(value)) {
-        imagePaths.push(value);
-      }
-    }
-
+    const imagePaths = collectValues(outputs).filter(isImagePath);
     if (!imagePaths.length) return;
 
     const api = await getApiAsync();
     for (const path of imagePaths) {
       const res = await api.get_image_base64({ image_path: path });
       if (res.status === 'success' && res.data_url) {
-        imageUrls.value.push(res.data_url);
+        imageUrls.value.push(res.data_url as string);
       }
     }
   },

@@ -170,7 +170,7 @@ function handleCancel() {
 onMounted(async () => {
   await workflowStore.loadWorkflows();
   if (!workflowStore.activeWorkflow && workflowStore.workflows.length === 0) {
-    workflowStore.loadDefaultWorkflow();
+    await workflowStore.loadDefaultWorkflow();
   }
 });
 </script>
