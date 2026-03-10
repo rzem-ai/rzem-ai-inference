@@ -14,6 +14,9 @@ export default {
 		copy: {
 			"dist/index.html": "views/mainview/index.html",
 			"dist/assets": "views/mainview/assets",
+			// PyInstaller-built engine (CPU-only). Populated by the release workflow
+			// before `electrobun build` runs. Path inside bundle: Contents/Resources/engine/
+			"engine-dist": "engine",
 		},
 		// Ignore Vite output in watch mode — HMR handles view rebuilds
 		watchIgnore: ["dist/**"],

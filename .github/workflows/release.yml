@@ -1,0 +1,132 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build (${{ matrix.arch }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            arch: arm64
+          - os: macos-13
+            arch: x86_64
+
+    steps:
+      # ── Checkout ──────────────────────────────────────────────────────────
+
+      - name: Checkout app
+        uses: actions/checkout@v4
+        with:
+          path: rzem-ai-inference
+
+      # Clone the electrobun fork as a sibling — matches local dev layout
+      # and lets build-extractor.sh resolve ../electrobun/package correctly.
+      - name: Checkout electrobun fork
+        uses: actions/checkout@v4
+        with:
+          repository: rzem-ai/electrobun
+          path: electrobun/package
+
+      - name: Checkout inference engine
+        uses: actions/checkout@v4
+        with:
+          repository: rzem-ai/rzem-ai-inference-engine
+          path: rzem-ai-inference-engine
+
+      # ── Toolchains ────────────────────────────────────────────────────────
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # ── Build engine (CPU-only PyInstaller) ───────────────────────────────
+
+      - name: Install CPU-only PyTorch
+        working-directory: rzem-ai-inference-engine
+        run: |
+          pip install --upgrade pip
+          # Install CPU-only torch before the rest to prevent CUDA variant being pulled in
+          pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Install engine + PyInstaller
+        working-directory: rzem-ai-inference-engine
+        run: pip install ".[build]"
+
+      - name: Build engine with PyInstaller
+        working-directory: rzem-ai-inference-engine
+        run: |
+          pyinstaller \
+            --onedir \
+            --name rzem-ai-inference-engine \
+            --collect-all rzem_ai_inference_engine \
+            --hidden-import uvicorn.lifespan.on \
+            --hidden-import uvicorn.protocols.http.auto \
+            --hidden-import uvicorn.protocols.websockets.auto \
+            --hidden-import uvicorn.loops.auto \
+            --hidden-import fastapi \
+            --hidden-import click \
+            src/rzem_ai_inference_engine/__main__.py
+
+      - name: Copy engine dist into app repo
+        run: |
+          mkdir -p rzem-ai-inference/engine-dist
+          cp -r rzem-ai-inference-engine/dist/rzem-ai-inference-engine/. rzem-ai-inference/engine-dist/
+
+      # ── Build app ─────────────────────────────────────────────────────────
+
+      - name: Install app dependencies
+        working-directory: rzem-ai-inference
+        run: bun install
+
+      - name: Build frontend (Vite)
+        working-directory: rzem-ai-inference
+        run: bunx vite build
+
+      - name: Build Electrobun app
+        working-directory: rzem-ai-inference
+        run: bunx electrobun build --env=stable
+
+      # ── Package & release ─────────────────────────────────────────────────
+
+      - name: Find and archive .app bundle
+        working-directory: rzem-ai-inference
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_ARCH: ${{ matrix.arch }}
+        run: |
+          APP=$(find build -name "*.app" -maxdepth 3 | head -1)
+          if [ -z "$APP" ]; then
+            echo "ERROR: No .app bundle found in build/"
+            find build -type f | head -20
+            exit 1
+          fi
+          echo "Found: $APP"
+          APP_DIR=$(dirname "$APP")
+          APP_NAME=$(basename "$APP" .app)
+          ARCHIVE="${APP_NAME}-${RELEASE_TAG}-macOS-${RELEASE_ARCH}.zip"
+          cd "$APP_DIR" && zip -r "$OLDPWD/$ARCHIVE" "$(basename "$APP")"
+          echo "ARCHIVE=$ARCHIVE" >> $GITHUB_ENV
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: rzem-ai-inference/${{ env.ARCHIVE }}
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}

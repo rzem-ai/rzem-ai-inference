@@ -5,6 +5,11 @@ set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 FORK_DIR="$(cd "$PROJECT_DIR/.." && pwd)/electrobun/package"
+
+if [ ! -d "$FORK_DIR" ]; then
+  echo "Electrobun fork not found at $FORK_DIR — skipping extractor build"
+  exit 0
+fi
 EXTRACTOR_SRC="$FORK_DIR/src/extractor"
 ZIG="$FORK_DIR/vendors/zig/zig"
 TARGET="$PROJECT_DIR/node_modules/electrobun/dist-linux-x64/extractor"

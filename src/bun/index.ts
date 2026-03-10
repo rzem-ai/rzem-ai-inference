@@ -57,10 +57,25 @@ function resolveEngineDir(): string | undefined {
 	return undefined;
 }
 
+// In a packaged macOS .app, look for the PyInstaller-built engine in
+// Contents/Resources/engine/ (sibling of Contents/MacOS/ where we run from).
+function resolveBundledEngineExecutable(): string | undefined {
+	const execDir = dirname(process.execPath);
+	const executable = resolve(execDir, "..", "Resources", "engine", "rzem-ai-inference-engine");
+	if (existsSync(executable)) {
+		console.log(`Bundled engine found at: ${executable}`);
+		return executable;
+	}
+	return undefined;
+}
+
+const bundledExecutable = resolveBundledEngineExecutable();
+
 const sidecar = new SidecarManager({
 	outputDir,
 	port: 8100,
-	engineDir: resolveEngineDir(),
+	engineExecutable: bundledExecutable,
+	engineDir: bundledExecutable ? undefined : resolveEngineDir(),
 });
 
 // ── RPC ──────────────────────────────────────────────────────────

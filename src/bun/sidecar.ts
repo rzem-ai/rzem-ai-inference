@@ -5,6 +5,8 @@ export interface SidecarConfig {
 	port: number;
 	host?: string;
 	engineDir?: string;
+	/** Path to a bundled PyInstaller executable. When set, replaces `uv run python -m rzem_ai_inference_engine`. */
+	engineExecutable?: string;
 	device?: string;
 	vramLimitGb?: number;
 	previewInterval?: number;
@@ -71,12 +73,12 @@ export class SidecarManager {
 			return;
 		}
 
+		const baseArgs = this.config.engineExecutable
+			? [this.config.engineExecutable]
+			: ["uv", "run", "python", "-m", "rzem_ai_inference_engine"];
+
 		const args = [
-			"uv",
-			"run",
-			"python",
-			"-m",
-			"rzem_ai_inference_engine",
+			...baseArgs,
 			"serve",
 			"--host",
 			this.config.host,
