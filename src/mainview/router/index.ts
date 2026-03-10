@@ -41,6 +41,14 @@ const router = createRouter({
       },
     },
     {
+      path: '/workflow',
+      name: 'workflow',
+      components: {
+        default: () => import('@/pages/workflow/Main.vue'),
+        menu: () => import('@/pages/workflow/Menu.vue'),
+      },
+    },
+    {
       path: '/styles',
       components: {
         default: () => import('@/pages/styles/Main.vue'),

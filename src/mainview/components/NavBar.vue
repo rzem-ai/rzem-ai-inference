@@ -33,6 +33,13 @@
             <Palette :size="20" />
           </div>
         </RouterLink>
+        <RouterLink :to="{ name: 'workflow' }" v-slot="{ isActive }">
+          <div
+            class="p-3 transition-all duration-300 ease-in-out"
+            :class="isActive ? 'text-white' : 'text-surface-400 hover:text-white'">
+            <Workflow :size="20" />
+          </div>
+        </RouterLink>
         <RouterLink :to="{ name: 'models' }" v-slot="{ isActive }">
           <div
             class="p-3 transition-all duration-300 ease-in-out"

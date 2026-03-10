@@ -14,6 +14,7 @@ import { createStylesHandlers } from "./services/styles";
 import { createSettingsHandlers } from "./services/settings";
 import { createChatService } from "./services/chat";
 import { createFilesHandlers } from "./services/files";
+import { createWorkflowService } from "./services/workflow";
 import { DEFAULT_BUNDLES, DEFAULT_BUNDLE_TYPES } from "./services/bundles";
 import { statSync } from "fs";
 
@@ -212,6 +213,7 @@ export function defineAppRPC(
 	const settings = createSettingsHandlers(db, sidecar, config.outputDir);
 	const chat = createChatService(db);
 	const files = createFilesHandlers(db, config);
+	const workflow = createWorkflowService({ db, sidecar, chatService: chat });
 
 	// Event buffer for polling compatibility (push events are preferred)
 	const inferenceEventBuffer: Res[] = [];
@@ -515,9 +517,22 @@ export function defineAppRPC(
 					db.prepare("DELETE FROM workflows WHERE id = ?").run(workflowId);
 					return { status: "success" };
 				},
-				runWorkflow: () => ({ status: "error", message: "Workflow execution not yet implemented" }),
-				cancelWorkflow: () => ({ status: "success" }),
-				pollWorkflowEvents: () => ({ status: "success", events: [] as Res[] }),
+				runWorkflow: (params) => {
+					const p = params as Record<string, any>;
+					try {
+						const runId = workflow.runWorkflow(p.graphJson);
+						return { status: "success", run_id: runId };
+					} catch (err) {
+						return { status: "error", message: String(err) };
+					}
+				},
+				cancelWorkflow: (params) => {
+					const p = params as Record<string, any>;
+					const cancelled = workflow.cancelWorkflow(p.runId);
+					if (!cancelled) return { status: "error", message: "No active workflow run" };
+					return { status: "success" };
+				},
+				pollWorkflowEvents: () => ({ status: "success", events: workflow.pollEvents() as unknown as Res[] }),
 
 				// ── File browsing (delegated to service) ──
 				browseOutputDirectory: () => files.browseOutputDirectory(),

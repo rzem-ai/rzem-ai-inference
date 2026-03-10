@@ -624,28 +624,28 @@ export const mockApi: PywebviewAPI = {
   },
 
   // ── Workflows ──
-  async get_workflows(_args?) {
-    return { status: "success", workflows: [] };
+  async get_workflows(_args?: Record<string, unknown>) {
+    return { status: "success" as const, workflows: [] };
   },
-  async get_workflow(_args) {
-    return { status: "error", workflow: { id: "", name: "", description: "", graph_json: "{}", created_at: 0, updated_at: 0 } };
+  async get_workflow(_args: { workflow_id: string }) {
+    return { status: "error" as const, workflow: { id: "", name: "", description: "", graph_json: "{}", created_at: 0, updated_at: 0 } };
   },
-  async save_workflow(_args) {
-    return { status: "success" };
+  async save_workflow(_args: { workflow_id: string; name: string; description?: string; graph_json?: string }) {
+    return { status: "success" as const };
   },
-  async delete_workflow(_args) {
-    return { status: "success" };
+  async delete_workflow(_args: { workflow_id: string }) {
+    return { status: "success" as const };
   },
-  async run_workflow(_args) {
-    return { status: "success", run_id: `mock-run-${++_counter}` };
+  async run_workflow(_args: { graph_json: string }) {
+    return { status: "success" as const, run_id: `mock-run-${++_counter}` };
   },
-  async cancel_workflow(_args) {
-    return { status: "success" };
+  async cancel_workflow(_args: { run_id: string }) {
+    return { status: "success" as const };
   },
-  async poll_workflow_events(_args?) {
-    return { status: "success", events: [] };
+  async poll_workflow_events(_args?: Record<string, unknown>) {
+    return { status: "success" as const, events: [] };
   },
-  async browse_workflow_image(_args?) {
-    return { status: "success", path: "/mock/workflow_image.png" };
+  async browse_workflow_image(_args?: Record<string, unknown>) {
+    return { status: "success" as const, path: "/mock/workflow_image.png" };
   },
 };

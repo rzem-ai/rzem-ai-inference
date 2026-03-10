@@ -1,4 +1,5 @@
 import type { ApiResponse, InferenceEvent, BundleType, ModelBundle, SubmitJobParams, GalleryImage, Folder, Tag, Style, StyleLoRA, StyleExample, StyleReviewSuggestion, LoRA, VramUsage, EngineStatus, CachedModel, DataPaths, DiskUsage, Conversation, ConversationMessage, ChatEvent, DiscoveredServer } from "./inference";
+import type { WorkflowListItem, WorkflowEvent } from "./workflow";
 
 export interface PywebviewAPI {
   // ── System ──
@@ -254,6 +255,16 @@ export interface PywebviewAPI {
     display_text?: string;
   }): Promise<ApiResponse>;
   poll_chat_events(): Promise<ApiResponse<{ events?: ChatEvent[] }>>;
+
+  // ── Workflows ──
+  get_workflows(args?: Record<string, unknown>): Promise<ApiResponse<{ workflows?: WorkflowListItem[] }>>;
+  get_workflow(args: { workflow_id: string }): Promise<ApiResponse<{ workflow?: { id: string; name: string; description: string; graph_json: string; created_at: number; updated_at: number } }>>;
+  save_workflow(args: { workflow_id: string; name: string; description?: string; graph_json?: string }): Promise<ApiResponse>;
+  delete_workflow(args: { workflow_id: string }): Promise<ApiResponse>;
+  run_workflow(args: { graph_json: string }): Promise<ApiResponse<{ run_id?: string }>>;
+  cancel_workflow(args: { run_id: string }): Promise<ApiResponse>;
+  poll_workflow_events(args?: Record<string, unknown>): Promise<ApiResponse<{ events?: WorkflowEvent[] }>>;
+  browse_workflow_image(args?: Record<string, unknown>): Promise<ApiResponse<{ path?: string | null }>>;
 }
 
 declare global {

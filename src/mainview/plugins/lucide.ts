@@ -13,8 +13,8 @@ const iconNames = [
   'MessageCirclePlus', 'Paintbrush', 'Palette', 'PenTool', 'Play', 'Plus',
   'Save', 'Search', 'SendHorizontal', 'Shield', 'ShieldAlert', 'Shuffle', 'SlidersHorizontal',
   'Sparkles', 'Square', 'Star', 'Table', 'Terminal', 'Trash2',
-  'TriangleAlert', 'Unlink', 'Upload', 'WandSparkles', 'Wifi', 'X', 'Server',
-  'ServerOff',
+  'TriangleAlert', 'Unlink', 'Upload', 'WandSparkles', 'Wifi', 'Workflow', 'X',
+  'XCircle', 'Server', 'ServerOff',
 ] as const;
 
 // Aliases used by components that imported with renames

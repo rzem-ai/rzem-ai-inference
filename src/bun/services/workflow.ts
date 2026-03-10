@@ -1,0 +1,488 @@
+/**
+ * Workflow execution engine — parses node graphs, runs nodes sequentially.
+ * Ported from backend/services/workflow_service.py.
+ */
+
+import type Database from "bun:sqlite";
+import type { SidecarManager } from "../sidecar";
+import { readFileSync, existsSync } from "fs";
+import { resolve } from "path";
+
+// ── Types ────────────────────────────────────────────────────────
+
+type Row = Record<string, unknown>;
+
+interface WorkflowEvent {
+	type: string;
+	[key: string]: unknown;
+}
+
+interface NodeData {
+	id: string;
+	type: string;
+	data: Record<string, unknown>;
+}
+
+interface Edge {
+	source: string;
+	target: string;
+	sourceHandle?: string;
+	targetHandle?: string;
+}
+
+type ProgressCallback = (progress: number, message: string) => void;
+type CancelCheck = () => boolean;
+
+interface NodeExecutor {
+	execute(
+		data: Record<string, unknown>,
+		inputs: Record<string, unknown>,
+		progressCallback: ProgressCallback,
+		cancelCheck: CancelCheck,
+	): Promise<Record<string, unknown>>;
+}
+
+// ── Node Executors ───────────────────────────────────────────────
+
+class ImageInputExecutor implements NodeExecutor {
+	async execute(
+		data: Record<string, unknown>,
+		_inputs: Record<string, unknown>,
+		progressCallback: ProgressCallback,
+	): Promise<Record<string, unknown>> {
+		const imagePath = (data.imagePath as string) || "";
+		if (!imagePath) throw new Error("No image path specified in ImageInput node");
+		if (!existsSync(imagePath)) throw new Error(`Image file not found: ${imagePath}`);
+		progressCallback(1.0, "Image loaded");
+		return { image: imagePath };
+	}
+}
+
+class VisionQAExecutor implements NodeExecutor {
+	constructor(
+		private chatService: {
+			completeWithVision(messages: unknown[], maxTokens?: number): Promise<string>;
+		},
+	) {}
+
+	async execute(
+		data: Record<string, unknown>,
+		inputs: Record<string, unknown>,
+		progressCallback: ProgressCallback,
+	): Promise<Record<string, unknown>> {
+		let question = (data.question as string) || "";
+		if (!question) throw new Error("No question specified in VisionQA node");
+
+		const imagePath = (inputs.image as string) || "";
+		if (!imagePath) throw new Error("No image input connected to VisionQA node");
+
+		// Substitute {key} template references from connected text inputs
+		for (const [key, value] of Object.entries(inputs)) {
+			if (typeof value === "string" && key !== "image") {
+				question = question.replaceAll(`{${key}}`, value);
+			}
+		}
+
+		progressCallback(0.2, "Sending to vision model");
+
+		// Read image and build Claude vision message
+		const imageData = readFileSync(imagePath);
+		const base64 = imageData.toString("base64");
+		const ext = imagePath.split(".").pop()?.toLowerCase() || "png";
+		const mediaType = ext === "jpg" ? "image/jpeg" : `image/${ext}`;
+
+		const messages = [
+			{
+				role: "user",
+				content: [
+					{
+						type: "image",
+						source: { type: "base64", media_type: mediaType, data: base64 },
+					},
+					{ type: "text", text: question },
+				],
+			},
+		];
+
+		const maxTokens = (data.maxTokens as number) || 1024;
+		const answer = await this.chatService.completeWithVision(messages, maxTokens);
+
+		progressCallback(1.0, "Vision analysis complete");
+		return { text: answer };
+	}
+}
+
+class ImageGenExecutor implements NodeExecutor {
+	constructor(
+		private sidecar: SidecarManager,
+		private db: Database,
+	) {}
+
+	async execute(
+		data: Record<string, unknown>,
+		inputs: Record<string, unknown>,
+		progressCallback: ProgressCallback,
+		cancelCheck: CancelCheck,
+	): Promise<Record<string, unknown>> {
+		let prompt = (data.prompt as string) || "";
+
+		// Allow connected text input to override/supplement the prompt
+		if (inputs.text) {
+			if (prompt) {
+				prompt = prompt.replaceAll("{input}", inputs.text as string);
+			} else {
+				prompt = inputs.text as string;
+			}
+		}
+		if (!prompt) throw new Error("No prompt specified for ImageGen node");
+
+		// Resolve bundle
+		const bundleId = data.bundleId as string;
+		if (!bundleId) throw new Error("No model bundle selected for Image Gen node. Please select a bundle in the node properties.");
+
+		const bundle = this.db.prepare("SELECT * FROM bundles WHERE id = ?").get(bundleId) as Row | null;
+		if (!bundle) throw new Error(`Bundle not found: ${bundleId}`);
+
+		const transformerType = (bundle.transformer_type as string) || (data.transformerType as string) || "flux_dev";
+
+		// Build job params
+		const jobParams: Record<string, unknown> = {
+			prompt,
+			transformer_model: bundle.transformer_model || data.transformerModel || "",
+			transformer_type: transformerType,
+			vae_model: bundle.vae_model || data.vaeModel || "",
+			steps: data.steps ?? bundle.steps ?? 20,
+			cfg_scale: data.cfg ?? bundle.cfg_scale ?? 1.0,
+			width: data.width ?? 1024,
+			height: data.height ?? 1024,
+			seed: data.seed ?? -1,
+			sampler: data.sampler ?? bundle.sampler ?? "euler",
+			scheduler: data.scheduler ?? bundle.scheduler ?? "normal",
+		};
+
+		// FAL cloud support
+		if (transformerType === "fal_cloud") {
+			const falKey = (this.db.prepare("SELECT value FROM settings WHERE key = 'FAL_KEY'").get() as { value: string } | null)?.value;
+			if (!falKey) throw new Error("FAL API key not configured. Set it in Settings.");
+			jobParams.fal_endpoint = bundle.fal_endpoint || "";
+			jobParams.fal_api_key = falKey;
+		}
+
+		progressCallback(0.1, "Submitting generation job");
+
+		// Submit to sidecar
+		const submitRes = await this.sidecar.fetchJson<{ job_id: string }>("/jobs", {
+			method: "POST",
+			body: JSON.stringify({
+				...jobParams,
+				bundle_id: bundleId,
+			}),
+		});
+		const jobId = submitRes.job_id;
+
+		progressCallback(0.2, `Job submitted: ${jobId.slice(0, 8)}`);
+
+		// Poll for completion
+		while (true) {
+			if (cancelCheck()) {
+				try {
+					await this.sidecar.fetch(`/jobs/${jobId}`, { method: "DELETE" });
+				} catch { /* ignore */ }
+				throw new Error("Workflow cancelled");
+			}
+
+			const status = await this.sidecar.fetchJson<{
+				status: string;
+				step?: number;
+				total_steps?: number;
+				image_path?: string;
+				error?: string;
+			}>(`/jobs/${jobId}`);
+
+			if (status.status === "completed") {
+				if (!status.image_path) throw new Error("Generation completed but no image path returned");
+				progressCallback(1.0, "Generation complete");
+				return { image: status.image_path };
+			} else if (status.status === "failed") {
+				throw new Error(`Image generation failed: ${status.error || "Unknown error"}`);
+			} else if (status.status === "running" && status.step != null && status.total_steps) {
+				const pct = 0.2 + 0.7 * (status.step / Math.max(status.total_steps, 1));
+				progressCallback(pct, `Generating step ${status.step}/${status.total_steps}`);
+			}
+
+			await new Promise((r) => setTimeout(r, 300));
+		}
+	}
+}
+
+class TextExecutor implements NodeExecutor {
+	async execute(
+		data: Record<string, unknown>,
+		inputs: Record<string, unknown>,
+		progressCallback: ProgressCallback,
+	): Promise<Record<string, unknown>> {
+		let text = (data.content as string) || (data.text as string) || "";
+
+		// Substitute {key} placeholders from connected inputs
+		for (const [key, value] of Object.entries(inputs)) {
+			if (typeof value === "string") {
+				text = text.replaceAll(`{${key}}`, value);
+			}
+		}
+		// Generic {input} for single-input connections
+		if (typeof inputs.text === "string") {
+			text = text.replaceAll("{input}", inputs.text);
+		}
+
+		progressCallback(1.0, "Text ready");
+		return { text };
+	}
+}
+
+class OutputExecutor implements NodeExecutor {
+	async execute(
+		_data: Record<string, unknown>,
+		inputs: Record<string, unknown>,
+		progressCallback: ProgressCallback,
+	): Promise<Record<string, unknown>> {
+		progressCallback(1.0, "Output collected");
+		return { ...inputs };
+	}
+}
+
+// ── Graph Utilities ──────────────────────────────────────────────
+
+function topologicalSort(nodes: NodeData[], edges: Edge[]): NodeData[] {
+	const nodeMap = new Map(nodes.map((n) => [n.id, n]));
+	const inDegree = new Map(nodes.map((n) => [n.id, 0]));
+	const adjacency = new Map<string, string[]>(nodes.map((n) => [n.id, []]));
+
+	for (const edge of edges) {
+		if (nodeMap.has(edge.source) && nodeMap.has(edge.target)) {
+			adjacency.get(edge.source)!.push(edge.target);
+			inDegree.set(edge.target, (inDegree.get(edge.target) || 0) + 1);
+		}
+	}
+
+	const queue: string[] = [];
+	for (const [nid, deg] of inDegree) {
+		if (deg === 0) queue.push(nid);
+	}
+
+	const sortedIds: string[] = [];
+	while (queue.length > 0) {
+		const nid = queue.shift()!;
+		sortedIds.push(nid);
+		for (const neighbor of adjacency.get(nid) || []) {
+			const newDeg = (inDegree.get(neighbor) || 1) - 1;
+			inDegree.set(neighbor, newDeg);
+			if (newDeg === 0) queue.push(neighbor);
+		}
+	}
+
+	if (sortedIds.length !== nodes.length) {
+		throw new Error("Workflow graph contains a cycle");
+	}
+
+	return sortedIds.map((id) => nodeMap.get(id)!);
+}
+
+function buildInputMap(
+	nodeId: string,
+	edges: Edge[],
+	outputs: Map<string, Record<string, unknown>>,
+): Record<string, unknown> {
+	const inputs: Record<string, unknown> = {};
+
+	for (const edge of edges) {
+		if (edge.target === nodeId) {
+			const srcOutputs = outputs.get(edge.source) || {};
+			const srcHandle = edge.sourceHandle || "";
+			const tgtHandle = edge.targetHandle || "";
+
+			if (srcHandle && srcHandle in srcOutputs) {
+				const key = tgtHandle || srcHandle;
+				inputs[key] = srcOutputs[srcHandle];
+			} else if (Object.keys(srcOutputs).length > 0) {
+				const firstKey = Object.keys(srcOutputs)[0]!;
+				const key = tgtHandle || firstKey;
+				inputs[key] = srcOutputs[firstKey];
+			}
+		}
+	}
+
+	return inputs;
+}
+
+// ── Workflow Service ─────────────────────────────────────────────
+
+export interface WorkflowServiceDeps {
+	db: Database;
+	sidecar: SidecarManager;
+	chatService: {
+		completeWithVision(messages: unknown[], maxTokens?: number): Promise<string>;
+	};
+}
+
+export function createWorkflowService(deps: WorkflowServiceDeps) {
+	const { db, sidecar, chatService } = deps;
+
+	const events: WorkflowEvent[] = [];
+	const activeRuns = new Map<string, { cancelled: boolean }>();
+
+	// Executors
+	const executors: Record<string, NodeExecutor> = {
+		image_input: new ImageInputExecutor(),
+		vision_qa: new VisionQAExecutor(chatService),
+		image_gen: new ImageGenExecutor(sidecar, db),
+		text: new TextExecutor(),
+		output: new OutputExecutor(),
+	};
+
+	function pushEvent(type: string, data: Record<string, unknown>) {
+		events.push({ type, ...data });
+		// Cap at 500 events
+		if (events.length > 500) events.splice(0, events.length - 500);
+	}
+
+	function pollEvents(): WorkflowEvent[] {
+		return events.splice(0, events.length);
+	}
+
+	async function executeGraph(
+		runId: string,
+		graphJson: string,
+		run: { cancelled: boolean },
+	) {
+		try {
+			const graph = JSON.parse(graphJson);
+			const nodes: NodeData[] = graph.nodes || [];
+			const edges: Edge[] = graph.edges || [];
+
+			if (nodes.length === 0) throw new Error("Workflow has no nodes");
+
+			const sortedNodes = topologicalSort(nodes, edges);
+
+			pushEvent("workflow_started", {
+				run_id: runId,
+				total_nodes: sortedNodes.length,
+			});
+
+			const nodeOutputs = new Map<string, Record<string, unknown>>();
+
+			for (let i = 0; i < sortedNodes.length; i++) {
+				if (run.cancelled) {
+					pushEvent("workflow_failed", {
+						run_id: runId,
+						error: "Workflow cancelled",
+					});
+					return;
+				}
+
+				const node = sortedNodes[i]!;
+				const nodeType = node.type || "";
+				const nodeData = node.data || {};
+				const nodeLabel = (nodeData.label as string) || nodeType;
+
+				const executor = executors[nodeType];
+				if (!executor) throw new Error(`Unknown node type: ${nodeType}`);
+
+				pushEvent("node_started", {
+					run_id: runId,
+					node_id: node.id,
+					node_type: nodeType,
+					node_label: nodeLabel,
+					node_index: i,
+					total_nodes: sortedNodes.length,
+				});
+
+				const inputs = buildInputMap(node.id, edges, nodeOutputs);
+
+				const progressCallback: ProgressCallback = (progress, message) => {
+					pushEvent("node_progress", {
+						run_id: runId,
+						node_id: node.id,
+						progress,
+						message,
+					});
+				};
+
+				const cancelCheck: CancelCheck = () => run.cancelled;
+
+				try {
+					const outputs = await executor.execute(
+						nodeData,
+						inputs,
+						progressCallback,
+						cancelCheck,
+					);
+					nodeOutputs.set(node.id, outputs);
+
+					pushEvent("node_completed", {
+						run_id: runId,
+						node_id: node.id,
+						node_type: nodeType,
+						outputs,
+					});
+				} catch (err) {
+					const error = String(err instanceof Error ? err.message : err);
+					console.error(`Workflow ${runId}: node ${node.id} (${nodeType}) failed:`, error);
+
+					pushEvent("node_failed", {
+						run_id: runId,
+						node_id: node.id,
+						node_type: nodeType,
+						error,
+					});
+					pushEvent("workflow_failed", {
+						run_id: runId,
+						error: `Node '${nodeLabel}' failed: ${error}`,
+					});
+					return;
+				}
+			}
+
+			// Collect final outputs from output nodes
+			const finalOutputs: Record<string, Record<string, unknown>> = {};
+			for (const node of sortedNodes) {
+				if (node.type === "output") {
+					finalOutputs[node.id] = nodeOutputs.get(node.id) || {};
+				}
+			}
+
+			pushEvent("workflow_completed", {
+				run_id: runId,
+				outputs: finalOutputs,
+			});
+		} catch (err) {
+			const error = String(err instanceof Error ? err.message : err);
+			console.error(`Workflow ${runId} failed:`, error);
+			pushEvent("workflow_failed", {
+				run_id: runId,
+				error,
+			});
+		} finally {
+			activeRuns.delete(runId);
+		}
+	}
+
+	return {
+		runWorkflow(graphJson: string): string {
+			const runId = crypto.randomUUID();
+			const run = { cancelled: false };
+			activeRuns.set(runId, run);
+			// Fire and forget — runs asynchronously
+			executeGraph(runId, graphJson, run);
+			return runId;
+		},
+
+		cancelWorkflow(runId: string): boolean {
+			const run = activeRuns.get(runId);
+			if (!run) return false;
+			run.cancelled = true;
+			return true;
+		},
+
+		pollEvents,
+	};
+}
