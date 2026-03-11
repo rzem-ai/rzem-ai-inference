@@ -1,5 +1,13 @@
 import type { ElectrobunConfig } from "electrobun";
 
+// Enable code signing and notarization when Apple credentials are available
+const hasSigningCredentials = !!(
+	process.env.ELECTROBUN_DEVELOPER_ID &&
+	process.env.ELECTROBUN_TEAMID &&
+	process.env.ELECTROBUN_APPLEID &&
+	process.env.ELECTROBUN_APPLEIDPASS
+);
+
 export default {
 	app: {
 		name: "Inference",
@@ -22,6 +30,8 @@ export default {
 		watchIgnore: ["dist/**"],
 		mac: {
 			bundleCEF: false,
+			codesign: hasSigningCredentials,
+			notarize: hasSigningCredentials,
 		},
 		linux: {
 			bundleCEF: false,

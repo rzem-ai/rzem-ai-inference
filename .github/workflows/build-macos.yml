@@ -1,0 +1,107 @@
+name: Build macOS App
+
+on:
+  push:
+    branches: [main, master]
+    tags: ["v*"]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        arch: [arm64, x64]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build frontend
+        run: bun run --bun vite build
+
+      - name: Import code signing certificate
+        if: env.MACOS_CERTIFICATE != ''
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+          KEYCHAIN_PWD: ${{ secrets.KEYCHAIN_PWD }}
+        run: |
+          # Decode certificate
+          echo "$MACOS_CERTIFICATE" | base64 --decode > certificate.p12
+
+          # Create temporary keychain
+          security create-keychain -p "$KEYCHAIN_PWD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PWD" build.keychain
+
+          # Import certificate
+          security import certificate.p12 \
+            -k build.keychain \
+            -P "$MACOS_CERTIFICATE_PWD" \
+            -T /usr/bin/codesign \
+            -T /usr/bin/security
+
+          # Allow codesign to access keychain without UI prompt
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PWD" build.keychain
+
+          # Add keychain to search list
+          security list-keychains -d user -s build.keychain login.keychain
+
+          # Clean up certificate file
+          rm certificate.p12
+
+      - name: Build Electrobun app
+        env:
+          ELECTROBUN_DEVELOPER_ID: ${{ secrets.ELECTROBUN_DEVELOPER_ID }}
+          ELECTROBUN_TEAMID: ${{ secrets.ELECTROBUN_TEAMID }}
+          ELECTROBUN_APPLEID: ${{ secrets.ELECTROBUN_APPLEID }}
+          ELECTROBUN_APPLEIDPASS: ${{ secrets.ELECTROBUN_APPLEIDPASS }}
+        run: bun run --bun electrobun build --env=canary
+
+      - name: Ad-hoc code sign (when no certificate available)
+        if: env.MACOS_CERTIFICATE == ''
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+        run: |
+          # Find the built .app bundle
+          APP_PATH=$(find build -name "*.app" -type d 2>/dev/null | head -1)
+          if [ -z "$APP_PATH" ]; then
+            echo "No .app bundle found in build/, checking artifacts/"
+            APP_PATH=$(find artifacts -name "*.app" -type d 2>/dev/null | head -1)
+          fi
+
+          if [ -n "$APP_PATH" ]; then
+            echo "Ad-hoc signing: $APP_PATH"
+            codesign --force --deep --sign - "$APP_PATH"
+            echo "Verifying signature..."
+            codesign --verify --verbose "$APP_PATH"
+          else
+            echo "Warning: No .app bundle found to sign"
+          fi
+
+      - name: Clean up keychain
+        if: always() && env.MACOS_CERTIFICATE != ''
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+        run: security delete-keychain build.keychain 2>/dev/null || true
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: inference-macos-${{ matrix.arch }}
+          path: |
+            artifacts/*
+            build/**/*.app
+          if-no-files-found: warn
