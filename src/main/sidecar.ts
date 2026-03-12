@@ -1,4 +1,13 @@
-import type { Subprocess } from "bun";
+/**
+ * Manages the Python inference engine as a subprocess (sidecar).
+ * Replaces src/bun/sidecar.ts — uses Node.js child_process instead of Bun.spawn.
+ *
+ * The engine exposes a FastAPI server with REST + WebSocket endpoints.
+ * This manager handles spawning, health checks, restart, and shutdown.
+ */
+
+import { spawn, type ChildProcess } from "child_process";
+import WebSocket from "ws";
 
 export interface SidecarConfig {
 	outputDir: string;
@@ -17,18 +26,10 @@ export interface SidecarStatus {
 	url: string;
 }
 
-/**
- * Manages the Python inference engine as a subprocess (sidecar).
- *
- * The engine exposes a FastAPI server with REST + WebSocket endpoints.
- * This manager handles spawning, health checks, restart, and shutdown.
- */
 export class SidecarManager {
-	private config: Required<
-		Pick<SidecarConfig, "outputDir" | "port" | "host">
-	> &
+	private config: Required<Pick<SidecarConfig, "outputDir" | "port" | "host">> &
 		SidecarConfig;
-	private process: Subprocess | null = null;
+	private process: ChildProcess | null = null;
 	private ws: WebSocket | null = null;
 	private healthCheckInterval: ReturnType<typeof setInterval> | null = null;
 	private _ready = false;
@@ -72,7 +73,6 @@ export class SidecarManager {
 		}
 
 		const args = [
-			"uv",
 			"run",
 			"python",
 			"-m",
@@ -97,19 +97,25 @@ export class SidecarManager {
 			args.push("--preview-interval", String(this.config.previewInterval));
 		}
 
-		console.log(`Starting sidecar: ${args.join(" ")}${this.config.engineDir ? ` (cwd: ${this.config.engineDir})` : ""}`);
+		console.log(
+			`Starting sidecar: uv ${args.join(" ")}${this.config.engineDir ? ` (cwd: ${this.config.engineDir})` : ""}`,
+		);
 
-		this.process = Bun.spawn(args, {
+		this.process = spawn("uv", args, {
 			cwd: this.config.engineDir,
-			stdout: "inherit",
-			stderr: "inherit",
-			onExit: (_proc, exitCode, signal) => {
-				console.log(
-					`Sidecar exited (code=${exitCode}, signal=${signal})`,
-				);
-				this._ready = false;
-				this.process = null;
-			},
+			stdio: ["ignore", "inherit", "inherit"],
+		});
+
+		this.process.on("exit", (code, signal) => {
+			console.log(`Sidecar exited (code=${code}, signal=${signal})`);
+			this._ready = false;
+			this.process = null;
+		});
+
+		this.process.on("error", (err) => {
+			console.error("Sidecar spawn error:", err);
+			this._ready = false;
+			this.process = null;
 		});
 
 		// Wait for the server to become ready
@@ -122,7 +128,9 @@ export class SidecarManager {
 		// Start periodic health checks
 		this.healthCheckInterval = setInterval(() => this.checkHealth(), 5_000);
 
-		console.log(`Sidecar ready at ${this.baseUrl} (PID ${this.process.pid})`);
+		console.log(
+			`Sidecar ready at ${this.baseUrl} (PID ${this.process?.pid})`,
+		);
 	}
 
 	/**
@@ -159,17 +167,11 @@ export class SidecarManager {
 
 	// ── HTTP client methods for engine API ─────────────────────────
 
-	async fetch(
-		path: string,
-		options?: RequestInit,
-	): Promise<Response> {
+	async fetch(path: string, options?: RequestInit): Promise<Response> {
 		return fetch(`${this.baseUrl}${path}`, options);
 	}
 
-	async fetchJson<T = unknown>(
-		path: string,
-		options?: RequestInit,
-	): Promise<T> {
+	async fetchJson<T = unknown>(path: string, options?: RequestInit): Promise<T> {
 		const res = await this.fetch(path, {
 			...options,
 			headers: {
@@ -179,7 +181,10 @@ export class SidecarManager {
 		});
 		if (!res.ok) {
 			const errorBody = await res.text().catch(() => "");
-			console.error(`[sidecar] ${options?.method ?? "GET"} ${path} → ${res.status}`, errorBody);
+			console.error(
+				`[sidecar] ${options?.method ?? "GET"} ${path} → ${res.status}`,
+				errorBody,
+			);
 			throw new Error(
 				`Sidecar ${options?.method ?? "GET"} ${path} failed: ${res.status} ${res.statusText}`,
 			);
@@ -189,15 +194,12 @@ export class SidecarManager {
 
 	// ── Event listeners ────────────────────────────────────────────
 
-	private eventListeners: Array<(event: Record<string, unknown>) => void> =
-		[];
+	private eventListeners: Array<(event: Record<string, unknown>) => void> = [];
 
 	/**
 	 * Register a listener for engine events (received over WebSocket).
 	 */
-	onEvent(
-		listener: (event: Record<string, unknown>) => void,
-	): () => void {
+	onEvent(listener: (event: Record<string, unknown>) => void): () => void {
 		this.eventListeners.push(listener);
 		return () => {
 			const idx = this.eventListeners.indexOf(listener);
@@ -249,18 +251,18 @@ export class SidecarManager {
 
 		const ws = new WebSocket(this.wsUrl);
 
-		ws.addEventListener("message", (event) => {
+		ws.on("message", (data) => {
 			try {
-				const data = JSON.parse(String(event.data));
+				const parsed = JSON.parse(String(data));
 				for (const listener of this.eventListeners) {
-					listener(data);
+					listener(parsed);
 				}
 			} catch (err) {
 				console.error("Failed to parse sidecar WS message:", err);
 			}
 		});
 
-		ws.addEventListener("close", () => {
+		ws.on("close", () => {
 			console.log("Sidecar WebSocket closed");
 			this.ws = null;
 			// Reconnect after a delay if process is still running
@@ -269,7 +271,7 @@ export class SidecarManager {
 			}
 		});
 
-		ws.addEventListener("error", (err) => {
+		ws.on("error", (err) => {
 			console.error("Sidecar WebSocket error:", err);
 		});
 

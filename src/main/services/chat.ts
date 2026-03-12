@@ -1,15 +1,10 @@
 /**
  * Chat service: Anthropic Claude integration with streaming and tool use.
- * Ported from backend/services/chat_service.py.
- *
- * Handles conversation management, message streaming, and tool execution.
- * Events are pushed via a callback for real-time updates to the frontend.
+ * Migrated from src/bun/services/chat.ts — bun:sqlite → better-sqlite3.
  */
 
 import Anthropic from "@anthropic-ai/sdk";
-import type Database from "bun:sqlite";
-
-// ── Types ───────────────────────────────────────────────────────
+import type Database from "better-sqlite3";
 
 type Row = Record<string, unknown>;
 
@@ -33,8 +28,6 @@ interface ApiResponse {
 	message?: string;
 	[key: string]: unknown;
 }
-
-// ── Tool definitions ────────────────────────────────────────────
 
 const TOOLS: ToolDefinition[] = [
 	{
@@ -64,8 +57,6 @@ const TOOLS: ToolDefinition[] = [
 	},
 ];
 
-// ── System prompts ──────────────────────────────────────────────
-
 function buildSystemPrompt(generationContext?: Record<string, unknown>): string {
 	let prompt = `You are an AI assistant integrated into an image generation app called RZEM AI Inference.
 You help users create and refine their image generation prompts and settings.
@@ -84,14 +75,11 @@ For general questions, just respond with helpful text.`;
 	return prompt;
 }
 
-// ── Chat Service ────────────────────────────────────────────────
-
-export function createChatService(db: Database) {
+export function createChatService(db: Database.Database) {
 	let client: Anthropic | null = null;
 	let apiKey: string | null = null;
 	const eventBuffer: ChatEvent[] = [];
 
-	// Push event to buffer (drained by polling)
 	function pushEvent(event: ChatEvent) {
 		eventBuffer.push(event);
 		if (eventBuffer.length > 500) {
@@ -99,7 +87,6 @@ export function createChatService(db: Database) {
 		}
 	}
 
-	// Push event and also call the onEvent callback if set
 	let onEventCallback: ((event: ChatEvent) => void) | null = null;
 
 	function emit(event: ChatEvent) {
@@ -109,7 +96,6 @@ export function createChatService(db: Database) {
 
 	function getClient(): Anthropic {
 		if (!client || !apiKey) {
-			// Try to load from DB
 			const row = db.prepare("SELECT value FROM settings WHERE key = 'CLAUDE_API_KEY'").get() as { value: string } | null;
 			if (row?.value) {
 				apiKey = row.value;
@@ -126,7 +112,6 @@ export function createChatService(db: Database) {
 		return row?.value ?? "claude-sonnet-4-6";
 	}
 
-	// Build message history from DB for a conversation
 	function buildMessages(conversationId: string): Anthropic.MessageParam[] {
 		const rows = db.prepare(
 			"SELECT * FROM conversation_messages WHERE conversation_id = ? ORDER BY created_at",
@@ -138,13 +123,13 @@ export function createChatService(db: Database) {
 			const role = row.role as "user" | "assistant";
 			const content: Anthropic.ContentBlockParam[] = [];
 
-			// Add image blocks if present
 			if (row.image_paths) {
 				try {
+					const { readFileSync } = require("fs");
 					const paths = JSON.parse(row.image_paths as string) as string[];
 					for (const imgPath of paths) {
 						try {
-							const bytes = require("fs").readFileSync(imgPath);
+							const bytes = readFileSync(imgPath);
 							const b64 = Buffer.from(bytes).toString("base64");
 							const ext = imgPath.split(".").pop()?.toLowerCase() ?? "png";
 							const mediaType = ext === "jpg" || ext === "jpeg" ? "image/jpeg" : ext === "webp" ? "image/webp" : "image/png";
@@ -161,7 +146,6 @@ export function createChatService(db: Database) {
 				}
 			}
 
-			// Add text content
 			const text = (row.content as string) ?? "";
 			if (text) {
 				content.push({ type: "text", text });
@@ -175,7 +159,6 @@ export function createChatService(db: Database) {
 		return messages;
 	}
 
-	// Stream response with tool use loop
 	async function streamResponse(
 		conversationId: string,
 		generationContext?: Record<string, unknown>,
@@ -186,7 +169,6 @@ export function createChatService(db: Database) {
 			const system = buildSystemPrompt(generationContext);
 			let messages = buildMessages(conversationId);
 
-			// Tool use loop — keep going while Claude wants to use tools
 			let maxIterations = 5;
 			while (maxIterations-- > 0) {
 				let fullText = "";
@@ -208,17 +190,10 @@ export function createChatService(db: Database) {
 								type: "chat_chunk",
 								data: { conversationId, text: event.delta.text },
 							});
-						} else if (event.delta.type === "input_json_delta") {
-							// Tool input accumulation is handled by the SDK
 						}
-					} else if (event.type === "content_block_stop") {
-						// Check if the stopped block was a tool_use
-						const finalMessage = await stream.finalMessage();
-						// We'll process tool_use blocks after the stream ends
 					}
 				}
 
-				// Get the final message to extract tool_use blocks
 				const finalMessage = await stream.finalMessage();
 				for (const block of finalMessage.content) {
 					if (block.type === "tool_use") {
@@ -230,28 +205,19 @@ export function createChatService(db: Database) {
 					}
 				}
 
-				// Save assistant message to DB
 				if (fullText || toolCalls.length > 0) {
 					const msgId = crypto.randomUUID();
 					const now = Math.floor(Date.now() / 1000);
 					db.prepare(
 						"INSERT INTO conversation_messages (id, conversation_id, role, content, tool_calls, created_at) VALUES (?, ?, 'assistant', ?, ?, ?)",
-					).run(
-						msgId,
-						conversationId,
-						fullText,
-						toolCalls.length > 0 ? JSON.stringify(toolCalls) : null,
-						now,
-					);
+					).run(msgId, conversationId, fullText, toolCalls.length > 0 ? JSON.stringify(toolCalls) : null, now);
 				}
 
-				// If no tool calls, we're done
 				if (toolCalls.length === 0) {
 					emit({ type: "chat_complete", data: { conversationId } });
 					break;
 				}
 
-				// Execute tools and emit events
 				const toolResults: Anthropic.ToolResultBlockParam[] = [];
 				for (const call of toolCalls) {
 					emit({
@@ -265,8 +231,6 @@ export function createChatService(db: Database) {
 					});
 				}
 
-				// Build messages for next iteration (tool result loop)
-				// Add assistant message with content blocks
 				const assistantContent: Anthropic.ContentBlockParam[] = [];
 				if (fullText) {
 					assistantContent.push({ type: "text", text: fullText });
@@ -286,7 +250,6 @@ export function createChatService(db: Database) {
 				];
 			}
 
-			// Update conversation timestamp
 			db.prepare("UPDATE conversations SET updated_at = ? WHERE id = ?").run(
 				Math.floor(Date.now() / 1000),
 				conversationId,
@@ -300,37 +263,23 @@ export function createChatService(db: Database) {
 		}
 	}
 
-	// ── Public API ──────────────────────────────────────────────
-
 	return {
-		/** Non-streaming completion for AI features (style AI, etc.) */
 		async complete(messages: Anthropic.MessageParam[], maxTokens = 2048): Promise<string> {
 			const anthropic = getClient();
 			const model = getModel();
-			const response = await anthropic.messages.create({
-				model,
-				max_tokens: maxTokens,
-				messages,
-			});
+			const response = await anthropic.messages.create({ model, max_tokens: maxTokens, messages });
 			const textBlock = response.content.find((b) => b.type === "text");
 			return textBlock?.text ?? "";
 		},
 
-		/** Non-streaming completion with vision support */
-		async completeWithVision(
-			messages: Anthropic.MessageParam[],
-			maxTokens = 2048,
-		): Promise<string> {
-			// Claude models support vision natively
+		async completeWithVision(messages: Anthropic.MessageParam[], maxTokens = 2048): Promise<string> {
 			return this.complete(messages, maxTokens);
 		},
 
-		/** Set callback for push events to webview */
 		onEvent(callback: (event: ChatEvent) => void) {
 			onEventCallback = callback;
 		},
 
-		/** Drain buffered events (for polling compatibility) */
 		drainEvents(): ChatEvent[] {
 			return eventBuffer.splice(0, eventBuffer.length);
 		},
@@ -345,7 +294,6 @@ export function createChatService(db: Database) {
 			db.prepare(
 				"INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
 			).run(keyName, key);
-			// Reset client so it picks up the new key
 			if (keyName === "CLAUDE_API_KEY") {
 				apiKey = key;
 				client = new Anthropic({ apiKey: key });
@@ -356,9 +304,7 @@ export function createChatService(db: Database) {
 		createConversation({ title }: { title?: string }): ApiResponse {
 			const id = crypto.randomUUID();
 			const now = Math.floor(Date.now() / 1000);
-			db.prepare(
-				"INSERT INTO conversations (id, title, created_at, updated_at) VALUES (?, ?, ?, ?)",
-			).run(id, title ?? "New Chat", now, now);
+			db.prepare("INSERT INTO conversations (id, title, created_at, updated_at) VALUES (?, ?, ?, ?)").run(id, title ?? "New Chat", now, now);
 			return { status: "success", conversation: db.prepare("SELECT * FROM conversations WHERE id = ?").get(id) as Row };
 		},
 
@@ -372,9 +318,7 @@ export function createChatService(db: Database) {
 		getMessages({ conversationId }: { conversationId: string }): ApiResponse {
 			return {
 				status: "success",
-				messages: db.prepare(
-					"SELECT * FROM conversation_messages WHERE conversation_id = ? ORDER BY created_at",
-				).all(conversationId) as Row[],
+				messages: db.prepare("SELECT * FROM conversation_messages WHERE conversation_id = ? ORDER BY created_at").all(conversationId) as Row[],
 			};
 		},
 
@@ -406,24 +350,14 @@ export function createChatService(db: Database) {
 				return { status: "error", message: "conversationId and content are required" };
 			}
 
-			// Save user message to DB
 			const msgId = crypto.randomUUID();
 			const now = Math.floor(Date.now() / 1000);
 			db.prepare(
 				"INSERT INTO conversation_messages (id, conversation_id, role, content, display_text, image_paths, created_at) VALUES (?, ?, 'user', ?, ?, ?, ?)",
-			).run(
-				msgId,
-				conversationId,
-				content,
-				displayText ?? null,
-				imagePaths ? JSON.stringify(imagePaths) : null,
-				now,
-			);
+			).run(msgId, conversationId, content, displayText ?? null, imagePaths ? JSON.stringify(imagePaths) : null, now);
 
-			// Update conversation timestamp
 			db.prepare("UPDATE conversations SET updated_at = ? WHERE id = ?").run(now, conversationId);
 
-			// Stream response in background (don't block the RPC call)
 			streamResponse(conversationId, generationContext);
 
 			return { status: "success" };

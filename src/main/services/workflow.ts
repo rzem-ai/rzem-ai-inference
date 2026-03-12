@@ -1,16 +1,13 @@
 /**
  * Workflow execution engine — parses node graphs, runs nodes sequentially.
- * Ported from backend/services/workflow_service.py.
+ * Migrated from src/bun/services/workflow.ts — bun:sqlite → better-sqlite3.
  */
 
-import type Database from "bun:sqlite";
+import type Database from "better-sqlite3";
 import type { SidecarManager } from "../sidecar";
-import { readFileSync, existsSync, renameSync } from "fs";
-import { resolve, join } from "path";
+import { readFileSync, existsSync } from "fs";
+import { join } from "path";
 
-// ── Key conversion ───────────────────────────────────────────────
-
-/** Convert camelCase keys to snake_case (deep). */
 function keysToSnake(obj: unknown): unknown {
 	if (Array.isArray(obj)) return obj.map(keysToSnake);
 	if (obj && typeof obj === "object" && !(obj instanceof Date)) {
@@ -23,8 +20,6 @@ function keysToSnake(obj: unknown): unknown {
 	}
 	return obj;
 }
-
-// ── Types ────────────────────────────────────────────────────────
 
 type Row = Record<string, unknown>;
 
@@ -58,14 +53,8 @@ interface NodeExecutor {
 	): Promise<Record<string, unknown>>;
 }
 
-// ── Node Executors ───────────────────────────────────────────────
-
 class ImageInputExecutor implements NodeExecutor {
-	async execute(
-		data: Record<string, unknown>,
-		_inputs: Record<string, unknown>,
-		progressCallback: ProgressCallback,
-	): Promise<Record<string, unknown>> {
+	async execute(data: Record<string, unknown>, _inputs: Record<string, unknown>, progressCallback: ProgressCallback): Promise<Record<string, unknown>> {
 		const imagePath = (data.imagePath as string) || "";
 		if (!imagePath) throw new Error("No image path specified in ImageInput node");
 		if (!existsSync(imagePath)) throw new Error(`Image file not found: ${imagePath}`);
@@ -75,24 +64,15 @@ class ImageInputExecutor implements NodeExecutor {
 }
 
 class VisionQAExecutor implements NodeExecutor {
-	constructor(
-		private chatService: {
-			completeWithVision(messages: unknown[], maxTokens?: number): Promise<string>;
-		},
-	) {}
+	constructor(private chatService: { completeWithVision(messages: unknown[], maxTokens?: number): Promise<string> }) {}
 
-	async execute(
-		data: Record<string, unknown>,
-		inputs: Record<string, unknown>,
-		progressCallback: ProgressCallback,
-	): Promise<Record<string, unknown>> {
+	async execute(data: Record<string, unknown>, inputs: Record<string, unknown>, progressCallback: ProgressCallback): Promise<Record<string, unknown>> {
 		let question = (data.question as string) || "";
 		if (!question) throw new Error("No question specified in VisionQA node");
 
 		const imagePath = (inputs.image as string) || "";
 		if (!imagePath) throw new Error("No image input connected to VisionQA node");
 
-		// Substitute {key} template references from connected text inputs
 		for (const [key, value] of Object.entries(inputs)) {
 			if (typeof value === "string" && key !== "image") {
 				question = question.replaceAll(`{${key}}`, value);
@@ -101,24 +81,18 @@ class VisionQAExecutor implements NodeExecutor {
 
 		progressCallback(0.2, "Sending to vision model");
 
-		// Read image and build Claude vision message
 		const imageData = readFileSync(imagePath);
 		const base64 = imageData.toString("base64");
 		const ext = imagePath.split(".").pop()?.toLowerCase() || "png";
 		const mediaType = ext === "jpg" ? "image/jpeg" : `image/${ext}`;
 
-		const messages = [
-			{
-				role: "user",
-				content: [
-					{
-						type: "image",
-						source: { type: "base64", media_type: mediaType, data: base64 },
-					},
-					{ type: "text", text: question },
-				],
-			},
-		];
+		const messages = [{
+			role: "user",
+			content: [
+				{ type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
+				{ type: "text", text: question },
+			],
+		}];
 
 		const maxTokens = (data.maxTokens as number) || 1024;
 		const answer = await this.chatService.completeWithVision(messages, maxTokens);
@@ -129,21 +103,11 @@ class VisionQAExecutor implements NodeExecutor {
 }
 
 class ImageGenExecutor implements NodeExecutor {
-	constructor(
-		private sidecar: SidecarManager,
-		private db: Database,
-		private outputDir: string,
-	) {}
+	constructor(private sidecar: SidecarManager, private db: Database.Database, private outputDir: string) {}
 
-	async execute(
-		data: Record<string, unknown>,
-		inputs: Record<string, unknown>,
-		progressCallback: ProgressCallback,
-		cancelCheck: CancelCheck,
-	): Promise<Record<string, unknown>> {
+	async execute(data: Record<string, unknown>, inputs: Record<string, unknown>, progressCallback: ProgressCallback, cancelCheck: CancelCheck): Promise<Record<string, unknown>> {
 		let prompt = (data.prompt as string) || "";
 
-		// Allow connected text input to override/supplement the prompt
 		if (inputs.text) {
 			if (prompt) {
 				prompt = prompt.replaceAll("{input}", inputs.text as string);
@@ -153,7 +117,6 @@ class ImageGenExecutor implements NodeExecutor {
 		}
 		if (!prompt) throw new Error("No prompt specified for ImageGen node");
 
-		// Resolve bundle
 		const bundleId = data.bundleId as string;
 		if (!bundleId) throw new Error("No model bundle selected for Image Gen node. Please select a bundle in the node properties.");
 
@@ -162,7 +125,6 @@ class ImageGenExecutor implements NodeExecutor {
 
 		const transformerType = (bundle.transformer_type as string) || (data.transformerType as string) || "flux_dev";
 
-		// Build job params
 		const jobParams: Record<string, unknown> = {
 			prompt,
 			transformer_model: bundle.transformer_model || data.transformerModel || "",
@@ -177,7 +139,6 @@ class ImageGenExecutor implements NodeExecutor {
 			scheduler: data.scheduler ?? bundle.scheduler ?? "normal",
 		};
 
-		// FAL cloud support
 		if (transformerType === "fal_cloud") {
 			const falKey = (this.db.prepare("SELECT value FROM settings WHERE key = 'FAL_KEY'").get() as { value: string } | null)?.value;
 			if (!falKey) throw new Error("FAL API key not configured. Set it in Settings.");
@@ -187,24 +148,17 @@ class ImageGenExecutor implements NodeExecutor {
 
 		progressCallback(0.1, "Submitting generation job");
 
-		// Submit to sidecar
 		const submitRes = await this.sidecar.fetchJson<{ job_id: string }>("/jobs", {
 			method: "POST",
-			body: JSON.stringify(keysToSnake({
-				...jobParams,
-				bundle_id: bundleId,
-			})),
+			body: JSON.stringify(keysToSnake({ ...jobParams, bundle_id: bundleId })),
 		});
 		const jobId = submitRes.job_id;
 
 		progressCallback(0.2, `Job submitted: ${jobId.slice(0, 8)}`);
 
-		// Poll for completion
 		while (true) {
 			if (cancelCheck()) {
-				try {
-					await this.sidecar.fetch(`/jobs/${jobId}`, { method: "DELETE" });
-				} catch { /* ignore */ }
+				try { await this.sidecar.fetch(`/jobs/${jobId}`, { method: "DELETE" }); } catch { /* ignore */ }
 				throw new Error("Workflow cancelled");
 			}
 
@@ -216,10 +170,8 @@ class ImageGenExecutor implements NodeExecutor {
 			}>(`/jobs/${jobId}`);
 
 			if (status.status === "completed") {
-				// Sidecar saves as {outputDir}/{jobId}.png — check both original and timestamped names
 				let imagePath = join(this.outputDir, `${jobId}.png`);
 				if (!existsSync(imagePath)) {
-					// Event handler may have already renamed it — search for timestamped version
 					const { readdirSync } = require("fs") as typeof import("fs");
 					const match = readdirSync(this.outputDir).find((f: string) => f.endsWith(`_${jobId}.png`));
 					if (match) {
@@ -232,11 +184,9 @@ class ImageGenExecutor implements NodeExecutor {
 				return { image: imagePath };
 			} else if (status.status === "failed") {
 				const errObj = status.error as { error?: string } | string | null;
-				const errMsg = typeof errObj === "string"
-					? errObj
-					: errObj && typeof errObj === "object" && errObj.error
-						? errObj.error
-						: errObj ? JSON.stringify(errObj) : "Unknown error";
+				const errMsg = typeof errObj === "string" ? errObj
+					: errObj && typeof errObj === "object" && errObj.error ? errObj.error
+					: errObj ? JSON.stringify(errObj) : "Unknown error";
 				throw new Error(`Image generation failed: ${errMsg}`);
 			} else if (status.status === "running" && status.progress) {
 				const { step, total_steps } = status.progress;
@@ -250,41 +200,27 @@ class ImageGenExecutor implements NodeExecutor {
 }
 
 class TextExecutor implements NodeExecutor {
-	async execute(
-		data: Record<string, unknown>,
-		inputs: Record<string, unknown>,
-		progressCallback: ProgressCallback,
-	): Promise<Record<string, unknown>> {
+	async execute(data: Record<string, unknown>, inputs: Record<string, unknown>, progressCallback: ProgressCallback): Promise<Record<string, unknown>> {
 		let text = (data.content as string) || (data.text as string) || "";
-
-		// Substitute {key} placeholders from connected inputs
 		for (const [key, value] of Object.entries(inputs)) {
 			if (typeof value === "string") {
 				text = text.replaceAll(`{${key}}`, value);
 			}
 		}
-		// Generic {input} for single-input connections
 		if (typeof inputs.text === "string") {
 			text = text.replaceAll("{input}", inputs.text);
 		}
-
 		progressCallback(1.0, "Text ready");
 		return { text };
 	}
 }
 
 class OutputExecutor implements NodeExecutor {
-	async execute(
-		_data: Record<string, unknown>,
-		inputs: Record<string, unknown>,
-		progressCallback: ProgressCallback,
-	): Promise<Record<string, unknown>> {
+	async execute(_data: Record<string, unknown>, inputs: Record<string, unknown>, progressCallback: ProgressCallback): Promise<Record<string, unknown>> {
 		progressCallback(1.0, "Output collected");
 		return { ...inputs };
 	}
 }
-
-// ── Graph Utilities ──────────────────────────────────────────────
 
 function topologicalSort(nodes: NodeData[], edges: Edge[]): NodeData[] {
 	const nodeMap = new Map(nodes.map((n) => [n.id, n]));
@@ -327,13 +263,11 @@ function buildInputMap(
 	outputs: Map<string, Record<string, unknown>>,
 ): Record<string, unknown> {
 	const inputs: Record<string, unknown> = {};
-
 	for (const edge of edges) {
 		if (edge.target === nodeId) {
 			const srcOutputs = outputs.get(edge.source) || {};
 			const srcHandle = edge.sourceHandle || "";
 			const tgtHandle = edge.targetHandle || "";
-
 			if (srcHandle && srcHandle in srcOutputs) {
 				const key = tgtHandle || srcHandle;
 				inputs[key] = srcOutputs[srcHandle];
@@ -344,14 +278,11 @@ function buildInputMap(
 			}
 		}
 	}
-
 	return inputs;
 }
 
-// ── Workflow Service ─────────────────────────────────────────────
-
 export interface WorkflowServiceDeps {
-	db: Database;
+	db: Database.Database;
 	sidecar: SidecarManager;
 	outputDir: string;
 	chatService: {
@@ -365,7 +296,6 @@ export function createWorkflowService(deps: WorkflowServiceDeps) {
 	const events: WorkflowEvent[] = [];
 	const activeRuns = new Map<string, { cancelled: boolean }>();
 
-	// Executors
 	const executors: Record<string, NodeExecutor> = {
 		image_input: new ImageInputExecutor(),
 		vision_qa: new VisionQAExecutor(chatService),
@@ -376,7 +306,6 @@ export function createWorkflowService(deps: WorkflowServiceDeps) {
 
 	function pushEvent(type: string, data: Record<string, unknown>) {
 		events.push({ type, ...data });
-		// Cap at 500 events
 		if (events.length > 500) events.splice(0, events.length - 500);
 	}
 
@@ -384,11 +313,7 @@ export function createWorkflowService(deps: WorkflowServiceDeps) {
 		return events.splice(0, events.length);
 	}
 
-	async function executeGraph(
-		runId: string,
-		graphJson: string,
-		run: { cancelled: boolean },
-	) {
+	async function executeGraph(runId: string, graphJson: string, run: { cancelled: boolean }) {
 		try {
 			const graph = JSON.parse(graphJson);
 			const nodes: NodeData[] = graph.nodes || [];
@@ -398,19 +323,13 @@ export function createWorkflowService(deps: WorkflowServiceDeps) {
 
 			const sortedNodes = topologicalSort(nodes, edges);
 
-			pushEvent("workflow_started", {
-				run_id: runId,
-				total_nodes: sortedNodes.length,
-			});
+			pushEvent("workflow_started", { run_id: runId, total_nodes: sortedNodes.length });
 
 			const nodeOutputs = new Map<string, Record<string, unknown>>();
 
 			for (let i = 0; i < sortedNodes.length; i++) {
 				if (run.cancelled) {
-					pushEvent("workflow_failed", {
-						run_id: runId,
-						error: "Workflow cancelled",
-					});
+					pushEvent("workflow_failed", { run_id: runId, error: "Workflow cancelled" });
 					return;
 				}
 
@@ -423,61 +342,29 @@ export function createWorkflowService(deps: WorkflowServiceDeps) {
 				if (!executor) throw new Error(`Unknown node type: ${nodeType}`);
 
 				pushEvent("node_started", {
-					run_id: runId,
-					node_id: node.id,
-					node_type: nodeType,
-					node_label: nodeLabel,
-					node_index: i,
-					total_nodes: sortedNodes.length,
+					run_id: runId, node_id: node.id, node_type: nodeType,
+					node_label: nodeLabel, node_index: i, total_nodes: sortedNodes.length,
 				});
 
 				const inputs = buildInputMap(node.id, edges, nodeOutputs);
-
 				const progressCallback: ProgressCallback = (progress, message) => {
-					pushEvent("node_progress", {
-						run_id: runId,
-						node_id: node.id,
-						progress,
-						message,
-					});
+					pushEvent("node_progress", { run_id: runId, node_id: node.id, progress, message });
 				};
-
 				const cancelCheck: CancelCheck = () => run.cancelled;
 
 				try {
-					const outputs = await executor.execute(
-						nodeData,
-						inputs,
-						progressCallback,
-						cancelCheck,
-					);
+					const outputs = await executor.execute(nodeData, inputs, progressCallback, cancelCheck);
 					nodeOutputs.set(node.id, outputs);
-
-					pushEvent("node_completed", {
-						run_id: runId,
-						node_id: node.id,
-						node_type: nodeType,
-						outputs,
-					});
+					pushEvent("node_completed", { run_id: runId, node_id: node.id, node_type: nodeType, outputs });
 				} catch (err) {
 					const error = String(err instanceof Error ? err.message : err);
 					console.error(`Workflow ${runId}: node ${node.id} (${nodeType}) failed:`, error);
-
-					pushEvent("node_failed", {
-						run_id: runId,
-						node_id: node.id,
-						node_type: nodeType,
-						error,
-					});
-					pushEvent("workflow_failed", {
-						run_id: runId,
-						error: `Node '${nodeLabel}' failed: ${error}`,
-					});
+					pushEvent("node_failed", { run_id: runId, node_id: node.id, node_type: nodeType, error });
+					pushEvent("workflow_failed", { run_id: runId, error: `Node '${nodeLabel}' failed: ${error}` });
 					return;
 				}
 			}
 
-			// Collect final outputs from output nodes
 			const finalOutputs: Record<string, Record<string, unknown>> = {};
 			for (const node of sortedNodes) {
 				if (node.type === "output") {
@@ -485,17 +372,11 @@ export function createWorkflowService(deps: WorkflowServiceDeps) {
 				}
 			}
 
-			pushEvent("workflow_completed", {
-				run_id: runId,
-				outputs: finalOutputs,
-			});
+			pushEvent("workflow_completed", { run_id: runId, outputs: finalOutputs });
 		} catch (err) {
 			const error = String(err instanceof Error ? err.message : err);
 			console.error(`Workflow ${runId} failed:`, error);
-			pushEvent("workflow_failed", {
-				run_id: runId,
-				error,
-			});
+			pushEvent("workflow_failed", { run_id: runId, error });
 		} finally {
 			activeRuns.delete(runId);
 		}
@@ -506,7 +387,6 @@ export function createWorkflowService(deps: WorkflowServiceDeps) {
 			const runId = crypto.randomUUID();
 			const run = { cancelled: false };
 			activeRuns.set(runId, run);
-			// Fire and forget — runs asynchronously
 			executeGraph(runId, graphJson, run);
 			return runId;
 		},

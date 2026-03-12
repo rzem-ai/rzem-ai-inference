@@ -1,13 +1,14 @@
 /**
  * File browsing service: native dialogs and file operations.
- * Ported from pywebview dialog calls in backend/api/*.py.
- *
- * Uses Electrobun's openFileDialog() for native file/folder selection.
+ * Migrated from src/bun/services/files.ts — electrobun → electron dialog.
  */
 
-import type Database from "bun:sqlite";
-import { Utils } from "electrobun/bun";
-import { existsSync, mkdirSync, copyFileSync, readFileSync, writeFileSync, readdirSync, unlinkSync, statSync } from "fs";
+import type Database from "better-sqlite3";
+import { dialog, type BrowserWindow } from "electron";
+import {
+	existsSync, mkdirSync, copyFileSync, readFileSync, writeFileSync,
+	readdirSync, unlinkSync, statSync,
+} from "fs";
 import { join, basename, extname, dirname } from "path";
 
 type Row = Record<string, unknown>;
@@ -18,29 +19,33 @@ interface ApiResponse {
 	[key: string]: unknown;
 }
 
-const IMAGE_FILTER = "*.png *.jpg *.jpeg *.webp *.bmp *.tiff";
-const LORA_FILTER = "*.safetensors *.ckpt *.pt";
-const METADATA_FILTER = "*.metadata.json";
+const IMAGE_EXTENSIONS = [
+	{ name: "Images", extensions: ["png", "jpg", "jpeg", "webp", "bmp", "tiff"] },
+];
+const LORA_EXTENSIONS = [
+	{ name: "LoRA Models", extensions: ["safetensors", "ckpt", "pt"] },
+];
+const METADATA_EXTENSIONS = [
+	{ name: "Metadata", extensions: ["json"] },
+];
 
 export function createFilesHandlers(
-	db: Database,
+	db: Database.Database,
 	config: { outputDir: string; stylesDir: string },
+	getWindow: () => BrowserWindow | null,
 ) {
 	return {
-		// ── Output directory ─────────────────────────────────────
-
 		browseOutputDirectory: async (): Promise<ApiResponse> => {
 			try {
-				const result = await Utils.openFileDialog({
-					startingFolder: config.outputDir,
-					canChooseFiles: false,
-					canChooseDirectory: true,
-					allowsMultipleSelection: false,
+				const win = getWindow();
+				const result = await dialog.showOpenDialog(win!, {
+					defaultPath: config.outputDir,
+					properties: ["openDirectory"],
 				});
-				if (!result || result.length === 0) {
+				if (result.canceled || result.filePaths.length === 0) {
 					return { status: "success", changed: false };
 				}
-				const chosen = result[0]!;
+				const chosen = result.filePaths[0]!;
 				mkdirSync(chosen, { recursive: true });
 				db.prepare(
 					"INSERT INTO settings (key, value) VALUES ('OUTPUT_DIR', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
@@ -52,30 +57,26 @@ export function createFilesHandlers(
 			}
 		},
 
-		// ── LoRA file selection ──────────────────────────────────
-
 		browseLoraFiles: async (): Promise<ApiResponse> => {
 			try {
-				const result = await Utils.openFileDialog({
-					startingFolder: "~/",
-					allowedFileTypes: LORA_FILTER,
-					canChooseFiles: true,
-					canChooseDirectory: false,
-					allowsMultipleSelection: true,
+				const win = getWindow();
+				const result = await dialog.showOpenDialog(win!, {
+					filters: LORA_EXTENSIONS,
+					properties: ["openFile", "multiSelections"],
 				});
-				if (!result || result.length === 0) {
+				if (result.canceled || result.filePaths.length === 0) {
 					return { status: "success", loras: [] };
 				}
 
 				const loras: Row[] = [];
-				for (const filepath of result) {
+				for (const filepath of result.filePaths) {
 					if (!existsSync(filepath)) continue;
 					const name = basename(filepath, extname(filepath));
 					const size = statSync(filepath).size;
 					const id = crypto.randomUUID();
-					db.prepare(
-						"INSERT INTO loras (id, name, path, file_size) VALUES (?, ?, ?, ?)",
-					).run(id, name, filepath, size);
+					db.prepare("INSERT INTO loras (id, name, path, size_bytes, created_at) VALUES (?, ?, ?, ?, ?)").run(
+						id, name, filepath, size, Math.floor(Date.now() / 1000),
+					);
 					const row = db.prepare("SELECT * FROM loras WHERE id = ?").get(id) as Row;
 					if (row) loras.push(row);
 				}
@@ -85,22 +86,18 @@ export function createFilesHandlers(
 			}
 		},
 
-		// ── Image selection (for styles) ─────────────────────────
-
 		browseImageFile: async (params: Record<string, unknown>): Promise<ApiResponse> => {
 			try {
 				const styleId = (params.styleId as string) ?? "";
-				const result = await Utils.openFileDialog({
-					startingFolder: "~/",
-					allowedFileTypes: IMAGE_FILTER,
-					canChooseFiles: true,
-					canChooseDirectory: false,
-					allowsMultipleSelection: false,
+				const win = getWindow();
+				const result = await dialog.showOpenDialog(win!, {
+					filters: IMAGE_EXTENSIONS,
+					properties: ["openFile"],
 				});
-				if (!result || result.length === 0) {
+				if (result.canceled || result.filePaths.length === 0) {
 					return { status: "success", path: null, thumbnailPath: null };
 				}
-				const source = result[0]!;
+				const source = result.filePaths[0]!;
 				const stored = await storeStyleImage(source, config.stylesDir, styleId);
 				if (!stored) {
 					return { status: "error", message: "Failed to process image" };
@@ -111,47 +108,37 @@ export function createFilesHandlers(
 			}
 		},
 
-		// ── Input image (for img2img/kontext) ────────────────────
-
 		browseInputImage: async (): Promise<ApiResponse> => {
 			try {
-				const result = await Utils.openFileDialog({
-					startingFolder: "~/",
-					allowedFileTypes: IMAGE_FILTER,
-					canChooseFiles: true,
-					canChooseDirectory: false,
-					allowsMultipleSelection: false,
+				const win = getWindow();
+				const result = await dialog.showOpenDialog(win!, {
+					filters: IMAGE_EXTENSIONS,
+					properties: ["openFile"],
 				});
-				if (!result || result.length === 0) {
+				if (result.canceled || result.filePaths.length === 0) {
 					return { status: "success", path: null };
 				}
-				return { status: "success", path: result[0] };
+				return { status: "success", path: result.filePaths[0] };
 			} catch (err) {
 				return { status: "error", message: String(err) };
 			}
 		},
-
-		// ── Workflow image ───────────────────────────────────────
 
 		browseWorkflowImage: async (_params: Record<string, unknown>): Promise<ApiResponse> => {
 			try {
-				const result = await Utils.openFileDialog({
-					startingFolder: "~/",
-					allowedFileTypes: IMAGE_FILTER,
-					canChooseFiles: true,
-					canChooseDirectory: false,
-					allowsMultipleSelection: false,
+				const win = getWindow();
+				const result = await dialog.showOpenDialog(win!, {
+					filters: IMAGE_EXTENSIONS,
+					properties: ["openFile"],
 				});
-				if (!result || result.length === 0) {
+				if (result.canceled || result.filePaths.length === 0) {
 					return { status: "success", path: null };
 				}
-				return { status: "success", path: result[0] };
+				return { status: "success", path: result.filePaths[0] };
 			} catch (err) {
 				return { status: "error", message: String(err) };
 			}
 		},
-
-		// ── Save clipboard image ─────────────────────────────────
 
 		saveClipboardImage: (params: Record<string, unknown>): ApiResponse => {
 			try {
@@ -166,7 +153,6 @@ export function createFilesHandlers(
 				const ext = match[1] === "jpeg" ? "jpg" : match[1]!;
 				const b64data = match[2]!;
 
-				// Cap at ~50MB base64 (~37MB decoded)
 				if (b64data.length > 50_000_000) {
 					return { status: "error", message: "Image too large (max 50MB)" };
 				}
@@ -174,7 +160,6 @@ export function createFilesHandlers(
 				const tmpDir = join(dirname(config.outputDir), "tmp");
 				mkdirSync(tmpDir, { recursive: true });
 
-				// Clean old temp files
 				try {
 					for (const old of readdirSync(tmpDir)) {
 						if (old.startsWith("kontext_input_")) {
@@ -193,34 +178,26 @@ export function createFilesHandlers(
 			}
 		},
 
-		// ── Save image as (single file) ──────────────────────────
-		// Electrobun has no save dialog — pick a folder and save there
-
 		saveImageAs: async (params: Record<string, unknown>): Promise<ApiResponse> => {
 			try {
 				const filePath = params.filePath as string;
 				if (!filePath || !existsSync(filePath)) {
 					return { status: "error", message: "Source file not found" };
 				}
-				const result = await Utils.openFileDialog({
-					startingFolder: config.outputDir,
-					canChooseFiles: false,
-					canChooseDirectory: true,
-					allowsMultipleSelection: false,
+				const win = getWindow();
+				const result = await dialog.showSaveDialog(win!, {
+					defaultPath: join(config.outputDir, basename(filePath)),
+					filters: IMAGE_EXTENSIONS,
 				});
-				if (!result || result.length === 0) {
+				if (result.canceled || !result.filePath) {
 					return { status: "success", saved: false };
 				}
-				const destDir = result[0]!;
-				const dest = join(destDir, basename(filePath));
-				copyFileSync(filePath, dest);
-				return { status: "success", saved: true, path: dest };
+				copyFileSync(filePath, result.filePath);
+				return { status: "success", saved: true, path: result.filePath };
 			} catch (err) {
 				return { status: "error", message: String(err) };
 			}
 		},
-
-		// ── Batch save images ────────────────────────────────────
 
 		batchSaveImages: async (params: Record<string, unknown>): Promise<ApiResponse> => {
 			try {
@@ -228,16 +205,15 @@ export function createFilesHandlers(
 				if (!imageIds?.length) {
 					return { status: "success", savedCount: 0 };
 				}
-				const result = await Utils.openFileDialog({
-					startingFolder: config.outputDir,
-					canChooseFiles: false,
-					canChooseDirectory: true,
-					allowsMultipleSelection: false,
+				const win = getWindow();
+				const result = await dialog.showOpenDialog(win!, {
+					defaultPath: config.outputDir,
+					properties: ["openDirectory"],
 				});
-				if (!result || result.length === 0) {
+				if (result.canceled || result.filePaths.length === 0) {
 					return { status: "success", savedCount: 0 };
 				}
-				const destDir = result[0]!;
+				const destDir = result.filePaths[0]!;
 				let savedCount = 0;
 				for (const id of imageIds) {
 					const img = db.prepare("SELECT file_path FROM images WHERE id = ?").get(id) as { file_path: string } | null;
@@ -251,8 +227,6 @@ export function createFilesHandlers(
 				return { status: "error", message: String(err) };
 			}
 		},
-
-		// ── Import style image ───────────────────────────────────
 
 		importStyleImage: async (params: Record<string, unknown>): Promise<ApiResponse> => {
 			try {
@@ -271,45 +245,34 @@ export function createFilesHandlers(
 			}
 		},
 
-		// ── Browse metadata files ────────────────────────────────
-
 		browseMetadataFiles: async (): Promise<ApiResponse> => {
 			try {
-				const result = await Utils.openFileDialog({
-					startingFolder: "~/",
-					allowedFileTypes: METADATA_FILTER,
-					canChooseFiles: true,
-					canChooseDirectory: false,
-					allowsMultipleSelection: true,
+				const win = getWindow();
+				const result = await dialog.showOpenDialog(win!, {
+					filters: METADATA_EXTENSIONS,
+					properties: ["openFile", "multiSelections"],
 				});
-				return { status: "success", paths: result ?? [] };
+				return { status: "success", paths: result.filePaths ?? [] };
 			} catch (err) {
 				return { status: "error", message: String(err) };
 			}
 		},
-
-		// ── Browse and import metadata ───────────────────────────
 
 		browseAndImportMetadata: async (): Promise<ApiResponse> => {
 			try {
-				const result = await Utils.openFileDialog({
-					startingFolder: "~/",
-					allowedFileTypes: METADATA_FILTER,
-					canChooseFiles: true,
-					canChooseDirectory: false,
-					allowsMultipleSelection: true,
+				const win = getWindow();
+				const result = await dialog.showOpenDialog(win!, {
+					filters: METADATA_EXTENSIONS,
+					properties: ["openFile", "multiSelections"],
 				});
-				if (!result || result.length === 0) {
-					return { status: "success", styles: [], errors: [] };
+				if (result.canceled || result.filePaths.length === 0) {
+					return { status: "success", paths: [], styles: [], errors: [] };
 				}
-				// For now, return paths — CivitAI import logic is in the styles service
-				return { status: "success", paths: result, styles: [], errors: [] };
+				return { status: "success", paths: result.filePaths, styles: [], errors: [] };
 			} catch (err) {
 				return { status: "error", message: String(err) };
 			}
 		},
-
-		// ── CivitAI metadata import ─────────────────────────────
 
 		importCivitaiMetadata: (params: Record<string, unknown>): ApiResponse => {
 			try {
@@ -325,15 +288,13 @@ export function createFilesHandlers(
 					return { status: "error", message: "No file path or JSON content provided" };
 				}
 
-				// Extract basic metadata
 				const modelName = (meta.name as string) ?? "Imported Style";
 				const description = ((meta.description as string) ?? "").replace(/<[^>]+>/g, "");
 				const styleId = crypto.randomUUID();
 				const now = Math.floor(Date.now() / 1000);
 
-				// Create style record
 				db.prepare(
-					"INSERT INTO styles (id, name, description, category, created_at, updated_at) VALUES (?, ?, ?, 'imported', ?, ?)",
+					"INSERT INTO styles (id, name, description, prompt_template, category, created_at, updated_at) VALUES (?, ?, ?, '', 'imported', ?, ?)",
 				).run(styleId, modelName, description, now, now);
 
 				const style = db.prepare("SELECT * FROM styles WHERE id = ?").get(styleId) as Row;
@@ -347,10 +308,6 @@ export function createFilesHandlers(
 
 // ── Image processing helper ─────────────────────────────────────
 
-/**
- * Copy a local image to the styles directory with a unique name,
- * then generate a WebP thumbnail (max 512px wide, quality 85).
- */
 async function storeStyleImage(
 	source: string,
 	stylesDir: string,
@@ -378,7 +335,6 @@ async function storeStyleImage(
 				.toFile(thumbPath);
 			thumbnailPath = thumbPath;
 		} catch {
-			// Thumbnail generation is best-effort
 			thumbnailPath = fullPath;
 		}
 

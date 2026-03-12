@@ -1,6 +1,6 @@
 /**
  * Batch operations: CSV parsing and template rendering.
- * Ported from backend/api/batch.py — pure logic, no Python deps.
+ * Ported from src/bun/services/batch.ts — no changes needed (pure logic).
  */
 
 const VAR_RE = /\{\{\s*(\w+)\s*\}\}/g;
@@ -80,9 +80,6 @@ export function batchRenderTemplate(
 	return { status: "success", rendered, errors };
 }
 
-/**
- * Parse a single CSV line, handling quoted fields.
- */
 function parseCSVLine(line: string): string[] {
 	const result: string[] = [];
 	let current = "";
@@ -95,7 +92,7 @@ function parseCSVLine(line: string): string[] {
 			if (char === '"') {
 				if (i + 1 < line.length && line[i + 1] === '"') {
 					current += '"';
-					i++; // skip escaped quote
+					i++;
 				} else {
 					inQuotes = false;
 				}
