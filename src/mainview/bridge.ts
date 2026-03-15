@@ -19,16 +19,16 @@ export function isPywebview(): boolean {
 
 // ── Key conversion utilities ─────────────────────────────────────
 
-function snakeToCamel(str: string): string {
+export function snakeToCamel(str: string): string {
   return str.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
 }
 
-function camelToSnake(str: string): string {
+export function camelToSnake(str: string): string {
   return str.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
 }
 
 /** Deep-convert object keys from snake_case to camelCase. */
-function keysToCamel(obj: unknown): unknown {
+export function keysToCamel(obj: unknown): unknown {
   if (Array.isArray(obj)) return obj.map(keysToCamel);
   if (obj && typeof obj === "object" && !(obj instanceof Date)) {
     const result: Record<string, unknown> = {};
@@ -41,7 +41,7 @@ function keysToCamel(obj: unknown): unknown {
 }
 
 /** Deep-convert object keys from camelCase to snake_case. */
-function keysToSnake(obj: unknown): unknown {
+export function keysToSnake(obj: unknown): unknown {
   if (Array.isArray(obj)) return obj.map(keysToSnake);
   if (obj && typeof obj === "object" && !(obj instanceof Date)) {
     const result: Record<string, unknown> = {};

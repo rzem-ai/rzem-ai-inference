@@ -1,5 +1,12 @@
 <template>
 	<div class="flex h-full flex-col gap-2">
+		<!-- Import status / error -->
+		<div v-if="stylesStore.importing || stylesStore.importError" class="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm"
+			:class="stylesStore.importError ? 'border-red-200 bg-red-50 text-red-700' : 'border-blue-200 bg-blue-50 text-blue-700'">
+			<i v-if="stylesStore.importing" class="pi pi-spinner pi-spin text-xs" />
+			<span>{{ stylesStore.importError || stylesStore.importMessage }}</span>
+		</div>
+
 		<!-- Toolbar -->
 		<Toolbar>
 			<template #start>
@@ -289,6 +296,7 @@ function onCardContextMenu(event: MouseEvent, styleId: string) {
 }
 
 async function onImportMetadata() {
+	stylesStore.importError = '';
 	await stylesStore.importCivitaiMetadata();
 }
 

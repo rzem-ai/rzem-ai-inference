@@ -247,17 +247,26 @@ export function registerIpcHandlers(
 	});
 
 	// Bundles
+	function parseBundle(row: Row): Row {
+		for (const k of ["fal_aspectratio", "loras"] as const) {
+			if (typeof row[k] === "string") {
+				try { row[k] = JSON.parse(row[k] as string); } catch { /* leave as-is */ }
+			}
+		}
+		return row;
+	}
+
 	ipcMain.handle("getBundles", (_e, { includeHidden } = {}) => {
 		const q = includeHidden ? "SELECT * FROM bundles ORDER BY transformer_type, tier" : "SELECT * FROM bundles WHERE hidden = 0 ORDER BY transformer_type, tier";
-		return { status: "success", bundles: db.prepare(q).all() as Row[] };
+		return { status: "success", bundles: (db.prepare(q).all() as Row[]).map(parseBundle) };
 	});
 	ipcMain.handle("getBundle", (_e, { bundleId }: { bundleId: string }) => {
 		const row = db.prepare("SELECT * FROM bundles WHERE id = ?").get(bundleId) as Row | null;
 		if (!row) return { status: "error", message: "Bundle not found" };
-		return { status: "success", bundle: row };
+		return { status: "success", bundle: parseBundle(row) };
 	});
 	ipcMain.handle("getBundlesForType", (_e, { transformerType }: { transformerType: string }) => {
-		return { status: "success", bundles: db.prepare("SELECT * FROM bundles WHERE transformer_type = ? AND hidden = 0 ORDER BY tier").all(transformerType) as Row[] };
+		return { status: "success", bundles: (db.prepare("SELECT * FROM bundles WHERE transformer_type = ? AND hidden = 0 ORDER BY tier").all(transformerType) as Row[]).map(parseBundle) };
 	});
 	ipcMain.handle("createBundle", (_e, params) => {
 		const p = params as Record<string, any>;
@@ -596,10 +605,10 @@ export function registerIpcHandlers(
 	ipcMain.handle("applyStyleReview", (_e, params) => {
 		try {
 			const p = params as Record<string, any>;
-			const changes = p.changes as Array<{ id: string; name?: string; tags?: string[] }> ?? [];
+			const changes = p.changes as Array<{ styleId: string; name?: string; tags?: string[] }> ?? [];
 			for (const change of changes) {
 				if (change.name) {
-					db.prepare("UPDATE styles SET name = ?, updated_at = ? WHERE id = ?").run(change.name, Math.floor(Date.now() / 1000), change.id);
+					db.prepare("UPDATE styles SET name = ?, updated_at = ? WHERE id = ?").run(change.name, Math.floor(Date.now() / 1000), change.styleId);
 				}
 				if (change.tags) {
 					const tagIds: number[] = [];
@@ -611,9 +620,9 @@ export function registerIpcHandlers(
 						}
 						if (tag) tagIds.push(tag.id);
 					}
-					db.prepare("DELETE FROM style_tags WHERE style_id = ?").run(change.id);
+					db.prepare("DELETE FROM style_tags WHERE style_id = ?").run(change.styleId);
 					const insert = db.prepare("INSERT OR IGNORE INTO style_tags (style_id, tag_id) VALUES (?, ?)");
-					for (const tagId of tagIds) insert.run(change.id, tagId);
+					for (const tagId of tagIds) insert.run(change.styleId, tagId);
 				}
 			}
 			return { status: "success" };
@@ -622,7 +631,7 @@ export function registerIpcHandlers(
 	ipcMain.handle("generateStyleFromFilters", async (_e, params) => {
 		try {
 			const p = params as Record<string, any>;
-			const filterNames = p.filterNames as string[] ?? [];
+			const filterNames = (p.filters ?? p.filterNames) as string[] ?? [];
 			if (!filterNames.length) return { status: "error", message: "No filters selected" };
 			const prompt = `Create an image generation style combining these visual filters: ${filterNames.join(", ")}.\n\nRespond with JSON: {"name": "style name", "description": "...", "prompt_template": "a {prompt} with style details...", "negative_prompt": "...", "category": "custom"}.\n\nThe prompt_template MUST contain {prompt} as a placeholder.`;
 			const result = await chat.complete([{ role: "user", content: prompt }]);

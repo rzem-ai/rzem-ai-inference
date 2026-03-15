@@ -26,7 +26,9 @@ const LORA_EXTENSIONS = [
 	{ name: "LoRA Models", extensions: ["safetensors", "ckpt", "pt"] },
 ];
 const METADATA_EXTENSIONS = [
-	{ name: "Metadata", extensions: ["json"] },
+	{ name: "Styles & Images", extensions: ["json", "png", "jpg", "jpeg", "webp"] },
+	{ name: "Metadata JSON", extensions: ["json"] },
+	{ name: "Images", extensions: ["png", "jpg", "jpeg", "webp"] },
 ];
 
 export function createFilesHandlers(

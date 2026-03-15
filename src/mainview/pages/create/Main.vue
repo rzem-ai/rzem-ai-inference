@@ -6,7 +6,7 @@
     <!-- Preview area — ref on the stable outer container whose size is determined by flex layout -->
     <div v-else ref="imageWrapper" class="relative place-items-center h-full w-full overflow-hidden">
       <div v-if="store.isGenerating && store.previewDataUrl" class="rounded-2xl p-4 h-full flex justify-center w-full">
-        <div class="w-full h-full flex justify-center">
+        <div class="w-full h-full flex justify-center items-center">
           <div>
             <img :src="store.previewDataUrl" alt="Generation preview" class="rounded-2xl" style="filter: blur(1px)" :style="placeholderStyle" />
           </div>
@@ -14,7 +14,7 @@
       </div>
 
       <div v-else-if="displayedImage?.dataUrl" class="rounded-2xl p-4 h-full flex justify-center w-full">
-        <div class="w-full h-full flex justify-center">
+        <div class="w-full h-full flex justify-center items-center">
           <div>
             <img :src="displayedImage.dataUrl" alt="Generated image" class="rounded-2xl" :style="placeholderStyle" />
           </div>
@@ -23,7 +23,7 @@
 
       <!-- Empty state -->
       <div v-else class="rounded-2xl p-4 h-full flex justify-center w-full">
-        <div class="w-full h-full flex justify-center">
+        <div class="w-full h-full flex justify-center items-center">
           <div class="border-surface-200 border rounded-2xl flex flex-col justify-center text-center bg-surface-100" :style="placeholderStyle">
             <ImageIcon :size="48" class="w-full text-slate-500" />
             <div class="text-lg text-slate-500">Generated images will appear here</div>

@@ -117,6 +117,7 @@ async function handleSave(key: string) {
     localKeys[key] = '';
   }
   if (key === 'CLAUDE_API_KEY') {
+    await settingsStore.loadApiKey(key);
     await chatStore.checkConfigured();
   }
   if (key === 'FAL_KEY') {
