@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import { getApiAsync } from '@/bridge';
+import { useChatStore } from '@/stores/chat';
 import type { Style, StyleLoRA, StyleExample, StyleReviewSuggestion, LoRA, Tag, Filter, GeneratedStyleData } from '@/types/inference';
 
 export const useStylesStore = defineStore('styles', {
@@ -27,6 +28,7 @@ export const useStylesStore = defineStore('styles', {
     importCurrent: 0,
     importTotal: 0,
     importMessage: '',
+    importError: '',
 
     // Editor state
     editorStyle: null as Style | null,
@@ -303,25 +305,48 @@ export const useStylesStore = defineStore('styles', {
 
     async importCivitaiMetadata() {
       const api = await getApiAsync();
+      this.importError = '';
 
-      // Step 1: Browse for files
+      // Step 1: Browse for files (JSON metadata and/or images)
       const browse = await api.browse_metadata_files();
-      const paths = browse.paths ?? [];
+      const paths = (browse.paths ?? []) as string[];
       if (!paths.length) return browse;
 
-      // Step 2: Import each file with progress tracking
+      const isImage = (p: string) => /\.(png|jpg|jpeg|webp)$/i.test(p);
+      const jsonPaths = paths.filter((p) => !isImage(p));
+      const imagePaths = paths.filter(isImage);
+
+      // Require Claude API key when images are selected
+      if (imagePaths.length > 0) {
+        const chatStore = useChatStore();
+        await chatStore.checkConfigured();
+        if (!chatStore.isConfigured) {
+          this.importError = 'A Claude API key is required to create styles from images. Configure it in Settings → API Keys.';
+          return { status: 'error' as const, message: this.importError };
+        }
+      }
+
       this.importing = true;
       this.importTotal = paths.length;
       this.importCurrent = 0;
       this.importMessage = 'Starting import...';
-
       let imported = 0;
-      for (const filePath of paths) {
+
+      // Process JSON metadata files
+      for (const filePath of jsonPaths) {
         const name = filePath.split('/').pop()?.replace('.metadata.json', '') ?? 'style';
         this.importCurrent++;
         this.importMessage = `Importing "${name}" (${this.importCurrent}/${this.importTotal})...`;
-
         const res = await api.import_civitai_metadata({ file_path: filePath });
+        if (res.status === 'success') imported++;
+      }
+
+      // Process image files via Claude vision
+      for (const filePath of imagePaths) {
+        const name = filePath.split('/').pop() ?? 'image';
+        this.importCurrent++;
+        this.importMessage = `Analysing "${name}" (${this.importCurrent}/${this.importTotal})...`;
+        const res = await api.create_style_from_image({ image_path: filePath });
         if (res.status === 'success') imported++;
       }
 

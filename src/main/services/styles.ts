@@ -1,12 +1,9 @@
 /**
  * Styles service: CRUD operations for styles, style-lora, style-tag, and examples.
- * Ported from backend/api/styles.py — database operations only.
- *
- * File browsing and AI features (review, generate from filters) will be
- * added in later commits.
+ * Migrated from src/bun/services/styles.ts — bun:sqlite → better-sqlite3.
  */
 
-import type Database from "bun:sqlite";
+import type Database from "better-sqlite3";
 import { readFileSync, readdirSync, existsSync } from "fs";
 import { join, basename, extname } from "path";
 
@@ -19,7 +16,7 @@ interface ApiResponse {
 	[key: string]: unknown;
 }
 
-export function createStylesHandlers(db: Database, stylesDir: string) {
+export function createStylesHandlers(db: Database.Database, stylesDir: string) {
 	return {
 		getStylesDir: (): ApiResponse => {
 			return { status: "success", path: stylesDir };
@@ -48,7 +45,6 @@ export function createStylesHandlers(db: Database, stylesDir: string) {
 			const thumbDir = join(stylesDir, "thumbnails");
 			const stem = basename(imageName, extname(imageName));
 
-			// Prefer the half-res cover (smaller transfer)
 			const coverPath = join(thumbDir, `${stem}_cover.webp`);
 			if (existsSync(coverPath)) {
 				const data = readFileSync(coverPath);
@@ -56,7 +52,6 @@ export function createStylesHandlers(db: Database, stylesDir: string) {
 				return { status: "success", dataUrl: `data:image/webp;base64,${b64}` };
 			}
 
-			// Fall back to full PNG
 			const pngPath = join(thumbDir, `${stem}.png`);
 			if (existsSync(pngPath)) {
 				const data = readFileSync(pngPath);
@@ -66,8 +61,6 @@ export function createStylesHandlers(db: Database, stylesDir: string) {
 
 			return { status: "error", message: `Thumbnail not found: ${imageName}` };
 		},
-
-		// ── Styles CRUD ──────────────────────────────────────────
 
 		getStyles: (params: {
 			category?: string;
@@ -104,21 +97,16 @@ export function createStylesHandlers(db: Database, stylesDir: string) {
 				if (params.bundleType === "__unbound__") {
 					where += " AND (s.bundle_id IS NULL OR s.bundle_id = '')";
 				} else {
-					where +=
-						" AND s.bundle_id IN (SELECT id FROM bundles WHERE transformer_type = ?)";
+					where += " AND s.bundle_id IN (SELECT id FROM bundles WHERE transformer_type = ?)";
 					values.push(params.bundleType);
 				}
 			}
 
-			const allowedSorts = [
-				"name", "category", "created_at", "updated_at", "usage_count",
-			];
+			const allowedSorts = ["name", "category", "created_at", "updated_at", "usage_count"];
 			const safeSort = allowedSorts.includes(sortBy) ? sortBy : "updated_at";
 
 			const styles = db
-				.prepare(
-					`SELECT s.* FROM styles s ${where} ORDER BY s.${safeSort} ${sortOrder}`,
-				)
+				.prepare(`SELECT s.* FROM styles s ${where} ORDER BY s.${safeSort} ${sortOrder}`)
 				.all(...values) as Row[];
 
 			return { status: "success", styles };
@@ -139,9 +127,7 @@ export function createStylesHandlers(db: Database, stylesDir: string) {
 		},
 
 		getStyle: ({ styleId }: { styleId: string }): ApiResponse => {
-			const style = db
-				.prepare("SELECT * FROM styles WHERE id = ?")
-				.get(styleId) as Row | null;
+			const style = db.prepare("SELECT * FROM styles WHERE id = ?").get(styleId) as Row | null;
 			if (!style) return { status: "error", message: `Style '${styleId}' not found` };
 
 			const loras = db
@@ -153,15 +139,11 @@ export function createStylesHandlers(db: Database, stylesDir: string) {
 				.all(styleId) as Row[];
 
 			const tags = db
-				.prepare(
-					"SELECT t.* FROM tags t JOIN style_tags st ON t.id = st.tag_id WHERE st.style_id = ?",
-				)
+				.prepare("SELECT t.* FROM tags t JOIN style_tags st ON t.id = st.tag_id WHERE st.style_id = ?")
 				.all(styleId) as Row[];
 
 			const examples = db
-				.prepare(
-					"SELECT * FROM examples WHERE entity_type = 'style' AND entity_id = ? ORDER BY created_at",
-				)
+				.prepare("SELECT * FROM examples WHERE entity_type = 'style' AND entity_id = ? ORDER BY created_at")
 				.all(styleId) as Row[];
 
 			return { status: "success", style, loras, tags, examples };
@@ -182,16 +164,9 @@ export function createStylesHandlers(db: Database, stylesDir: string) {
 				INSERT INTO styles (id, name, description, prompt_template, negative_prompt, category, thumbnail_path, bundle_id, created_at, updated_at)
 				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			`).run(
-				params.id,
-				params.name,
-				params.description ?? null,
-				params.promptTemplate,
-				params.negativePrompt ?? null,
-				params.category ?? null,
-				params.thumbnailPath ?? null,
-				params.bundleId ?? null,
-				now,
-				now,
+				params.id, params.name, params.description ?? null, params.promptTemplate,
+				params.negativePrompt ?? null, params.category ?? null,
+				params.thumbnailPath ?? null, params.bundleId ?? null, now, now,
 			);
 			const style = db.prepare("SELECT * FROM styles WHERE id = ?").get(params.id) as Row;
 			return { status: "success", style };
@@ -202,13 +177,9 @@ export function createStylesHandlers(db: Database, stylesDir: string) {
 			const sets: string[] = [];
 			const values: SQLValue[] = [];
 			const fieldMap: Record<string, string> = {
-				name: "name",
-				description: "description",
-				promptTemplate: "prompt_template",
-				negativePrompt: "negative_prompt",
-				category: "category",
-				thumbnailPath: "thumbnail_path",
-				bundleId: "bundle_id",
+				name: "name", description: "description", promptTemplate: "prompt_template",
+				negativePrompt: "negative_prompt", category: "category",
+				thumbnailPath: "thumbnail_path", bundleId: "bundle_id",
 			};
 
 			for (const [camel, col] of Object.entries(fieldMap)) {
@@ -218,16 +189,13 @@ export function createStylesHandlers(db: Database, stylesDir: string) {
 				}
 			}
 
-			if (sets.length === 0) {
-				return { status: "error", message: "No fields to update" };
-			}
+			if (sets.length === 0) return { status: "error", message: "No fields to update" };
 
 			sets.push("updated_at = ?");
 			values.push(Math.floor(Date.now() / 1000));
 			values.push(styleId as string);
 
 			db.prepare(`UPDATE styles SET ${sets.join(", ")} WHERE id = ?`).run(...values);
-
 			const style = db.prepare("SELECT * FROM styles WHERE id = ?").get(styleId) as Row;
 			return { status: "success", style };
 		},
@@ -253,13 +221,9 @@ export function createStylesHandlers(db: Database, stylesDir: string) {
 			return { status: "success", categories: rows.map((r) => r.category) };
 		},
 
-		// ── Style Examples ───────────────────────────────────────
-
 		getStyleExamples: ({ styleId }: { styleId: string }): ApiResponse => {
 			const examples = db
-				.prepare(
-					"SELECT * FROM examples WHERE entity_type = 'style' AND entity_id = ? ORDER BY created_at",
-				)
+				.prepare("SELECT * FROM examples WHERE entity_type = 'style' AND entity_id = ? ORDER BY created_at")
 				.all(styleId) as Row[];
 			return { status: "success", examples };
 		},
@@ -277,12 +241,9 @@ export function createStylesHandlers(db: Database, stylesDir: string) {
 			const id = crypto.randomUUID();
 			const now = Math.floor(Date.now() / 1000);
 			const content = JSON.stringify({
-				prompt: params.prompt,
-				image_path: params.imagePath ?? null,
-				seed: params.seed ?? null,
-				width: params.width ?? null,
-				height: params.height ?? null,
-				steps: params.steps ?? null,
+				prompt: params.prompt, image_path: params.imagePath ?? null,
+				seed: params.seed ?? null, width: params.width ?? null,
+				height: params.height ?? null, steps: params.steps ?? null,
 				cfg_scale: params.cfgScale ?? null,
 			});
 
@@ -298,8 +259,6 @@ export function createStylesHandlers(db: Database, stylesDir: string) {
 			db.prepare("DELETE FROM examples WHERE id = ?").run(exampleId);
 			return { status: "success" };
 		},
-
-		// ── Style ↔ LoRA ─────────────────────────────────────────
 
 		getStyleLoras: ({ styleId }: { styleId: string }): ApiResponse => {
 			const loras = db
@@ -320,16 +279,12 @@ export function createStylesHandlers(db: Database, stylesDir: string) {
 			loras: Array<{ loraId: string; strength: number; priority?: number }>;
 		}): ApiResponse => {
 			db.prepare("DELETE FROM style_loras WHERE style_id = ?").run(styleId);
-
 			const insert = db.prepare(
 				"INSERT INTO style_loras (style_id, lora_id, strength, priority) VALUES (?, ?, ?, ?)",
 			);
-
 			for (const lora of loras) {
 				insert.run(styleId, lora.loraId, lora.strength, lora.priority ?? 0);
 			}
-
-			// Return updated list
 			const result = db
 				.prepare(
 					`SELECT sl.*, l.name, l.path, l.trigger_words
@@ -340,42 +295,24 @@ export function createStylesHandlers(db: Database, stylesDir: string) {
 			return { status: "success", loras: result };
 		},
 
-		// ── Style ↔ Tag ──────────────────────────────────────────
-
 		getStyleTags: ({ styleId }: { styleId: string }): ApiResponse => {
 			const tags = db
-				.prepare(
-					"SELECT t.* FROM tags t JOIN style_tags st ON t.id = st.tag_id WHERE st.style_id = ?",
-				)
+				.prepare("SELECT t.* FROM tags t JOIN style_tags st ON t.id = st.tag_id WHERE st.style_id = ?")
 				.all(styleId) as Row[];
 			return { status: "success", tags };
 		},
 
-		setStyleTags: ({
-			styleId,
-			tagIds,
-		}: {
-			styleId: string;
-			tagIds: number[];
-		}): ApiResponse => {
+		setStyleTags: ({ styleId, tagIds }: { styleId: string; tagIds: number[] }): ApiResponse => {
 			db.prepare("DELETE FROM style_tags WHERE style_id = ?").run(styleId);
-
-			const insert = db.prepare(
-				"INSERT OR IGNORE INTO style_tags (style_id, tag_id) VALUES (?, ?)",
-			);
+			const insert = db.prepare("INSERT OR IGNORE INTO style_tags (style_id, tag_id) VALUES (?, ?)");
 			for (const tagId of tagIds) {
 				insert.run(styleId, tagId);
 			}
-
 			const tags = db
-				.prepare(
-					"SELECT t.* FROM tags t JOIN style_tags st ON t.id = st.tag_id WHERE st.style_id = ?",
-				)
+				.prepare("SELECT t.* FROM tags t JOIN style_tags st ON t.id = st.tag_id WHERE st.style_id = ?")
 				.all(styleId) as Row[];
 			return { status: "success", tags };
 		},
-
-		// ── LoRAs ────────────────────────────────────────────────
 
 		getLoras: (): ApiResponse => {
 			const loras = db.prepare("SELECT * FROM loras ORDER BY name").all() as Row[];
@@ -396,14 +333,9 @@ export function createStylesHandlers(db: Database, stylesDir: string) {
 				INSERT INTO loras (id, name, path, trigger_words, base_model, size_bytes, strength, created_at)
 				VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 			`).run(
-				params.id,
-				params.name,
-				params.path,
-				params.triggerWords ?? null,
-				params.baseModel ?? null,
-				params.sizeBytes ?? null,
-				params.strength ?? 1.0,
-				now,
+				params.id, params.name, params.path,
+				params.triggerWords ?? null, params.baseModel ?? null,
+				params.sizeBytes ?? null, params.strength ?? 1.0, now,
 			);
 			const lora = db.prepare("SELECT * FROM loras WHERE id = ?").get(params.id) as Row;
 			return { status: "success", lora };

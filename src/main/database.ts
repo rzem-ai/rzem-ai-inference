@@ -1,9 +1,13 @@
-import Database from "bun:sqlite";
+/**
+ * Database initialization using better-sqlite3 (Node.js compatible).
+ * Replaces bun:sqlite from the Electrobun/Bun version.
+ */
+
+import Database from "better-sqlite3";
 import { DEFAULT_BUNDLES, DEFAULT_BUNDLE_TYPES } from "./services/bundles";
 
 const SCHEMA = `
 -- rzem-ai-inference database schema
--- Ported from Python/sqlite3 to bun:sqlite
 
 -- ── Images ──────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS images (
@@ -241,15 +245,15 @@ CREATE TABLE IF NOT EXISTS conversation_messages (
 
 /**
  * Initialize the database with WAL mode and the full schema.
- * Returns the bun:sqlite Database instance.
+ * Returns the better-sqlite3 Database instance.
  */
-export function initDatabase(dbPath: string): Database {
-	const db = new Database(dbPath, { create: true });
+export function initDatabase(dbPath: string): Database.Database {
+	const db = new Database(dbPath);
 
 	// Match the Python app's PRAGMA settings
-	db.exec("PRAGMA journal_mode = WAL");
-	db.exec("PRAGMA foreign_keys = ON");
-	db.exec("PRAGMA busy_timeout = 5000");
+	db.pragma("journal_mode = WAL");
+	db.pragma("foreign_keys = ON");
+	db.pragma("busy_timeout = 5000");
 
 	// Apply schema (all CREATE IF NOT EXISTS — safe to re-run)
 	db.exec(SCHEMA);
@@ -257,16 +261,26 @@ export function initDatabase(dbPath: string): Database {
 	// Seed default bundle types and bundles if empty
 	const typeCount = db.prepare("SELECT COUNT(*) as n FROM bundle_types").get() as { n: number };
 	if (typeCount.n === 0) {
-		const insertType = db.prepare("INSERT INTO bundle_types (id, label, icon, sort_order, guide) VALUES (?, ?, ?, ?, ?)");
+		const insertType = db.prepare(
+			"INSERT INTO bundle_types (id, label, icon, sort_order, guide) VALUES (?, ?, ?, ?, ?)",
+		);
 		for (const t of DEFAULT_BUNDLE_TYPES) {
 			insertType.run(t.id, t.label, t.icon, t.sort_order, t.guide);
 		}
 	}
 	const bundleCount = db.prepare("SELECT COUNT(*) as n FROM bundles").get() as { n: number };
 	if (bundleCount.n === 0) {
-		const insertBundle = db.prepare(`INSERT INTO bundles (id, label, description, transformer_type, tier, transformer_model, vae_model, clip_tokenizer, clip_encoder, t5_tokenizer, t5_encoder, t5_encoder_config, qwen3_tokenizer, qwen3_encoder, steps, cfg_scale, sampler, scheduler, vram_estimate_gb, is_default, source, fal_endpoint, fal_aspectratio) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+		const insertBundle = db.prepare(
+			`INSERT INTO bundles (id, label, description, transformer_type, tier, transformer_model, vae_model, clip_tokenizer, clip_encoder, t5_tokenizer, t5_encoder, t5_encoder_config, qwen3_tokenizer, qwen3_encoder, steps, cfg_scale, sampler, scheduler, vram_estimate_gb, is_default, source, fal_endpoint, fal_aspectratio) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		);
 		for (const b of DEFAULT_BUNDLES) {
-			insertBundle.run(b.id, b.label, b.description, b.transformer_type, b.tier, b.transformer_model, b.vae_model, b.clip_tokenizer, b.clip_encoder, b.t5_tokenizer, b.t5_encoder, b.t5_encoder_config, b.qwen3_tokenizer, b.qwen3_encoder, b.steps, b.cfg_scale, b.sampler, b.scheduler, b.vram_estimate_gb, b.is_default, b.source, b.fal_endpoint, b.fal_aspectratio);
+			insertBundle.run(
+				b.id, b.label, b.description, b.transformer_type, b.tier,
+				b.transformer_model, b.vae_model, b.clip_tokenizer, b.clip_encoder,
+				b.t5_tokenizer, b.t5_encoder, b.t5_encoder_config, b.qwen3_tokenizer,
+				b.qwen3_encoder, b.steps, b.cfg_scale, b.sampler, b.scheduler,
+				b.vram_estimate_gb, b.is_default, b.source, b.fal_endpoint, b.fal_aspectratio,
+			);
 		}
 	}
 

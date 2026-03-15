@@ -1,16 +1,13 @@
 /**
  * Settings service: engine status, VRAM, HF cache, data paths, disk usage.
- * Ported from backend/api/settings.py.
- *
- * GPU/VRAM/CUDA operations are proxied to the sidecar.
- * Data paths and disk usage are computed locally.
+ * Migrated from src/bun/services/settings.ts — electrobun → electron.
  */
 
-import type Database from "bun:sqlite";
+import type Database from "better-sqlite3";
 import type { SidecarManager } from "../sidecar";
 import { statSync, readdirSync } from "fs";
 import { join } from "path";
-import { Utils } from "electrobun/bun";
+import { app } from "electron";
 
 type Row = Record<string, unknown>;
 
@@ -20,9 +17,6 @@ interface ApiResponse {
 	[key: string]: unknown;
 }
 
-/**
- * Recursively compute total bytes of all files under a directory.
- */
 function dirSizeBytes(dirPath: string): number {
 	let total = 0;
 	try {
@@ -41,15 +35,13 @@ function dirSizeBytes(dirPath: string): number {
 }
 
 export function createSettingsHandlers(
-	db: Database,
+	db: Database.Database,
 	sidecar: SidecarManager,
 	outputDir: string,
 ) {
-	const dataDir = Utils.paths.userData;
+	const dataDir = app.getPath("userData");
 
 	return {
-		// ── Engine status ────────────────────────────────────────
-
 		getEngineStatus: async (): Promise<ApiResponse> => {
 			if (!sidecar.ready) {
 				return { status: "success", ready: false };
@@ -77,9 +69,7 @@ export function createSettingsHandlers(
 				return { status: "success", cudaVersion: null };
 			}
 			try {
-				const data = await sidecar.fetchJson<{ cuda_version: string | null }>(
-					"/cuda-version",
-				);
+				const data = await sidecar.fetchJson<{ cuda_version: string | null }>("/cuda-version");
 				return { status: "success", cudaVersion: data.cuda_version };
 			} catch {
 				return { status: "success", cudaVersion: null };
@@ -94,8 +84,6 @@ export function createSettingsHandlers(
 				return { status: "error", message: String(err) };
 			}
 		},
-
-		// ── HF Cache ─────────────────────────────────────────────
 
 		getCacheInfo: async (): Promise<ApiResponse> => {
 			if (!sidecar.ready) {
@@ -117,88 +105,47 @@ export function createSettingsHandlers(
 			}
 		},
 
-		deleteCachedModel: async ({
-			repoId,
-		}: {
-			repoId: string;
-		}): Promise<ApiResponse> => {
+		deleteCachedModel: async ({ repoId }: { repoId: string }): Promise<ApiResponse> => {
 			if (!sidecar.ready) {
 				return { status: "error", message: "Engine not ready" };
 			}
 			try {
-				await sidecar.fetch(`/models/${encodeURIComponent(repoId)}`, {
-					method: "DELETE",
-				});
+				await sidecar.fetch(`/models/${encodeURIComponent(repoId)}`, { method: "DELETE" });
 				return { status: "success" };
 			} catch (err) {
 				return { status: "error", message: String(err) };
 			}
 		},
 
-		// ── Data paths ───────────────────────────────────────────
-
 		getDataPaths: (): ApiResponse => {
 			const hfCacheDir =
 				process.env.HF_HOME ??
-				join(
-					process.env.HOME ?? "/tmp",
-					".cache",
-					"huggingface",
-					"hub",
-				);
-			return {
-				status: "success",
-				dataDir,
-				outputDir,
-				hfCacheDir,
-			};
+				join(process.env.HOME ?? "/tmp", ".cache", "huggingface", "hub");
+			return { status: "success", dataDir, outputDir, hfCacheDir };
 		},
 
 		getDiskUsage: (): ApiResponse => {
 			const outputSize = dirSizeBytes(outputDir);
 			const hfCacheDir =
 				process.env.HF_HOME ??
-				join(
-					process.env.HOME ?? "/tmp",
-					".cache",
-					"huggingface",
-					"hub",
-				);
+				join(process.env.HOME ?? "/tmp", ".cache", "huggingface", "hub");
 			const hfCacheSize = dirSizeBytes(hfCacheDir);
-
-			return {
-				status: "success",
-				outputSize,
-				hfCacheSize,
-			};
+			return { status: "success", outputSize, hfCacheSize };
 		},
-
-		// ── SSL Verification ─────────────────────────────────────
 
 		getSslVerificationDisabled: (): ApiResponse => {
 			const row = db
-				.prepare(
-					"SELECT value FROM settings WHERE key = 'DISABLE_SSL_VERIFICATION'",
-				)
+				.prepare("SELECT value FROM settings WHERE key = 'DISABLE_SSL_VERIFICATION'")
 				.get() as { value: string } | null;
-			return {
-				status: "success",
-				disabled: row?.value === "1",
-			};
+			return { status: "success", disabled: row?.value === "1" };
 		},
 
-		setSslVerificationDisabled: ({
-			disabled,
-		}: {
-			disabled: boolean;
-		}): ApiResponse => {
+		setSslVerificationDisabled: ({ disabled }: { disabled: boolean }): ApiResponse => {
 			db.prepare(
 				"INSERT INTO settings (key, value) VALUES ('DISABLE_SSL_VERIFICATION', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
 			).run(disabled ? "1" : "0");
 			return { status: "success", disabled };
 		},
-
-		// ── Setup ────────────────────────────────────────────────
 
 		completeSetup: ({
 			generationMode,
@@ -222,7 +169,6 @@ export function createSettingsHandlers(
 					if (value) upsert.run(key, value);
 				}
 			}
-
 			return { status: "success" };
 		},
 	};

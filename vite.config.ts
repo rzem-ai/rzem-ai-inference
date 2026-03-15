@@ -7,8 +7,9 @@ import { defineConfig } from "vite";
 export default defineConfig({
 	plugins: [vue(), tailwindcss()],
 	root: "src/mainview",
+	base: "./",
 	build: {
-		outDir: "../../dist",
+		outDir: "../../dist/renderer",
 		emptyOutDir: true,
 	},
 	resolve: {

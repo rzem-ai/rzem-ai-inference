@@ -2,28 +2,24 @@
   "compilerOptions": {
     "lib": ["ESNext"],
     "target": "ESNext",
-    "module": "Preserve",
-    "moduleDetection": "force",
-    "allowJs": true,
-
-    "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
-    "verbatimModuleSyntax": true,
-    "noEmit": true,
-    "composite": true,
-
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "outDir": "dist/main",
+    "rootDir": "src/main",
     "strict": true,
     "skipLibCheck": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
-
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noPropertyAccessFromIndexSignature": false,
-
-    "types": ["bun"]
+    "resolveJsonModule": true,
+    "declaration": false,
+    "sourceMap": true
   },
-  "include": ["src/bun/**/*.ts"],
+  "include": ["src/main/**/*.ts"],
   "exclude": ["node_modules", "src/mainview"]
 }

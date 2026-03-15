@@ -4,23 +4,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-Desktop AI image generation app built with **Electrobun** (Bun + system WebViews) and a Vue 3 frontend. The Bun main process handles database, RPC, and services. A Python sidecar (`rzem-ai-inference-engine` from sibling repo) runs inference via FastAPI with REST + WebSocket.
+Desktop AI image generation app built with **Electron** + **Vue 3** + **Vite**. The Electron main process (Node.js) handles database, IPC, and services. A Python sidecar (`rzem-ai-inference-engine` from sibling repo) runs inference via FastAPI with REST + WebSocket.
 
 ## Commands
 
 ```bash
 # Development
-bun run start                  # Build frontend + start Electrobun
-bun run dev                    # Electrobun dev with watch mode
-bun run dev:hmr                # Vite HMR + Electrobun (two processes)
-bun run type-check             # vue-tsc type check for frontend
+npm run dev                    # Vite HMR + Electron (concurrent)
+npm run type-check             # vue-tsc type check for frontend
 
 # Build
-bun run build:canary           # Build frontend + Electrobun canary build
+npm run build                  # Build main process + frontend
+npm start                      # Run built Electron app
 
 # Type checking
-bun run --bun tsc --noEmit -p tsconfig.bun.json   # Bun process
-bun run type-check                                 # Vue frontend
+npx tsc --noEmit -p tsconfig.main.json   # Main process
+npm run type-check                        # Vue frontend
 ```
 
 No test framework is configured. No linter is configured.
@@ -28,23 +27,25 @@ No test framework is configured. No linter is configured.
 ## Architecture
 
 ```
-Electrobun App
-├── src/bun/                    — Bun main process (TypeScript)
-│   ├── index.ts                — Entry: database, sidecar, RPC, window
-│   ├── rpc.ts                  — Typed RPC schema + all handlers (~90 methods)
-│   ├── database.ts             — bun:sqlite schema + migrations + seeding
-│   ├── sidecar.ts              — Python engine subprocess manager
+Electron App
+├── src/main/                   — Electron main process (TypeScript → Node.js)
+│   ├── index.ts                — Entry: database, sidecar, IPC, window
+│   ├── preload.ts              — Preload script: contextBridge + electronAPI
+│   ├── ipc.ts                  — IPC handlers (~90 methods via ipcMain.handle)
+│   ├── database.ts             — better-sqlite3 schema + migrations + seeding
+│   ├── sidecar.ts              — Python engine subprocess (child_process.spawn)
 │   └── services/
 │       ├── batch.ts            — CSV parsing + template rendering
 │       ├── bundles.ts          — Default bundle data (15 bundles, 6 types)
 │       ├── chat.ts             — Anthropic SDK streaming + tool use
-│       ├── files.ts            — Native file dialogs (Electrobun openFileDialog)
+│       ├── files.ts            — Native file dialogs (Electron dialog)
 │       ├── settings.ts         — Engine status, VRAM, cache, paths
-│       └── styles.ts           — Style CRUD, LoRA, tags, AI features
+│       ├── styles.ts           — Style CRUD, LoRA, tags, AI features
+│       └── workflow.ts         — Workflow DAG executor
 │
-├── src/mainview/               — Vue 3 webview (largely unchanged from pywebview era)
+├── src/mainview/               — Vue 3 renderer (Vite-built)
 │   └── src/
-│       ├── bridge.ts           — Electrobun RPC adapter (Proxy-based snake↔camel)
+│       ├── bridge.ts           — Electron IPC adapter (Proxy-based snake↔camel)
 │       ├── composables/        — usePywebview (API abstraction)
 │       ├── stores/             — Pinia stores (inference, gallery, styles, etc.)
 │       ├── pages/              — Route pages (create, gallery, edit, styles, settings)
@@ -57,13 +58,13 @@ Electrobun App
         └── HF cache management
 ```
 
-### RPC Bridge Pattern
+### IPC Bridge Pattern
 
-The frontend uses a Proxy-based bridge (`bridge.ts`) that transparently converts `api.get_bundles()` → `rpc.request.getBundles()`. Response keys are converted camelCase → snake_case to match frontend expectations. This allows existing stores to work with zero changes.
+The frontend uses a Proxy-based bridge (`bridge.ts`) that transparently converts `api.get_bundles()` → `window.electronAPI.invoke("getBundles", args)`. Response keys are converted camelCase → snake_case to match frontend expectations. This allows existing stores to work with zero changes.
 
 ### Event System
 
-Sidecar emits events via WebSocket → Bun buffers them → forwarded to webview via both push messages (`rpc.send.inferenceEvent`) and polling buffer (`pollEvents`). Image persistence happens in the Bun process when `job_completed` events arrive.
+Sidecar emits events via WebSocket → main process buffers them → forwarded to renderer via `webContents.send("inferenceEvent")` and polling buffer (`pollEvents`). Image persistence happens in the main process when `job_completed` events arrive.
 
 ### API Response Convention
 
@@ -71,10 +72,11 @@ Every RPC handler returns `{"status": "success", ...}` or `{"status": "error", "
 
 ## Key Constraints
 
-- **Hash router required**: System WebView has no SPA fallback — `vue-router` must use hash mode
-- **Vite port 1978**: Hardcoded in `vite.config.ts` and `src/bun/index.ts`
-- **Bun owns the database**: The Python sidecar is stateless — only Bun writes to SQLite
+- **Hash router required**: Electron loads via `file://` in production — `vue-router` must use hash mode
+- **Vite port 1978**: Hardcoded in `vite.config.ts` and `src/main/index.ts`
+- **Main process owns the database**: The Python sidecar is stateless — only the Electron main process writes to SQLite (via better-sqlite3)
 - **Database migrations**: Use proper migration strategies for schema changes
+- **Preload script**: All renderer ↔ main communication goes through `contextBridge` in `preload.ts`
 
 ## Frontend Stack
 
