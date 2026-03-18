@@ -12,6 +12,7 @@ import { initDatabase } from "./database";
 import { SidecarManager } from "./sidecar";
 import { registerIpcHandlers } from "./ipc";
 import { createFalService } from "./services/fal";
+import { initAutoUpdater } from "./updater";
 
 // ── Data directory ───────────────────────────────────────────────
 const dataDir = app.getPath("userData");
@@ -180,6 +181,9 @@ app.whenReady().then(() => {
 	// Create window
 	createMenu();
 	createWindow();
+
+	// Auto-updater (production only)
+	initAutoUpdater(() => mainWindow);
 
 	// Start sidecar after window is created (only if engine is installed)
 	if (engineAvailable) {

@@ -69,6 +69,11 @@
     },
     "win": {
       "target": "nsis"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "rzem-ai",
+      "repo": "rzem-ai-inference"
     }
   },
   "dependencies": {
@@ -88,6 +93,7 @@
     "@vueuse/core": "^14.2.1",
     "axios": "^1.13.6",
     "better-sqlite3": "^11.0.0",
+    "electron-updater": "^6.8.3",
     "lucide-vue-next": "^0.563.0",
     "marked": "^17.0.3",
     "ogl": "^1.0.11",

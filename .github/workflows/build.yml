@@ -71,6 +71,7 @@ jobs:
             release/*.deb
             release/*.snap
             release/*.flatpak
+            release/latest-linux.yml
           if-no-files-found: error
 
   # ── macOS ────────────────────────────────────────────────────────
@@ -97,7 +98,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: macos
-          path: release/*.dmg
+          path: |
+            release/*.dmg
+            release/latest-mac.yml
           if-no-files-found: error
 
   # ── Windows ──────────────────────────────────────────────────────
@@ -124,7 +127,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows
-          path: release/*.exe
+          path: |
+            release/*.exe
+            release/latest.yml
           if-no-files-found: error
 
   # ── Release (only on tags) ──────────────────────────────────────
