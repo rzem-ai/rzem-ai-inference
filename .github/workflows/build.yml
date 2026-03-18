@@ -30,21 +30,36 @@ jobs:
           sudo apt-get install -y flatpak flatpak-builder elfutils
           flatpak remote-add --if-not-exists --user flathub https://dl.flathub.org/repo/flathub.flatpakrepo
           flatpak install --user -y flathub org.freedesktop.Platform//24.08 org.freedesktop.Sdk//24.08
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
       - name: Install Snapcraft
         run: sudo snap install snapcraft --classic
 
       - name: Build app
         run: npm run build
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
       - name: Package Linux (AppImage, deb)
         run: npx electron-builder --linux AppImage deb
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
       - name: Package Linux (snap)
         run: npx electron-builder --linux snap
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
       - name: Package Linux (flatpak)
         run: npx electron-builder --linux flatpak
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
@@ -75,6 +90,7 @@ jobs:
         run: npm run dist
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v4
@@ -99,6 +115,9 @@ jobs:
 
       - name: Build & package Windows
         run: npm run dist
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
