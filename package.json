@@ -4,6 +4,11 @@
   "private": true,
   "main": "dist/main/index.js",
   "description": "Desktop AI image generation app — Electron + Vue 3 + Python sidecar",
+  "author": {
+    "name": "rzem.ai",
+    "email": "ai@rzem.com",
+    "url": "https://rzem.ai"
+  },
   "scripts": {
     "start": "npm run build:renderer && npm run build:main && electron .",
     "dev": "concurrently \"npm run dev:renderer\" \"npm run dev:main\"",
@@ -15,10 +20,60 @@
     "type-check": "vue-tsc --noEmit -p tsconfig.app.json",
     "type-check:main": "tsc --noEmit -p tsconfig.main.json",
     "test": "vitest run",
+    "pack": "npm run build && electron-builder --dir",
+    "dist": "npm run build && electron-builder",
     "postinstall": "electron-rebuild"
+  },
+  "build": {
+    "appId": "com.rzem.ai-inference",
+    "productName": "Inference",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "node_modules/**/*",
+      "!node_modules/**/{test,tests,__tests__,spec}/**",
+      "!node_modules/**/*.{md,ts,map}"
+    ],
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb",
+        "snap",
+        "flatpak"
+      ],
+      "category": "Graphics",
+      "icon": "build/icons"
+    },
+    "snap": {
+      "confinement": "classic",
+      "grade": "stable"
+    },
+    "flatpak": {
+      "runtime": "org.freedesktop.Platform",
+      "runtimeVersion": "24.08",
+      "sdk": "org.freedesktop.Sdk",
+      "finishArgs": [
+        "--share=ipc",
+        "--socket=x11",
+        "--socket=wayland",
+        "--share=network",
+        "--device=dri",
+        "--filesystem=home"
+      ]
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.graphics-design"
+    },
+    "win": {
+      "target": "nsis"
+    }
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
+    "@fal-ai/client": "^1.9.4",
     "@primeuix/themes": "^2.0.3",
     "@tiptap/core": "^3.15.3",
     "@tiptap/extension-placeholder": "^3.15.3",
@@ -31,6 +86,7 @@
     "@vue-flow/core": "^1.48.2",
     "@vue-flow/minimap": "^1.5.4",
     "@vueuse/core": "^14.2.1",
+    "axios": "^1.13.6",
     "better-sqlite3": "^11.0.0",
     "lucide-vue-next": "^0.563.0",
     "marked": "^17.0.3",
@@ -55,6 +111,7 @@
     "concurrently": "^9.2.1",
     "cross-env": "^7.0.3",
     "electron": "^35.0.0",
+    "electron-builder": "^26.8.1",
     "prettier": "^3.8.1",
     "prettier-plugin-tailwindcss": "^0.7.2",
     "tailwindcss": "^4.2.1",

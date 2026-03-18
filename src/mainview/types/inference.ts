@@ -323,7 +323,7 @@ export interface Filter {
   prompt: string;
   category: string;
   subcategory: string;
-  colours: [string, string];
+  colours: string[];
 }
 
 export interface StyleReviewSuggestion {

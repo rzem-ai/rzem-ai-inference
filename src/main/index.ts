@@ -11,6 +11,7 @@ import path from "path";
 import { initDatabase } from "./database";
 import { SidecarManager } from "./sidecar";
 import { registerIpcHandlers } from "./ipc";
+import { createFalService } from "./services/fal";
 
 // ── Data directory ───────────────────────────────────────────────
 const dataDir = app.getPath("userData");
@@ -159,24 +160,35 @@ app.whenReady().then(() => {
 		if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
 	}
 
+	// Resolve engine availability
+	const engineDir = resolveEngineDir();
+	const engineAvailable = engineDir !== undefined;
+
 	// Create sidecar
 	sidecar = new SidecarManager({
 		outputDir,
 		port: 8100,
-		engineDir: resolveEngineDir(),
+		engineDir,
 	});
 
+	// Create FAL cloud service
+	const falService = createFalService({ outputDir });
+
 	// Register IPC handlers
-	registerIpcHandlers(db, sidecar, { outputDir, stylesDir }, () => mainWindow);
+	registerIpcHandlers(db, sidecar, { outputDir, stylesDir }, () => mainWindow, falService, engineAvailable);
 
 	// Create window
 	createMenu();
 	createWindow();
 
-	// Start sidecar after window is created
-	sidecar.start().catch((err) => {
-		console.error("Failed to start sidecar:", err);
-	});
+	// Start sidecar after window is created (only if engine is installed)
+	if (engineAvailable) {
+		sidecar.start().catch((err) => {
+			console.error("Failed to start sidecar:", err);
+		});
+	} else {
+		console.log("Inference engine not installed — cloud-only mode");
+	}
 
 	app.on("activate", () => {
 		if (BrowserWindow.getAllWindows().length === 0) createWindow();

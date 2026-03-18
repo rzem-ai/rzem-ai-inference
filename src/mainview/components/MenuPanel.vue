@@ -37,7 +37,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, type Component } from 'vue';
+import { computed, type Component } from 'vue';
 
 const props = defineProps<{
   title: string;
@@ -48,8 +48,4 @@ const props = defineProps<{
 const resolvedIcon = computed(() => props.icon ?? 'ImageOff');
 
 const expanded = computed(() => props.expand ?? false);
-
-import { usePywebview } from '@/composables/usePywebview';
-import { useGalleryStore } from '@/stores/gallery';
-import type { Tag } from '@/types/inference';
 </script>

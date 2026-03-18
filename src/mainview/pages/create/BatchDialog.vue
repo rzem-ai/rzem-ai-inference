@@ -6,7 +6,7 @@
     :closable="true"
     header="Batch Generation"
     class="w-175 max-w-[95vw]">
-    <Tabs :value="activeTab" @update:value="activeTab = $event">
+    <Tabs :value="activeTab" @update:value="activeTab = String($event)">
       <TabList>
         <Tab value="prompts">
           <div class="flex items-center gap-1">
@@ -80,7 +80,6 @@
             <div>
               <label class="text-xs font-medium text-surface-500 uppercase tracking-wide">Template</label>
               <Textarea
-                ref="templateRef"
                 v-model="templateText"
                 :rows="3"
                 :placeholder="templatePlaceholder"
@@ -146,7 +145,6 @@ const promptCount = computed(() => {
 // ── Data tab ──
 const csvText = ref('');
 const templateText = ref('');
-const templateRef = ref<InstanceType<typeof Textarea> | null>(null);
 const parsedColumns = ref<string[]>([]);
 const parsedRows = ref<Record<string, string>[]>([]);
 const parseError = ref('');
@@ -222,7 +220,7 @@ const finalPrompts = computed(() => {
 });
 
 const canSubmit = computed(() => {
-  return finalPrompts.value.length > 0 && store.engineReady && !store.isGenerating;
+  return finalPrompts.value.length > 0 && (store.engineReady || store.isCloudBundle) && !store.isGenerating;
 });
 
 function submitBatch() {

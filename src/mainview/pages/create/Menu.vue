@@ -42,10 +42,10 @@
             <ChevronDown :size="14" />
           </Button>
         </div>
-        <Button severity="secondary" variant="outlined" title="Batch Generation" :disabled="!store.engineReady" @click="showBatchDialog = true">
+        <Button severity="secondary" variant="outlined" title="Batch Generation" :disabled="!store.engineReady && !store.isCloudBundle" @click="showBatchDialog = true">
           <Layers :size="16" />
         </Button>
-        <Button severity="secondary" variant="outlined" title="X/Y Parameter Grid" :disabled="!store.engineReady" @click="showGridDialog = true">
+        <Button severity="secondary" variant="outlined" title="X/Y Parameter Grid" :disabled="!store.engineReady && !store.isCloudBundle" @click="showGridDialog = true">
           <Grid3x3 :size="16" />
         </Button>
       </div>
@@ -109,7 +109,7 @@ const countPopover = ref();
 
 watch(imageCount, (n) => { try { localStorage.setItem('imageCount', String(n)); } catch {} });
 
-const canGenerate = computed(() => store.engineReady && store.params.prompt.trim() && !store.isGenerating);
+const canGenerate = computed(() => (store.engineReady || store.isCloudBundle) && store.params.prompt.trim() && !store.isGenerating);
 
 function toggleCountPopover(event: Event) {
   countPopover.value?.toggle(event);
@@ -139,6 +139,7 @@ function onKeydown(e: KeyboardEvent) {
 onMounted(async () => {
   window.addEventListener('keydown', onKeydown);
 
+  await store.checkEngineAvailable();
   await store.loadGpuInfo();
   await store.loadBundles();
   stylesStore.loadStyles();
@@ -153,7 +154,9 @@ onMounted(async () => {
   if (store.bundles.length && !store.selectedBundleId) {
     store.applyBundle(store.bundles[0]);
   }
-  await store.startEngine();
+  if (store.engineAvailable) {
+    await store.startEngine();
+  }
 });
 
 onUnmounted(() => {

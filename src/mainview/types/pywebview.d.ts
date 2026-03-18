@@ -26,10 +26,10 @@ export interface PywebviewAPI {
     vram_limit_gb?: number;
   }): Promise<ApiResponse>;
   stop_engine(): Promise<ApiResponse>;
-  engine_ready(): Promise<ApiResponse<{ ready: boolean }>>;
+  engine_ready(): Promise<ApiResponse<{ ready: boolean; engine_available?: boolean }>>;
 
   // ── Jobs ──
-  submit_job(args: SubmitJobParams & { output_filename?: string }): Promise<ApiResponse<{ job_id?: string }>>;
+  submit_job(args: Record<string, any>): Promise<ApiResponse<{ job_id?: string }>>;
   cancel_job(args: { job_id: string }): Promise<ApiResponse>;
   poll_events(): Promise<ApiResponse<{ events?: InferenceEvent[] }>>;
 
