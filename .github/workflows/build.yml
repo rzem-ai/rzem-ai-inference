@@ -32,7 +32,7 @@ jobs:
           flatpak install --user -y flathub org.freedesktop.Platform//24.08 org.freedesktop.Sdk//24.08
 
       - name: Install Snapcraft
-        uses: samber/actions-snapcraft@v1
+        run: sudo snap install snapcraft --classic
 
       - name: Build app
         run: npm run build
