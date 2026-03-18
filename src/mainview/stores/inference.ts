@@ -47,6 +47,7 @@ export const useInferenceStore = defineStore('inference', {
   state: () => ({
     // Engine state
     engineReady: false,
+    engineAvailable: true,
     engineStarting: false,
     modelStatus: null as string | null,
 
@@ -130,6 +131,11 @@ export const useInferenceStore = defineStore('inference', {
       return state.bundles.find((b) => b.id === state.selectedBundleId) ?? null;
     },
 
+    isCloudBundle(state): boolean {
+      const bundle = state.bundles.find((b) => b.id === state.selectedBundleId);
+      return bundle?.transformer_type === 'fal_cloud';
+    },
+
     bundlesByType(state): { label: string; type: string; items: ModelBundle[] }[] {
       const modelsStore = useModelsStore();
       const result: { label: string; type: string; items: ModelBundle[] }[] = [];
@@ -189,8 +195,22 @@ export const useInferenceStore = defineStore('inference', {
       }
     },
 
+    async checkEngineAvailable() {
+      const api = await getApiAsync();
+      try {
+        const res = await api.engine_ready();
+        if (res.status === 'success') {
+          this.engineReady = res.ready ?? false;
+          this.engineAvailable = res.engine_available ?? true;
+          if (this.engineReady) this.startPolling();
+        }
+      } catch {
+        // Ignore — will be checked again
+      }
+    },
+
     async startEngine() {
-      if (this.engineStarting) return;
+      if (this.engineStarting || !this.engineAvailable) return;
       this.engineStarting = true;
       this.error = null;
       const api = await getApiAsync();
@@ -254,7 +274,8 @@ export const useInferenceStore = defineStore('inference', {
     },
 
     async submitJob() {
-      if (!this.engineReady || this.isGenerating) return;
+      if (this.isGenerating) return;
+      if (!this.isCloudBundle && !this.engineReady) return;
       if (!this.params.prompt.trim()) {
         this.error = 'Prompt is required';
         return;
@@ -262,6 +283,7 @@ export const useInferenceStore = defineStore('inference', {
       this.error = null;
       this.isGenerating = true;
       this.progress = null;
+      this.startPolling();
 
       const api = await getApiAsync();
       const jobParams: Record<string, any> = { ...this.params };
@@ -321,7 +343,8 @@ export const useInferenceStore = defineStore('inference', {
     // ── Batch ──
 
     async submitBatch(prompts: string[]) {
-      if (!this.engineReady || this.isGenerating) return;
+      if (this.isGenerating) return;
+      if (!this.isCloudBundle && !this.engineReady) return;
       if (!prompts.length) return;
 
       this.error = null;
@@ -382,7 +405,8 @@ export const useInferenceStore = defineStore('inference', {
     // ── Grid ──
 
     async submitGrid(config: GridConfig) {
-      if (!this.engineReady || this.isGenerating) return;
+      if (this.isGenerating) return;
+      if (!this.isCloudBundle && !this.engineReady) return;
 
       const xValues = config.xAxis.values;
       const yValues = config.yAxis.values;

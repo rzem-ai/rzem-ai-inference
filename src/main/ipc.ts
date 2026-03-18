@@ -9,6 +9,7 @@
 import { ipcMain, type BrowserWindow } from "electron";
 import type Database from "better-sqlite3";
 import type { SidecarManager } from "./sidecar";
+import type { FalService } from "./services/fal";
 import { batchParseData, batchRenderTemplate } from "./services/batch";
 import { createStylesHandlers } from "./services/styles";
 import { createSettingsHandlers } from "./services/settings";
@@ -94,12 +95,14 @@ export function registerIpcHandlers(
 	sidecar: SidecarManager,
 	config: { outputDir: string; stylesDir: string },
 	getWindow: () => BrowserWindow | null,
+	falService: FalService,
+	engineAvailable: boolean,
 ) {
 	const styles = createStylesHandlers(db, config.stylesDir);
 	const settings = createSettingsHandlers(db, sidecar, config.outputDir);
 	const chat = createChatService(db);
 	const files = createFilesHandlers(db, config, getWindow);
-	const workflow = createWorkflowService({ db, sidecar, outputDir: config.outputDir, chatService: chat });
+	const workflow = createWorkflowService({ db, sidecar, outputDir: config.outputDir, chatService: chat, falService });
 
 	// Initialize HF_TOKEN from database if set
 	const hfKey = db.prepare("SELECT value FROM settings WHERE key = 'HF_API_KEY'").get() as { value: string } | null;
@@ -139,87 +142,108 @@ export function registerIpcHandlers(
 		});
 	});
 
+	// Shared handler for job completion — persists image to DB
+	function handleJobCompleted(jobId: string, data: Res) {
+		const meta = jobMeta.get(jobId);
+		const sidecarPath = join(config.outputDir, `${jobId}.png`);
+		const { imagePath, coverPath } = processOutputImage(sidecarPath, config.outputDir, jobId);
+		try {
+			const p = meta?.params ?? {};
+			const imageId = crypto.randomUUID();
+			const now = Math.floor(Date.now() / 1000);
+			const genTimeMs = meta ? Math.round(performance.now() - meta.startTime) : null;
+			let fileSize: number | null = null;
+			try { fileSize = statSync(imagePath).size; } catch { /* ignore */ }
+			const negativePrompt = (p.negative_prompt as string) ?? (p.negativePrompt as string) ?? null;
+			const modelConfig = JSON.stringify({
+				transformer_model: p.transformer_model ?? p.transformerModel,
+				transformer_type: p.transformer_type ?? p.transformerType,
+				vae_model: p.vae_model ?? p.vaeModel,
+				clip_tokenizer: p.clip_tokenizer ?? p.clipTokenizer,
+				clip_encoder: p.clip_encoder ?? p.clipEncoder,
+				t5_tokenizer: p.t5_tokenizer ?? p.t5Tokenizer,
+				t5_encoder: p.t5_encoder ?? p.t5Encoder,
+				sampler: p.sampler, scheduler: p.scheduler,
+				input_image_path: p.input_image_path ?? p.inputImagePath,
+				fal_endpoint: p.fal_endpoint ?? p.falEndpoint,
+				bundle_id: meta?.bundleId, style_id: meta?.styleId,
+			});
+			db.prepare(
+				`INSERT INTO images (id, file_path, thumbnail_path, prompt, raw_prompt, negative_prompt, width, height, file_size, steps, cfg_scale, seed, bundle_id, model_config, loras, generation_time_ms, created_at, updated_at)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			).run(
+				imageId, imagePath, coverPath,
+				(p.prompt as string) ?? "",
+				meta?.rawPrompt ?? null,
+				negativePrompt,
+				(p.width as number) ?? 1024,
+				(p.height as number) ?? 1024,
+				fileSize,
+				(p.steps as number) ?? 20,
+				(p.cfg_scale as number) ?? (p.cfgScale as number) ?? 1.0,
+				(data.seed as number) ?? -1,
+				meta?.bundleId ?? null,
+				modelConfig,
+				p.loras ? JSON.stringify(p.loras) : null,
+				genTimeMs,
+				now, now,
+			);
+		} catch (err) {
+			console.error("Failed to persist image:", err);
+		}
+		// Clean up preview images
+		try {
+			const previews = readdirSync(config.outputDir).filter((f: string) => f.startsWith(`${jobId}_preview_`));
+			for (const preview of previews) {
+				try { unlinkSync(join(config.outputDir, preview)); } catch { /* ignore */ }
+			}
+		} catch { /* ignore */ }
+		jobMeta.delete(jobId);
+		return imagePath;
+	}
+
+	// Shared handler to emit events to buffer + renderer
+	function emitInferenceEvent(eventType: string, jobId: string, data: Res) {
+		const mapped: Res = { type: eventType, data };
+		inferenceEventBuffer.push(mapped);
+		if (inferenceEventBuffer.length > 500) {
+			inferenceEventBuffer.splice(0, inferenceEventBuffer.length - 500);
+		}
+		sendToRenderer("inferenceEvent", { event: eventType, jobId, data });
+	}
+
 	// Wire sidecar events → both push messages and polling buffer
 	sidecar.onEvent((event) => {
 		const eventType = (event.event as string) ?? "unknown";
 		const jobId = (event.job_id as string) ?? "";
 		const data = (event.data as Res) ?? {};
 
-		// Persist image to database on job completion
-		let resolvedImagePath: string | null = null;
+		let mappedData = data;
 		if (eventType === "job_completed" && jobId) {
-			const meta = jobMeta.get(jobId);
-			const sidecarPath = join(config.outputDir, `${jobId}.png`);
-			const { imagePath, coverPath } = processOutputImage(sidecarPath, config.outputDir, jobId);
-			resolvedImagePath = imagePath;
-			try {
-				const p = meta?.params ?? {};
-				const imageId = crypto.randomUUID();
-				const now = Math.floor(Date.now() / 1000);
-				const genTimeMs = meta ? Math.round(performance.now() - meta.startTime) : null;
-				let fileSize: number | null = null;
-				try { fileSize = statSync(imagePath).size; } catch { /* ignore */ }
-				const negativePrompt = (p.negative_prompt as string) ?? (p.negativePrompt as string) ?? null;
-				const modelConfig = JSON.stringify({
-					transformer_model: p.transformer_model ?? p.transformerModel,
-					transformer_type: p.transformer_type ?? p.transformerType,
-					vae_model: p.vae_model ?? p.vaeModel,
-					clip_tokenizer: p.clip_tokenizer ?? p.clipTokenizer,
-					clip_encoder: p.clip_encoder ?? p.clipEncoder,
-					t5_tokenizer: p.t5_tokenizer ?? p.t5Tokenizer,
-					t5_encoder: p.t5_encoder ?? p.t5Encoder,
-					sampler: p.sampler, scheduler: p.scheduler,
-					input_image_path: p.input_image_path ?? p.inputImagePath,
-					fal_endpoint: p.fal_endpoint ?? p.falEndpoint,
-					bundle_id: meta?.bundleId, style_id: meta?.styleId,
-				});
-				db.prepare(
-					`INSERT INTO images (id, file_path, thumbnail_path, prompt, raw_prompt, negative_prompt, width, height, file_size, steps, cfg_scale, seed, bundle_id, model_config, loras, generation_time_ms, created_at, updated_at)
-					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-				).run(
-					imageId, imagePath, coverPath,
-					(p.prompt as string) ?? "",
-					meta?.rawPrompt ?? null,
-					negativePrompt,
-					(p.width as number) ?? 1024,
-					(p.height as number) ?? 1024,
-					fileSize,
-					(p.steps as number) ?? 20,
-					(p.cfg_scale as number) ?? (p.cfgScale as number) ?? 1.0,
-					(data.seed as number) ?? (event.seed as number) ?? -1,
-					meta?.bundleId ?? null,
-					modelConfig,
-					p.loras ? JSON.stringify(p.loras) : null,
-					genTimeMs,
-					now, now,
-				);
-			} catch (err) {
-				console.error("Failed to persist image:", err);
-			}
-			// Clean up preview images
-			try {
-				const previews = readdirSync(config.outputDir).filter((f: string) => f.startsWith(`${jobId}_preview_`));
-				for (const preview of previews) {
-					try { unlinkSync(join(config.outputDir, preview)); } catch { /* ignore */ }
-				}
-			} catch { /* ignore */ }
-			jobMeta.delete(jobId);
+			const resolvedImagePath = handleJobCompleted(jobId, data);
+			mappedData = { ...data, image_path: resolvedImagePath };
 		} else if (eventType === "job_failed" || eventType === "job_cancelled") {
 			jobMeta.delete(jobId);
 		}
 
-		const mappedData = resolvedImagePath ? { ...data, image_path: resolvedImagePath } : data;
-		const mapped: Res = { type: eventType, data: mappedData };
-		inferenceEventBuffer.push(mapped);
-		if (inferenceEventBuffer.length > 500) {
-			inferenceEventBuffer.splice(0, inferenceEventBuffer.length - 500);
+		emitInferenceEvent(eventType, jobId, mappedData);
+	});
+
+	// Wire FAL service events → same pipeline as sidecar
+	falService.onEvent((event) => {
+		const eventType = (event.event as string) ?? "unknown";
+		const jobId = (event.job_id as string) ?? "";
+		const data = (event.data as Res) ?? {};
+
+		let mappedData = data;
+		if (eventType === "job_completed" && jobId) {
+			const resolvedImagePath = handleJobCompleted(jobId, data);
+			mappedData = { ...data, image_path: resolvedImagePath };
+		} else if (eventType === "job_failed" || eventType === "job_cancelled") {
+			jobMeta.delete(jobId);
 		}
 
-		sendToRenderer("inferenceEvent", {
-			event: eventType,
-			jobId,
-			data: mappedData,
-		});
+		emitInferenceEvent(eventType, jobId, mappedData);
 	});
 
 	// ── Register all IPC handlers ────────────────────────────────
@@ -437,35 +461,66 @@ export function registerIpcHandlers(
 		} catch (err) { return { status: "error", message: String(err) }; }
 	});
 	ipcMain.handle("startEngine", async () => {
+		if (!engineAvailable) return { status: "error", message: "Inference engine not installed" };
 		try { await sidecar.start(); return { status: "success" }; }
 		catch (err) { return { status: "error", message: String(err) }; }
 	});
 	ipcMain.handle("stopEngine", () => { sidecar.stop(); return { status: "success" }; });
-	ipcMain.handle("engineReady", () => ({ status: "success", ready: sidecar.ready }));
+	ipcMain.handle("engineReady", () => ({ status: "success", ready: sidecar.ready, engine_available: engineAvailable }));
 	ipcMain.handle("submitJob", async (_e, params) => {
-		if (!sidecar.ready) return { status: "error", message: "Engine not ready" };
 		try {
 			const p = params as Record<string, any>;
 			const transformerType = p.transformer_type ?? p.transformerType;
-			if (transformerType === "fal_cloud") {
-				const falRow = db.prepare("SELECT value FROM settings WHERE key = ?").get("FAL_KEY") as { value: string } | null;
-				if (!falRow?.value) return { status: "error", message: "FAL API key not configured" };
-				p.fal_api_key = falRow.value;
-				if (!p.fal_endpoint) {
-					const bundleId = p.bundle_id ?? p.bundleId;
-					if (bundleId) {
-						const bundle = db.prepare("SELECT fal_endpoint FROM bundles WHERE id = ?").get(bundleId) as { fal_endpoint: string } | null;
-						p.fal_endpoint = bundle?.fal_endpoint ?? "";
-					} else {
-						p.fal_endpoint = "";
-					}
-				}
-			}
+
 			for (const k of ["fal_aspectratio", "falAspectratio", "loras"]) {
 				if (typeof p[k] === "string") {
 					try { p[k] = JSON.parse(p[k]); } catch { /* leave as-is */ }
 				}
 			}
+
+			// ── Cloud route: FAL ──
+			if (transformerType === "fal_cloud") {
+				const falRow = db.prepare("SELECT value FROM settings WHERE key = ?").get("FAL_KEY") as { value: string } | null;
+				if (!falRow?.value) return { status: "error", message: "FAL API key not configured" };
+
+				let falEndpoint = p.fal_endpoint ?? p.falEndpoint ?? "";
+				if (!falEndpoint) {
+					const bundleId = p.bundle_id ?? p.bundleId;
+					if (bundleId) {
+						const bundle = db.prepare("SELECT fal_endpoint FROM bundles WHERE id = ?").get(bundleId) as { fal_endpoint: string } | null;
+						falEndpoint = bundle?.fal_endpoint ?? "";
+					}
+				}
+				if (!falEndpoint) return { status: "error", message: "No FAL endpoint configured for this bundle" };
+
+				const jobId = crypto.randomUUID();
+				jobMeta.set(jobId, {
+					params: p,
+					bundleId: p.bundleId ?? p.bundle_id,
+					styleId: p.styleId ?? p.style_id,
+					rawPrompt: p.rawPrompt ?? p.raw_prompt,
+					startTime: performance.now(),
+				});
+
+				// Fire and forget — events will flow through falService.onEvent
+				falService.submitJob(jobId, falRow.value, {
+					prompt: p.prompt ?? "",
+					width: p.width ?? 1024,
+					height: p.height ?? 1024,
+					steps: p.steps,
+					cfg_scale: p.cfg_scale ?? p.cfgScale,
+					seed: p.seed,
+					negative_prompt: p.negative_prompt ?? p.negativePrompt,
+					fal_endpoint: falEndpoint,
+					fal_aspectratio: p.fal_aspectratio ?? p.falAspectratio,
+				});
+
+				return { status: "success", jobId };
+			}
+
+			// ── Local route: sidecar ──
+			if (!sidecar.ready) return { status: "error", message: "Engine not ready" };
+
 			const result = await sidecar.fetchJson<{ job_id: string }>("/jobs", { method: "POST", body: JSON.stringify(keysToSnake(p)) });
 			jobMeta.set(result.job_id, {
 				params: p,

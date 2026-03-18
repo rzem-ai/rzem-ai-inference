@@ -64,7 +64,7 @@ export const useStylesStore = defineStore('styles', {
       Promise.all([this.loadStyles(), this.loadCategories(), this.loadBundleTypeCounts(), this.loadLoras(), this.loadTags()]).then(() => {});
     },
 
-    async loadStyles(reset = true) {
+    async loadStyles(_reset = true) {
       const api = await getApiAsync();
       this.loading = true;
       try {

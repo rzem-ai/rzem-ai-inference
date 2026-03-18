@@ -55,20 +55,36 @@ const NODE_DEFAULTS: Record<WorkflowNodeType, () => WorkflowNodeData> = {
 // Non-reactive module-level state
 let _pollTimer: ReturnType<typeof setInterval> | null = null;
 
+// Explicit state interface prevents TS7056 serialization overflow from Vue Flow's deep generics
+interface WorkflowState {
+  workflows: WorkflowListItem[];
+  activeWorkflow: SerializedWorkflow | null;
+  workflowName: string;
+  nodes: any[];
+  edges: any[];
+  viewport: { x: number; y: number; zoom: number };
+  selectedNodeId: string | null;
+  isRunning: boolean;
+  runId: string | null;
+  nodeStates: Record<string, NodeExecutionState>;
+  finalOutputs: Record<string, unknown> | null;
+  error: string | null;
+}
+
 export const useWorkflowStore = defineStore('workflow', {
-  state: () => ({
-    workflows: [] as WorkflowListItem[],
-    activeWorkflow: null as SerializedWorkflow | null,
-    workflowName: '' as string,
-    nodes: [] as Node[],
-    edges: [] as Edge[],
+  state: (): WorkflowState => ({
+    workflows: [],
+    activeWorkflow: null,
+    workflowName: '',
+    nodes: [],
+    edges: [],
     viewport: { x: 0, y: 0, zoom: 1 },
-    selectedNodeId: null as string | null,
+    selectedNodeId: null,
     isRunning: false,
-    runId: null as string | null,
-    nodeStates: {} as Record<string, NodeExecutionState>,
-    finalOutputs: null as Record<string, unknown> | null,
-    error: null as string | null,
+    runId: null,
+    nodeStates: {},
+    finalOutputs: null,
+    error: null,
   }),
 
   getters: {
@@ -495,11 +511,11 @@ export const useWorkflowStore = defineStore('workflow', {
     // ── Vue Flow change handlers ──
 
     onNodesChange(changes: NodeChange[]) {
-      this.nodes = applyNodeChanges(changes, this.nodes);
+      this.nodes = applyNodeChanges(changes, this.nodes as any) as Node[];
     },
 
     onEdgesChange(changes: EdgeChange[]) {
-      this.edges = applyEdgeChanges(changes, this.edges);
+      this.edges = applyEdgeChanges(changes, this.edges as any) as Edge[];
     },
 
     onConnect(connection: Connection) {

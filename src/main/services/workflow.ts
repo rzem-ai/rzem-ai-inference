@@ -5,6 +5,7 @@
 
 import type Database from "better-sqlite3";
 import type { SidecarManager } from "../sidecar";
+import type { FalService } from "./fal";
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
 
@@ -103,7 +104,12 @@ class VisionQAExecutor implements NodeExecutor {
 }
 
 class ImageGenExecutor implements NodeExecutor {
-	constructor(private sidecar: SidecarManager, private db: Database.Database, private outputDir: string) {}
+	constructor(
+		private sidecar: SidecarManager,
+		private db: Database.Database,
+		private outputDir: string,
+		private falService: FalService,
+	) {}
 
 	async execute(data: Record<string, unknown>, inputs: Record<string, unknown>, progressCallback: ProgressCallback, cancelCheck: CancelCheck): Promise<Record<string, unknown>> {
 		let prompt = (data.prompt as string) || "";
@@ -125,6 +131,82 @@ class ImageGenExecutor implements NodeExecutor {
 
 		const transformerType = (bundle.transformer_type as string) || (data.transformerType as string) || "flux_dev";
 
+		// ── FAL cloud route ──
+		if (transformerType === "fal_cloud") {
+			return this.executeCloud(prompt, bundle, data, progressCallback, cancelCheck);
+		}
+
+		// ── Local sidecar route ──
+		return this.executeLocal(prompt, bundle, bundleId, transformerType, data, progressCallback, cancelCheck);
+	}
+
+	private async executeCloud(
+		prompt: string,
+		bundle: Row,
+		data: Record<string, unknown>,
+		progressCallback: ProgressCallback,
+		cancelCheck: CancelCheck,
+	): Promise<Record<string, unknown>> {
+		const falKey = (this.db.prepare("SELECT value FROM settings WHERE key = 'FAL_KEY'").get() as { value: string } | null)?.value;
+		if (!falKey) throw new Error("FAL API key not configured. Set it in Settings.");
+
+		const falEndpoint = (bundle.fal_endpoint as string) || "";
+		if (!falEndpoint) throw new Error("No FAL endpoint configured for this bundle");
+
+		let falAspectratio = bundle.fal_aspectratio;
+		if (typeof falAspectratio === "string") {
+			try { falAspectratio = JSON.parse(falAspectratio); } catch { falAspectratio = undefined; }
+		}
+
+		progressCallback(0.1, "Submitting to FAL cloud");
+
+		const jobId = crypto.randomUUID();
+
+		// Wait for the FAL job to complete via a Promise
+		const result = await new Promise<Record<string, unknown>>((resolve, reject) => {
+			const unsubscribe = this.falService.onEvent((event) => {
+				const eventJobId = event.job_id as string;
+				if (eventJobId !== jobId) return;
+
+				const eventType = event.event as string;
+				if (eventType === "job_completed") {
+					unsubscribe();
+					const eventData = event.data as Record<string, unknown>;
+					resolve({ image: eventData.image_path as string });
+				} else if (eventType === "job_failed") {
+					unsubscribe();
+					const eventData = event.data as Record<string, unknown>;
+					reject(new Error(`FAL generation failed: ${eventData.error ?? "Unknown error"}`));
+				} else if (eventType === "job_progress") {
+					progressCallback(0.5, "Generating on FAL cloud...");
+				}
+			});
+
+			this.falService.submitJob(jobId, falKey, {
+				prompt,
+				width: (data.width as number) ?? 1024,
+				height: (data.height as number) ?? 1024,
+				steps: (data.steps as number) ?? (bundle.steps as number) ?? undefined,
+				cfg_scale: (data.cfg as number) ?? (bundle.cfg_scale as number) ?? undefined,
+				seed: (data.seed as number) ?? -1,
+				fal_endpoint: falEndpoint,
+				fal_aspectratio: falAspectratio as string[] | undefined,
+			});
+		});
+
+		progressCallback(1.0, "Cloud generation complete");
+		return result;
+	}
+
+	private async executeLocal(
+		prompt: string,
+		bundle: Row,
+		bundleId: string,
+		transformerType: string,
+		data: Record<string, unknown>,
+		progressCallback: ProgressCallback,
+		cancelCheck: CancelCheck,
+	): Promise<Record<string, unknown>> {
 		const jobParams: Record<string, unknown> = {
 			prompt,
 			transformer_model: bundle.transformer_model || data.transformerModel || "",
@@ -138,13 +220,6 @@ class ImageGenExecutor implements NodeExecutor {
 			sampler: data.sampler ?? bundle.sampler ?? "euler",
 			scheduler: data.scheduler ?? bundle.scheduler ?? "normal",
 		};
-
-		if (transformerType === "fal_cloud") {
-			const falKey = (this.db.prepare("SELECT value FROM settings WHERE key = 'FAL_KEY'").get() as { value: string } | null)?.value;
-			if (!falKey) throw new Error("FAL API key not configured. Set it in Settings.");
-			jobParams.fal_endpoint = bundle.fal_endpoint || "";
-			jobParams.fal_api_key = falKey;
-		}
 
 		progressCallback(0.1, "Submitting generation job");
 
@@ -288,10 +363,11 @@ export interface WorkflowServiceDeps {
 	chatService: {
 		completeWithVision(messages: unknown[], maxTokens?: number): Promise<string>;
 	};
+	falService: FalService;
 }
 
 export function createWorkflowService(deps: WorkflowServiceDeps) {
-	const { db, sidecar, outputDir, chatService } = deps;
+	const { db, sidecar, outputDir, chatService, falService } = deps;
 
 	const events: WorkflowEvent[] = [];
 	const activeRuns = new Map<string, { cancelled: boolean }>();
@@ -299,7 +375,7 @@ export function createWorkflowService(deps: WorkflowServiceDeps) {
 	const executors: Record<string, NodeExecutor> = {
 		image_input: new ImageInputExecutor(),
 		vision_qa: new VisionQAExecutor(chatService),
-		image_gen: new ImageGenExecutor(sidecar, db, outputDir),
+		image_gen: new ImageGenExecutor(sidecar, db, outputDir, falService),
 		text: new TextExecutor(),
 		output: new OutputExecutor(),
 	};

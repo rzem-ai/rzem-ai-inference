@@ -31,7 +31,7 @@ export const LucidePlugin: Plugin = {
       app.component(name, Lucide[name]);
     }
     for (const [alias, name] of Object.entries(aliases)) {
-      app.component(alias, Lucide[name]);
+      app.component(alias, Lucide[name] as any);
     }
   },
 };

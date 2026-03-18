@@ -5,6 +5,7 @@ bun.lock
 # Build output
 dist/
 build/
+release/
 .vite/
 
 # Environment

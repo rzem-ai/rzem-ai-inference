@@ -169,7 +169,8 @@ async function onApply() {
 }
 
 function retry() {
-	stylesStore.fetchReview();
+	const styleIds = stylesStore.reviewSuggestions.map((s) => s.id);
+	stylesStore.fetchReview(styleIds.length ? styleIds : stylesStore.styles.map((s) => s.id));
 }
 
 function close() {

@@ -18,7 +18,7 @@
           <span v-if="option.category" class="text-lg text-slate-400">{{ option.category }}</span>
         </div>
       </template>
-      <template #value="{ value, placeholder }">
+      <template #value="{ placeholder }">
         <div v-if="selectedStyle" class="flex items-center gap-2 w-full">
           <Paintbrush :size="14" class="text-blue-500 shrink-0" />
           <div class="truncate grow">{{ selectedStyle.name }}</div>

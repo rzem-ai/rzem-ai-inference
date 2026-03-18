@@ -191,7 +191,7 @@ function formatValues(values: (number | string)[]): string {
 // ── Submit ──
 
 const canSubmit = computed(() => {
-  return xParam.value && yParam.value && xValues.value.length > 0 && yValues.value.length > 0 && store.engineReady && !store.isGenerating;
+  return xParam.value && yParam.value && xValues.value.length > 0 && yValues.value.length > 0 && (store.engineReady || store.isCloudBundle) && !store.isGenerating;
 });
 
 function submitGrid() {

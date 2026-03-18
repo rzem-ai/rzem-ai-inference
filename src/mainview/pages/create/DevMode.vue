@@ -21,7 +21,7 @@
     </div>
 
     <!-- Engine controls -->
-    <div class="flex gap-1">
+    <div v-if="store.engineAvailable" class="flex gap-1">
       <button
         v-if="!store.engineReady"
         class="flex-1 text-sm py-1 rounded bg-green-500 text-white hover:bg-green-600 transition-colors disabled:opacity-50"
@@ -35,6 +35,9 @@
       <div class="text-xs px-2 py-1 rounded font-medium" :class="store.engineReady ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'">
         {{ store.engineReady ? 'Ready' : 'Stopped' }}
       </div>
+    </div>
+    <div v-else class="text-xs px-2 py-1 rounded font-medium bg-amber-100 text-amber-700">
+      Engine not installed — cloud bundles only
     </div>
 
     <!-- Model path overrides -->

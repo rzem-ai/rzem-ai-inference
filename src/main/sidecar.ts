@@ -8,6 +8,7 @@
 
 import { spawn, type ChildProcess } from "child_process";
 import WebSocket from "ws";
+import axios, { type AxiosInstance } from "axios";
 
 export interface SidecarConfig {
 	outputDir: string;
@@ -33,12 +34,16 @@ export class SidecarManager {
 	private ws: WebSocket | null = null;
 	private healthCheckInterval: ReturnType<typeof setInterval> | null = null;
 	private _ready = false;
+	private http: AxiosInstance;
 
 	constructor(config: SidecarConfig) {
 		this.config = {
 			host: "127.0.0.1",
 			...config,
 		};
+		this.http = axios.create({
+			baseURL: this.baseUrl,
+		});
 	}
 
 	get baseUrl(): string {
@@ -167,29 +172,39 @@ export class SidecarManager {
 
 	// ── HTTP client methods for engine API ─────────────────────────
 
-	async fetch(path: string, options?: RequestInit): Promise<Response> {
-		return fetch(`${this.baseUrl}${path}`, options);
+	async fetch(path: string, options?: { method?: string; body?: string; headers?: Record<string, string> }): Promise<{ ok: boolean; status: number; statusText: string; data: unknown }> {
+		const res = await this.http.request({
+			url: path,
+			method: (options?.method as any) ?? "GET",
+			data: options?.body,
+			headers: options?.headers,
+		});
+		return { ok: true, status: res.status, statusText: res.statusText, data: res.data };
 	}
 
-	async fetchJson<T = unknown>(path: string, options?: RequestInit): Promise<T> {
-		const res = await this.fetch(path, {
-			...options,
-			headers: {
-				"Content-Type": "application/json",
-				...options?.headers,
-			},
-		});
-		if (!res.ok) {
-			const errorBody = await res.text().catch(() => "");
+	async fetchJson<T = unknown>(path: string, options?: { method?: string; body?: string; headers?: Record<string, string> }): Promise<T> {
+		try {
+			const res = await this.http.request<T>({
+				url: path,
+				method: (options?.method as any) ?? "GET",
+				data: options?.body,
+				headers: {
+					"Content-Type": "application/json",
+					...options?.headers,
+				},
+			});
+			return res.data;
+		} catch (err: any) {
+			const status = err.response?.status ?? "unknown";
+			const body = err.response?.data ?? "";
 			console.error(
-				`[sidecar] ${options?.method ?? "GET"} ${path} → ${res.status}`,
-				errorBody,
+				`[sidecar] ${options?.method ?? "GET"} ${path} → ${status}`,
+				body,
 			);
 			throw new Error(
-				`Sidecar ${options?.method ?? "GET"} ${path} failed: ${res.status} ${res.statusText}`,
+				`Sidecar ${options?.method ?? "GET"} ${path} failed: ${status}`,
 			);
 		}
-		return res.json() as Promise<T>;
 	}
 
 	// ── Event listeners ────────────────────────────────────────────
@@ -213,10 +228,8 @@ export class SidecarManager {
 		const deadline = Date.now() + timeoutMs;
 		while (Date.now() < deadline) {
 			try {
-				const res = await fetch(`${this.baseUrl}/health`, {
-					signal: AbortSignal.timeout(2000),
-				});
-				if (res.ok) return;
+				await this.http.get("/health", { timeout: 2000 });
+				return;
 			} catch {
 				// Not ready yet
 			}
@@ -229,15 +242,8 @@ export class SidecarManager {
 
 	private async checkHealth(): Promise<void> {
 		try {
-			const res = await fetch(`${this.baseUrl}/health`, {
-				signal: AbortSignal.timeout(3000),
-			});
-			if (!res.ok) {
-				console.warn(`Sidecar health check failed: ${res.status}`);
-				this._ready = false;
-			} else {
-				this._ready = true;
-			}
+			await this.http.get("/health", { timeout: 3000 });
+			this._ready = true;
 		} catch {
 			console.warn("Sidecar health check failed — process may have died");
 			this._ready = false;

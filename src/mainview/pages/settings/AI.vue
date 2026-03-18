@@ -99,7 +99,7 @@
     </Card>
 
     <Message severity="secondary" :closable="false">
-      <template #messageicon><Info :size="16" /></template>
+      <template #icon><Info :size="16" /></template>
       <div class="text-sm leading-relaxed">
         <span class="font-semibold">How prompts work:</span> Each prompt is sent alongside a reference image. The prompt should tell the AI
         what to analyze in the image, then instruct it to update your generation prompt. The AI has two tools it can call:

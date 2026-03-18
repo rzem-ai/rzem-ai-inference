@@ -185,8 +185,6 @@ const styleSortOptions = [
 
 const currentSortLabel = computed(() => styleSortOptions.find((o) => o.value === stylesStore.sortBy)?.label ?? 'Last Modified');
 
-const isGridMode = computed(() => viewMode.value.value === GRID_VIEW.value);
-
 watch(selectionMode, (newValue) => {
 	if (!newValue) {
 		selectedIds.clear();

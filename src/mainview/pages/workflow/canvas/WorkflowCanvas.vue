@@ -47,13 +47,12 @@ import TextNode from '@/pages/workflow/nodes/TextNode.vue';
 import OutputNode from '@/pages/workflow/nodes/OutputNode.vue';
 
 import { NODE_REGISTRY } from '@/pages/workflow/nodeRegistry';
-import type { PortDataType } from '@/types/workflow';
 import { useWorkflowStore } from '@/stores/workflow';
 
 const workflowStore = useWorkflowStore();
 
 // Register custom node types — markRaw to prevent Vue from making components reactive
-const nodeTypes = {
+const nodeTypes: Record<string, any> = {
   image_input: markRaw(ImageInputNode),
   vision_qa: markRaw(VisionQANode),
   image_gen: markRaw(ImageGenNode),
