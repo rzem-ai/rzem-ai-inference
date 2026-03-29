@@ -1,6 +1,6 @@
 /**
  * FAL cloud image generation service.
- * Calls the FAL API directly via @fal-ai/client, bypassing the Python sidecar.
+ * Calls the FAL API directly via @fal-ai/client, bypassing the local inference engine.
  */
 
 import { fal } from "@fal-ai/client";

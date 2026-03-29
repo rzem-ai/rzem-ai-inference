@@ -5,6 +5,12 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish to GitHub Releases'
+        required: false
+        default: 'false'
+        type: boolean
 
 permissions:
   contents: write
@@ -77,6 +83,8 @@ jobs:
   # ── macOS ────────────────────────────────────────────────────────
   macos:
     runs-on: macos-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -89,10 +97,23 @@ jobs:
         run: npm ci
 
       - name: Build & package macOS
-        run: npm run dist
         env:
-          CSC_IDENTITY_AUTO_DISCOVERY: false
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_LINK: ${{ secrets.MAC_CERTS }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTS_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          EVENT_NAME: ${{ github.event_name }}
+          PUBLISH_INPUT: ${{ inputs.publish }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "$PUBLISH_INPUT" = "true" ]; then
+            npx electron-builder --mac --publish always
+          elif [ "$EVENT_NAME" = "push" ]; then
+            npx electron-builder --mac --publish always
+          else
+            npx electron-builder --mac --publish never
+          fi
 
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v4
@@ -127,9 +148,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows
-          path: |
-            release/*.exe
-            release/latest.yml
           if-no-files-found: error
 
   # ── Release (only on tags) ──────────────────────────────────────

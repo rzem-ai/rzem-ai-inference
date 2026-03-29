@@ -21,23 +21,20 @@
     </div>
 
     <!-- Engine controls -->
-    <div v-if="store.engineAvailable" class="flex gap-1">
+    <div class="flex gap-1">
       <button
         v-if="!store.engineReady"
         class="flex-1 text-sm py-1 rounded bg-green-500 text-white hover:bg-green-600 transition-colors disabled:opacity-50"
-        :disabled="store.engineStarting"
-        @click="store.startEngine()">
-        {{ store.engineStarting ? 'Starting...' : 'Start Engine' }}
+        :disabled="store.engineConnecting"
+        @click="store.connectEngine()">
+        {{ store.engineConnecting ? 'Connecting...' : 'Connect' }}
       </button>
-      <button v-else class="flex-1 text-sm py-1 rounded bg-red-500 text-white hover:bg-red-600 transition-colors" @click="store.stopEngine()">
-        Stop Engine
+      <button v-else class="flex-1 text-sm py-1 rounded bg-red-500 text-white hover:bg-red-600 transition-colors" @click="store.disconnectEngine()">
+        Disconnect
       </button>
       <div class="text-xs px-2 py-1 rounded font-medium" :class="store.engineReady ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'">
-        {{ store.engineReady ? 'Ready' : 'Stopped' }}
+        {{ store.engineReady ? 'Connected' : 'Disconnected' }}
       </div>
-    </div>
-    <div v-else class="text-xs px-2 py-1 rounded font-medium bg-amber-100 text-amber-700">
-      Engine not installed — cloud bundles only
     </div>
 
     <!-- Model path overrides -->

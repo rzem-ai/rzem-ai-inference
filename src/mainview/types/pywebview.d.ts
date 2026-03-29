@@ -21,12 +21,9 @@ export interface PywebviewAPI {
     device_name?: string | null;
     total_vram_gb?: number;
   }>>;
-  start_engine(args?: {
-    device?: string;
-    vram_limit_gb?: number;
-  }): Promise<ApiResponse>;
+  start_engine(): Promise<ApiResponse>;
   stop_engine(): Promise<ApiResponse>;
-  engine_ready(): Promise<ApiResponse<{ ready: boolean; engine_available?: boolean }>>;
+  engine_ready(): Promise<ApiResponse<{ ready: boolean }>>;
 
   // ── Jobs ──
   submit_job(args: Record<string, any>): Promise<ApiResponse<{ job_id?: string }>>;
@@ -72,6 +69,7 @@ export interface PywebviewAPI {
   save_image_as(args: { file_path: string }): Promise<ApiResponse<{ saved?: boolean; path?: string }>>;
   batch_save_images(args: { image_ids: string[] }): Promise<ApiResponse<{ saved_count?: number; folder?: string }>>;
   delete_image(args: { image_id: string }): Promise<ApiResponse>;
+  upscale_image(args: { image_id: string; scale_factor: number }): Promise<ApiResponse<{ image?: GalleryImage }>>;
 
   // ── Folders ──
   get_folders(): Promise<ApiResponse<{ folders?: Folder[] }>>;
@@ -265,6 +263,9 @@ export interface PywebviewAPI {
   cancel_workflow(args: { run_id: string }): Promise<ApiResponse>;
   poll_workflow_events(args?: Record<string, unknown>): Promise<ApiResponse<{ events?: WorkflowEvent[] }>>;
   browse_workflow_image(args?: Record<string, unknown>): Promise<ApiResponse<{ path?: string | null }>>;
+
+  // ── Auto-update ──
+  install_update(): Promise<ApiResponse>;
 }
 
 declare global {

@@ -112,6 +112,16 @@ export const useGalleryStore = defineStore('gallery', {
       }
     },
 
+    async upscaleImage(imageId: string, scaleFactor: 2 | 3 | 4) {
+      const api = await getApiAsync();
+      const res = await api.upscale_image({ image_id: imageId, scale_factor: scaleFactor });
+      if (res.status === 'success' && res.image) {
+        this.images.unshift(res.image);
+        this.total++;
+      }
+      return res;
+    },
+
     // ── Folders ──
 
     async loadFolders() {

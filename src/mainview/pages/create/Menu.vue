@@ -139,7 +139,7 @@ function onKeydown(e: KeyboardEvent) {
 onMounted(async () => {
   window.addEventListener('keydown', onKeydown);
 
-  await store.checkEngineAvailable();
+  await store.checkEngineReady();
   await store.loadGpuInfo();
   await store.loadBundles();
   stylesStore.loadStyles();
@@ -153,9 +153,6 @@ onMounted(async () => {
   });
   if (store.bundles.length && !store.selectedBundleId) {
     store.applyBundle(store.bundles[0]);
-  }
-  if (store.engineAvailable) {
-    await store.startEngine();
   }
 });
 

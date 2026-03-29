@@ -1,130 +1,90 @@
 /**
- * Manages the Python inference engine as a subprocess (sidecar).
- * Replaces src/bun/sidecar.ts — uses Node.js child_process instead of Bun.spawn.
- *
- * The engine exposes a FastAPI server with REST + WebSocket endpoints.
- * This manager handles spawning, health checks, restart, and shutdown.
+ * Network client for the Python inference engine.
+ * Connects to an already-running engine over HTTP REST + WebSocket.
+ * No process management — the engine is an external service.
  */
 
-import { spawn, type ChildProcess } from "child_process";
 import WebSocket from "ws";
 import axios, { type AxiosInstance } from "axios";
 
-export interface SidecarConfig {
-	outputDir: string;
+export interface EngineClientConfig {
+	host: string;
 	port: number;
-	host?: string;
-	engineDir?: string;
-	device?: string;
-	vramLimitGb?: number;
-	previewInterval?: number;
 }
 
-export interface SidecarStatus {
-	running: boolean;
+export interface EngineClientStatus {
+	connected: boolean;
+	host: string;
 	port: number;
-	pid: number | null;
 	url: string;
 }
 
-export class SidecarManager {
-	private config: Required<Pick<SidecarConfig, "outputDir" | "port" | "host">> &
-		SidecarConfig;
-	private process: ChildProcess | null = null;
+export class EngineClient {
+	private _host: string;
+	private _port: number;
 	private ws: WebSocket | null = null;
 	private healthCheckInterval: ReturnType<typeof setInterval> | null = null;
 	private _ready = false;
 	private http: AxiosInstance;
 
-	constructor(config: SidecarConfig) {
-		this.config = {
-			host: "127.0.0.1",
-			...config,
-		};
+	constructor(config: EngineClientConfig) {
+		this._host = config.host;
+		this._port = config.port;
 		this.http = axios.create({
 			baseURL: this.baseUrl,
 		});
 	}
 
+	get host(): string {
+		return this._host;
+	}
+
+	get port(): number {
+		return this._port;
+	}
+
 	get baseUrl(): string {
-		return `http://${this.config.host}:${this.config.port}`;
+		return `http://${this._host}:${this._port}`;
 	}
 
 	get wsUrl(): string {
-		return `ws://${this.config.host}:${this.config.port}/ws`;
+		return `ws://${this._host}:${this._port}/ws`;
 	}
 
 	get ready(): boolean {
 		return this._ready;
 	}
 
-	get status(): SidecarStatus {
+	get status(): EngineClientStatus {
 		return {
-			running: this.process !== null && !this.process.killed,
-			port: this.config.port,
-			pid: this.process?.pid ?? null,
+			connected: this._ready,
+			host: this._host,
+			port: this._port,
 			url: this.baseUrl,
 		};
 	}
 
 	/**
-	 * Start the Python inference engine sidecar.
+	 * Connect to the inference engine at the current (or new) host:port.
 	 * Waits for the health endpoint to respond before resolving.
 	 */
-	async start(): Promise<void> {
-		if (this.process && !this.process.killed) {
-			console.log("Sidecar already running");
-			return;
-		}
+	async connect(host?: string, port?: number): Promise<void> {
+		// Clean up any existing connection first
+		this.disconnect();
 
-		const args = [
-			"run",
-			"python",
-			"-m",
-			"rzem_ai_inference_engine",
-			"serve",
-			"--host",
-			this.config.host,
-			"--port",
-			String(this.config.port),
-			"--output-dir",
-			this.config.outputDir,
-			"--no-announce",
-		];
+		// Update target if new host/port provided
+		if (host !== undefined) this._host = host;
+		if (port !== undefined) this._port = port;
 
-		if (this.config.device) {
-			args.push("--device", this.config.device);
-		}
-		if (this.config.vramLimitGb) {
-			args.push("--vram-limit", String(this.config.vramLimitGb));
-		}
-		if (this.config.previewInterval) {
-			args.push("--preview-interval", String(this.config.previewInterval));
-		}
-
-		console.log(
-			`Starting sidecar: uv ${args.join(" ")}${this.config.engineDir ? ` (cwd: ${this.config.engineDir})` : ""}`,
-		);
-
-		this.process = spawn("uv", args, {
-			cwd: this.config.engineDir,
-			stdio: ["ignore", "inherit", "inherit"],
+		// Recreate axios instance with updated baseURL
+		this.http = axios.create({
+			baseURL: this.baseUrl,
 		});
 
-		this.process.on("exit", (code, signal) => {
-			console.log(`Sidecar exited (code=${code}, signal=${signal})`);
-			this._ready = false;
-			this.process = null;
-		});
+		console.log(`Connecting to engine at ${this.baseUrl}...`);
 
-		this.process.on("error", (err) => {
-			console.error("Sidecar spawn error:", err);
-			this._ready = false;
-			this.process = null;
-		});
-
-		// Wait for the server to become ready
-		await this.waitForHealth(30_000);
+		// Wait for the server to respond
+		await this.waitForHealth(5_000);
 		this._ready = true;
 
 		// Connect WebSocket for real-time events
@@ -133,15 +93,13 @@ export class SidecarManager {
 		// Start periodic health checks
 		this.healthCheckInterval = setInterval(() => this.checkHealth(), 5_000);
 
-		console.log(
-			`Sidecar ready at ${this.baseUrl} (PID ${this.process?.pid})`,
-		);
+		console.log(`Engine connected at ${this.baseUrl}`);
 	}
 
 	/**
-	 * Stop the sidecar process.
+	 * Disconnect from the engine (close WebSocket + stop health checks).
 	 */
-	stop(): void {
+	disconnect(): void {
 		if (this.healthCheckInterval) {
 			clearInterval(this.healthCheckInterval);
 			this.healthCheckInterval = null;
@@ -152,22 +110,16 @@ export class SidecarManager {
 			this.ws = null;
 		}
 
-		if (this.process && !this.process.killed) {
-			console.log("Stopping sidecar...");
-			this.process.kill("SIGTERM");
-			this.process = null;
-		}
-
 		this._ready = false;
 	}
 
 	/**
-	 * Restart the sidecar process.
+	 * Reconnect to the engine at the current host:port.
 	 */
-	async restart(): Promise<void> {
-		this.stop();
-		await new Promise((resolve) => setTimeout(resolve, 1000));
-		await this.start();
+	async reconnect(): Promise<void> {
+		this.disconnect();
+		await new Promise((resolve) => setTimeout(resolve, 500));
+		await this.connect();
 	}
 
 	// ── HTTP client methods for engine API ─────────────────────────
@@ -198,11 +150,11 @@ export class SidecarManager {
 			const status = err.response?.status ?? "unknown";
 			const body = err.response?.data ?? "";
 			console.error(
-				`[sidecar] ${options?.method ?? "GET"} ${path} → ${status}`,
+				`[engine] ${options?.method ?? "GET"} ${path} → ${status}`,
 				body,
 			);
 			throw new Error(
-				`Sidecar ${options?.method ?? "GET"} ${path} failed: ${status}`,
+				`Engine ${options?.method ?? "GET"} ${path} failed: ${status}`,
 			);
 		}
 	}
@@ -236,7 +188,7 @@ export class SidecarManager {
 			await new Promise((resolve) => setTimeout(resolve, 500));
 		}
 		throw new Error(
-			`Sidecar health check timed out after ${timeoutMs}ms`,
+			`Engine health check timed out after ${timeoutMs}ms at ${this.baseUrl}`,
 		);
 	}
 
@@ -245,7 +197,7 @@ export class SidecarManager {
 			await this.http.get("/health", { timeout: 3000 });
 			this._ready = true;
 		} catch {
-			console.warn("Sidecar health check failed — process may have died");
+			console.warn("Engine health check failed — server may be down");
 			this._ready = false;
 		}
 	}
@@ -264,21 +216,21 @@ export class SidecarManager {
 					listener(parsed);
 				}
 			} catch (err) {
-				console.error("Failed to parse sidecar WS message:", err);
+				console.error("Failed to parse engine WS message:", err);
 			}
 		});
 
 		ws.on("close", () => {
-			console.log("Sidecar WebSocket closed");
+			console.log("Engine WebSocket closed");
 			this.ws = null;
-			// Reconnect after a delay if process is still running
-			if (this.process && !this.process.killed) {
+			// Reconnect after a delay if still in connected mode
+			if (this._ready) {
 				setTimeout(() => this.connectWebSocket(), 2000);
 			}
 		});
 
 		ws.on("error", (err) => {
-			console.error("Sidecar WebSocket error:", err);
+			console.error("Engine WebSocket error:", err);
 		});
 
 		this.ws = ws;

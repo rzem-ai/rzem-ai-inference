@@ -1,14 +1,10 @@
 {
   "name": "rzem-ai-inference",
-  "version": "0.5.0",
+  "productName": "Inference",
+  "version": "0.6.0",
   "private": true,
   "main": "dist/main/index.js",
-  "description": "Desktop AI image generation app — Electron + Vue 3 + Python sidecar",
-  "author": {
-    "name": "rzem.ai",
-    "email": "ai@rzem.com",
-    "url": "https://rzem.ai"
-  },
+  "description": "Desktop AI image generation app",
   "scripts": {
     "start": "npm run build:renderer && npm run build:main && electron .",
     "dev": "concurrently \"npm run dev:renderer\" \"npm run dev:main\"",
@@ -17,55 +13,56 @@
     "build:renderer": "vite build",
     "build:main": "tsc -p tsconfig.main.json",
     "build": "npm run build:renderer && npm run build:main",
+    "pack": "npm run build && electron-builder --dir",
+    "dist": "npm run build && electron-builder",
+    "release": "npm run build && electron-builder --publish always",
     "type-check": "vue-tsc --noEmit -p tsconfig.app.json",
     "type-check:main": "tsc --noEmit -p tsconfig.main.json",
     "test": "vitest run",
-    "pack": "npm run build && electron-builder --dir",
-    "dist": "npm run build && electron-builder",
-    "postinstall": "electron-rebuild"
+    "postinstall": "electron-builder install-app-deps"
   },
   "build": {
-    "appId": "com.rzem.ai-inference",
+    "appId": "ai.rzem.inference",
     "productName": "Inference",
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "resources"
     },
     "files": [
       "dist/**/*",
-      "node_modules/**/*",
-      "!node_modules/**/{test,tests,__tests__,spec}/**",
-      "!node_modules/**/*.{md,ts,map}"
+      "package.json"
     ],
-    "linux": {
+    "asarUnpack": [
+      "node_modules/sharp/**",
+      "node_modules/better-sqlite3/**",
+      "**/*.node"
+    ],
+    "mac": {
+      "category": "public.app-category.graphics-design",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "resources/entitlements.mac.plist",
+      "entitlementsInherit": "resources/entitlements.mac.inherit.plist",
+      "notarize": true,
       "target": [
-        "AppImage",
-        "deb",
-        "snap",
-        "flatpak"
-      ],
-      "category": "Graphics",
-      "icon": "build/icons"
-    },
-    "snap": {
-      "confinement": "classic",
-      "grade": "stable"
-    },
-    "flatpak": {
-      "runtime": "org.freedesktop.Platform",
-      "runtimeVersion": "24.08",
-      "sdk": "org.freedesktop.Sdk",
-      "finishArgs": [
-        "--share=ipc",
-        "--socket=x11",
-        "--socket=wayland",
-        "--share=network",
-        "--device=dri",
-        "--filesystem=home"
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
       ]
     },
-    "mac": {
-      "target": "dmg",
-      "category": "public.app-category.graphics-design"
+    "dmg": {
+      "sign": false
     },
     "win": {
       "target": "nsis"
@@ -93,6 +90,7 @@
     "@vueuse/core": "^14.2.1",
     "axios": "^1.13.6",
     "better-sqlite3": "^11.0.0",
+    "bonjour-service": "^1.3.0",
     "electron-updater": "^6.8.3",
     "lucide-vue-next": "^0.563.0",
     "marked": "^17.0.3",

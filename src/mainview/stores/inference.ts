@@ -47,8 +47,7 @@ export const useInferenceStore = defineStore('inference', {
   state: () => ({
     // Engine state
     engineReady: false,
-    engineAvailable: true,
-    engineStarting: false,
+    engineConnecting: false,
     modelStatus: null as string | null,
 
     // Job state
@@ -195,13 +194,12 @@ export const useInferenceStore = defineStore('inference', {
       }
     },
 
-    async checkEngineAvailable() {
+    async checkEngineReady() {
       const api = await getApiAsync();
       try {
         const res = await api.engine_ready();
         if (res.status === 'success') {
           this.engineReady = res.ready ?? false;
-          this.engineAvailable = res.engine_available ?? true;
           if (this.engineReady) this.startPolling();
         }
       } catch {
@@ -209,27 +207,27 @@ export const useInferenceStore = defineStore('inference', {
       }
     },
 
-    async startEngine() {
-      if (this.engineStarting || !this.engineAvailable) return;
-      this.engineStarting = true;
+    async connectEngine() {
+      if (this.engineConnecting) return;
+      this.engineConnecting = true;
       this.error = null;
       const api = await getApiAsync();
       try {
         const res = await api.start_engine();
         if (res.status === 'error') {
-          this.error = res.message ?? 'Failed to start engine';
+          this.error = res.message ?? 'Failed to connect to engine';
           return;
         }
         this.engineReady = true;
         this.startPolling();
       } catch (e: any) {
-        this.error = e.message ?? 'Failed to start engine';
+        this.error = e.message ?? 'Failed to connect to engine';
       } finally {
-        this.engineStarting = false;
+        this.engineConnecting = false;
       }
     },
 
-    async stopEngine() {
+    async disconnectEngine() {
       const api = await getApiAsync();
       this.stopPolling();
       try {

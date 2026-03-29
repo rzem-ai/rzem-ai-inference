@@ -111,9 +111,8 @@ export interface ChatEventPayload {
   data: Record<string, unknown>;
 }
 
-export interface SidecarStatusPayload {
+export interface EngineStatusPayload {
   ready: boolean;
-  pid: number | null;
 }
 
 /**
@@ -143,16 +142,42 @@ export function onChatEvent(
 }
 
 /**
- * Register a listener for sidecar status updates.
+ * Register a listener for engine status updates.
  * Returns an unsubscribe function.
  */
-export function onSidecarStatus(
-  callback: (payload: SidecarStatusPayload) => void,
+export function onEngineStatus(
+  callback: (payload: EngineStatusPayload) => void,
 ): () => void {
   if (!isElectron()) return () => {};
-  return window.electronAPI!.on("sidecarStatus", (payload) => {
-    callback(payload as SidecarStatusPayload);
+  return window.electronAPI!.on("engineStatus", (payload) => {
+    callback(payload as EngineStatusPayload);
   });
+}
+
+/**
+ * Register a listener for when an update is available.
+ * Returns an unsubscribe function.
+ */
+export function onUpdateAvailable(
+  callback: (payload: { version: string }) => void,
+): () => void {
+  if (!isElectron()) return () => {};
+  return window.electronAPI!.on("updateAvailable", (p) =>
+    callback(p as { version: string }),
+  );
+}
+
+/**
+ * Register a listener for when an update has been downloaded and is ready to install.
+ * Returns an unsubscribe function.
+ */
+export function onUpdateDownloaded(
+  callback: (payload: { version: string }) => void,
+): () => void {
+  if (!isElectron()) return () => {};
+  return window.electronAPI!.on("updateDownloaded", (p) =>
+    callback(p as { version: string }),
+  );
 }
 
 // ── Legacy pywebview support ─────────────────────────────────────
@@ -250,7 +275,7 @@ export const mockApi: PywebviewAPI = {
   async get_gpu_info() {
     return { status: "success", device_type: "cuda", device_name: "NVIDIA RTX 4090 (mock)", total_vram_gb: 24 };
   },
-  async start_engine(_args?) {
+  async start_engine() {
     return { status: "success" };
   },
   async stop_engine() {
@@ -309,6 +334,7 @@ export const mockApi: PywebviewAPI = {
   async save_image_as(_args) { return { status: "success", saved: false }; },
   async batch_save_images(_args) { return { status: "success", saved_count: 0 }; },
   async delete_image(_args) { return { status: "success" }; },
+  async upscale_image(_args) { return { status: "error", message: "Not available in mock mode" }; },
 
   // ── Folders ──
   async get_folders() { return { status: "success", folders: [] }; },
@@ -437,4 +463,7 @@ export const mockApi: PywebviewAPI = {
   async cancel_workflow(_args: { run_id: string }) { return { status: "success" as const }; },
   async poll_workflow_events(_args?: Record<string, unknown>) { return { status: "success" as const, events: [] }; },
   async browse_workflow_image(_args?: Record<string, unknown>) { return { status: "success" as const, path: "/mock/workflow_image.png" }; },
+
+  // ── Auto-update ──
+  async install_update() { return { status: "success" as const }; },
 };

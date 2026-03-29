@@ -7,8 +7,10 @@
  */
 
 import { ipcMain, type BrowserWindow } from "electron";
+import { autoUpdater } from "electron-updater";
 import type Database from "better-sqlite3";
-import type { SidecarManager } from "./sidecar";
+import type { EngineClient } from "./engine-client";
+import type { DiscoveryService } from "./discovery";
 import type { FalService } from "./services/fal";
 import { batchParseData, batchRenderTemplate } from "./services/batch";
 import { createStylesHandlers } from "./services/styles";
@@ -18,7 +20,7 @@ import { createFilesHandlers } from "./services/files";
 import { createWorkflowService } from "./services/workflow";
 import { DEFAULT_BUNDLES, DEFAULT_BUNDLE_TYPES } from "./services/bundles";
 import { statSync, renameSync, unlinkSync, existsSync, readFileSync, writeFileSync, readdirSync } from "fs";
-import { join } from "path";
+import { join, basename } from "path";
 
 // ── Key conversion ───────────────────────────────────────────────
 
@@ -43,8 +45,19 @@ function formatTimestamp(): string {
 	return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
 }
 
+function deriveUpscalePath(originalPath: string, scaleFactor: number, outputDir: string): string {
+	const base = basename(originalPath, ".png");
+	let candidate = join(outputDir, `${base}_${scaleFactor}x.png`);
+	let n = 1;
+	while (existsSync(candidate)) {
+		candidate = join(outputDir, `${base}_${scaleFactor}x_${n}.png`);
+		n++;
+	}
+	return candidate;
+}
+
 function processOutputImage(
-	sidecarPath: string,
+	sourcePath: string,
 	outputDir: string,
 	jobId: string,
 ): { imagePath: string; coverPath: string | null } {
@@ -53,11 +66,11 @@ function processOutputImage(
 	const imagePath = join(outputDir, `${stem}.png`);
 	const coverPath = join(outputDir, `${stem}_cover.webp`);
 
-	if (existsSync(sidecarPath)) {
+	if (existsSync(sourcePath)) {
 		try {
-			renameSync(sidecarPath, imagePath);
+			renameSync(sourcePath, imagePath);
 		} catch {
-			return { imagePath: sidecarPath, coverPath: null };
+			return { imagePath: sourcePath, coverPath: null };
 		}
 	} else {
 		const match = readdirSync(outputDir).find((f: string) => f.endsWith(`_${jobId}.png`));
@@ -66,7 +79,7 @@ function processOutputImage(
 			const existingCover = existingPath.replace(/\.png$/, "_cover.webp");
 			return { imagePath: existingPath, coverPath: existsSync(existingCover) ? existingCover : null };
 		}
-		return { imagePath: sidecarPath, coverPath: null };
+		return { imagePath: sourcePath, coverPath: null };
 	}
 
 	// Generate half-res WebP thumbnail via sharp (async, non-blocking)
@@ -92,17 +105,17 @@ type Res = Record<string, unknown>;
 
 export function registerIpcHandlers(
 	db: Database.Database,
-	sidecar: SidecarManager,
+	engineClient: EngineClient,
 	config: { outputDir: string; stylesDir: string },
 	getWindow: () => BrowserWindow | null,
 	falService: FalService,
-	engineAvailable: boolean,
+	discoveryService: DiscoveryService,
 ) {
 	const styles = createStylesHandlers(db, config.stylesDir);
-	const settings = createSettingsHandlers(db, sidecar, config.outputDir);
+	const settings = createSettingsHandlers(db, engineClient, config.outputDir);
 	const chat = createChatService(db);
 	const files = createFilesHandlers(db, config, getWindow);
-	const workflow = createWorkflowService({ db, sidecar, outputDir: config.outputDir, chatService: chat, falService });
+	const workflow = createWorkflowService({ db, engineClient, outputDir: config.outputDir, chatService: chat, falService });
 
 	// Initialize HF_TOKEN from database if set
 	const hfKey = db.prepare("SELECT value FROM settings WHERE key = 'HF_API_KEY'").get() as { value: string } | null;
@@ -145,8 +158,8 @@ export function registerIpcHandlers(
 	// Shared handler for job completion — persists image to DB
 	function handleJobCompleted(jobId: string, data: Res) {
 		const meta = jobMeta.get(jobId);
-		const sidecarPath = join(config.outputDir, `${jobId}.png`);
-		const { imagePath, coverPath } = processOutputImage(sidecarPath, config.outputDir, jobId);
+		const sourcePath = join(config.outputDir, `${jobId}.png`);
+		const { imagePath, coverPath } = processOutputImage(sourcePath, config.outputDir, jobId);
 		try {
 			const p = meta?.params ?? {};
 			const imageId = crypto.randomUUID();
@@ -212,8 +225,8 @@ export function registerIpcHandlers(
 		sendToRenderer("inferenceEvent", { event: eventType, jobId, data });
 	}
 
-	// Wire sidecar events → both push messages and polling buffer
-	sidecar.onEvent((event) => {
+	// Wire engine events → both push messages and polling buffer
+	engineClient.onEvent((event) => {
 		const eventType = (event.event as string) ?? "unknown";
 		const jobId = (event.job_id as string) ?? "";
 		const data = (event.data as Res) ?? {};
@@ -229,7 +242,7 @@ export function registerIpcHandlers(
 		emitInferenceEvent(eventType, jobId, mappedData);
 	});
 
-	// Wire FAL service events → same pipeline as sidecar
+	// Wire FAL service events → same pipeline as engine events
 	falService.onEvent((event) => {
 		const eventType = (event.event as string) ?? "unknown";
 		const jobId = (event.job_id as string) ?? "";
@@ -371,6 +384,56 @@ export function registerIpcHandlers(
 		db.prepare("DELETE FROM images WHERE id = ?").run(imageId);
 		return { status: "success" };
 	});
+	ipcMain.handle("upscaleImage", async (_e, { imageId, scaleFactor }: { imageId: string; scaleFactor: 2 | 3 | 4 }) => {
+		if (![2, 3, 4].includes(scaleFactor)) return { status: "error", message: "Invalid scale factor" };
+
+		const original = db.prepare("SELECT * FROM images WHERE id = ?").get(imageId) as Row | null;
+		if (!original) return { status: "error", message: "Image not found" };
+		if (!existsSync(original.file_path as string)) return { status: "error", message: "Source file not found" };
+
+		const newImagePath = deriveUpscalePath(original.file_path as string, scaleFactor, config.outputDir);
+		const newCoverPath = newImagePath.replace(/\.png$/, "_cover.webp");
+
+		const sharpMod = await import("sharp");
+		const sharp = sharpMod.default;
+
+		await sharp(original.file_path as string)
+			.resize({
+				width: (original.width as number) * scaleFactor,
+				height: (original.height as number) * scaleFactor,
+				kernel: "lanczos3",
+				fit: "fill",
+			})
+			.png()
+			.toFile(newImagePath);
+
+		// Best-effort thumbnail
+		sharp(newImagePath)
+			.resize({ width: 512, withoutEnlargement: true })
+			.webp({ quality: 85 })
+			.toFile(newCoverPath)
+			.catch(() => {});
+
+		const fileSize = statSync(newImagePath).size;
+		const newId = crypto.randomUUID();
+		const now = Math.floor(Date.now() / 1000);
+
+		db.prepare(`INSERT INTO images
+			(id, file_path, thumbnail_path, prompt, raw_prompt, negative_prompt,
+			 width, height, file_size, steps, cfg_scale, seed, bundle_id, model_config, loras,
+			 generation_time_ms, created_at, updated_at)
+			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+			.run(newId, newImagePath, newCoverPath,
+				original.prompt, original.raw_prompt, original.negative_prompt,
+				(original.width as number) * scaleFactor,
+				(original.height as number) * scaleFactor,
+				fileSize, original.steps, original.cfg_scale, original.seed,
+				original.bundle_id, original.model_config, original.loras,
+				null, now, now);
+
+		const row = db.prepare("SELECT * FROM images WHERE id = ?").get(newId);
+		return { status: "success", image: row };
+	});
 	ipcMain.handle("getImageBase64", (_e, { imagePath }) => {
 		try {
 			if (!imagePath || !existsSync(imagePath)) {
@@ -452,21 +515,20 @@ export function registerIpcHandlers(
 	ipcMain.handle("batchParseData", (_e, { content }) => batchParseData(content) as unknown as Res);
 	ipcMain.handle("batchRenderTemplate", (_e, { template, rows }) => batchRenderTemplate(template, rows) as unknown as Res);
 
-	// Inference (proxied to sidecar)
+	// Inference (proxied to engine)
 	ipcMain.handle("getGpuInfo", async () => {
-		if (!sidecar.ready) return { status: "error", message: "Engine not ready" };
+		if (!engineClient.ready) return { status: "error", message: "Engine not ready" };
 		try {
-			const info = await sidecar.fetchJson<{ device_type: string; device_name: string | null; total_vram_gb: number | null }>("/gpu-info");
+			const info = await engineClient.fetchJson<{ device_type: string; device_name: string | null; total_vram_gb: number | null }>("/gpu-info");
 			return { status: "success", deviceType: info.device_type, deviceName: info.device_name, totalVramGb: info.total_vram_gb };
 		} catch (err) { return { status: "error", message: String(err) }; }
 	});
 	ipcMain.handle("startEngine", async () => {
-		if (!engineAvailable) return { status: "error", message: "Inference engine not installed" };
-		try { await sidecar.start(); return { status: "success" }; }
+		try { await engineClient.connect(); return { status: "success" }; }
 		catch (err) { return { status: "error", message: String(err) }; }
 	});
-	ipcMain.handle("stopEngine", () => { sidecar.stop(); return { status: "success" }; });
-	ipcMain.handle("engineReady", () => ({ status: "success", ready: sidecar.ready, engine_available: engineAvailable }));
+	ipcMain.handle("stopEngine", () => { engineClient.disconnect(); return { status: "success" }; });
+	ipcMain.handle("engineReady", () => ({ status: "success", ready: engineClient.ready }));
 	ipcMain.handle("submitJob", async (_e, params) => {
 		try {
 			const p = params as Record<string, any>;
@@ -518,10 +580,10 @@ export function registerIpcHandlers(
 				return { status: "success", jobId };
 			}
 
-			// ── Local route: sidecar ──
-			if (!sidecar.ready) return { status: "error", message: "Engine not ready" };
+			// ── Local route: engine ──
+			if (!engineClient.ready) return { status: "error", message: "Engine not ready" };
 
-			const result = await sidecar.fetchJson<{ job_id: string }>("/jobs", { method: "POST", body: JSON.stringify(keysToSnake(p)) });
+			const result = await engineClient.fetchJson<{ job_id: string }>("/jobs", { method: "POST", body: JSON.stringify(keysToSnake(p)) });
 			jobMeta.set(result.job_id, {
 				params: p,
 				bundleId: p.bundleId ?? p.bundle_id,
@@ -533,20 +595,20 @@ export function registerIpcHandlers(
 		} catch (err) { return { status: "error", message: String(err) }; }
 	});
 	ipcMain.handle("cancelJob", async (_e, { jobId }) => {
-		if (!sidecar.ready) return { status: "error", message: "Engine not ready" };
-		try { await sidecar.fetch(`/jobs/${jobId}`, { method: "DELETE" }); return { status: "success" }; }
+		if (!engineClient.ready) return { status: "error", message: "Engine not ready" };
+		try { await engineClient.fetch(`/jobs/${jobId}`, { method: "DELETE" }); return { status: "success" }; }
 		catch (err) { return { status: "error", message: String(err) }; }
 	});
 
 	// VRAM
 	ipcMain.handle("getVramUsage", async () => {
-		if (!sidecar.ready) return { status: "success", available: false };
-		try { const data = await sidecar.fetchJson<Res>("/vram"); return { status: "success", available: true, ...data }; }
+		if (!engineClient.ready) return { status: "success", available: false };
+		try { const data = await engineClient.fetchJson<Res>("/vram"); return { status: "success", available: true, ...data }; }
 		catch { return { status: "success", available: false }; }
 	});
 	ipcMain.handle("clearVramCache", async () => {
-		if (!sidecar.ready) return { status: "error", message: "Engine not ready" };
-		try { await sidecar.fetch("/vram/clear", { method: "POST" }); return { status: "success" }; }
+		if (!engineClient.ready) return { status: "error", message: "Engine not ready" };
+		try { await engineClient.fetch("/vram/clear", { method: "POST" }); return { status: "success" }; }
 		catch (err) { return { status: "error", message: String(err) }; }
 	});
 
@@ -724,9 +786,30 @@ export function registerIpcHandlers(
 		} catch (err) { return { status: "error", message: String(err) }; }
 	});
 
-	// Discovery (stub)
-	ipcMain.handle("getDiscoveredServers", () => ({ status: "success", servers: [] as Res[] }));
-	ipcMain.handle("connectToServer", () => ({ status: "success", mode: "local" }));
-	ipcMain.handle("disconnectFromServer", () => ({ status: "success", mode: "local" }));
-	ipcMain.handle("getConnectionMode", () => ({ status: "success", mode: "local", connectedServer: null }));
+	// Discovery & connection
+	ipcMain.handle("getDiscoveredServers", () => ({ status: "success", servers: discoveryService.getServers() }));
+	ipcMain.handle("connectToServer", async (_e, { host, port }: { host: string; port: number }) => {
+		try {
+			await engineClient.connect(host, port);
+			db.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run("ENGINE_HOST", host);
+			db.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run("ENGINE_PORT", String(port));
+			return { status: "success", mode: "remote", connected_server: { host, port } };
+		} catch (err) {
+			return { status: "error", message: `Failed to connect to ${host}:${port}: ${String(err)}` };
+		}
+	});
+	ipcMain.handle("disconnectFromServer", () => {
+		engineClient.disconnect();
+		return { status: "success", mode: "disconnected", connected_server: null };
+	});
+	ipcMain.handle("getConnectionMode", () => ({
+		status: "success",
+		mode: engineClient.ready ? "remote" : "disconnected",
+		connected_server: engineClient.ready ? { host: engineClient.host, port: engineClient.port } : null,
+	}));
+
+	// Auto-update
+	ipcMain.handle("installUpdate", () => {
+		autoUpdater.quitAndInstall();
+	});
 }

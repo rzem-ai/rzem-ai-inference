@@ -4,7 +4,7 @@
  */
 
 import type Database from "better-sqlite3";
-import type { SidecarManager } from "../sidecar";
+import type { EngineClient } from "../engine-client";
 import { statSync, readdirSync } from "fs";
 import { join } from "path";
 import { app } from "electron";
@@ -36,18 +36,18 @@ function dirSizeBytes(dirPath: string): number {
 
 export function createSettingsHandlers(
 	db: Database.Database,
-	sidecar: SidecarManager,
+	engineClient: EngineClient,
 	outputDir: string,
 ) {
 	const dataDir = app.getPath("userData");
 
 	return {
 		getEngineStatus: async (): Promise<ApiResponse> => {
-			if (!sidecar.ready) {
+			if (!engineClient.ready) {
 				return { status: "success", ready: false };
 			}
 			try {
-				const health = await sidecar.fetchJson<{
+				const health = await engineClient.fetchJson<{
 					status: string;
 					device: string;
 					jobs_queued: number;
@@ -65,11 +65,11 @@ export function createSettingsHandlers(
 		},
 
 		getCudaVersion: async (): Promise<ApiResponse> => {
-			if (!sidecar.ready) {
+			if (!engineClient.ready) {
 				return { status: "success", cudaVersion: null };
 			}
 			try {
-				const data = await sidecar.fetchJson<{ cuda_version: string | null }>("/cuda-version");
+				const data = await engineClient.fetchJson<{ cuda_version: string | null }>("/cuda-version");
 				return { status: "success", cudaVersion: data.cuda_version };
 			} catch {
 				return { status: "success", cudaVersion: null };
@@ -78,7 +78,7 @@ export function createSettingsHandlers(
 
 		resetEngine: async (): Promise<ApiResponse> => {
 			try {
-				await sidecar.restart();
+				await engineClient.reconnect();
 				return { status: "success" };
 			} catch (err) {
 				return { status: "error", message: String(err) };
@@ -86,11 +86,11 @@ export function createSettingsHandlers(
 		},
 
 		getCacheInfo: async (): Promise<ApiResponse> => {
-			if (!sidecar.ready) {
+			if (!engineClient.ready) {
 				return { status: "success", models: [], totalSize: 0 };
 			}
 			try {
-				const models = await sidecar.fetchJson<
+				const models = await engineClient.fetchJson<
 					Array<{
 						repo_id: string;
 						size_on_disk: number;
@@ -106,11 +106,11 @@ export function createSettingsHandlers(
 		},
 
 		deleteCachedModel: async ({ repoId }: { repoId: string }): Promise<ApiResponse> => {
-			if (!sidecar.ready) {
+			if (!engineClient.ready) {
 				return { status: "error", message: "Engine not ready" };
 			}
 			try {
-				await sidecar.fetch(`/models/${encodeURIComponent(repoId)}`, { method: "DELETE" });
+				await engineClient.fetch(`/models/${encodeURIComponent(repoId)}`, { method: "DELETE" });
 				return { status: "success" };
 			} catch (err) {
 				return { status: "error", message: String(err) };

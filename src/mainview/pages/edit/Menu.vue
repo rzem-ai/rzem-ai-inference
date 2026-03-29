@@ -99,10 +99,8 @@ onMounted(async () => {
     store.applyBundle(store.bundles[0]);
   }
 
-  // Ensure engine is running
-  if (!inferenceStore.engineReady && !inferenceStore.engineStarting) {
-    await inferenceStore.startEngine();
-  }
+  // Check if engine is already connected (discovery handles auto-connect)
+  await inferenceStore.checkEngineReady();
 });
 
 onUnmounted(() => {

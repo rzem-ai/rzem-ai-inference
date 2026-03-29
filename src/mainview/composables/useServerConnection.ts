@@ -20,7 +20,7 @@ export function useServerConnection() {
 
   async function disconnect() {
     await discoveryStore.disconnectFromServer();
-    settingsStore.setConnectionMode('local');
+    settingsStore.setConnectionMode('disconnected');
     settingsStore.setRemoteEngineInfo(null);
     inferenceStore.engineReady = false;
     inferenceStore.stopPolling();

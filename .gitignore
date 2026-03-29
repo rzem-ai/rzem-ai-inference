@@ -8,6 +8,12 @@ build/
 release/
 .vite/
 
+# Electron-builder output
+release/
+
+# Certificates
+.certs/
+
 # Environment
 .env
 

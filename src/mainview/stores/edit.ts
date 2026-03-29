@@ -58,8 +58,8 @@ export const useEditStore = defineStore('edit', {
       return useInferenceStore().engineReady;
     },
 
-    engineStarting(): boolean {
-      return useInferenceStore().engineStarting;
+    engineConnecting(): boolean {
+      return useInferenceStore().engineConnecting;
     },
 
     modelStatus(): string | null {

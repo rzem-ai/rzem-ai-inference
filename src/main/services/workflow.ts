@@ -4,7 +4,7 @@
  */
 
 import type Database from "better-sqlite3";
-import type { SidecarManager } from "../sidecar";
+import type { EngineClient } from "../engine-client";
 import type { FalService } from "./fal";
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
@@ -105,7 +105,7 @@ class VisionQAExecutor implements NodeExecutor {
 
 class ImageGenExecutor implements NodeExecutor {
 	constructor(
-		private sidecar: SidecarManager,
+		private engineClient: EngineClient,
 		private db: Database.Database,
 		private outputDir: string,
 		private falService: FalService,
@@ -136,7 +136,7 @@ class ImageGenExecutor implements NodeExecutor {
 			return this.executeCloud(prompt, bundle, data, progressCallback, cancelCheck);
 		}
 
-		// ── Local sidecar route ──
+		// ── Local engine route ──
 		return this.executeLocal(prompt, bundle, bundleId, transformerType, data, progressCallback, cancelCheck);
 	}
 
@@ -223,7 +223,7 @@ class ImageGenExecutor implements NodeExecutor {
 
 		progressCallback(0.1, "Submitting generation job");
 
-		const submitRes = await this.sidecar.fetchJson<{ job_id: string }>("/jobs", {
+		const submitRes = await this.engineClient.fetchJson<{ job_id: string }>("/jobs", {
 			method: "POST",
 			body: JSON.stringify(keysToSnake({ ...jobParams, bundle_id: bundleId })),
 		});
@@ -233,11 +233,11 @@ class ImageGenExecutor implements NodeExecutor {
 
 		while (true) {
 			if (cancelCheck()) {
-				try { await this.sidecar.fetch(`/jobs/${jobId}`, { method: "DELETE" }); } catch { /* ignore */ }
+				try { await this.engineClient.fetch(`/jobs/${jobId}`, { method: "DELETE" }); } catch { /* ignore */ }
 				throw new Error("Workflow cancelled");
 			}
 
-			const status = await this.sidecar.fetchJson<{
+			const status = await this.engineClient.fetchJson<{
 				status: string;
 				progress?: { step: number; total_steps: number };
 				result?: { seed: number; image_url: string };
@@ -358,7 +358,7 @@ function buildInputMap(
 
 export interface WorkflowServiceDeps {
 	db: Database.Database;
-	sidecar: SidecarManager;
+	engineClient: EngineClient;
 	outputDir: string;
 	chatService: {
 		completeWithVision(messages: unknown[], maxTokens?: number): Promise<string>;
@@ -367,7 +367,7 @@ export interface WorkflowServiceDeps {
 }
 
 export function createWorkflowService(deps: WorkflowServiceDeps) {
-	const { db, sidecar, outputDir, chatService, falService } = deps;
+	const { db, engineClient, outputDir, chatService, falService } = deps;
 
 	const events: WorkflowEvent[] = [];
 	const activeRuns = new Map<string, { cancelled: boolean }>();
@@ -375,7 +375,7 @@ export function createWorkflowService(deps: WorkflowServiceDeps) {
 	const executors: Record<string, NodeExecutor> = {
 		image_input: new ImageInputExecutor(),
 		vision_qa: new VisionQAExecutor(chatService),
-		image_gen: new ImageGenExecutor(sidecar, db, outputDir, falService),
+		image_gen: new ImageGenExecutor(engineClient, db, outputDir, falService),
 		text: new TextExecutor(),
 		output: new OutputExecutor(),
 	};

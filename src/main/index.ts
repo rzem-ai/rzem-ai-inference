@@ -4,12 +4,14 @@
  */
 
 import { app, BrowserWindow, Menu, ipcMain } from "electron";
+import { autoUpdater } from "electron-updater";
 import { mkdirSync, existsSync } from "fs";
-import { join, resolve } from "path";
+import { join } from "path";
 import path from "path";
 
 import { initDatabase } from "./database";
-import { SidecarManager } from "./sidecar";
+import { EngineClient } from "./engine-client";
+import { createDiscoveryService, type DiscoveryService } from "./discovery";
 import { registerIpcHandlers } from "./ipc";
 import { createFalService } from "./services/fal";
 import { initAutoUpdater } from "./updater";
@@ -28,34 +30,9 @@ let db: ReturnType<typeof initDatabase>;
 let outputDir: string;
 let stylesDir: string;
 
-// ── Sidecar (Python inference engine) ────────────────────────────
-function resolveEngineDir(): string | undefined {
-	const fromDb = db
-		.prepare("SELECT value FROM settings WHERE key = 'ENGINE_DIR'")
-		.get() as { value: string } | null;
-	if (fromDb?.value && existsSync(fromDb.value)) return fromDb.value;
-	if (process.env.ENGINE_DIR && existsSync(process.env.ENGINE_DIR))
-		return process.env.ENGINE_DIR;
-
-	// Dev default: sibling repo next to project root
-	const candidates: string[] = [
-		resolve(app.getAppPath(), "..", "rzem-ai-inference-engine"),
-		resolve(process.cwd(), "..", "rzem-ai-inference-engine"),
-	];
-
-	for (const candidate of candidates) {
-		if (existsSync(join(candidate, "pyproject.toml"))) {
-			console.log(`Engine repo found at: ${candidate}`);
-			return candidate;
-		}
-	}
-	console.warn(
-		"Engine repo not found. Set ENGINE_DIR env var or DB setting.",
-	);
-	return undefined;
-}
-
-let sidecar: SidecarManager;
+// ── Engine client & discovery ────────────────────────────────────
+let engineClient: EngineClient;
+let discoveryService: DiscoveryService;
 let mainWindow: BrowserWindow | null = null;
 
 // ── Window creation ──────────────────────────────────────────────
@@ -95,17 +72,21 @@ function createWindow() {
 
 // ── Application menu ─────────────────────────────────────────────
 function createMenu() {
+	const appName = "Inference";
 	const template: Electron.MenuItemConstructorOptions[] = [
 		{
-			label: "RZEM AI Inference",
+			label: appName,
 			submenu: [
-				{ role: "about" },
+				{
+					label: `About ${appName}`,
+					click: () => app.showAboutPanel(),
+				},
 				{ type: "separator" },
-				{ role: "hide" },
+				{ label: `Hide ${appName}`, role: "hide" },
 				{ role: "hideOthers" },
 				{ role: "unhide" },
 				{ type: "separator" },
-				{ role: "quit" },
+				{ label: `Quit ${appName}`, role: "quit" },
 			],
 		},
 		{
@@ -161,37 +142,69 @@ app.whenReady().then(() => {
 		if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
 	}
 
-	// Resolve engine availability
-	const engineDir = resolveEngineDir();
-	const engineAvailable = engineDir !== undefined;
-
-	// Create sidecar
-	sidecar = new SidecarManager({
-		outputDir,
-		port: 8100,
-		engineDir,
-	});
+	// Create engine client (reads stored host/port or defaults to localhost:8100)
+	const storedHost = (db.prepare("SELECT value FROM settings WHERE key = 'ENGINE_HOST'").get() as { value: string } | null)?.value ?? "127.0.0.1";
+	const storedPort = parseInt((db.prepare("SELECT value FROM settings WHERE key = 'ENGINE_PORT'").get() as { value: string } | null)?.value ?? "8100", 10);
+	engineClient = new EngineClient({ host: storedHost, port: storedPort });
+	discoveryService = createDiscoveryService();
 
 	// Create FAL cloud service
 	const falService = createFalService({ outputDir });
 
 	// Register IPC handlers
-	registerIpcHandlers(db, sidecar, { outputDir, stylesDir }, () => mainWindow, falService, engineAvailable);
+	registerIpcHandlers(db, engineClient, { outputDir, stylesDir }, () => mainWindow, falService, discoveryService);
+
+	// Set dock icon in dev mode (packaged app uses icon from .app bundle)
+	if (!app.isPackaged && process.platform === "darwin") {
+		app.dock?.setIcon(join(app.getAppPath(), "resources", "icon.png"));
+	}
 
 	// Create window
+	app.setAboutPanelOptions({
+		applicationName: "Inference",
+		applicationVersion: app.getVersion(),
+		version: "",
+		copyright: "RZEM AI",
+		iconPath: join(app.getAppPath(), "resources", "icon.png"),
+	});
 	createMenu();
 	createWindow();
 
 	// Auto-updater (production only)
 	initAutoUpdater(() => mainWindow);
 
-	// Start sidecar after window is created (only if engine is installed)
-	if (engineAvailable) {
-		sidecar.start().catch((err) => {
-			console.error("Failed to start sidecar:", err);
+	// Start mDNS discovery — auto-connect when an engine is found on the network
+	discoveryService.start();
+	discoveryService.onServerUp(async (server) => {
+		if (!engineClient.ready) {
+			console.log(`Auto-connecting to discovered engine: ${server.name} at ${server.host}:${server.port}...`);
+			try {
+				await engineClient.connect(server.host, server.port);
+				db.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run("ENGINE_HOST", server.host);
+				db.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run("ENGINE_PORT", String(server.port));
+			} catch (err: any) {
+				console.log(`Failed to auto-connect to discovered engine: ${err.message}`);
+			}
+		}
+	});
+
+	// Auto-update: check after app has fully loaded
+	if (app.isPackaged) {
+		setTimeout(() => {
+			autoUpdater.checkForUpdatesAndNotify().catch(() => {});
+		}, 5000);
+
+		autoUpdater.on("update-available", (info) => {
+			mainWindow?.webContents.send("updateAvailable", { version: info.version });
 		});
-	} else {
-		console.log("Inference engine not installed — cloud-only mode");
+
+		autoUpdater.on("download-progress", (progress) => {
+			mainWindow?.webContents.send("updateProgress", { percent: Math.round(progress.percent) });
+		});
+
+		autoUpdater.on("update-downloaded", (info) => {
+			mainWindow?.webContents.send("updateDownloaded", { version: info.version });
+		});
 	}
 
 	app.on("activate", () => {
@@ -200,15 +213,14 @@ app.whenReady().then(() => {
 });
 
 app.on("window-all-closed", () => {
-	sidecar?.stop();
-	db?.close();
 	if (process.platform !== "darwin") {
 		app.quit();
 	}
 });
 
 app.on("before-quit", () => {
-	sidecar?.stop();
+	discoveryService?.stop();
+	engineClient?.disconnect();
 	db?.close();
 });
 

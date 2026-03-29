@@ -137,6 +137,17 @@
       </div>
     </Dialog>
 
+    <!-- Upscale loading dialog -->
+    <Dialog v-model:visible="upscaling" modal :closable="false" :style="{ width: '300px' }">
+      <template #header>
+        <span class="font-semibold">Upscaling Image</span>
+      </template>
+      <div class="flex flex-col items-center gap-3 py-4">
+        <div class="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+        <p class="text-sm text-slate-500 text-center">Saving upscaled image…</p>
+      </div>
+    </Dialog>
+
     <!-- Image overlay (full-screen lightbox) -->
     <ImageOverlay
       v-if="selectedImage"
@@ -186,6 +197,7 @@ const sortPopover = ref();
 const cardMenu = ref();
 const contextImageId = ref<string | null>(null);
 const creatingStyle = ref(false);
+const upscaling = ref(false);
 
 const gallerySortOptions = [
   { value: 'created_at', label: 'Date' },
@@ -311,11 +323,33 @@ async function onCreateStyleFromImage() {
   }
 }
 
+async function onUpscaleImage(scaleFactor: 2 | 3 | 4) {
+  if (!contextImageId.value) return;
+  upscaling.value = true;
+  try {
+    const res = await gallery.upscaleImage(contextImageId.value, scaleFactor);
+    if (res.status !== 'success') {
+      alert(res.message ?? 'Upscale failed');
+    }
+  } finally {
+    upscaling.value = false;
+  }
+}
+
 const cardMenuItems = computed(() => [
   {
     label: 'Create Style from Image',
     icon: 'pi pi-palette',
     command: onCreateStyleFromImage,
+  },
+  {
+    label: 'Upscale',
+    icon: 'pi pi-expand',
+    items: [
+      { label: '2×', command: () => onUpscaleImage(2) },
+      { label: '3×', command: () => onUpscaleImage(3) },
+      { label: '4×', command: () => onUpscaleImage(4) },
+    ],
   },
   { separator: true },
   {
