@@ -56,17 +56,14 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
       - name: Package Linux (snap)
-        run: npx electron-builder --linux snap
+        run: npx electron-builder --linux snap --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-          SNAPCRAFT_STORE_CREDENTIALS: ""
 
       - name: Package Linux (flatpak)
-        run: npx electron-builder --linux flatpak
+        run: npx electron-builder --linux flatpak --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
