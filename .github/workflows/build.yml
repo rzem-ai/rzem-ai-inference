@@ -96,7 +96,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build & package macOS
+      - name: Build app
+        run: npm run build
+
+      - name: Package macOS
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_LINK: ${{ secrets.MAC_CERTS }}
@@ -148,6 +151,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows
+          path: |
+            release/*.exe
+            release/latest.yml
           if-no-files-found: error
 
   # ── Release (only on tags) ──────────────────────────────────────

@@ -4,6 +4,10 @@
   "version": "0.6.0",
   "private": true,
   "main": "dist/main/index.js",
+  "author": {
+    "name": "RZEM AI",
+    "email": "dev@rzem.ai"
+  },
   "description": "Desktop AI image generation app",
   "scripts": {
     "start": "npm run build:renderer && npm run build:main && electron .",
