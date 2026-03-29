@@ -50,10 +50,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
       - name: Package Linux (AppImage, deb)
-        run: npx electron-builder --linux AppImage deb
+        run: npx electron-builder --linux AppImage deb --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
       - name: Package Linux (snap)
         run: npx electron-builder --linux snap --publish never
@@ -104,16 +103,13 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          EVENT_NAME: ${{ github.event_name }}
-          PUBLISH_INPUT: ${{ inputs.publish }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false
         run: |
-          if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "$PUBLISH_INPUT" = "true" ]; then
-            npx electron-builder --mac --publish always
-          elif [ "$EVENT_NAME" = "push" ]; then
-            npx electron-builder --mac --publish always
-          else
-            npx electron-builder --mac --publish never
+          # Skip code signing if no certs are configured
+          if [ -z "$CSC_LINK" ]; then
+            unset CSC_LINK CSC_KEY_PASSWORD
           fi
+          npx electron-builder --mac --publish never
 
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v4
@@ -138,11 +134,15 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build & package Windows
-        run: npm run dist
+      - name: Build app
+        run: npm run build
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+
+      - name: Package Windows
+        run: npx electron-builder --win --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
