@@ -4,7 +4,6 @@
  */
 
 import { app, BrowserWindow, Menu, ipcMain } from "electron";
-import { autoUpdater } from "electron-updater";
 import { mkdirSync, existsSync } from "fs";
 import { join } from "path";
 import path from "path";
@@ -38,7 +37,7 @@ let mainWindow: BrowserWindow | null = null;
 // ── Window creation ──────────────────────────────────────────────
 function createWindow() {
 	mainWindow = new BrowserWindow({
-		title: "RZEM AI Inference",
+		title: "Inference",
 		width: 1400,
 		height: 900,
 		x: 100,
@@ -148,11 +147,14 @@ app.whenReady().then(() => {
 	engineClient = new EngineClient({ host: storedHost, port: storedPort });
 	discoveryService = createDiscoveryService();
 
+	// Shared config — single object so runtime output dir changes propagate to all services
+	const config = { outputDir, stylesDir };
+
 	// Create FAL cloud service
-	const falService = createFalService({ outputDir });
+	const falService = createFalService(config);
 
 	// Register IPC handlers
-	registerIpcHandlers(db, engineClient, { outputDir, stylesDir }, () => mainWindow, falService, discoveryService);
+	registerIpcHandlers(db, engineClient, config, () => mainWindow, falService, discoveryService);
 
 	// Set dock icon in dev mode (packaged app uses icon from .app bundle)
 	if (!app.isPackaged && process.platform === "darwin") {
@@ -188,24 +190,7 @@ app.whenReady().then(() => {
 		}
 	});
 
-	// Auto-update: check after app has fully loaded
-	if (app.isPackaged) {
-		setTimeout(() => {
-			autoUpdater.checkForUpdatesAndNotify().catch(() => {});
-		}, 5000);
-
-		autoUpdater.on("update-available", (info) => {
-			mainWindow?.webContents.send("updateAvailable", { version: info.version });
-		});
-
-		autoUpdater.on("download-progress", (progress) => {
-			mainWindow?.webContents.send("updateProgress", { percent: Math.round(progress.percent) });
-		});
-
-		autoUpdater.on("update-downloaded", (info) => {
-			mainWindow?.webContents.send("updateDownloaded", { version: info.version });
-		});
-	}
+	// Auto-update is handled by initAutoUpdater() above (updater.ts)
 
 	app.on("activate", () => {
 		if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -224,4 +209,4 @@ app.on("before-quit", () => {
 	db?.close();
 });
 
-console.log("RZEM AI Inference starting...");
+console.log("Inference starting...");

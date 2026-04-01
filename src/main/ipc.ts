@@ -56,11 +56,11 @@ function deriveUpscalePath(originalPath: string, scaleFactor: number, outputDir:
 	return candidate;
 }
 
-function processOutputImage(
+async function processOutputImage(
 	sourcePath: string,
 	outputDir: string,
 	jobId: string,
-): { imagePath: string; coverPath: string | null } {
+): Promise<{ imagePath: string; coverPath: string | null }> {
 	const timestamp = formatTimestamp();
 	const stem = `${timestamp}_${jobId}`;
 	const imagePath = join(outputDir, `${stem}.png`);
@@ -82,17 +82,18 @@ function processOutputImage(
 		return { imagePath: sourcePath, coverPath: null };
 	}
 
-	// Generate half-res WebP thumbnail via sharp (async, non-blocking)
-	import("sharp").then((mod) => {
-		const sharp = mod.default;
-		sharp(imagePath)
+	// Generate half-res WebP thumbnail
+	try {
+		const sharp = (await import("sharp")).default;
+		await sharp(imagePath)
 			.resize({ width: 512, withoutEnlargement: true })
 			.webp({ quality: 85 })
-			.toFile(coverPath)
-			.catch(() => { /* thumbnail generation is best-effort */ });
-	}).catch(() => { /* sharp not available */ });
-
-	return { imagePath, coverPath };
+			.toFile(coverPath);
+		return { imagePath, coverPath };
+	} catch (err) {
+		console.error(`[cover] Failed to generate cover for ${jobId}:`, err);
+		return { imagePath, coverPath: null };
+	}
 }
 
 // ── Shared types ─────────────────────────────────────────────────
@@ -156,10 +157,10 @@ export function registerIpcHandlers(
 	});
 
 	// Shared handler for job completion — persists image to DB
-	function handleJobCompleted(jobId: string, data: Res) {
+	async function handleJobCompleted(jobId: string, data: Res) {
 		const meta = jobMeta.get(jobId);
 		const sourcePath = join(config.outputDir, `${jobId}.png`);
-		const { imagePath, coverPath } = processOutputImage(sourcePath, config.outputDir, jobId);
+		const { imagePath, coverPath } = await processOutputImage(sourcePath, config.outputDir, jobId);
 		try {
 			const p = meta?.params ?? {};
 			const imageId = crypto.randomUUID();
@@ -226,14 +227,14 @@ export function registerIpcHandlers(
 	}
 
 	// Wire engine events → both push messages and polling buffer
-	engineClient.onEvent((event) => {
+	engineClient.onEvent(async (event) => {
 		const eventType = (event.event as string) ?? "unknown";
 		const jobId = (event.job_id as string) ?? "";
 		const data = (event.data as Res) ?? {};
 
 		let mappedData = data;
 		if (eventType === "job_completed" && jobId) {
-			const resolvedImagePath = handleJobCompleted(jobId, data);
+			const resolvedImagePath = await handleJobCompleted(jobId, data);
 			mappedData = { ...data, image_path: resolvedImagePath };
 		} else if (eventType === "job_failed" || eventType === "job_cancelled") {
 			jobMeta.delete(jobId);
@@ -243,14 +244,14 @@ export function registerIpcHandlers(
 	});
 
 	// Wire FAL service events → same pipeline as engine events
-	falService.onEvent((event) => {
+	falService.onEvent(async (event) => {
 		const eventType = (event.event as string) ?? "unknown";
 		const jobId = (event.job_id as string) ?? "";
 		const data = (event.data as Res) ?? {};
 
 		let mappedData = data;
 		if (eventType === "job_completed" && jobId) {
-			const resolvedImagePath = handleJobCompleted(jobId, data);
+			const resolvedImagePath = await handleJobCompleted(jobId, data);
 			mappedData = { ...data, image_path: resolvedImagePath };
 		} else if (eventType === "job_failed" || eventType === "job_cancelled") {
 			jobMeta.delete(jobId);
