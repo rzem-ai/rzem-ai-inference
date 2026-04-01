@@ -1,14 +1,14 @@
 {
   "name": "rzem-ai-inference",
   "productName": "Inference",
-  "version": "0.6.0",
+  "version": "0.6.4",
   "private": true,
   "main": "dist/main/index.js",
   "author": {
     "name": "RZEM AI",
     "email": "dev@rzem.ai"
   },
-  "description": "Desktop AI image generation app",
+  "description": "Desktop AI Image Generation",
   "scripts": {
     "start": "npm run build:renderer && npm run build:main && electron .",
     "dev": "concurrently \"npm run dev:renderer\" \"npm run dev:main\"",
@@ -67,6 +67,15 @@
     },
     "dmg": {
       "sign": false
+    },
+    "linux": {
+      "category": "Graphics",
+      "icon": "resources/icons",
+      "target": [
+        "AppImage",
+        "deb",
+        "snap"
+      ]
     },
     "win": {
       "target": "nsis"

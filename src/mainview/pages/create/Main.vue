@@ -85,19 +85,13 @@ const placeholderStyle = computed(() => {
   const availableWidth = Math.max(0, imageWrapperSize.width.value - PADDING);
   const availableHeight = Math.max(0, imageWrapperSize.height.value - PADDING);
 
-  let imageDimensions = { width: 0, height: 0 };
-  if (store.isGenerating && store.previewDataUrl) {
-    imageDimensions = calculateMaxImageDimensions(store.params.width, store.params.height, availableWidth, availableHeight);
-  } else if (displayedImage?.value?.dataUrl) {
-    imageDimensions = calculateMaxImageDimensions(
-      store.selectedImage?.width || store.params.width,
-      store.selectedImage?.height || store.params.height,
-      availableWidth,
-      availableHeight,
-    );
-  } else {
-    imageDimensions = calculateMaxImageDimensions(store.params.width, store.params.height, availableWidth, availableHeight);
+  let imgW = store.params.width;
+  let imgH = store.params.height;
+  if (!store.isGenerating && displayedImage?.value?.dataUrl) {
+    imgW = store.selectedImage?.width || imgW;
+    imgH = store.selectedImage?.height || imgH;
   }
+  const imageDimensions = calculateMaxImageDimensions(imgW, imgH, availableWidth, availableHeight);
 
   const targetWidth = imageDimensions.width;
   const targetHeight = imageDimensions.height;

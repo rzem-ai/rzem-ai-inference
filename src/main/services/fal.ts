@@ -136,7 +136,7 @@ export function createFalService(config: FalServiceConfig) {
 				data: { job_id: jobId, width: params.width, height: params.height },
 			});
 
-			// Build the image_size input
+			// Build the image size / aspect ratio input
 			const allowed = params.fal_aspectratio ?? [];
 			let imageSize: string | { width: number; height: number };
 			if (allowed.length > 0) {
@@ -145,12 +145,17 @@ export function createFalService(config: FalServiceConfig) {
 				imageSize = { width: params.width, height: params.height };
 			}
 
-			// Build FAL input
+			// Build FAL input — use aspect_ratio for ratio strings (e.g. "16:9"),
+			// image_size for named presets (e.g. "landscape_16_9") or explicit dimensions
 			const input: Record<string, unknown> = {
 				prompt: params.prompt,
-				image_size: imageSize,
 				num_images: params.num_images ?? 1,
 			};
+			if (typeof imageSize === "string" && imageSize.includes(":")) {
+				input.aspect_ratio = imageSize;
+			} else {
+				input.image_size = imageSize;
+			}
 
 			if (params.steps && params.steps > 0) {
 				input.num_inference_steps = params.steps;

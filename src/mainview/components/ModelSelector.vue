@@ -106,7 +106,7 @@ const groupedBundles = computed(() => {
       type,
       icon: modelsStore.typeMap[type]?.icon ?? null,
       sortOrder: modelsStore.typeMap[type]?.sort_order ?? 0,
-      items,
+      items: items.sort((a, b) => a.label.localeCompare(b.label)),
     }))
     .sort((a, b) => a.sortOrder - b.sortOrder);
 

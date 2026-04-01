@@ -21,6 +21,9 @@ export function initAutoUpdater(getWindow: () => BrowserWindow | null): void {
 		const win = getWindow();
 		if (!win) return;
 
+		// Notify the renderer so the in-app banner can show
+		win.webContents.send("updateAvailable", { version: info.version });
+
 		dialog
 			.showMessageBox(win, {
 				type: "info",
@@ -32,14 +35,22 @@ export function initAutoUpdater(getWindow: () => BrowserWindow | null): void {
 			.then(({ response }) => {
 				if (response === 0) {
 					autoUpdater.downloadUpdate();
-					win.webContents.send("updateEvent", { event: "downloading" });
 				}
 			});
 	});
 
-	autoUpdater.on("update-downloaded", () => {
+	autoUpdater.on("download-progress", (progress) => {
 		const win = getWindow();
 		if (!win) return;
+		win.webContents.send("updateProgress", { percent: Math.round(progress.percent) });
+	});
+
+	autoUpdater.on("update-downloaded", (info) => {
+		const win = getWindow();
+		if (!win) return;
+
+		// Notify the renderer so the in-app restart banner can show
+		win.webContents.send("updateDownloaded", { version: info.version });
 
 		dialog
 			.showMessageBox(win, {

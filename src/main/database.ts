@@ -244,6 +244,40 @@ CREATE TABLE IF NOT EXISTS conversation_messages (
 `;
 
 /**
+ * Sync cloud bundles: upsert all cloud entries from DEFAULT_BUNDLES
+ * and remove any stale cloud bundles no longer in the defaults.
+ */
+function syncCloudBundles(db: Database.Database): void {
+	const cloudBundles = DEFAULT_BUNDLES.filter(b => b.source === "cloud");
+	const cloudIds = cloudBundles.map(b => b.id);
+
+	const upsert = db.prepare(
+		`INSERT OR REPLACE INTO bundles (id, label, description, transformer_type, tier, transformer_model, vae_model, clip_tokenizer, clip_encoder, t5_tokenizer, t5_encoder, t5_encoder_config, qwen3_tokenizer, qwen3_encoder, steps, cfg_scale, sampler, scheduler, vram_estimate_gb, is_default, source, fal_endpoint, fal_aspectratio)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	);
+
+	const syncAll = db.transaction(() => {
+		for (const b of cloudBundles) {
+			upsert.run(
+				b.id, b.label, b.description, b.transformer_type, b.tier,
+				b.transformer_model, b.vae_model, b.clip_tokenizer, b.clip_encoder,
+				b.t5_tokenizer, b.t5_encoder, b.t5_encoder_config, b.qwen3_tokenizer,
+				b.qwen3_encoder, b.steps, b.cfg_scale, b.sampler, b.scheduler,
+				b.vram_estimate_gb, b.is_default, b.source, b.fal_endpoint, b.fal_aspectratio,
+			);
+		}
+
+		// Remove cloud bundles that are no longer in defaults
+		const placeholders = cloudIds.map(() => "?").join(", ");
+		db.prepare(
+			`DELETE FROM bundles WHERE source = 'cloud' AND id NOT IN (${placeholders})`,
+		).run(...cloudIds);
+	});
+
+	syncAll();
+}
+
+/**
  * Initialize the database with WAL mode and the full schema.
  * Returns the better-sqlite3 Database instance.
  */
@@ -283,6 +317,9 @@ export function initDatabase(dbPath: string): Database.Database {
 			);
 		}
 	}
+
+	// Always sync cloud bundles to match DEFAULT_BUNDLES
+	syncCloudBundles(db);
 
 	return db;
 }
