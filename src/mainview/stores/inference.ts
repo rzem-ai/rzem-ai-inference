@@ -351,13 +351,13 @@ export const useInferenceStore = defineStore('inference', {
       this.batchCompleted = 0;
       this.batchJobIds = [];
       this.isGenerating = true;
+      this.progress = null;
+      this.startPolling();
       const api = await getApiAsync();
 
-      // Freeze seed: use current seed or generate a random one
-      const frozenSeed = this.params.seed >= 0 ? this.params.seed : Math.floor(Math.random() * 2147483647);
-
       for (const prompt of prompts) {
-        const jobParams: Record<string, any> = { ...this.params, prompt, seed: frozenSeed };
+        const seed = this.params.seed >= 0 ? this.params.seed : Math.floor(Math.random() * 2147483647);
+        const jobParams: Record<string, any> = { ...this.params, prompt, seed };
         if (this.selectedBundleId) {
           jobParams.bundle_id = this.selectedBundleId;
         }
