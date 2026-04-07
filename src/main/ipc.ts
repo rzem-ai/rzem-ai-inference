@@ -16,6 +16,7 @@ import { batchParseData, batchRenderTemplate } from "./services/batch";
 import { createStylesHandlers } from "./services/styles";
 import { createSettingsHandlers } from "./services/settings";
 import { createChatService } from "./services/chat";
+import { createSkillsService } from "./services/skills";
 import { createFilesHandlers } from "./services/files";
 import { createWorkflowService } from "./services/workflow";
 import { DEFAULT_BUNDLES, DEFAULT_BUNDLE_TYPES } from "./services/bundles";
@@ -114,7 +115,8 @@ export function registerIpcHandlers(
 ) {
 	const styles = createStylesHandlers(db, config.stylesDir);
 	const settings = createSettingsHandlers(db, engineClient, config.outputDir);
-	const chat = createChatService(db);
+	const skills = createSkillsService();
+	const chat = createChatService(db, skills);
 	const files = createFilesHandlers(db, config, getWindow);
 	const workflow = createWorkflowService({ db, engineClient, outputDir: config.outputDir, chatService: chat, falService });
 

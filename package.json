@@ -34,6 +34,7 @@
     },
     "files": [
       "dist/**/*",
+      "resources/skills/**/*",
       "package.json"
     ],
     "asarUnpack": [

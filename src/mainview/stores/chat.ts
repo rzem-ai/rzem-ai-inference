@@ -98,7 +98,20 @@ export const useChatStore = defineStore('chat', {
         scheduler: inferenceStore.params.scheduler,
       };
       if (inferenceStore.selectedBundle) {
+        generationContext.bundle_label = inferenceStore.selectedBundle.label;
+        generationContext.transformer_type = inferenceStore.selectedBundle.transformer_type;
+        generationContext.tier = inferenceStore.selectedBundle.tier;
         generationContext.model = inferenceStore.selectedBundle.label;
+      }
+      const loras = inferenceStore.params.loras ?? [];
+      if (loras.length) {
+        generationContext.loras = loras.map((l: any) => ({
+          name: l.name ?? l.lora_id,
+          strength: l.strength,
+        }));
+      }
+      if (inferenceStore.styleNegativePrompt) {
+        generationContext.negative_prompt = inferenceStore.styleNegativePrompt;
       }
 
       // Optimistically add user message (show displayText in the bubble if provided)
