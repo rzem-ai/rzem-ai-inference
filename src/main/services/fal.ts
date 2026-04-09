@@ -4,7 +4,7 @@
  */
 
 import { fal } from "@fal-ai/client";
-import { createWriteStream, existsSync } from "fs";
+import { createWriteStream, existsSync, readFileSync } from "fs";
 import { join } from "path";
 import { pipeline } from "stream/promises";
 import axios from "axios";
@@ -79,6 +79,7 @@ interface FalJobParams {
 	fal_endpoint: string;
 	fal_aspectratio?: string[];
 	num_images?: number;
+	input_image_path?: string;
 }
 
 interface FalResultImage {
@@ -170,11 +171,23 @@ export function createFalService(config: FalServiceConfig) {
 				input.negative_prompt = params.negative_prompt;
 			}
 
+			// Upload input image for edit endpoints
+			if (params.input_image_path) {
+				const imgBuffer = readFileSync(params.input_image_path);
+				const ext = params.input_image_path.split(".").pop()?.toLowerCase() ?? "png";
+				const mime = ext === "jpg" || ext === "jpeg" ? "image/jpeg" : `image/${ext}`;
+				const blob = new Blob([imgBuffer], { type: mime });
+				const uploadedUrl = await fal.storage.upload(blob);
+				input.image_urls = [uploadedUrl];
+			}
+
 			emit({
 				event: "job_progress",
 				job_id: jobId,
 				data: { job_id: jobId, step: 0, total_steps: 1, width: params.width, height: params.height },
 			});
+
+			console.log(`[fal] Job ${jobId} → ${params.fal_endpoint}`, JSON.stringify(input, null, 2));
 
 			// Call the FAL API
 			const result = await fal.run(params.fal_endpoint, { input }) as { data: FalResult };
@@ -221,9 +234,11 @@ export function createFalService(config: FalServiceConfig) {
 					generation_time_ms: genTimeMs,
 				},
 			});
-		} catch (err) {
+		} catch (err: any) {
 			const message = err instanceof Error ? err.message : String(err);
+			const body = err?.body ?? err?.response?.data ?? err?.detail;
 			console.error(`[fal] Job ${jobId} failed:`, message);
+			if (body) console.error(`[fal] Response body:`, JSON.stringify(body, null, 2));
 
 			emit({
 				event: "job_failed",

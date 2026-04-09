@@ -292,15 +292,12 @@ export function initDatabase(dbPath: string): Database.Database {
 	// Apply schema (all CREATE IF NOT EXISTS — safe to re-run)
 	db.exec(SCHEMA);
 
-	// Seed default bundle types and bundles if empty
-	const typeCount = db.prepare("SELECT COUNT(*) as n FROM bundle_types").get() as { n: number };
-	if (typeCount.n === 0) {
-		const insertType = db.prepare(
-			"INSERT INTO bundle_types (id, label, icon, sort_order, guide) VALUES (?, ?, ?, ?, ?)",
-		);
-		for (const t of DEFAULT_BUNDLE_TYPES) {
-			insertType.run(t.id, t.label, t.icon, t.sort_order, t.guide);
-		}
+	// Sync default bundle types (upsert so new types are always available)
+	const upsertType = db.prepare(
+		"INSERT OR REPLACE INTO bundle_types (id, label, icon, sort_order, guide) VALUES (?, ?, ?, ?, ?)",
+	);
+	for (const t of DEFAULT_BUNDLE_TYPES) {
+		upsertType.run(t.id, t.label, t.icon, t.sort_order, t.guide);
 	}
 	const bundleCount = db.prepare("SELECT COUNT(*) as n FROM bundles").get() as { n: number };
 	if (bundleCount.n === 0) {

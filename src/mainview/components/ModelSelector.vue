@@ -72,12 +72,14 @@ const emit = defineEmits<{
 
 const modelsStore = useModelsStore();
 
+const editTypes = new Set(['flux1_kontext', 'fal_cloud_edit']);
+
 const filteredBundles = computed(() => {
   switch (props.types) {
     case 'create':
-      return props.bundles.filter((b) => !b.hidden && b.transformer_type !== 'flux1_kontext');
+      return props.bundles.filter((b) => !b.hidden && !editTypes.has(b.transformer_type));
     case 'edit':
-      return props.bundles.filter((b) => b.transformer_type === 'flux1_kontext');
+      return props.bundles.filter((b) => editTypes.has(b.transformer_type));
     default:
       return props.bundles.filter((b) => !b.hidden);
   }

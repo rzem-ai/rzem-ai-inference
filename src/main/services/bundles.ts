@@ -413,6 +413,20 @@ export const DEFAULT_BUNDLES: BundleData[] = [
 		fal_aspectratio: JSON.stringify(["21:9", "16:9", "3:2", "4:3", "5:4", "1:1", "4:5", "3:4", "2:3", "9:16"]),
 	},
 	{
+		id: "fal_nano_banana_edit",
+		label: "Nano Banana 1 - Edit",
+		description: "Google's famous original image generation and editing model",
+		transformer_type: "fal_cloud_edit", tier: "standard",
+		transformer_model: "fal-ai/nano-banana/edit", vae_model: "cloud",
+		clip_tokenizer: null, clip_encoder: null,
+		t5_tokenizer: null, t5_encoder: null, t5_encoder_config: null,
+		qwen3_tokenizer: null, qwen3_encoder: null,
+		steps: 0, cfg_scale: 0, sampler: "euler", scheduler: "normal",
+		vram_estimate_gb: 0.0, is_default: 1, source: "cloud",
+		fal_endpoint: "fal-ai/nano-banana/edit",
+		fal_aspectratio: JSON.stringify(["21:9", "16:9", "3:2", "4:3", "5:4", "1:1", "4:5", "3:4", "2:3", "9:16"]),
+	},
+	{
 		id: "fal_nano_banana_pro",
 		label: "Nano Banana 1 Pro",
 		description: "Nano Banana Pro is Google's new state-of-the-art image generation and editing model",
@@ -427,6 +441,20 @@ export const DEFAULT_BUNDLES: BundleData[] = [
 		fal_aspectratio: JSON.stringify(["auto", "21:9", "16:9", "3:2", "4:3", "5:4", "1:1", "4:5", "3:4", "2:3", "9:16"]),
 	},
 	{
+		id: "fal_nano_banana_pro_edit",
+		label: "Nano Banana 1 Pro - Edit",
+		description: "Nano Banana Pro is Google's new state-of-the-art image generation and editing model",
+		transformer_type: "fal_cloud_edit", tier: "pro",
+		transformer_model: "fal-ai/nano-banana-pro/edit", vae_model: "cloud",
+		clip_tokenizer: null, clip_encoder: null,
+		t5_tokenizer: null, t5_encoder: null, t5_encoder_config: null,
+		qwen3_tokenizer: null, qwen3_encoder: null,
+		steps: 0, cfg_scale: 0, sampler: "euler", scheduler: "normal",
+		vram_estimate_gb: 0.0, is_default: 1, source: "cloud",
+		fal_endpoint: "fal-ai/nano-banana-pro/edit",
+		fal_aspectratio: JSON.stringify(["auto", "21:9", "16:9", "3:2", "4:3", "5:4", "1:1", "4:5", "3:4", "2:3", "9:16"]),
+	},
+	{
 		id: "fal_nano_banana_2",
 		label: "Nano Banana 2",
 		description: "Nano Banana 2 is Google's new state-of-the-art fast image generation and editing model",
@@ -438,6 +466,20 @@ export const DEFAULT_BUNDLES: BundleData[] = [
 		steps: 0, cfg_scale: 0, sampler: "euler", scheduler: "normal",
 		vram_estimate_gb: 0.0, is_default: 1, source: "cloud",
 		fal_endpoint: "fal-ai/nano-banana-2",
+		fal_aspectratio: JSON.stringify(["auto", "21:9", "16:9", "3:2", "4:3", "5:4", "1:1", "4:5", "3:4", "2:3", "9:16", "4:1", "1:4", "8:1", "1:8"]),
+	},
+	{
+		id: "fal_nano_banana_2_edit",
+		label: "Nano Banana 2 - Edit",
+		description: "Nano Banana 2 is Google's new state-of-the-art fast image generation and editing model",
+		transformer_type: "fal_cloud_edit", tier: "standard",
+		transformer_model: "fal-ai/nano-banana-2/edit", vae_model: "cloud",
+		clip_tokenizer: null, clip_encoder: null,
+		t5_tokenizer: null, t5_encoder: null, t5_encoder_config: null,
+		qwen3_tokenizer: null, qwen3_encoder: null,
+		steps: 0, cfg_scale: 0, sampler: "euler", scheduler: "normal",
+		vram_estimate_gb: 0.0, is_default: 1, source: "cloud",
+		fal_endpoint: "fal-ai/nano-banana-2/edit",
 		fal_aspectratio: JSON.stringify(["auto", "21:9", "16:9", "3:2", "4:3", "5:4", "1:1", "4:5", "3:4", "2:3", "9:16", "4:1", "1:4", "8:1", "1:8"]),
 	},
 ];
@@ -553,5 +595,25 @@ FAL.ai Cloud models run on remote servers — **no local GPU needed**. Generatio
 - **Latency varies** — typical generation takes 3–15 seconds depending on queue depth and model
 - **No VRAM constraints** — you can use full-precision models regardless of your local hardware
 - **Steps/CFG may be ignored** — some cloud endpoints use fixed parameters; the values in your bundle are hints only`,
+	},
+	{
+		id: "fal_cloud_edit",
+		label: "FAL.ai Cloud (Edit)",
+		icon: "cloud",
+		sort_order: 11,
+		guide: `## Overview
+
+FAL.ai Cloud Edit models run on remote servers and are designed for **image-to-image editing** — no local GPU needed.
+
+## Setup
+
+- Requires a **FAL API key** — configure it in Settings → API Keys
+- Requires an **input image** to edit
+
+## Usage Tips
+
+- **Latency varies** — typical generation takes 3–15 seconds depending on queue depth and model
+- **No VRAM constraints** — you can use full-precision models regardless of your local hardware
+- **Describe the edit** in your prompt — these models modify an existing image based on your instructions`,
 	},
 ];

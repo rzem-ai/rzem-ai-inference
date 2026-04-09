@@ -132,7 +132,7 @@ export const useInferenceStore = defineStore('inference', {
 
     isCloudBundle(state): boolean {
       const bundle = state.bundles.find((b) => b.id === state.selectedBundleId);
-      return bundle?.transformer_type === 'fal_cloud';
+      return bundle?.transformer_type === 'fal_cloud' || bundle?.transformer_type === 'fal_cloud_edit';
     },
 
     bundlesByType(state): { label: string; type: string; items: ModelBundle[] }[] {

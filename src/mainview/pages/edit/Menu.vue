@@ -54,7 +54,7 @@ const store = useEditStore();
 const inferenceStore = useInferenceStore();
 
 const canGenerate = computed(
-  () => store.engineReady && store.inputImagePath && store.params.prompt.trim() && !store.isGenerating,
+  () => (store.engineReady || store.isCloudBundle) && store.inputImagePath && store.params.prompt.trim() && !store.isGenerating,
 );
 
 function onSubmit() {

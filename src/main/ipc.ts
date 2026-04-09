@@ -544,7 +544,7 @@ export function registerIpcHandlers(
 			}
 
 			// ── Cloud route: FAL ──
-			if (transformerType === "fal_cloud") {
+			if (transformerType === "fal_cloud" || transformerType === "fal_cloud_edit") {
 				const falRow = db.prepare("SELECT value FROM settings WHERE key = ?").get("FAL_KEY") as { value: string } | null;
 				if (!falRow?.value) return { status: "error", message: "FAL API key not configured" };
 
@@ -578,6 +578,7 @@ export function registerIpcHandlers(
 					negative_prompt: p.negative_prompt ?? p.negativePrompt,
 					fal_endpoint: falEndpoint,
 					fal_aspectratio: p.fal_aspectratio ?? p.falAspectratio,
+					input_image_path: p.input_image_path ?? p.inputImagePath,
 				});
 
 				return { status: "success", jobId };

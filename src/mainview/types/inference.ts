@@ -2,7 +2,7 @@
 
 export type ApiResponse<T = {}> = { status: "success" | "error"; message?: string } & T;
 
-export type TransformerType = "flux1_dev" | "flux1_kontext" | "flux2_dev" | "z_image" | "qwen_image" | "fal_cloud";
+export type TransformerType = "flux1_dev" | "flux1_kontext" | "flux2_dev" | "z_image" | "qwen_image" | "fal_cloud" | "fal_cloud_edit";
 
 export type EventType =
   | "job_queued"

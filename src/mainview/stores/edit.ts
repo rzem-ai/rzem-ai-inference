@@ -70,6 +70,11 @@ export const useEditStore = defineStore('edit', {
       return state.bundles.find((b) => b.id === state.selectedBundleId) ?? null;
     },
 
+    isCloudBundle(state): boolean {
+      const bundle = state.bundles.find((b) => b.id === state.selectedBundleId);
+      return bundle?.transformer_type === 'fal_cloud_edit';
+    },
+
     bundlesByType(state): { label: string; type: string; items: ModelBundle[] }[] {
       const modelsStore = useModelsStore();
       const result: { label: string; type: string; items: ModelBundle[] }[] = [];
@@ -139,7 +144,7 @@ export const useEditStore = defineStore('edit', {
       const res = await api.get_bundles();
       if (res.status === 'success' && res.bundles) {
         this.bundles = res.bundles.filter(
-          (b: ModelBundle) => b.transformer_type === 'flux1_kontext',
+          (b: ModelBundle) => b.transformer_type === 'flux1_kontext' || b.transformer_type === 'fal_cloud_edit',
         );
       }
     },
@@ -163,7 +168,7 @@ export const useEditStore = defineStore('edit', {
     // ── Job lifecycle ──
 
     async submitJob() {
-      if (!this.engineReady || this.isGenerating) return;
+      if ((!this.engineReady && !this.isCloudBundle) || this.isGenerating) return;
       if (!this.params.prompt.trim()) {
         this.error = 'Prompt is required';
         return;
@@ -176,6 +181,9 @@ export const useEditStore = defineStore('edit', {
       this.error = null;
       this.isGenerating = true;
       this.progress = null;
+
+      // Ensure polling is running so FAL events are received
+      useInferenceStore().startPolling();
 
       const api = await getApiAsync();
       const jobParams: Record<string, any> = {
