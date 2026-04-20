@@ -1,4 +1,4 @@
-import { ExtendedCSS } from '@primeuix/themes/types';
+import type { ExtendedCSS } from '@primeuix/themes/types';
 
 const css = /*css*/ `
     li.p-autocomplete-option,

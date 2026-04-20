@@ -5,8 +5,10 @@
  * Flow: check on launch → notify user → download in background → install on quit.
  */
 
-import { autoUpdater } from "electron-updater";
+import electronUpdater from "electron-updater";
 import { dialog, type BrowserWindow } from "electron";
+
+const { autoUpdater } = electronUpdater;
 
 export function initAutoUpdater(getWindow: () => BrowserWindow | null): void {
 	// Don't auto-update in dev

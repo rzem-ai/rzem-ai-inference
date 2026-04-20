@@ -55,15 +55,6 @@ export function keysToSnake(obj: unknown): unknown {
 
 // ── Electron IPC bridge ──────────────────────────────────────────
 
-declare global {
-  interface Window {
-    electronAPI?: {
-      invoke: (channel: string, args?: unknown) => Promise<unknown>;
-      on: (channel: string, callback: (...args: unknown[]) => void) => () => void;
-    };
-  }
-}
-
 /**
  * Create a PywebviewAPI-compatible wrapper around Electron IPC.
  *
@@ -412,6 +403,8 @@ export const mockApi: PywebviewAPI = {
   async browse_metadata_files() { return { status: "success", paths: [] }; },
   async browse_and_import_metadata() { return { status: "success", styles: [], errors: [] }; },
   async import_civitai_metadata(_args: { file_path?: string; json_content?: string }) { return { status: "error", message: "Not available in mock mode" }; },
+  async browse_invokeai_db() { return { status: "success" as const, path: null }; },
+  async import_invokeai_loras(_args: { db_path: string }) { return { status: "error" as const, message: "Not available in mock mode" }; },
 
   // ── Style from Image ──
   async create_style_from_image(_args) { return { status: "error", message: "Not available in mock mode" }; },

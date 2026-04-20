@@ -193,6 +193,8 @@ export interface PywebviewAPI {
   browse_metadata_files(): Promise<ApiResponse<{ paths?: string[] }>>;
   browse_and_import_metadata(): Promise<ApiResponse<{ styles?: Style[]; errors?: string[] }>>;
   import_civitai_metadata(args: { file_path?: string; json_content?: string }): Promise<ApiResponse<{ style?: Style }>>;
+  browse_invokeai_db(): Promise<ApiResponse<{ path?: string | null }>>;
+  import_invokeai_loras(args: { db_path: string }): Promise<ApiResponse<{ imported?: number; total?: number; errors?: string[] }>>;
 
   // ── Style from Image ──
   create_style_from_image(args: { image_path: string }): Promise<ApiResponse<{ style?: Style }>>;

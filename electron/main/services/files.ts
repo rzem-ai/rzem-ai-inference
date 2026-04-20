@@ -4,6 +4,7 @@
  */
 
 import type Database from "better-sqlite3";
+import BetterSqlite3 from "better-sqlite3";
 import { dialog, type BrowserWindow } from "electron";
 import {
 	existsSync, mkdirSync, copyFileSync, readFileSync, writeFileSync,
@@ -273,6 +274,183 @@ export function createFilesHandlers(
 				return { status: "success", paths: result.filePaths, styles: [], errors: [] };
 			} catch (err) {
 				return { status: "error", message: String(err) };
+			}
+		},
+
+		browseInvokeaiDb: async (): Promise<ApiResponse> => {
+			try {
+				const win = getWindow();
+				const result = await dialog.showOpenDialog(win!, {
+					filters: [{ name: "InvokeAI Database", extensions: ["db", "sqlite", "sqlite3"] }],
+					properties: ["openFile"],
+				});
+				if (result.canceled || result.filePaths.length === 0) {
+					return { status: "success", path: null };
+				}
+				return { status: "success", path: result.filePaths[0] };
+			} catch (err) {
+				return { status: "error", message: String(err) };
+			}
+		},
+
+		importInvokeaiLoras: async (params: Record<string, unknown>): Promise<ApiResponse> => {
+			const dbPath = params.dbPath as string | undefined;
+			if (!dbPath || !existsSync(dbPath)) {
+				return { status: "error", message: "InvokeAI database file not found" };
+			}
+
+			let srcDb: Database.Database;
+			try {
+				srcDb = new BetterSqlite3(dbPath, { readonly: true, fileMustExist: true });
+			} catch (err) {
+				return { status: "error", message: `Failed to open DB: ${String(err)}` };
+			}
+
+			try {
+				// Detect which table holds models — InvokeAI has used both "models" and "model_config".
+				const tables = srcDb
+					.prepare("SELECT name FROM sqlite_master WHERE type='table'")
+					.all() as Array<{ name: string }>;
+				const tableNames = tables.map((t) => t.name);
+				const modelTable = tableNames.includes("models")
+					? "models"
+					: tableNames.includes("model_config")
+						? "model_config"
+						: null;
+				if (!modelTable) {
+					return { status: "error", message: "No models table found in InvokeAI DB" };
+				}
+
+				const cols = srcDb.prepare(`PRAGMA table_info(${modelTable})`).all() as Array<{ name: string }>;
+				const colNames = new Set(cols.map((c) => c.name));
+				const hasConfig = colNames.has("config");
+
+				type InvokeaiRow = {
+					id?: string;
+					name?: string;
+					type?: string;
+					base?: string;
+					path?: string;
+					description?: string | null;
+					trigger_phrases?: string | null;
+					cover_image?: string | null;
+					config?: string | null;
+				};
+
+				const rows = srcDb
+					.prepare(`SELECT * FROM ${modelTable}`)
+					.all() as InvokeaiRow[];
+
+				// Some InvokeAI versions encode type/base/description inside `config` JSON blob.
+				const loraRows = rows
+					.map((r) => {
+						let merged: InvokeaiRow = { ...r };
+						if (hasConfig && r.config) {
+							try {
+								const parsed = JSON.parse(r.config);
+								merged = { ...parsed, ...r };
+								if (!merged.description && parsed.description) merged.description = parsed.description;
+								if (!merged.type && parsed.type) merged.type = parsed.type;
+								if (!merged.trigger_phrases && parsed.trigger_phrases)
+									merged.trigger_phrases = Array.isArray(parsed.trigger_phrases)
+										? parsed.trigger_phrases.join(", ")
+										: parsed.trigger_phrases;
+								if (!merged.cover_image && parsed.cover_image) merged.cover_image = parsed.cover_image;
+							} catch { /* ignore */ }
+						}
+						return merged;
+					})
+					.filter((r) => String(r.type ?? "").toLowerCase() === "lora")
+					.filter((r) => typeof r.description === "string" && r.description.trim().length > 0);
+
+				// Candidate roots for model cover images: <db>/../model_images, <db>/../../model_images.
+				const dbDir = dirname(dbPath);
+				const candidateImageDirs = [
+					join(dbDir, "model_images"),
+					join(dirname(dbDir), "model_images"),
+				].filter((d) => existsSync(d));
+
+				const coverExts = [".png", ".webp", ".jpg", ".jpeg"];
+				const findCoverImage = (row: InvokeaiRow): string | null => {
+					const cover = row.cover_image;
+					if (cover && typeof cover === "string") {
+						if (existsSync(cover)) return cover;
+						// Might be a relative filename
+						for (const d of candidateImageDirs) {
+							const p = join(d, cover);
+							if (existsSync(p)) return p;
+						}
+					}
+					const id = row.id;
+					if (id) {
+						for (const d of candidateImageDirs) {
+							for (const ext of coverExts) {
+								const p = join(d, `${id}${ext}`);
+								if (existsSync(p)) return p;
+							}
+						}
+					}
+					return null;
+				};
+
+				const now = Math.floor(Date.now() / 1000);
+				let imported = 0;
+				const errors: string[] = [];
+
+				const insertLora = db.prepare(
+					"INSERT INTO loras (id, name, path, trigger_words, base_model, size_bytes, strength, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+				);
+				const insertStyle = db.prepare(
+					"INSERT INTO styles (id, name, description, prompt_template, category, thumbnail_path, created_at, updated_at) VALUES (?, ?, ?, '', 'imported', ?, ?, ?)",
+				);
+				const linkStyleLora = db.prepare(
+					"INSERT INTO style_loras (style_id, lora_id, strength, priority) VALUES (?, ?, ?, 0)",
+				);
+
+				for (const row of loraRows) {
+					try {
+						const name = row.name ?? "InvokeAI LoRA";
+						const description = (row.description ?? "").replace(/<[^>]+>/g, "").trim();
+						const triggerWords = row.trigger_phrases ?? null;
+						const baseModel = row.base ?? null;
+						const loraPath = row.path ?? null;
+
+						let loraId: string | null = null;
+						if (loraPath) {
+							const existing = db
+								.prepare("SELECT id FROM loras WHERE path = ?")
+								.get(loraPath) as { id: string } | undefined;
+							if (existing) {
+								loraId = existing.id;
+							} else {
+								loraId = crypto.randomUUID();
+								let sizeBytes: number | null = null;
+								try { if (existsSync(loraPath)) sizeBytes = statSync(loraPath).size; } catch { /* ignore */ }
+								insertLora.run(loraId, name, loraPath, triggerWords, baseModel, sizeBytes, 1.0, now);
+							}
+						}
+
+						const styleId = crypto.randomUUID();
+						let thumbnailPath: string | null = null;
+						const cover = findCoverImage(row);
+						if (cover) {
+							const stored = await storeStyleImage(cover, config.stylesDir, styleId);
+							if (stored) thumbnailPath = stored.thumbPath;
+						}
+
+						insertStyle.run(styleId, name, description, thumbnailPath, now, now);
+						if (loraId) linkStyleLora.run(styleId, loraId, 1.0);
+						imported++;
+					} catch (err) {
+						errors.push(`${row.name ?? row.id}: ${String(err)}`);
+					}
+				}
+
+				return { status: "success", imported, total: loraRows.length, errors };
+			} catch (err) {
+				return { status: "error", message: String(err) };
+			} finally {
+				try { srcDb.close(); } catch { /* ignore */ }
 			}
 		},
 

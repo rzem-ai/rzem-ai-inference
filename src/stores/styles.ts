@@ -362,6 +362,40 @@ export const useStylesStore = defineStore('styles', {
       return { status: 'success' as const };
     },
 
+    async importInvokeaiDb() {
+      const api = await getApiAsync();
+      this.importError = '';
+
+      const browse = await api.browse_invokeai_db();
+      const dbPath = browse.path;
+      if (!dbPath) return browse;
+
+      this.importing = true;
+      this.importTotal = 1;
+      this.importCurrent = 0;
+      this.importMessage = 'Reading InvokeAI database...';
+
+      try {
+        const res = await api.import_invokeai_loras({ db_path: dbPath });
+        if (res.status === 'success') {
+          const imported = (res.imported ?? 0) as number;
+          const total = (res.total ?? 0) as number;
+          this.importMessage = `Imported ${imported} of ${total} LoRA styles`;
+          if (imported > 0) {
+            await this.loadStyles();
+            await this.loadCategories();
+            await this.loadTags();
+          }
+        } else {
+          this.importError = res.message ?? 'Import failed';
+        }
+        return res;
+      } finally {
+        this.importing = false;
+        setTimeout(() => { this.importMessage = ''; }, 2000);
+      }
+    },
+
     // ── State setters ──
 
     setFavoritesOnly(val: boolean) {

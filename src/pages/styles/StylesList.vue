@@ -13,7 +13,7 @@
 				<div class="flex gap-2">
 					<Button severity="primary" @click="router.push({ name: 'styles-new' })"><Plus :size="14" />New Style</Button>
 					<Button severity="help" @click="router.push({ name: 'styles-builder' })"><Sparkles :size="14" />Builder</Button>
-					<Button severity="secondary" :loading="stylesStore.importing" @click="onImportMetadata"> <FolderInput :size="14" /> Import </Button>
+					<Button severity="secondary" :loading="stylesStore.importing" @click="showImportDialog = true"> <FolderInput :size="14" /> Import </Button>
 					<Button severity="warn" :disabled="!selectedIds.size" @click="onAiReview"><Sparkles :size="14" />AI Review</Button>
 				</div>
 
@@ -139,6 +139,35 @@
 
 		<!-- AI Review dialog -->
 		<StyleReviewDialog v-model:visible="showReviewDialog" />
+
+		<!-- Import source dialog -->
+		<Dialog
+			v-model:visible="showImportDialog"
+			modal
+			:draggable="false"
+			header="Import Styles"
+			class="w-120 max-w-[95vw]">
+			<div class="flex flex-col gap-3 py-2">
+				<button
+					class="flex items-start gap-3 rounded-lg border border-slate-200 p-4 text-left transition-colors hover:border-blue-400 hover:bg-blue-50"
+					@click="onImportFromFile">
+					<FolderInput :size="20" class="mt-1 shrink-0 text-blue-500" />
+					<div>
+						<div class="font-medium text-slate-800">Import from file</div>
+						<div class="text-xs text-slate-500">Civitai metadata JSON files or images (vision-based)</div>
+					</div>
+				</button>
+				<button
+					class="flex items-start gap-3 rounded-lg border border-slate-200 p-4 text-left transition-colors hover:border-blue-400 hover:bg-blue-50"
+					@click="onImportFromInvokeai">
+					<Database :size="20" class="mt-1 shrink-0 text-blue-500" />
+					<div>
+						<div class="font-medium text-slate-800">Import from InvokeAI database</div>
+						<div class="text-xs text-slate-500">Select invokeai.db — imports LoRAs that have descriptions, with cover images</div>
+					</div>
+				</button>
+			</div>
+		</Dialog>
 	</div>
 </template>
 
@@ -175,6 +204,7 @@ const contextStyleId = ref<string | null>(null);
 const searchInput = ref('');
 const sortPopover = ref();
 const showReviewDialog = ref(false);
+const showImportDialog = ref(false);
 
 const styleSortOptions = [
 	{ value: 'updated_at', label: 'Last Modified' },
@@ -293,9 +323,16 @@ function onCardContextMenu(event: MouseEvent, styleId: string) {
 	cardMenu.value.show(event);
 }
 
-async function onImportMetadata() {
+async function onImportFromFile() {
+	showImportDialog.value = false;
 	stylesStore.importError = '';
 	await stylesStore.importCivitaiMetadata();
+}
+
+async function onImportFromInvokeai() {
+	showImportDialog.value = false;
+	stylesStore.importError = '';
+	await stylesStore.importInvokeaiDb();
 }
 
 function onAiReview() {

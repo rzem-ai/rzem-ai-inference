@@ -13,6 +13,7 @@ dist-builds/
 # Electron-builder output
 release/
 dist-builds/
+releases/
 
 # Certificates
 .certs/

@@ -90,7 +90,7 @@ import tree from './tree';
 import treeselect from './treeselect';
 import treetable from './treetable';
 import virtualscroller from './virtualscroller';
-import { GlassBaseDesignTokens, GlassBaseTokenSections } from './types';
+import type { GlassBaseDesignTokens, GlassBaseTokenSections } from './types';
 
 export const semantic: GlassBaseTokenSections.Semantic = {
   transitionDuration: '0.2s',

@@ -1,8 +1,10 @@
 appId: com.rzem.ai.inference
-productName: RZEM AI Inference
+productName: Inference
 copyright: Copyright © 2026 RZEM AI
 
-# Pull files from electron-vite's build output (out/) plus package.json.
+# Pull files from electron-vite's build output (out/) plus the renderer
+# bundle. We also bundle the build/ icons so the tray icon resolves at
+# runtime via process.resourcesPath.
 files:
   - out/**/*
   - package.json
@@ -26,8 +28,8 @@ asarUnpack:
   - "**/*.node"
 
 directories:
-  buildResources: resources
-  output: dist-builds
+  buildResources: build
+  output: releases
 
 # ── Auto-update via GitHub Releases ────────────────────────────────────
 publish:
@@ -39,6 +41,7 @@ publish:
 # ── Per-platform targets ───────────────────────────────────────────────
 
 linux:
+  executableName: rzem-ai-inference
   target:
     - AppImage
     - deb
@@ -47,15 +50,8 @@ linux:
   icon: resources/icons
 
 mac:
-  target:
-    - target: dmg
-      arch:
-        - arm64
-        - x64
-    - target: zip
-      arch:
-        - arm64
-        - x64
+  target: 
+    - dmg
   category: public.app-category.graphics-design
   icon: resources/icon.icns
   hardenedRuntime: true

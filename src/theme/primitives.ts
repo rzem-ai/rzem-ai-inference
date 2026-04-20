@@ -1,4 +1,4 @@
-import { GlassBaseTokenSections } from './types';
+import type { GlassBaseTokenSections } from './types';
 
 export const primitive: GlassBaseTokenSections.Primitive = {
   borderRadius: {

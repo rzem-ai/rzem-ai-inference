@@ -7,7 +7,8 @@
  */
 
 import { ipcMain, type BrowserWindow } from "electron";
-import { autoUpdater } from "electron-updater";
+import electronUpdater from "electron-updater";
+const { autoUpdater } = electronUpdater;
 import type Database from "better-sqlite3";
 import type { EngineClient } from "./engine-client";
 import type { DiscoveryService } from "./discovery";
@@ -699,6 +700,8 @@ export function registerIpcHandlers(
 	ipcMain.handle("browseMetadataFiles", () => files.browseMetadataFiles());
 	ipcMain.handle("browseAndImportMetadata", () => files.browseAndImportMetadata());
 	ipcMain.handle("importCivitaiMetadata", (_e, params) => files.importCivitaiMetadata(params as Record<string, unknown>));
+	ipcMain.handle("browseInvokeaiDb", () => files.browseInvokeaiDb());
+	ipcMain.handle("importInvokeaiLoras", (_e, params) => files.importInvokeaiLoras(params as Record<string, unknown>));
 
 	// Style AI
 	ipcMain.handle("reviewStyles", async (_e, params) => {
