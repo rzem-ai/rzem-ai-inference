@@ -1,7 +1,7 @@
 {
   "name": "rzem-ai-inference",
   "productName": "Inference",
-  "version": "0.6.4",
+  "version": "0.6.5",
   "private": true,
   "main": "dist/main/index.js",
   "author": {
