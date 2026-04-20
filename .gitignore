@@ -6,10 +6,13 @@ bun.lock
 dist/
 build/
 release/
+out/
+dist-builds/
 .vite/
 
 # Electron-builder output
 release/
+dist-builds/
 
 # Certificates
 .certs/

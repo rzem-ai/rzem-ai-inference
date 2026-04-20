@@ -1,0 +1,80 @@
+appId: com.rzem.ai.inference
+productName: RZEM AI Inference
+copyright: Copyright © 2026 RZEM AI
+
+# Pull files from electron-vite's build output (out/) plus package.json.
+files:
+  - out/**/*
+  - package.json
+  - "!**/*.map"
+
+extraResources:
+  - from: resources
+    to: resources
+    filter:
+      - icon.png
+      - icons/**/*
+      - skills/**/*
+      - entitlements.mac.plist
+      - entitlements.mac.inherit.plist
+
+asar: true
+asarUnpack:
+  - "node_modules/electron-updater/**/*"
+  - "node_modules/better-sqlite3/**/*"
+  - "node_modules/sharp/**/*"
+  - "**/*.node"
+
+directories:
+  buildResources: resources
+  output: dist-builds
+
+# ── Auto-update via GitHub Releases ────────────────────────────────────
+publish:
+  provider: github
+  owner: rzem-ai
+  repo: rzem-ai-inference
+  releaseType: release
+
+# ── Per-platform targets ───────────────────────────────────────────────
+
+linux:
+  target:
+    - AppImage
+    - deb
+    - snap
+  category: Graphics
+  icon: resources/icons
+
+mac:
+  target:
+    - target: dmg
+      arch:
+        - arm64
+        - x64
+    - target: zip
+      arch:
+        - arm64
+        - x64
+  category: public.app-category.graphics-design
+  icon: resources/icon.icns
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: resources/entitlements.mac.plist
+  entitlementsInherit: resources/entitlements.mac.inherit.plist
+  notarize: true
+
+dmg:
+  sign: false
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: resources/icon.ico
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true

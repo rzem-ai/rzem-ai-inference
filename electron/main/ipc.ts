@@ -20,10 +20,10 @@ import { createSkillsService } from "./services/skills";
 import { createFilesHandlers } from "./services/files";
 import { createWorkflowService } from "./services/workflow";
 import { DEFAULT_BUNDLES, DEFAULT_BUNDLE_TYPES } from "./services/bundles";
-import { statSync, renameSync, unlinkSync, existsSync, readFileSync, writeFileSync, readdirSync } from "fs";
+import { statSync, renameSync, unlinkSync, existsSync, readFileSync, readdirSync } from "fs";
 import { join, basename } from "path";
 
-// ── Key conversion ───────────────────────────────────────────────
+// ── Helpers ──────────────────────────────────────────────────────
 
 function keysToSnake(obj: unknown): unknown {
 	if (Array.isArray(obj)) return obj.map(keysToSnake);
@@ -245,7 +245,7 @@ export function registerIpcHandlers(
 		emitInferenceEvent(eventType, jobId, mappedData);
 	});
 
-	// Wire FAL service events → same pipeline as engine events
+	// Wire FAL service events (cloud inference path).
 	falService.onEvent(async (event) => {
 		const eventType = (event.event as string) ?? "unknown";
 		const jobId = (event.job_id as string) ?? "";
@@ -518,7 +518,7 @@ export function registerIpcHandlers(
 	ipcMain.handle("batchParseData", (_e, { content }) => batchParseData(content) as unknown as Res);
 	ipcMain.handle("batchRenderTemplate", (_e, { template, rows }) => batchRenderTemplate(template, rows) as unknown as Res);
 
-	// Inference (proxied to engine)
+	// Inference (proxied to remote engine)
 	ipcMain.handle("getGpuInfo", async () => {
 		if (!engineClient.ready) return { status: "error", message: "Engine not ready" };
 		try {
@@ -526,6 +526,7 @@ export function registerIpcHandlers(
 			return { status: "success", deviceType: info.device_type, deviceName: info.device_name, totalVramGb: info.total_vram_gb };
 		} catch (err) { return { status: "error", message: String(err) }; }
 	});
+	// startEngine/stopEngine — no local process to manage. Connect/disconnect to remote.
 	ipcMain.handle("startEngine", async () => {
 		try { await engineClient.connect(); return { status: "success" }; }
 		catch (err) { return { status: "error", message: String(err) }; }
@@ -584,7 +585,7 @@ export function registerIpcHandlers(
 				return { status: "success", jobId };
 			}
 
-			// ── Local route: engine ──
+			// ── Remote engine route ──
 			if (!engineClient.ready) return { status: "error", message: "Engine not ready" };
 
 			const result = await engineClient.fetchJson<{ job_id: string }>("/jobs", { method: "POST", body: JSON.stringify(keysToSnake(p)) });
