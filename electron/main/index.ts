@@ -1,12 +1,11 @@
 /**
  * Electron main process entry point.
- * Replaces src/bun/index.ts (Electrobun).
  */
 
-import { app, BrowserWindow, Menu, ipcMain } from "electron";
+import { app, BrowserWindow, Menu } from "electron";
 import { mkdirSync, existsSync } from "fs";
-import { join } from "path";
-import path from "path";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { initDatabase } from "./database";
 import { EngineClient } from "./engine-client";
@@ -14,6 +13,10 @@ import { createDiscoveryService, type DiscoveryService } from "./discovery";
 import { registerIpcHandlers } from "./ipc";
 import { createFalService } from "./services/fal";
 import { initAutoUpdater } from "./updater";
+
+// ESM doesn't have __dirname. Resolve from import.meta.url for
+// electron-vite's bundled output.
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // ── Data directory ───────────────────────────────────────────────
 const dataDir = app.getPath("userData");
@@ -37,31 +40,26 @@ let mainWindow: BrowserWindow | null = null;
 // ── Window creation ──────────────────────────────────────────────
 function createWindow() {
 	mainWindow = new BrowserWindow({
-		title: "Inference",
+		title: "RZEM AI Inference",
 		width: 1400,
 		height: 900,
 		x: 100,
 		y: 100,
 		webPreferences: {
-			preload: path.join(__dirname, "preload.js"),
+			preload: join(__dirname, "../preload/index.mjs"),
+			sandbox: false,
 			contextIsolation: true,
 			nodeIntegration: false,
 		},
 	});
 
-	// Load the app
-	const VITE_DEV_PORT = 1978;
-	const VITE_DEV_URL = `http://localhost:${VITE_DEV_PORT}`;
-
-	if (process.env.NODE_ENV === "development" || process.env.VITE_DEV_SERVER_URL) {
-		const devUrl = process.env.VITE_DEV_SERVER_URL || VITE_DEV_URL;
-		mainWindow.loadURL(devUrl).catch(() => {
-			// Vite dev server not running — fall back to built assets
-			console.log("Vite dev server not running — using built assets.");
-			mainWindow!.loadFile(join(__dirname, "..", "renderer", "index.html"));
-		});
+	// electron-vite injects ELECTRON_RENDERER_URL in dev. In production we
+	// load the bundled HTML from out/renderer.
+	const devUrl = process.env["ELECTRON_RENDERER_URL"];
+	if (devUrl) {
+		void mainWindow.loadURL(devUrl);
 	} else {
-		mainWindow.loadFile(join(__dirname, "..", "renderer", "index.html"));
+		void mainWindow.loadFile(join(__dirname, "../renderer/index.html"));
 	}
 
 	mainWindow.on("closed", () => {
@@ -71,15 +69,12 @@ function createWindow() {
 
 // ── Application menu ─────────────────────────────────────────────
 function createMenu() {
-	const appName = "Inference";
+	const appName = "RZEM AI Inference";
 	const template: Electron.MenuItemConstructorOptions[] = [
 		{
 			label: appName,
 			submenu: [
-				{
-					label: `About ${appName}`,
-					click: () => app.showAboutPanel(),
-				},
+				{ label: `About ${appName}`, click: () => app.showAboutPanel() },
 				{ type: "separator" },
 				{ label: `Hide ${appName}`, role: "hide" },
 				{ role: "hideOthers" },
@@ -141,7 +136,8 @@ app.whenReady().then(() => {
 		if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
 	}
 
-	// Create engine client (reads stored host/port or defaults to localhost:8100)
+	// Create engine client (reads stored host/port or defaults to localhost:8100).
+	// The engine itself is always remote — we never spawn a local Python sidecar.
 	const storedHost = (db.prepare("SELECT value FROM settings WHERE key = 'ENGINE_HOST'").get() as { value: string } | null)?.value ?? "127.0.0.1";
 	const storedPort = parseInt((db.prepare("SELECT value FROM settings WHERE key = 'ENGINE_PORT'").get() as { value: string } | null)?.value ?? "8100", 10);
 	engineClient = new EngineClient({ host: storedHost, port: storedPort });
@@ -161,9 +157,8 @@ app.whenReady().then(() => {
 		app.dock?.setIcon(join(app.getAppPath(), "resources", "icon.png"));
 	}
 
-	// Create window
 	app.setAboutPanelOptions({
-		applicationName: "Inference",
+		applicationName: "RZEM AI Inference",
 		applicationVersion: app.getVersion(),
 		version: "",
 		copyright: "RZEM AI",
@@ -190,8 +185,6 @@ app.whenReady().then(() => {
 		}
 	});
 
-	// Auto-update is handled by initAutoUpdater() above (updater.ts)
-
 	app.on("activate", () => {
 		if (BrowserWindow.getAllWindows().length === 0) createWindow();
 	});
@@ -209,4 +202,4 @@ app.on("before-quit", () => {
 	db?.close();
 });
 
-console.log("Inference starting...");
+console.log("RZEM AI Inference starting...");

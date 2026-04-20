@@ -132,70 +132,12 @@ class ImageGenExecutor implements NodeExecutor {
 		const transformerType = (bundle.transformer_type as string) || (data.transformerType as string) || "flux_dev";
 
 		// ── FAL cloud route ──
-		if (transformerType === "fal_cloud") {
+		if (transformerType === "fal_cloud" || transformerType === "fal_cloud_edit") {
 			return this.executeCloud(prompt, bundle, data, progressCallback, cancelCheck);
 		}
 
-		// ── Local engine route ──
+		// ── Remote engine route (called "local" historically — refers to non-FAL) ──
 		return this.executeLocal(prompt, bundle, bundleId, transformerType, data, progressCallback, cancelCheck);
-	}
-
-	private async executeCloud(
-		prompt: string,
-		bundle: Row,
-		data: Record<string, unknown>,
-		progressCallback: ProgressCallback,
-		cancelCheck: CancelCheck,
-	): Promise<Record<string, unknown>> {
-		const falKey = (this.db.prepare("SELECT value FROM settings WHERE key = 'FAL_KEY'").get() as { value: string } | null)?.value;
-		if (!falKey) throw new Error("FAL API key not configured. Set it in Settings.");
-
-		const falEndpoint = (bundle.fal_endpoint as string) || "";
-		if (!falEndpoint) throw new Error("No FAL endpoint configured for this bundle");
-
-		let falAspectratio = bundle.fal_aspectratio;
-		if (typeof falAspectratio === "string") {
-			try { falAspectratio = JSON.parse(falAspectratio); } catch { falAspectratio = undefined; }
-		}
-
-		progressCallback(0.1, "Submitting to FAL cloud");
-
-		const jobId = crypto.randomUUID();
-
-		// Wait for the FAL job to complete via a Promise
-		const result = await new Promise<Record<string, unknown>>((resolve, reject) => {
-			const unsubscribe = this.falService.onEvent((event) => {
-				const eventJobId = event.job_id as string;
-				if (eventJobId !== jobId) return;
-
-				const eventType = event.event as string;
-				if (eventType === "job_completed") {
-					unsubscribe();
-					const eventData = event.data as Record<string, unknown>;
-					resolve({ image: eventData.image_path as string });
-				} else if (eventType === "job_failed") {
-					unsubscribe();
-					const eventData = event.data as Record<string, unknown>;
-					reject(new Error(`FAL generation failed: ${eventData.error ?? "Unknown error"}`));
-				} else if (eventType === "job_progress") {
-					progressCallback(0.5, "Generating on FAL cloud...");
-				}
-			});
-
-			this.falService.submitJob(jobId, falKey, {
-				prompt,
-				width: (data.width as number) ?? 1024,
-				height: (data.height as number) ?? 1024,
-				steps: (data.steps as number) ?? (bundle.steps as number) ?? undefined,
-				cfg_scale: (data.cfg as number) ?? (bundle.cfg_scale as number) ?? undefined,
-				seed: (data.seed as number) ?? -1,
-				fal_endpoint: falEndpoint,
-				fal_aspectratio: falAspectratio as string[] | undefined,
-			});
-		});
-
-		progressCallback(1.0, "Cloud generation complete");
-		return result;
 	}
 
 	private async executeLocal(
@@ -272,6 +214,65 @@ class ImageGenExecutor implements NodeExecutor {
 			await new Promise((r) => setTimeout(r, 300));
 		}
 	}
+
+	private async executeCloud(
+		prompt: string,
+		bundle: Row,
+		data: Record<string, unknown>,
+		progressCallback: ProgressCallback,
+		cancelCheck: CancelCheck,
+	): Promise<Record<string, unknown>> {
+		const falKey = (this.db.prepare("SELECT value FROM settings WHERE key = 'FAL_KEY'").get() as { value: string } | null)?.value;
+		if (!falKey) throw new Error("FAL API key not configured. Set it in Settings.");
+
+		const falEndpoint = (bundle.fal_endpoint as string) || "";
+		if (!falEndpoint) throw new Error("No FAL endpoint configured for this bundle");
+
+		let falAspectratio = bundle.fal_aspectratio;
+		if (typeof falAspectratio === "string") {
+			try { falAspectratio = JSON.parse(falAspectratio); } catch { falAspectratio = undefined; }
+		}
+
+		progressCallback(0.1, "Submitting to FAL cloud");
+
+		const jobId = crypto.randomUUID();
+
+		// Wait for the FAL job to complete via a Promise
+		const result = await new Promise<Record<string, unknown>>((resolve, reject) => {
+			const unsubscribe = this.falService.onEvent((event) => {
+				const eventJobId = event.job_id as string;
+				if (eventJobId !== jobId) return;
+
+				const eventType = event.event as string;
+				if (eventType === "job_completed") {
+					unsubscribe();
+					const eventData = event.data as Record<string, unknown>;
+					resolve({ image: eventData.image_path as string });
+				} else if (eventType === "job_failed") {
+					unsubscribe();
+					const eventData = event.data as Record<string, unknown>;
+					reject(new Error(`FAL generation failed: ${eventData.error ?? "Unknown error"}`));
+				} else if (eventType === "job_progress") {
+					progressCallback(0.5, "Generating on FAL cloud...");
+				}
+			});
+
+			this.falService.submitJob(jobId, falKey, {
+				prompt,
+				width: (data.width as number) ?? 1024,
+				height: (data.height as number) ?? 1024,
+				steps: (data.steps as number) ?? (bundle.steps as number) ?? undefined,
+				cfg_scale: (data.cfg as number) ?? (bundle.cfg_scale as number) ?? undefined,
+				seed: (data.seed as number) ?? -1,
+				fal_endpoint: falEndpoint,
+				fal_aspectratio: falAspectratio as string[] | undefined,
+			});
+		});
+
+		progressCallback(1.0, "Cloud generation complete");
+		return result;
+	}
+
 }
 
 class TextExecutor implements NodeExecutor {

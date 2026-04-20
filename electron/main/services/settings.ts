@@ -1,6 +1,8 @@
 /**
  * Settings service: engine status, VRAM, HF cache, data paths, disk usage.
- * Migrated from src/bun/services/settings.ts — electrobun → electron.
+ *
+ * Engine queries proxy through the remote EngineClient — this app does not
+ * spawn a local Python sidecar; it only connects to a remote engine.
  */
 
 import type Database from "better-sqlite3";
@@ -8,8 +10,6 @@ import type { EngineClient } from "../engine-client";
 import { statSync, readdirSync } from "fs";
 import { join } from "path";
 import { app } from "electron";
-
-type Row = Record<string, unknown>;
 
 interface ApiResponse {
 	status: "success" | "error";
