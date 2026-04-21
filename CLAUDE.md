@@ -1,91 +1,179 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working
+with code in this repository.
 
 ## What This Is
 
-Desktop AI image generation app built with **Electron** + **Vue 3** + **Vite**. The Electron main process (Node.js) handles database, IPC, and services. A Python sidecar (`rzem-ai-inference-engine` from sibling repo) runs inference via FastAPI with REST + WebSocket.
+Desktop AI image generation app built with **Electron** + **Vue 3** +
+**Vite** (via `electron-vite`). The Electron main process owns the
+SQLite database, IPC, discovery and the HTTP/WebSocket client for an
+**externally-running** Python inference engine (the sibling
+`rzem-ai-inference-engine` repo). This app does **not** spawn or manage
+the engine process — it connects over the network to whatever engine is
+advertised via mDNS or configured manually.
+
+Cloud image generation through FAL is handled in-process via
+`@fal-ai/client` and does not touch the local engine.
 
 ## Commands
 
 ```bash
 # Development
-npm run dev                    # Vite HMR + Electron (concurrent)
-npm run type-check             # vue-tsc type check for frontend
+npm run dev            # electron-vite dev (renderer HMR + Electron)
+npm run type-check     # vue-tsc (web) + tsc (node/electron) — no emit
 
-# Build
-npm run build                  # Build main process + frontend
-npm start                      # Run built Electron app
+# Build & run
+npm run build          # type-check web then electron-vite build
+npm start              # electron-vite preview (run built output)
 
-# Type checking
-npx tsc --noEmit -p tsconfig.main.json   # Main process
-npm run type-check                        # Vue frontend
+# Packaging
+npm run package        # build + local installers for host platform
+npm run package:linux  # AppImage, deb, snap
+npm run package:mac    # dmg (notarized)
+npm run package:win    # NSIS
+npm run release        # build and publish to GitHub Releases
 ```
 
-No test framework is configured. No linter is configured.
+Tests live in `tests/` and are written for **Vitest**, but vitest is
+**not currently declared in `package.json`** and there is no
+`"test"` npm script. If you need to run them you will have to install
+vitest and wire up a script. The current test imports also point at
+`../src/main/services/...` which no longer matches the
+`electron/main/services/...` layout — assume they are stale until
+someone refreshes them.
+
+Prettier (`.prettierrc.cjs` + `prettier-plugin-tailwindcss`) is
+configured; there is no separate lint step.
 
 ## Architecture
 
 ```
 Electron App
-├── src/main/                   — Electron main process (TypeScript → Node.js)
-│   ├── index.ts                — Entry: database, sidecar, IPC, window
-│   ├── preload.ts              — Preload script: contextBridge + electronAPI
-│   ├── ipc.ts                  — IPC handlers (~90 methods via ipcMain.handle)
-│   ├── database.ts             — better-sqlite3 schema + migrations + seeding
-│   ├── sidecar.ts              — Python engine subprocess (child_process.spawn)
+├── electron/main/                    Main process (TypeScript → Node)
+│   ├── index.ts                      Entry: data dir, DB, engine client,
+│   │                                 discovery, IPC, window, menu,
+│   │                                 auto-updater
+│   ├── database.ts                   better-sqlite3 schema + migrations
+│   ├── engine-client.ts              HTTP + WebSocket client for the
+│   │                                 Python engine (no process mgmt)
+│   ├── discovery.ts                  mDNS browser (_rzem-ai._tcp) via
+│   │                                 bonjour-service
+│   ├── ipc.ts                        ~114 ipcMain.handle channels
+│   ├── updater.ts                    electron-updater wiring
 │   └── services/
-│       ├── batch.ts            — CSV parsing + template rendering
-│       ├── bundles.ts          — Default bundle data (15 bundles, 6 types)
-│       ├── chat.ts             — Anthropic SDK streaming + tool use
-│       ├── files.ts            — Native file dialogs (Electron dialog)
-│       ├── settings.ts         — Engine status, VRAM, cache, paths
-│       ├── styles.ts           — Style CRUD, LoRA, tags, AI features
-│       └── workflow.ts         — Workflow DAG executor
+│       ├── batch.ts                  CSV parsing + template rendering
+│       ├── bundles.ts                Default bundle catalogue
+│       ├── chat.ts                   Anthropic SDK streaming + tool use
+│       ├── fal.ts                    FAL cloud generation (@fal-ai/client)
+│       ├── files.ts                  Native file dialogs
+│       ├── settings.ts               Engine status, paths, cache
+│       ├── skills.ts                 Loads resources/skills/*.md for the
+│       │                             chat agent (frontmatter + body)
+│       ├── styles.ts                 Styles CRUD, LoRA, tags, AI features
+│       └── workflow.ts               Workflow DAG executor
 │
-├── src/mainview/               — Vue 3 renderer (Vite-built)
-│   └── src/
-│       ├── bridge.ts           — Electron IPC adapter (Proxy-based snake↔camel)
-│       ├── composables/        — usePywebview (API abstraction)
-│       ├── stores/             — Pinia stores (inference, gallery, styles, etc.)
-│       ├── pages/              — Route pages (create, gallery, edit, styles, settings)
-│       └── types/pywebview.d.ts — API type definitions (snake_case)
+├── electron/preload/
+│   ├── index.ts                      contextBridge → window.electronAPI
+│   └── api.d.ts                      Public API surface types
 │
-└── Python Sidecar (subprocess)
-    └── rzem-ai-inference-engine (sibling repo)
-        ├── FastAPI server (REST + WebSocket)
-        ├── InferenceEngine — GPU jobs
-        └── HF cache management
+├── src/                              Renderer (Vue 3, Vite-built)
+│   ├── App.vue, main.ts              Root + bootstrap
+│   ├── bridge.ts                     Proxy adapter: snake_case API calls
+│   │                                 → camelCase IPC channel names
+│   ├── components/                   Shared components
+│   ├── composables/                  e.g. usePywebview
+│   ├── extensions/, plugins/         Tiptap + PrimeVue plugins
+│   ├── pages/                        create, edit, gallery, models,
+│   │                                 settings, styles, workflow
+│   ├── router/                       vue-router, hash history
+│   ├── stores/                       Pinia (Options API)
+│   ├── theme/                        Custom PrimeVue "Glass" preset
+│   └── types/                        pywebview.d.ts + friends
+│
+└── resources/                        Bundled via extraResources
+    ├── icons/, icon.png              Tray + window icons
+    └── skills/                       Markdown skills (flux, sdxl, z-image,
+                                      qwen, composition, lighting)
 ```
 
-### IPC Bridge Pattern
+### Build layout (electron-vite)
 
-The frontend uses a Proxy-based bridge (`bridge.ts`) that transparently converts `api.get_bundles()` → `window.electronAPI.invoke("getBundles", args)`. Response keys are converted camelCase → snake_case to match frontend expectations. This allows existing stores to work with zero changes.
+- `electron/main` → `out/main/` (Node, `externalizeDepsPlugin` keeps
+  native deps out of the bundle).
+- `electron/preload` → `out/preload/` (sandboxed bridge).
+- `src/` → `out/renderer/` (Vue app; renderer root is project root,
+  entry is `index.html`).
 
-### Event System
+### IPC bridge pattern
 
-Sidecar emits events via WebSocket → main process buffers them → forwarded to renderer via `webContents.send("inferenceEvent")` and polling buffer (`pollEvents`). Image persistence happens in the main process when `job_completed` events arrive.
+Renderer stores were written against a snake_case Python API
+(legacy from pywebview / Electrobun days). `src/bridge.ts` wraps the
+exposed `window.electronAPI.invoke` behind a `Proxy` that:
 
-### API Response Convention
+1. Converts snake_case method names (`get_bundles`) to camelCase
+   channel names (`getBundles`).
+2. Converts response keys back camelCase → snake_case so existing
+   stores keep working unchanged.
 
-Every RPC handler returns `{"status": "success", ...}` or `{"status": "error", "message": "..."}`.
+All handlers return `{ status: "success", ... }` or
+`{ status: "error", message: "..." }`.
+
+### Event system
+
+The engine pushes events (progress, `job_completed`, etc.) over a
+WebSocket. `engine-client.ts` re-emits them; the main process forwards
+to the renderer via `webContents.send("inferenceEvent", ...)` and also
+maintains a polling buffer so stores can reconcile on reconnect. Image
+persistence happens in the main process when `job_completed` arrives.
+
+### Engine discovery & connection
+
+- `discovery.ts` runs a `bonjour-service` browser for
+  `_rzem-ai._tcp` and exposes a server list + up/down callbacks.
+- The user selects a server (Settings → Network / Remote Servers) or
+  enters host/port manually.
+- `engine-client.ts` manages the REST/WebSocket lifecycle and
+  healthcheck. Nothing spawns a subprocess.
 
 ## Key Constraints
 
-- **Hash router required**: Electron loads via `file://` in production — `vue-router` must use hash mode
-- **Vite port 1978**: Hardcoded in `vite.config.ts` and `src/main/index.ts`
-- **Main process owns the database**: The Python sidecar is stateless — only the Electron main process writes to SQLite (via better-sqlite3)
-- **Database migrations**: Use proper migration strategies for schema changes
-- **Preload script**: All renderer ↔ main communication goes through `contextBridge` in `preload.ts`
+- **Hash router**: production loads `file://out/renderer/index.html`,
+  so `vue-router` must use `createWebHashHistory`.
+- **Vite port 1978**: hardcoded with `strictPort: true` in
+  `electron.vite.config.ts`.
+- **Main process owns the database**: the engine is stateless; only
+  the main process writes to `inference.db` in `app.getPath("userData")`.
+- **Preload-only bridge**: all renderer ↔ main communication must go
+  through `electron/preload/index.ts` via `contextBridge`. Never enable
+  `nodeIntegration`.
+- **Native deps unpacked**: `better-sqlite3`, `sharp`,
+  `electron-updater` are listed in `electron-builder.yml` under
+  `asarUnpack`. Adding other native modules? Add them there too.
+- **Renderer path alias**: `@` → `./src` (web tsconfig + vite config).
+  The main process has no `@` alias.
 
-## Frontend Stack
+## TypeScript configs
 
-- Vue 3 + TypeScript + Pinia (composition API, `<script setup>`)
-- PrimeVue 4 with custom Glass theme preset (`src/mainview/src/theme/`)
-- Tailwind CSS 4 via `@tailwindcss/vite` plugin
-- Tiptap rich text editor (for prompt input)
-- Lucide icons (`lucide-vue-next`)
-- Path alias: `@` → `src/mainview/src/`
+- `tsconfig.json` — root, references the two below.
+- `tsconfig.web.json` — renderer (`src/**` + `electron/preload/api.d.ts`).
+  Extends `@vue/tsconfig/tsconfig.dom.json`.
+- `tsconfig.node.json` — main process (`electron/**/*.ts` +
+  `electron.vite.config.ts`).
+
+There is no `tsconfig.main.json`; don't invent one.
+
+## Packaging & release
+
+Config lives in `electron-builder.yml`.
+
+- `appId: com.rzem.ai.inference`, product name **Inference**.
+- Targets: Linux (AppImage, deb, snap), macOS (dmg, notarized,
+  hardened runtime, entitlements in `resources/`), Windows (NSIS).
+- Publishes to GitHub Releases at `rzem-ai/rzem-ai-inference`;
+  `electron-updater` reads from the same feed at runtime.
+- CI in `.github/workflows/` builds on tag push (`v*`) or manual
+  dispatch.
 
 ---
 
@@ -93,204 +181,91 @@ Every RPC handler returns `{"status": "success", ...}` or `{"status": "error", "
 
 ### Core Principles
 
-- **Composition API for Components**: Always use `<script setup>` for Vue components
-- **Options API for Stores**: Use Options API (`state`, `getters`, `actions`) for Pinia stores
-- **Component Order**: Always order component blocks as `<template>`, `<script>`, `<style>`
-- **TypeScript First**: All components must use TypeScript with proper type definitions
-- **Prefer `interface` over `type`**: For object shapes (easier to extend, better errors)
-- **Named Exports**: Prefer named exports over default exports
-- **Named Functions**: Use named functions for methods, arrow functions only for callbacks
-- **Meaningful Comments**: Only explain WHY, not WHAT (code should be self-documenting)
+- **Composition API for components**: `<script setup lang="ts">`.
+- **Options API for Pinia stores**: `state`, `getters`, `actions`.
+- **Block order**: `<template>`, `<script>`, `<style>`.
+- **TypeScript first**: prefer `interface` for object shapes.
+- **Named exports** over default exports.
+- **Named functions** for methods; arrow functions for callbacks.
+- **Comments explain WHY, not WHAT** — default to no comment.
 
-### Component Patterns
+### Component patterns
 
 ```vue
 <template>
-  <!-- Use kebab-case in templates -->
   <ImageCard @image-click="handleImageClick" :image-id />
 </template>
 
 <script setup lang="ts">
-// ✅ Props: TypeScript interface, no `const props =`
 defineProps<{
   imageId: string;
   width: number;
   height?: number;
 }>();
 
-// ✅ Emits: Type-safe with payload types
 const emit = defineEmits<{
   imageClick: [imageId: string];
   update: [id: string, value: number];
 }>();
 
-// ✅ v-model: Use defineModel
 const prompt = defineModel<string>();
 const width = defineModel<number>('width');
 
-// ✅ Named functions for handlers
 function handleClick() {
   emit('imageClick', 'img-123');
 }
 </script>
 
 <style scoped>
-/* Component-specific styles */
 </style>
 ```
 
 ### Styling
 
-- **Primary**: PrimeVue components (Button, DataTable, Dialog)
-- **Layout**: TailwindCSS utility classes
-- **Custom**: Scoped CSS only when PrimeVue/Tailwind insufficient
+- **Primary**: PrimeVue components.
+- **Layout**: Tailwind utilities.
+- **Custom**: scoped CSS only when PrimeVue/Tailwind won't cut it.
 
-### Tailwind CSS Rules
+### Tailwind rules
 
-- **No arbitrary pixel values**: Never use bracket syntax like `text-[13px]` or `w-[200px]`. Use the closest standard Tailwind class instead.
-  - `text-[10px]` → `text-xs`
-  - `text-[11px]` → `text-sm`
-  - `text-[13px]` → `text-base`
-  - For spacing/sizing brackets, convert to Tailwind units: `min-h-[60px]` → `min-h-15`, `max-h-[80px]` → `max-h-20`
-- **No point-sized values**: Never use fractional spacing like `gap-2.5` or `p-3.5`. Use whole numbers only.
-  - `gap-2.5` → `gap-2`, `p-3.5` → `p-3`, `py-1.5` → `py-1`
-  - For `0.5` values, round up to `1` (e.g., `mt-0.5` → `mt-1`)
-- **Tailwind v4 important modifier**: The `!` goes at the end (suffix), not the beginning (prefix).
-  - `!opacity-100` → `opacity-100!`
-  - `!my-1` → `my-1!`
-  - `!bg-white` → `bg-white!`
-- **Tailwind v4 bare values**: Use bare values instead of arbitrary bracket syntax for utilities that accept them natively.
-  - `aspect-[4/3]` → `aspect-4/3`
-  - `aspect-[16/9]` → `aspect-16/9`
-  - `columns-[2]` → `columns-2`
+- **No arbitrary pixel values**. Use standard classes:
+  `text-[13px]` → `text-base`, `min-h-[60px]` → `min-h-15`.
+- **No fractional spacing**. `gap-2.5` → `gap-2`, `mt-0.5` → `mt-1`.
+- **Tailwind v4 important suffix**: `opacity-100!`, not `!opacity-100`.
+- **Tailwind v4 bare values**: `aspect-4/3`, `columns-2`, not
+  bracket syntax.
 
-### State Management (Pinia)
-
-**Use Options API for all Pinia stores:**
+### Pinia (Options API)
 
 ```typescript
-// src/stores/queue.ts
 export const useQueueStore = defineStore('queue', {
   state: () => ({
     jobs: [] as GenerationJob[],
   }),
-
   getters: {
     pendingJobs(state): GenerationJob[] {
-      return state.jobs.filter(j => j.status === 'pending')
+      return state.jobs.filter(j => j.status === 'pending');
     },
   },
-
   actions: {
     async loadJobs() {
-      this.jobs = await invoke('get_all_jobs')
+      this.jobs = await api.get_all_jobs();
     },
   },
-})
-```
-
-**Usage:**
-
-```vue
-<script setup lang="ts">
-const queueStore = useQueueStore();
-const { jobs } = storeToRefs(queueStore);  // Reactive refs
-await queueStore.loadJobs();  // Call actions directly
-</script>
-```
-
-**Key Points:**
-
-- Use `state()` function returning an object for state
-- Use `getters` object for computed properties (receive `state` as first param)
-- Use `actions` object for methods (access state via `this`)
-- Event listeners should be initialized/cleaned up in actions (call from components)
-
-### TypeScript Patterns
-
-```typescript
-// ✅ Map Rust types to TypeScript
-/**
- * Generation job from backend
- * Maps to: src-tauri/src/queue/mod.rs::GenerationJob
- */
-export interface GenerationJob {
-  id: string;
-  status: JobStatus;      // Rust enum with serde lowercase
-  progress: number;       // f32 → number (0.0-1.0)
-  result_path?: string;   // Option<String> → string | undefined
-}
-
-export type JobStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
-
-// ✅ Type Tauri invoke calls
-async function queueGeneration(params: GenerationParams): Promise<string> {
-  try {
-    return await invoke<string>('queue_generation', { params });
-  } catch (error) {
-    console.error('Failed:', error);
-    throw error;
-  }
-}
-```
-
-### Composables
-
-```typescript
-// src/composables/useJobUpdates.ts
-export function useJobUpdates() {
-  const unlisteners: UnlistenFn[] = [];
-
-  function onJobProgress(callback: (update: ProgressUpdate) => void) {
-    listen<ProgressUpdate>('job-progress', (event) => {
-      callback(event.payload);
-    }).then(unlisten => unlisteners.push(unlisten));
-  }
-
-  // Auto cleanup
-  onUnmounted(() => unlisteners.forEach(fn => fn()));
-
-  return { onJobProgress };
-}
-```
-
-### Common Anti-Patterns
-
-**❌ DON'T:**
-
-- Call `invoke()` in computed properties → infinite loops
-- Forget to unsubscribe from events → memory leaks
-- Mutate props directly → use emits
-- Mutate store state from components → use actions
-- Use `const props =` unless needed in script
-
-**✅ DO:**
-
-- Load once, use reactive state
-- Use composables with automatic cleanup
-- Emit update events for two-way binding
-- Call store actions for state changes
-
-### Project-Specific Event Flow
-
-```typescript
-// Backend emits
-app.emit("job-progress", ProgressUpdate { job_id, progress, stage });
-
-// Frontend receives
-const { onJobProgress } = useJobUpdates();
-onJobProgress((update) => {
-  const job = jobs.value.find(j => j.id === update.job_id);
-  if (job) job.progress = update.progress;
 });
 ```
 
-**State Sync Pattern:**
+Components consume stores via `storeToRefs()` for reactive refs and
+call actions directly. Event listeners are set up and torn down in
+actions, invoked from components on mount/unmount.
 
-1. Initial load from backend (`invoke()` in actions)
-2. Initialize event listeners via explicit actions (call from components on mount)
-3. Store maintains single source of truth
-4. Components use reactive refs from store (`storeToRefs()`)
-5. Cleanup listeners when store/component unmounts
+### Common anti-patterns
 
----
+**Don't**: call `invoke()` in computed properties, forget to
+unsubscribe from events, mutate props directly, mutate store state
+from components, use `const props =` unless you actually reference
+`props` in script.
+
+**Do**: load once into reactive state, use composables with
+`onUnmounted` cleanup, emit update events for two-way binding, call
+store actions to mutate state.

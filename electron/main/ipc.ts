@@ -21,6 +21,7 @@ import { createSkillsService } from "./services/skills";
 import { createFilesHandlers } from "./services/files";
 import { createWorkflowService } from "./services/workflow";
 import { DEFAULT_BUNDLES, DEFAULT_BUNDLE_TYPES } from "./services/bundles";
+import { writeFreedesktopThumbnail } from "./services/thumbnails";
 import { statSync, renameSync, unlinkSync, existsSync, readFileSync, readdirSync } from "fs";
 import { join, basename } from "path";
 
@@ -91,9 +92,12 @@ async function processOutputImage(
 			.resize({ width: 512, withoutEnlargement: true })
 			.webp({ quality: 85 })
 			.toFile(coverPath);
+		// Also write a freedesktop thumbnail so Nautilus/Files shows a preview.
+		void writeFreedesktopThumbnail(imagePath);
 		return { imagePath, coverPath };
 	} catch (err) {
 		console.error(`[cover] Failed to generate cover for ${jobId}:`, err);
+		void writeFreedesktopThumbnail(imagePath);
 		return { imagePath, coverPath: null };
 	}
 }

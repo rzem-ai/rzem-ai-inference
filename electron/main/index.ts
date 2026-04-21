@@ -12,6 +12,7 @@ import { EngineClient } from "./engine-client";
 import { createDiscoveryService, type DiscoveryService } from "./discovery";
 import { registerIpcHandlers } from "./ipc";
 import { createFalService } from "./services/fal";
+import { backfillOutputThumbnails } from "./services/thumbnails";
 import { initAutoUpdater } from "./updater";
 
 // ESM doesn't have __dirname. Resolve from import.meta.url for
@@ -188,6 +189,11 @@ app.whenReady().then(() => {
 	app.on("activate", () => {
 		if (BrowserWindow.getAllWindows().length === 0) createWindow();
 	});
+
+	// Backfill freedesktop thumbnails for existing images so GNOME/Files
+	// shows previews without invoking its own thumbnailer (which has
+	// historically marked our outputs as un-thumbnailable via the fail cache).
+	void backfillOutputThumbnails(outputDir);
 });
 
 app.on("window-all-closed", () => {
