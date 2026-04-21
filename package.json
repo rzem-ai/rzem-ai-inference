@@ -1,7 +1,8 @@
 {
   "name": "rzem-ai-inference",
-  "productName": "RZEM AI Inference",
-  "version": "0.6.5",
+  "productName": "Inference",
+  "description": "Desktop AI Image Generation",
+  "version": "0.6.6",
   "private": true,
   "type": "module",
   "main": "out/main/index.js",
@@ -9,11 +10,9 @@
     "name": "RZEM AI",
     "email": "dev@rzem.ai"
   },
-  "description": "Desktop AI Image Generation",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "vue-tsc --noEmit -p tsconfig.web.json && electron-vite build",
-    "start": "electron-vite preview",
     "preview": "electron-vite preview",
     "type-check": "vue-tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.node.json",
     "postinstall": "electron-builder install-app-deps",

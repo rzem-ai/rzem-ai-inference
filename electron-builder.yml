@@ -1,6 +1,6 @@
-appId: com.rzem.ai.inference
+appId: ai.rzem.inference
 productName: Inference
-copyright: Copyright © 2026 RZEM AI
+copyright: Copyright © 2026 Rzem AI
 
 # Pull files from electron-vite's build output (out/) plus the renderer
 # bundle. We also bundle the build/ icons so the tray icon resolves at
